@@ -6,9 +6,9 @@ import { KeepPlayer, memoryImages } from "@/components/keep-player";
 
 export const Route = createFileRoute("/recipient")({
   validateSearch: (search: Record<string, unknown>) => ({
-    name: typeof search.name === "string" ? search.name.slice(0, 50) : "Hanna",
-    from: typeof search.from === "string" ? search.from.slice(0, 50) : "Alex",
-    year: typeof search.year === "string" ? search.year.slice(0, 4) : "2026",
+    name: typeof search["name"] === "string" ? search["name"].slice(0, 50) : "Hanna",
+    from: typeof search["from"] === "string" ? search["from"].slice(0, 50) : "Alex",
+    year: typeof search["year"] === "string" ? search["year"].slice(0, 4) : "2026",
   }),
   head: () => ({ meta: [
     { title: "A Keep for Hanna — KEEP" },
