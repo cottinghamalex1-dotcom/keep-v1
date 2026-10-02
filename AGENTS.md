@@ -8,3 +8,6 @@
 > Commits you push to the connected branch sync back to Lovable and show up in
 > the editor, so keep the branch in a working state.
 <!-- LOVABLE:END -->
+
+- KEEP is a frontend-only prototype: keep creation state locally within the home route, because no account, uploads, processing, or backend is part of this first release.
+- Recipient viewing has its own public route without app navigation, so a keepsake tap can be demonstrated independently of the creator flow.
