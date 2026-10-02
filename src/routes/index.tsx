@@ -87,7 +87,7 @@ function KeepApp() {
   const [finished, setFinished] = useState(false);
   const [setting, setSetting] = useState("");
   const go = (next: Screen) => { setHistory(h => [...h, screen]); setScreen(next); window.scrollTo(0, 0); };
-  const back = () => { const last = history.at(-1); setScreen(last ?? "home"); setHistory(h => h.slice(0,-1)); window.scrollTo(0,0); };
+  const back = () => { const last = history[history.length - 1]; setScreen(last ?? "home"); setHistory(h => h.slice(0,-1)); window.scrollTo(0,0); };
   const begin = () => { setHistory([screen]); setScreen("recipient"); window.scrollTo(0,0); };
   useEffect(() => { if (!recording || paused) return; const t = window.setInterval(() => setSeconds(s => s + 1), 1000); return () => window.clearInterval(t); }, [recording, paused]);
   useEffect(() => { if (screen !== "generating") return; if (generation >= 3) { const t = window.setTimeout(() => go("editor"), 650); return () => window.clearTimeout(t); } const t = window.setTimeout(() => setGeneration(n => n + 1), 1250); return () => window.clearTimeout(t); }, [screen, generation]);
