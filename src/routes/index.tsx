@@ -479,16 +479,57 @@ function KeepApp() {
     window.scrollTo(0, 0);
   };
   const startFinal = async () => { setRehearsing(false); setScroll(0); setScrollPaused(false); lastElapsed.current = 0; const ok = await recorder.start(); if (!ok) toast.error("The microphone isn't available right now."); };
+
+  const syncFinalCaptions = async (blob: Blob, mimeType?: string) => {
+    setCaptionSyncing(true);
+    setCaptionSyncError(false);
+    try {
+      const prompt = project.messageParagraphs.join(" ").slice(0, 1200);
+      const timed = await transcribeTimedAudio(blob, mimeType, prompt);
+      const cues = groupTimedWords(timed.words);
+      if (!cues.length) throw new Error("No timestamped words returned");
+      setProject((o) => ({ ...o, captionTranscript: timed.transcript, captionCues: cues }));
+    } catch {
+      setCaptionSyncError(true);
+    } finally {
+      setCaptionSyncing(false);
+    }
+  };
+
   const finishFinal = async () => {
     const r = await recorder.stop();
     if (!r) { toast.error("Nothing was recorded. Try again."); return; }
     const id = newId("voice");
     const stored = await putBlob(id, r.blob);
     if (rec) { releaseUrls([rec.audioUrl]); if (rec.audioId) void deleteBlobs([rec.audioId]); }
-    patch({ finalVoiceRecording: { audioId: stored ? id : undefined, audioUrl: URL.createObjectURL(r.blob), durationSec: r.durationSec, mimeType: r.mimeType, demo: false } });
+    const audioUrl = URL.createObjectURL(r.blob);
+    setProject((o) => ({
+      ...o,
+      finalVoiceRecording: { audioId: stored ? id : undefined, audioUrl, durationSec: r.durationSec, mimeType: r.mimeType, demo: false },
+      captionTranscript: "",
+      captionCues: [],
+    }));
+    go("recorded");
+    void syncFinalCaptions(r.blob, r.mimeType);
+  };
+
+  const retryCaptionSync = async () => {
+    if (!rec?.audioUrl) return;
+    try {
+      const response = await fetch(rec.audioUrl);
+      const blob = await response.blob();
+      await syncFinalCaptions(blob, rec.mimeType);
+    } catch {
+      setCaptionSyncError(true);
+      setCaptionSyncing(false);
+    }
+  };
+
+  const useDemoRecording = () => {
+    if (rec) { releaseUrls([rec.audioUrl]); if (rec.audioId) void deleteBlobs([rec.audioId]); }
+    patch({ finalVoiceRecording: { durationSec: 237, demo: true }, captionTranscript: "", captionCues: [] });
     go("recorded");
   };
-  const useDemoRecording = () => { if (rec) { releaseUrls([rec.audioUrl]); if (rec.audioId) void deleteBlobs([rec.audioId]); } patch({ finalVoiceRecording: { durationSec: 237, demo: true } }); go("recorded"); };
   const toggleVoicePlayback = () => {
     const audio = voicePlaybackRef.current;
     if (!audio) return;
