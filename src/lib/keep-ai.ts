@@ -1,6 +1,6 @@
 // Client for KEEP's guided interview service. Configured via VITE_KEEP_AI_URL / VITE_KEEP_AI_KEY.
-const URL_ = import.meta.env['VITE_KEEP_AI_URL'] as string | undefined;
-const KEY = import.meta.env['VITE_KEEP_AI_KEY'] as string | undefined;
+const URL_ = (import.meta.env['VITE_KEEP_AI_URL'] as string | undefined) || "https://lwkzhpwugtosbidxvdcr.supabase.co/functions/v1/keep-ai";
+const KEY = (import.meta.env['VITE_KEEP_AI_KEY'] as string | undefined) || "sb_publishable_K8_SWJByLhV78h7gY4NySw_4sgjEVTi";
 
 export const keepAiAvailable = () => !!URL_ && !!KEY;
 
