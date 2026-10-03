@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useRef, useState, type ChangeEvent, type ReactNode } from "react";
-import { ArrowLeft, ArrowRight, Check, ChevronLeft, ChevronRight, CircleHelp, Download, Ellipsis, GripVertical, Images, LockKeyhole, MessageCircle, Mic, Music2, Pause, Play, Plus, Radio, RotateCcw, Settings2, Sparkles, Square, Trash2, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, ChevronLeft, ChevronRight, CircleHelp, Download, Ellipsis, GripVertical, Images, LockKeyhole, MessageCircle, Mic, Music2, FileUp, Pause, Play, Plus, Radio, RotateCcw, Settings2, Sparkles, Square, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { KeepPlayer, memoryImages, memoryLabels } from "@/components/keep-player";
@@ -98,11 +98,14 @@ function KeepApp() {
   const [otherOccasion, setOtherOccasion] = useState("");
   const [otherRelationship, setOtherRelationship] = useState("");
   const [dictating, setDictating] = useState(false);
+  const [writeInputMode, setWriteInputMode] = useState<"speak" | "type" | "upload">("type");
+  const [uploadedDraftName, setUploadedDraftName] = useState("");
   const dictationRef = useRef<any>(null);
   const dictationTargetRef = useRef<"write" | "intent">("write");
   const recorder = useRecorder();
   const lastElapsed = useRef(0);
   const addInput = useRef<HTMLInputElement>(null);
+  const draftInput = useRef<HTMLInputElement>(null);
   const replaceInput = useRef<HTMLInputElement>(null);
   const dragFrom = useRef<number | null>(null);
   const patch = (p: Partial<KeepProject>) => setProject((o) => ({ ...o, ...p }));
@@ -188,6 +191,45 @@ function KeepApp() {
     recognition.start();
   };
 
+  const importDraft = async (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    const ext = file.name.split(".").pop()?.toLowerCase();
+    if (!["txt", "md", "rtf"].includes(ext ?? "")) {
+      toast.error("For now, upload a .txt, .md, or .rtf file. Word and PDF import are coming next.");
+      return;
+    }
+    if (file.size > 1024 * 1024) {
+      toast.error("That file is too large. Try a document under 1 MB.");
+      return;
+    }
+    try {
+      let text = await file.text();
+      if (ext === "rtf") {
+        text = text
+          .replace(/\\par[d]?/g, "\n")
+          .replace(/\\'[0-9a-fA-F]{2}/g, "")
+          .replace(/\\[a-z]+-?\d* ?/g, "")
+          .replace(/[{}]/g, "")
+          .replace(/\n{3,}/g, "\n\n")
+          .trim();
+      }
+      if (!text.trim()) {
+        toast.error("KEEP couldn't find readable text in that file.");
+        return;
+      }
+      const clean = text.slice(0, 100000);
+      patch({ writtenText: clean });
+      setUploadedDraftName(file.name);
+      setWriteInputMode("upload");
+      if (dictationRef.current && dictating) dictationRef.current.stop();
+      toast.success("Your writing is ready to work with.");
+    } catch {
+      toast.error("KEEP couldn't read that file. Try saving it as plain text.");
+    }
+  };
+
   // ---- Final voice recording ----
   const rec = project.finalVoiceRecording;
   const startFinal = async () => { setScroll(0); setScrollPaused(false); lastElapsed.current = 0; const ok = await recorder.start(); if (!ok) toast.error("The microphone isn't available right now."); };
@@ -267,7 +309,7 @@ function KeepApp() {
   const micMessage = recorder.supported === false ? "This browser can't record audio here." : recorder.status === "denied" ? "Microphone access was blocked. You can allow it in your browser settings." : recorder.status === "error" ? "The microphone couldn't start." : "";
   const isRecording = recorder.status === "recording" || recorder.status === "paused";
   const primaryNav = screen === "home" || screen === "you";
-  const fileInputs = <><input ref={addInput} type="file" accept="image/*,video/*" multiple className="sr-only" aria-label="Choose photos and videos" tabIndex={-1} onChange={(e) => void addFiles(e)} /><input ref={replaceInput} type="file" accept="image/*,video/*" className="sr-only" aria-label="Choose a replacement photo or video" tabIndex={-1} onChange={(e) => void addFiles(e, frame % Math.max(1, shown.length))} /></>;
+  const fileInputs = <><input ref={draftInput} type="file" accept=".txt,.md,.rtf,text/plain,text/markdown,application/rtf" className="sr-only" aria-label="Upload something you have already written" tabIndex={-1} onChange={(e) => void importDraft(e)} /><input ref={addInput} type="file" accept="image/*,video/*" multiple className="sr-only" aria-label="Choose photos and videos" tabIndex={-1} onChange={(e) => void addFiles(e)} /><input ref={replaceInput} type="file" accept="image/*,video/*" className="sr-only" aria-label="Choose a replacement photo or video" tabIndex={-1} onChange={(e) => void addFiles(e, frame % Math.max(1, shown.length))} /></>;
 
   return <main className="app-shell">{fileInputs}<div key={screen} className={`page-enter ${primaryNav ? "pb-28" : ""}`}>
     {screen === "onboarding" && <div className="flex min-h-dvh flex-col justify-between px-7 pb-[max(36px,env(safe-area-inset-bottom))] pt-[max(40px,env(safe-area-inset-top))]"><span className="brand">KEEP</span><div className="py-10"><h1 className="display whitespace-nowrap text-[clamp(43px,12vw,64px)]">Say what matters.<br />Keep it forever.</h1><p className="mt-6 max-w-sm text-sm leading-7 text-muted-foreground">KEEP helps you turn the words you want to say and the memories you don't want to lose into a beautiful keepsake someone can physically hold, tap, and experience forever.</p><ol className="mt-12 grid grid-cols-3 border-t border-border">{[{ l: "Create message", I: MessageCircle }, { l: "Add media", I: Images }, { l: "Enjoy memories", I: Play }].map(({ l, I }, i) => <li key={l} className="pt-5 pr-3"><span className="eyebrow">0{i + 1}</span><I className="mt-4 size-5 text-accent" /><p className="mt-3 text-xs leading-4">{l}</p></li>)}</ol></div><div className="space-y-2">{nextButton("Create something worth keeping", () => { dismissOnboarding(); begin(); })}<Button variant="bare" size="touch" className="w-full text-muted-foreground" onClick={() => { dismissOnboarding(); home(); }}>See my Keeps</Button></div></div>}
@@ -292,7 +334,7 @@ function KeepApp() {
       {micUnavailable && !currentAnswer && <p className="mt-8 max-w-xs text-xs leading-6 text-muted-foreground">{micMessage} You can use a demo response to keep going.</p>}
     </div><div className="flex flex-col items-center gap-3">{isRecording ? <><div className="text-sm tabular-nums text-accent">● {fmt(recorder.elapsed)}</div>{wave(27, true)}<Button variant="keep" size="touch" className="w-full" onClick={() => void stopAnswer()}><Square fill="currentColor" /> Stop</Button></> : currentAnswer ? <><Button variant="keep" size="touch" className="w-full justify-between" onClick={nextQuestion}>{q === questions.length - 1 ? "That's everything" : "Next question"}<ArrowRight /></Button><Button variant="bare" size="sm" className="text-muted-foreground" onClick={() => (micUnavailable ? useDemoAnswer() : void startAnswer())}><RotateCcw /> Answer again</Button></> : <>{wave(27, false)}{!micUnavailable && <Button variant="keep" size="touch" className="w-full" disabled={recorder.status === "requesting" || recorder.supported === null} onClick={() => void startAnswer()}><Mic /> {recorder.status === "requesting" ? "Waiting for microphone…" : "Tap to answer"}</Button>}<Button variant={micUnavailable ? "keep" : "bare"} size={micUnavailable ? "touch" : "sm"} className={micUnavailable ? "w-full" : "text-muted-foreground"} onClick={useDemoAnswer}>Use demo response</Button></>}</div></div>}
     {screen === "summary" && <>{top()}<div className="flex min-h-[calc(100dvh-100px)] flex-col justify-between px-7 pb-10 pt-15">{realAnswers.length === 0 ? <div>{title("Demo summary", "I think we have it.")}<p className="font-display text-3xl leading-snug text-foreground/90">{withName("Hanna is your closest friend, the person who believes in you, and the one who makes everyone around her feel at home.", name)}</p><p className="mt-7 text-sm leading-7 text-muted-foreground">From the quiet rituals of your everyday life to watching her become a mother, this is a story about choosing each other through every version of life.</p></div> : <div>{title("Your story, in your voice", "Your answers are saved.")}<p className="font-display text-3xl leading-snug text-foreground/90">You recorded {realAnswers.length} {realAnswers.length === 1 ? "answer" : "answers"} · {fmt(realAnswers.reduce((s, a) => s + (a.durationSec ?? 0), 0))}</p><p className="mt-7 text-sm leading-7 text-muted-foreground">Turning recordings into a written message needs KEEP's writing assistant, which isn't connected in this MVP yet. For now, start from the demo message or write your own.</p></div>}<div className="space-y-3">{nextButton(realAnswers.length ? "Use demo message" : "Create My Message", demoMessage)}<Button variant="quiet" size="touch" className="w-full" onClick={() => go("write")}>Write it myself</Button>{note("Demo generation — no AI service is connected yet.")}</div></div></>}
-    {screen === "write" && <>{top("04 / 04")}<div className="px-7 pb-12 pt-9">{title("In your own words", "Bring us what you want to say.", "Speak it or type it — whichever feels more natural.")}<div className="mb-5 grid grid-cols-2 gap-2"><Button variant={dictating ? "selected" : "quiet"} className="h-20 flex-col" onClick={() => toggleDictation("write")}><Mic />{dictating ? "Listening…" : "Speak"}</Button><Button variant={!dictating ? "selected" : "quiet"} className="h-20 flex-col" onClick={() => { if (dictationRef.current && dictating) dictationRef.current.stop(); }}><MessageCircle />Type</Button></div>{dictating && <div className="mb-4 rounded-sm border border-accent/40 p-4 text-center page-enter"><div className="mb-2 flex items-center justify-center gap-2 text-sm text-accent"><span className="size-2 animate-pulse rounded-full bg-accent" />Listening</div><p className="text-xs leading-5 text-muted-foreground">Speak naturally. Your words will appear below as you talk. Tap Speak again when you're finished.</p></div>}<textarea aria-label="Your message" value={project.writtenText} onChange={(e) => patch({ writtenText: e.target.value })} placeholder="Start here…" rows={12} className="min-h-[320px] w-full resize-y rounded-sm border border-border bg-transparent p-4 font-display text-[22px] leading-[1.35] outline-none focus:border-accent" /><div className="mt-3"><Button variant="bare" size="sm" className="text-muted-foreground" onClick={() => patch({ writtenText: "" })}>Clear</Button></div><div className="mt-8">{nextButton("Continue", () => { const paras = project.writtenText.split(/\n\s*\n/).map((p) => p.trim()).filter(Boolean); patch({ messageParagraphs: paras, messageSource: "own" }); setActiveParagraph(0); go("message"); }, !project.writtenText.trim())}</div></div></>}
+    {screen === "write" && <>{top("04 / 04")}<div className="px-7 pb-12 pt-9">{title("In your own words", "Bring us what you want to say.", "Speak it, type it, or upload something you've already written.")}<div className="mb-5 grid grid-cols-3 gap-2"><Button variant={writeInputMode === "speak" ? "selected" : "quiet"} className="h-20 flex-col px-2" onClick={() => { setWriteInputMode("speak"); toggleDictation("write"); }}><Mic />{dictating && writeInputMode === "speak" ? "Listening…" : "Speak"}</Button><Button variant={writeInputMode === "type" ? "selected" : "quiet"} className="h-20 flex-col px-2" onClick={() => { setWriteInputMode("type"); if (dictationRef.current && dictating) dictationRef.current.stop(); window.setTimeout(() => document.querySelector<HTMLTextAreaElement>('textarea[aria-label="Your message"]')?.focus(), 0); }}><MessageCircle />Type</Button><Button variant={writeInputMode === "upload" ? "selected" : "quiet"} className="h-20 flex-col px-2" onClick={() => draftInput.current?.click()}><FileUp />Upload</Button></div>{dictating && writeInputMode === "speak" && <div className="mb-4 rounded-sm border border-accent/40 p-4 text-center page-enter"><div className="mb-2 flex items-center justify-center gap-2 text-sm text-accent"><span className="size-2 animate-pulse rounded-full bg-accent" />Listening</div><p className="text-xs leading-5 text-muted-foreground">Speak naturally. Your words will appear below as you talk. Tap Speak again when you're finished.</p></div>}{uploadedDraftName && writeInputMode === "upload" && <div className="mb-4 flex items-center justify-between rounded-sm border border-border px-4 py-3 page-enter"><span className="min-w-0"><span className="eyebrow block">IMPORTED</span><span className="mt-1 block truncate text-xs text-muted-foreground">{uploadedDraftName}</span></span><Button variant="bare" size="sm" className="shrink-0 text-muted-foreground" onClick={() => draftInput.current?.click()}>Replace</Button></div>}<textarea aria-label="Your message" value={project.writtenText} onChange={(e) => { setWriteInputMode("type"); patch({ writtenText: e.target.value }); }} placeholder="Start here…" rows={12} className="min-h-[320px] w-full resize-y rounded-sm border border-border bg-transparent p-4 font-display text-[22px] leading-[1.35] outline-none focus:border-accent" /><div className="mt-3 flex items-center justify-between"><Button variant="bare" size="sm" className="text-muted-foreground" onClick={() => { patch({ writtenText: "" }); setUploadedDraftName(""); setWriteInputMode("type"); }}>Clear</Button><span className="text-[10px] tracking-wide text-muted-foreground">TXT · MD · RTF</span></div><div className="mt-8">{nextButton("Continue", () => { const paras = project.writtenText.split(/\n\s*\n/).map((p) => p.trim()).filter(Boolean); patch({ messageParagraphs: paras, messageSource: "own" }); setActiveParagraph(0); go("message"); }, !project.writtenText.trim())}</div></div></>}
     {screen === "message" && <>{top("04 / 04")}<div className="px-7 pb-32 pt-9">{title(project.messageSource === "own" ? "In your own words" : "Demo generation", project.messageSource === "own" ? "Your message." : "Your message is ready.", "Tap any paragraph to make it yours.")}<div className="space-y-1">{project.messageParagraphs.map((p, i) => <textarea key={i} aria-label={`Message paragraph ${i + 1}`} rows={Math.max(3, Math.ceil(p.length / 44))} value={p} onFocus={() => setActiveParagraph(i)} onChange={(e) => patch({ messageParagraphs: project.messageParagraphs.map((item, j) => (j === i ? e.target.value : item)) })} className={`w-full resize-none rounded-sm border bg-transparent p-3 font-display text-[23px] leading-[1.3] outline-none transition-colors ${activeParagraph === i ? "border-accent/50" : "border-transparent"}`} />)}</div><Button variant="bare" size="sm" className="mt-2 text-muted-foreground" onClick={() => { patch({ messageParagraphs: [...project.messageParagraphs, ""] }); setActiveParagraph(project.messageParagraphs.length); }}><Plus /> Add paragraph</Button><Button variant="quiet" size="touch" className="mt-5 w-full" onClick={() => setAskOpen(true)}><Sparkles /> Ask KEEP</Button><div className="mt-3">{nextButton("Record Your Keep", () => { patch({ messageParagraphs: project.messageParagraphs.filter((p) => p.trim()) }); go("recordPrep"); }, !project.messageParagraphs.some((p) => p.trim()))}</div></div>{askOpen && sheet("Ask KEEP", () => setAskOpen(false), <><p className="mt-2 mb-6 text-xs text-muted-foreground">For the paragraph you've selected · demo edits</p>{["Make this sound more like me", "Shorten this section", "Make the ending stronger", "Add a memory"].map((prompt) => <Button key={prompt} variant="bare" className="flex h-14 w-full justify-between border-t border-border px-0 font-normal" onClick={() => { patch({ messageParagraphs: project.messageParagraphs.map((p, i) => (i !== activeParagraph ? p : prompt === "Shorten this section" ? p.split(". ").slice(0, 2).join(". ").replace(/\.?$/, ".") : prompt === "Add a memory" ? `${p} I still think of the way we laughed on that trip by the sea.` : prompt === "Make the ending stronger" ? `${p} I love you, and I always will.` : p.replace("I wanted to make this because", "I've been meaning to tell you this because"))) }); setAskOpen(false); toast.success("This paragraph has been updated"); }}>{prompt}<ArrowRight className="size-4 text-accent" /></Button>)}<p className="mt-4 text-[11px] text-muted-foreground">These are simple demo edits until KEEP's writing assistant is connected.</p></>)}</>}
     {screen === "recordPrep" && <div className="flex min-h-dvh flex-col px-7 pb-[max(36px,env(safe-area-inset-bottom))]">
       {top()}
