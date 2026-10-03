@@ -104,6 +104,9 @@ function KeepApp() {
   const [scroll, setScroll] = useState(0);
   const [scrollPaused, setScrollPaused] = useState(false);
   const [teleprompterSpeed, setTeleprompterSpeed] = useState(1);
+  const [voicePlaying, setVoicePlaying] = useState(false);
+  const [voiceTime, setVoiceTime] = useState(0);
+  const voicePlaybackRef = useRef<HTMLAudioElement>(null);
   const [busy, setBusy] = useState(false);
   const [otherOccasion, setOtherOccasion] = useState("");
   const [otherRelationship, setOtherRelationship] = useState("");
@@ -179,6 +182,13 @@ function KeepApp() {
   useEffect(() => { if (hydrated) saveDraft(project); }, [project, hydrated]);
   useEffect(() => { if (project.active && !viewingDemo && creationScreens.includes(screen)) setProject((o) => (o.stage === resumeScreen(screen) ? o : { ...o, stage: resumeScreen(screen) })); }, [screen]);
   useEffect(() => { if (screen !== "interview" && screen !== "record") recorder.cancel(); }, [screen]);
+  useEffect(() => {
+    if (screen === "recorded") return;
+    const audio = voicePlaybackRef.current;
+    if (audio) audio.pause();
+    setVoicePlaying(false);
+    setVoiceTime(0);
+  }, [screen]);
   useEffect(() => { if (screen !== "write" && screen !== "intent" && dictationRef.current) { dictationRef.current.stop(); dictationRef.current = null; setDictating(false); } }, [screen]);
   useEffect(() => { const d = recorder.elapsed - lastElapsed.current; lastElapsed.current = recorder.elapsed; if (screen === "record" && d > 0 && d < 2 && !scrollPaused) setScroll((s) => s + d * 15 * teleprompterSpeed); }, [recorder.elapsed, screen, scrollPaused, teleprompterSpeed]);
 
@@ -429,6 +439,18 @@ function KeepApp() {
     go("recorded");
   };
   const useDemoRecording = () => { if (rec) { releaseUrls([rec.audioUrl]); if (rec.audioId) void deleteBlobs([rec.audioId]); } patch({ finalVoiceRecording: { durationSec: 237, demo: true } }); go("recorded"); };
+  const toggleVoicePlayback = () => {
+    const audio = voicePlaybackRef.current;
+    if (!audio) return;
+    if (audio.paused) void audio.play();
+    else audio.pause();
+  };
+  const seekVoicePlayback = (value: number) => {
+    const audio = voicePlaybackRef.current;
+    if (!audio) return;
+    audio.currentTime = value;
+    setVoiceTime(value);
+  };
 
   // ---- Memories ----
   const frames = project.memories;
@@ -615,7 +637,54 @@ function KeepApp() {
       <div>{nextButton("I'm ready", () => go("record"))}</div>
     </div>}
     {screen === "record" && <div className="relative flex keep-h-screen min-h-[650px] flex-col overflow-hidden px-7 pb-[max(28px,env(safe-area-inset-bottom))]">{top()}<div className="pt-4 text-center"><h1 className="display mt-5 text-5xl">Now say it in your own voice.</h1><p className="mt-4 text-sm text-muted-foreground">These are your words. They should sound like you.</p></div><div className="script-fade my-8 min-h-0 flex-1 overflow-hidden"><div className="space-y-9 pt-16 text-center transition-transform duration-1000 ease-linear" style={{ transform: `translateY(-${scroll}px)` }}>{project.messageParagraphs.map((p, i) => <p key={i} className={`font-display text-3xl leading-[1.35] ${isRecording ? "text-foreground" : i === 0 ? "text-foreground" : "text-muted-foreground"}`}>{p}</p>)}</div></div><div className="text-center"><div className={`mb-1 text-sm tabular-nums ${isRecording ? "text-accent" : ""}`}>{isRecording && "● "}{fmt(recorder.elapsed)}</div>{wave(33, recorder.status === "recording")}{micUnavailable ? <><p className="mt-4 text-xs leading-5 text-muted-foreground">{micMessage}</p><Button variant="keep" size="touch" className="mt-4 w-full" onClick={useDemoRecording}>Use demo recording (3:57)</Button></> : <>{isRecording && <div className="mt-4 flex items-center gap-2"><Button variant="quiet" size="sm" className="flex-1" disabled={teleprompterSpeed <= 0.6} onClick={() => setTeleprompterSpeed((v) => Math.max(0.6, Math.round((v - 0.2) * 10) / 10))}>Slower</Button><div className="min-w-[92px] text-center"><span className="block text-[10px] tracking-widest text-muted-foreground">TELEPROMPTER</span><span className="mt-1 block text-sm tabular-nums text-foreground">{teleprompterSpeed.toFixed(1)}×</span></div><Button variant="quiet" size="sm" className="flex-1" disabled={teleprompterSpeed >= 2} onClick={() => setTeleprompterSpeed((v) => Math.min(2, Math.round((v + 0.2) * 10) / 10))}>Faster</Button></div>}<div className="mt-5 flex gap-2">{!isRecording ? <Button variant="keep" size="touch" className="w-full" disabled={recorder.status === "requesting" || recorder.supported === null} onClick={() => void startFinal()}><Mic /> {recorder.status === "requesting" ? "Waiting for microphone…" : "Start Recording"}</Button> : <>{recorder.canPause ? <Button variant="quiet" size="touch" className="flex-1" onClick={() => (recorder.status === "paused" ? recorder.resume() : recorder.pause())}>{recorder.status === "paused" ? <Play /> : <Pause />}{recorder.status === "paused" ? "Resume" : "Pause"}</Button> : <Button variant="quiet" size="touch" className="flex-1" onClick={() => setScrollPaused(!scrollPaused)}>{scrollPaused ? <Play /> : <Pause />}{scrollPaused ? "Resume script" : "Pause script"}</Button>}<Button variant="keep" size="touch" className="flex-1" onClick={() => void finishFinal()}><Check /> Finish</Button></>}</div></>}<p className="mx-auto mt-4 max-w-xs text-[11px] leading-5 text-muted-foreground">{isRecording && !recorder.canPause ? "This browser keeps recording while the script is paused. " : ""}KEEP will clean background noise and balance levels. Your voice stays your voice.</p></div></div>}
-    {screen === "recorded" && <>{top()}<div className="flex keep-min-screen-minus-90 flex-col justify-between px-7 pb-10 pt-14"><div>{title("A voice worth keeping", "Your voice is ready.", "Every word sounds more like you when it's said by you.")}{!rec ? <p className="text-sm text-muted-foreground">No recording yet.</p> : rec.demo ? <div className="mt-10 rounded-sm border border-border p-6">{wave(42, false)}<div className="mt-5 flex items-center justify-between text-xs text-muted-foreground"><span>DEMO RECORDING · NO AUDIO</span><span>3:57</span></div></div> : <div className="mt-10 rounded-sm border border-border p-6">{wave(42, false)}<div className="mt-5 mb-4 flex items-center justify-between text-xs text-muted-foreground"><span>YOUR RECORDING</span><span>{fmt(rec.durationSec)}</span></div>{rec.audioUrl ? <audio controls src={rec.audioUrl} className="w-full" preload="metadata" /> : <p className="text-xs text-muted-foreground">This recording couldn't be restored on this device. Record again to hear it.</p>}</div>}<Button variant="bare" size="touch" className="mt-5 w-full text-muted-foreground" onClick={() => go("record")}><RotateCcw /> Record again</Button></div>{nextButton("Use Recording", () => go("memories"), !rec)}</div></>}
+    {screen === "recorded" && <>{top()}<div className="relative flex keep-min-screen-minus-90 flex-col overflow-hidden px-7 pb-[max(36px,env(safe-area-inset-bottom))] pt-8">
+      <div className="pointer-events-none absolute left-1/2 top-[31%] h-80 w-80 -translate-x-1/2 rounded-full bg-accent/[0.07] blur-3xl" />
+      <div className="relative z-10 text-center">
+        <p className="eyebrow">A VOICE WORTH KEEPING</p>
+        <h1 className="display mx-auto mt-5 max-w-sm text-[clamp(50px,13vw,68px)] leading-[0.96]">Your voice is ready.</h1>
+        <p className="mx-auto mt-5 max-w-xs text-sm leading-6 text-muted-foreground">Not polished. Not performed. Just you — exactly how they should hear it.</p>
+      </div>
+
+      <div className="relative z-10 flex flex-1 flex-col items-center justify-center py-7">
+        {!rec ? <p className="text-sm text-muted-foreground">No recording yet.</p> : rec.demo ? <div className="w-full max-w-sm rounded-2xl border border-accent/20 bg-card/80 p-7 text-center shadow-2xl backdrop-blur">
+          <div className="voice-orb mx-auto flex size-24 items-center justify-center rounded-full border border-accent/30 bg-accent/[0.05]"><Play className="ml-1 size-8 text-accent" fill="currentColor" /></div>
+          <p className="mt-6 font-display text-2xl">Demo recording</p>
+          <p className="mt-2 text-xs text-muted-foreground">No audio attached · 3:57</p>
+        </div> : <div className="w-full max-w-sm">
+          {rec.audioUrl ? <>
+            <audio ref={voicePlaybackRef} src={rec.audioUrl} preload="metadata" className="sr-only" onPlay={() => setVoicePlaying(true)} onPause={() => setVoicePlaying(false)} onEnded={() => { setVoicePlaying(false); setVoiceTime(0); }} onTimeUpdate={(e) => setVoiceTime(e.currentTarget.currentTime)} />
+            <div className="relative overflow-hidden rounded-[28px] border border-accent/20 bg-card/80 px-6 pb-6 pt-8 shadow-2xl backdrop-blur">
+              <div className="pointer-events-none absolute left-1/2 top-0 h-40 w-40 -translate-x-1/2 -translate-y-1/3 rounded-full bg-accent/10 blur-3xl" />
+              <button type="button" onClick={toggleVoicePlayback} aria-label={voicePlaying ? "Pause recording" : "Play recording"} className="voice-orb relative mx-auto flex size-24 items-center justify-center rounded-full border border-accent/35 bg-accent/[0.07] text-accent shadow-[0_0_60px_oklch(0.76_0.055_78/0.16)] transition-transform active:scale-95">
+                {voicePlaying ? <Pause className="size-8" fill="currentColor" /> : <Play className="ml-1 size-8" fill="currentColor" />}
+                {voicePlaying && <span className="pulse-ring absolute inset-0 rounded-full border border-accent/45" />}
+              </button>
+
+              <div className="mt-7 flex h-14 items-center justify-center gap-[3px]" aria-hidden="true">
+                {Array.from({ length: 31 }, (_, i) => {
+                  const height = 9 + ((i * 19) % 37);
+                  const active = voicePlaying || (rec.durationSec > 0 && i / 31 <= voiceTime / rec.durationSec);
+                  return <span key={i} className={`${voicePlaying ? "wave-bar" : ""} w-[2px] rounded-full transition-opacity ${active ? "bg-accent opacity-100" : "bg-foreground/25 opacity-60"}`} style={{ height: `${height}px`, animationDelay: `${-(i % 8) * 0.11}s` }} />;
+                })}
+              </div>
+
+              <input aria-label="Recording progress" type="range" min={0} max={Math.max(1, rec.durationSec)} step={0.1} value={Math.min(voiceTime, rec.durationSec)} onChange={(e) => seekVoicePlayback(Number(e.target.value))} className="voice-progress mt-4 w-full" />
+              <div className="mt-2 flex items-center justify-between text-[10px] tracking-widest text-muted-foreground"><span>{fmt(voiceTime)}</span><span>{fmt(rec.durationSec)}</span></div>
+
+              <div className="mt-6 border-t border-border pt-5 text-center">
+                <p className="font-display text-[22px] leading-snug">{voicePlaying ? "This is how they'll hear you." : "Press play and hear what you kept."}</p>
+                <p className="mt-2 text-xs leading-5 text-muted-foreground">{fmt(rec.durationSec)} of your voice, saved with this Keep.</p>
+              </div>
+            </div>
+          </> : <div className="rounded-2xl border border-border bg-card/70 p-6 text-center"><p className="font-display text-2xl">Your recording is here.</p><p className="mt-3 text-xs leading-5 text-muted-foreground">The audio couldn't be restored on this device. Record again to hear it.</p></div>}
+        </div>}
+      </div>
+
+      <div className="relative z-10 space-y-2">
+        {nextButton("Keep this recording", () => go("memories"), !rec)}
+        <Button variant="bare" size="touch" className="w-full text-muted-foreground" onClick={() => go("record")}><RotateCcw /> Record again</Button>
+      </div>
+    </div></>}
     {screen === "memories" && <>{top()}<div className="px-7 pb-10 pt-9">{title("The moments in between", "Bring your words to life.", "Add photos & videos that belong to this story.")}{frames.length === 0 ? <div className="mt-10"><div className="grid h-72 grid-cols-3 gap-1 overflow-hidden opacity-60"><img className="col-span-2 h-full w-full object-cover" src={memoryImages[2]} alt="Travel memory placeholder" /><div className="flex flex-col gap-1"><img className="h-1/2 w-full object-cover" src={memoryImages[1]} alt="Wedding memory placeholder" /><img className="h-1/2 w-full object-cover" src={memoryImages[3]} alt="Family memory placeholder" /></div></div><Button variant="keep" size="touch" className="mt-8 w-full" disabled={busy} onClick={() => addInput.current?.click()}><Images /> {busy ? "Adding…" : "Choose Photos & Videos"}</Button><Button variant="bare" size="sm" className="mt-3 w-full text-muted-foreground" onClick={() => patch({ memories: sampleMemories() })}>Use sample memories</Button>{note("Your photos and videos stay on this device.")}</div> : <div className="page-enter"><div className="grid grid-cols-3 gap-1">{frames.map((m, i) => <div key={m.id} className="relative aspect-square overflow-hidden bg-card"><MediaView item={m} thumb alt={m.name ?? `Memory ${i + 1}`} className="h-full w-full object-cover" />{m.kind === "video" && <Play className="absolute bottom-1.5 left-1.5 size-3.5" fill="currentColor" />}<button type="button" aria-label={`Remove memory ${i + 1}`} onClick={() => removeMemory(i)} className="absolute top-1 right-1 flex size-7 items-center justify-center rounded-full bg-background/70 text-foreground"><X className="size-3.5" /></button></div>)}<button type="button" onClick={() => addInput.current?.click()} disabled={busy} className="flex aspect-square flex-col items-center justify-center gap-1 border border-border text-xs text-muted-foreground"><Plus className="size-4" />{busy ? "Adding…" : "Add more"}</button></div><p className="mt-5 text-center text-sm">{frames.length} {frames.length === 1 ? "memory" : "memories"} added <Check className="ml-1 inline size-4 text-accent" /></p><div className="mt-10">{nextButton("Create My Keep", () => { setGeneration(0); setFrame(0); go("generating"); })}</div><div className="mt-4">{note(frames.some((m) => m.source === "upload" && !m.persisted) ? "Some media couldn't be saved on this device and will be cleared on refresh." : "Saved on this device only.")}</div></div>}</div></>}
     {screen === "generating" && <div className="flex keep-h-screen flex-col items-center justify-center px-8 text-center"><div className="relative mb-14 flex size-30 items-center justify-center"><div className="pulse-ring absolute inset-0 rounded-full border border-accent" /><Sparkles className="size-8 text-accent" /></div><div className="eyebrow mb-5">MAKING SOMETHING THAT LASTS</div><h1 key={generation} className="display min-h-32 text-5xl page-enter">{["Listening to your story…", "Finding the moments that fit…", "Building your Keep…", "Almost there…"][generation]}</h1><p className="mt-8 text-xs text-muted-foreground">MVP preview · memories are arranged in the order you added them</p></div>}
     {screen === "editor" && selected && <div className="flex keep-h-screen min-h-[680px] flex-col"><div className="relative min-h-0 flex-1 overflow-hidden bg-card"><MediaView key={selected.id} item={selected} alt={`Memory preview ${frame + 1}`} className={`h-full w-full object-cover ${editorPlaying && selected.kind === "image" ? "ken-burns" : ""} editor-image-${project.visualStyle.toLowerCase()}`} /><div className="absolute inset-0 photo-shade" /><div className="absolute top-0 left-0 right-0 flex items-start justify-between px-5 pt-[max(20px,env(safe-area-inset-top))]"><Button variant="bare" size="icon" aria-label="Back" onClick={back}><ArrowLeft /></Button><div className="text-center"><strong className="block text-sm font-medium tracking-[.16em]">{(name || "Your Keep").toUpperCase()}</strong><small className="text-[10px] text-foreground/80">{project.occasion} · 2026</small></div><Button variant="bare" size="icon" aria-label="Preview Keep" onClick={() => { setViewingDemo(false); go("preview"); }}><Play /></Button></div>{project.captionStyle !== "None" && <div className="absolute bottom-18 left-6 right-6 text-center"><p className={`${project.captionStyle === "Film" ? "font-display text-4xl font-normal" : project.captionStyle === "Minimal" ? "text-lg" : project.captionStyle === "Story" ? "font-display text-[34px] italic" : project.captionStyle === "Clean" ? "text-lg font-medium" : "text-[23px] font-semibold"} leading-tight drop-shadow-md`}>{project.captionStyle === "Reel" ? <>YOU MAKE PEOPLE FEEL <span className="text-accent">AT HOME</span></> : project.captionStyle === "Minimal" ? "Feel at home." : "You make people feel at home."}</p></div>}<div className="absolute bottom-5 left-5 right-5 flex items-center gap-4"><Button variant="bare" size="icon" aria-label={editorPlaying ? "Pause preview" : "Play preview"} onClick={() => setEditorPlaying(!editorPlaying)}>{editorPlaying ? <Pause fill="currentColor" /> : <Play fill="currentColor" />}</Button><div className="h-[2px] flex-1 bg-foreground/40"><div className="h-full bg-foreground transition-[width] duration-500" style={{ width: `${((frame % shown.length) + 1) / shown.length * 100}%` }} /></div><span className="text-[11px] tabular-nums">{fmt(totalSec * ((frame % shown.length) + 1) / shown.length)} / {fmt(totalSec)}</span></div></div><div className="flex max-h-[46dvh] min-h-[315px] flex-col bg-background"><div className="flex border-b border-border">{(["Memories", "Music", "Captions", "Style"] as Mode[]).map((m, i) => { const Icon = [Images, Music2, Ellipsis, Sparkles][i] ?? Images; return <Button key={m} variant="bare" className={`flex h-15 flex-1 flex-col gap-1 rounded-none border-b-2 px-0 text-[11px] font-normal ${mode === m ? "border-accent text-foreground" : "border-transparent text-muted-foreground"}`} onClick={() => setMode(m)}><Icon className="size-4" />{m}</Button>; })}</div><div className="thin-scroll flex-1 overflow-y-auto px-5 py-5">
