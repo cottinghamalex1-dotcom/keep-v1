@@ -47,7 +47,14 @@ export function useRecorder() {
     if (!supported) return false;
     setStatus("requesting");
     try {
-      stream.current = await navigator.mediaDevices.getUserMedia({ audio: true });
+      stream.current = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+          channelCount: 1,
+        },
+      });
     } catch (e) {
       const name = (e as { name?: string })?.name;
       setStatus(name === "NotAllowedError" || name === "SecurityError" ? "denied" : "error");
