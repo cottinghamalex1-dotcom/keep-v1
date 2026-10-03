@@ -8,7 +8,7 @@ import { KeepRecipientExperience } from "@/components/keep-recipient-experience"
 import { KeepErrorBoundary } from "@/components/keep-error-boundary";
 import { useRecorder } from "@/hooks/use-recorder";
 import { deleteBlobs, putBlob } from "@/lib/keep-media-store";
-import { fetchDraft, fetchNextQuestion, keepAiAvailable, transcribeAudio } from "@/lib/keep-ai";
+import { fetchDraft, fetchNextQuestion, fetchRevision, keepAiAvailable, transcribeAudio } from "@/lib/keep-ai";
 import { ONBOARD_KEY, fmt, hydrateDraftMedia, loadDraft, newId, newProject, projectBlobIds, projectObjectUrls, sampleMemories, saveDraft, stageLabels, type InterviewAnswer, type KeepProject, type MediaItem } from "@/lib/keep-project";
 
 export const Route = createFileRoute("/")({
@@ -23,10 +23,10 @@ export const Route = createFileRoute("/")({
   component: KeepRoute,
 });
 
-type Screen = "onboarding" | "home" | "you" | "detail" | "recipient" | "occasion" | "intent" | "path" | "interview" | "summary" | "write" | "message" | "recordPrep" | "record" | "recorded" | "memories" | "generating" | "editor" | "preview" | "recipientReveal" | "recipientPreview" | "giveReady" | "card" | "success";
+type Screen = "onboarding" | "home" | "you" | "detail" | "recipient" | "occasion" | "intent" | "path" | "interview" | "summary" | "messageGenerating" | "write" | "message" | "recordPrep" | "record" | "recorded" | "memories" | "generating" | "editor" | "preview" | "recipientReveal" | "recipientPreview" | "giveReady" | "card" | "success";
 type Mode = "Memories" | "Music" | "Captions" | "Style";
-const creationScreens: Screen[] = ["recipient", "occasion", "intent", "path", "interview", "summary", "write", "message", "recordPrep", "record", "recorded", "memories", "generating", "editor", "preview", "recipientReveal", "recipientPreview", "giveReady", "card", "success"];
-const resumeScreen = (s: Screen): Screen => (s === "generating" ? "memories" : s === "preview" || s === "recipientReveal" || s === "recipientPreview" || s === "giveReady" ? "editor" : s);
+const creationScreens: Screen[] = ["recipient", "occasion", "intent", "path", "interview", "summary", "messageGenerating", "write", "message", "recordPrep", "record", "recorded", "memories", "generating", "editor", "preview", "recipientReveal", "recipientPreview", "giveReady", "card", "success"];
+const resumeScreen = (s: Screen): Screen => (s === "messageGenerating" ? "summary" : s === "generating" ? "memories" : s === "preview" || s === "recipientReveal" || s === "recipientPreview" || s === "giveReady" ? "editor" : s);
 const occasions = ["Birthday", "Anniversary", "Wedding", "New Baby", "Mother's Day", "Father's Day", "Graduation", "Thank You", "Trip / Adventure", "Milestone", "Celebration of Life", "Family Memories", "Just Because", "Other"];
 const relationships = ["Spouse / Partner", "Mom", "Dad", "Child", "Grandparent", "Sibling", "Friend", "Myself", "Someone else"];
 const questions = [
@@ -85,6 +85,11 @@ function KeepApp() {
   const [viewingDemo, setViewingDemo] = useState(false);
   const [activeParagraph, setActiveParagraph] = useState(0);
   const [askOpen, setAskOpen] = useState(false);
+  const [askPrompt, setAskPrompt] = useState("");
+  const [askBusy, setAskBusy] = useState(false);
+  const [askError, setAskError] = useState("");
+  const [askLastInstruction, setAskLastInstruction] = useState("");
+  const [askSuggestion, setAskSuggestion] = useState<null | { paragraphs: string[]; changedIndexes: number[]; note: string }>(null);
   const [aiBusy, setAiBusy] = useState<null | "start" | "transcribe" | "next" | "draft">(null);
   const [aiError, setAiError] = useState<null | { kind: "start" | "transcribe" | "next" | "draft"; retry: () => void }>(null);
   const [generation, setGeneration] = useState(0);
@@ -196,11 +201,51 @@ function KeepApp() {
     if (r.done) { patch({ interviewSummary: r.summary }); go("summary"); }
     else patch({ questionIndex: q + 1, interviewQuestion: r.question });
   });
-  const createAiMessage = () => void runAi("draft", async () => {
-    const paragraphs = await fetchDraft(aiContext());
-    patch({ messageParagraphs: paragraphs, messageSource: "ai" });
-    setActiveParagraph(0); go("message");
-  });
+  const createAiMessage = () => {
+    go("messageGenerating");
+    void runAi("draft", async () => {
+      const paragraphs = await fetchDraft(aiContext());
+      patch({ messageParagraphs: paragraphs, messageSource: "ai" });
+      setActiveParagraph(0);
+      setScreen("message");
+      window.scrollTo(0, 0);
+    });
+  };
+
+  const openAskKeep = () => {
+    setAskPrompt("");
+    setAskError("");
+    setAskSuggestion(null);
+    setAskLastInstruction("");
+    setAskOpen(true);
+  };
+
+  const askKeep = async (instruction: string) => {
+    const request = instruction.trim();
+    if (!request || askBusy) return;
+    setAskBusy(true);
+    setAskError("");
+    setAskSuggestion(null);
+    setAskLastInstruction(request);
+    try {
+      const suggestion = await fetchRevision(aiContext(), project.messageParagraphs, activeParagraph, request);
+      setAskSuggestion(suggestion);
+    } catch {
+      setAskError("KEEP couldn't reshape that just now. Your words haven't changed.");
+    } finally {
+      setAskBusy(false);
+    }
+  };
+
+  const applyAskSuggestion = () => {
+    if (!askSuggestion) return;
+    patch({ messageParagraphs: askSuggestion.paragraphs });
+    if (askSuggestion.changedIndexes.length) setActiveParagraph(askSuggestion.changedIndexes[0] ?? activeParagraph);
+    setAskOpen(false);
+    setAskSuggestion(null);
+    setAskError("");
+    toast.success("Your message has been updated");
+  };
   const completedAnswers = project.interviewAnswers.filter((a) => a.questionIndex < q && a.transcript?.trim()).length;
   const aiErrorText = aiError?.kind === "transcribe" ? "We couldn't turn your recording into text. Your recording is safe — you can type what you said below, or try again." : aiError?.kind === "draft" ? "We couldn't put your message together just now." : "We couldn't reach KEEP just now.";
 
@@ -396,7 +441,7 @@ function KeepApp() {
   const nextButton = (label: string, action: () => void, disabled = false) => <Button variant="keep" size="touch" className="w-full justify-between" onClick={action} disabled={disabled}>{label}<ArrowRight /></Button>;
   const wave = (count = 27, active = true) => <div className="flex h-12 items-center justify-center gap-[3px]" aria-hidden="true">{Array.from({ length: count }, (_, i) => <span key={i} className={`${active ? "wave-bar" : "opacity-40"} w-[2px] rounded-full bg-accent`} style={{ height: `${10 + ((i * 17) % 34)}px`, animationDelay: `${-(i % 7) * 0.13}s` }} />)}</div>;
   const note = (children: ReactNode) => <p className="text-center text-[11px] leading-5 text-muted-foreground">{children}</p>;
-  const sheet = (heading: string, onClose: () => void, children: ReactNode) => <div className="fixed inset-0 z-40 flex items-end justify-center bg-background/80" onClick={onClose}><div className="w-full max-w-[540px] rounded-t-lg bg-card px-7 pb-[max(40px,env(safe-area-inset-bottom))] pt-6" onClick={(e) => e.stopPropagation()}><div className="flex items-center justify-between"><h2 className="font-display text-4xl">{heading}</h2><Button variant="bare" size="icon" aria-label="Close" onClick={onClose}><X /></Button></div>{children}</div></div>;
+  const sheet = (heading: string, onClose: () => void, children: ReactNode) => <div className="fixed inset-0 z-40 flex items-end justify-center bg-background/80" onClick={onClose}><div className="max-h-[88dvh] w-full max-w-[540px] overflow-y-auto rounded-t-lg bg-card px-7 pb-[max(40px,env(safe-area-inset-bottom))] pt-6" onClick={(e) => e.stopPropagation()}><div className="flex items-center justify-between"><h2 className="font-display text-4xl">{heading}</h2><Button variant="bare" size="icon" aria-label="Close" onClick={onClose}><X /></Button></div>{children}</div></div>;
   const micUnavailable = recorder.supported === false || recorder.status === "denied" || recorder.status === "error";
   const micMessage = recorder.supported === false ? "This browser can't record audio here." : recorder.status === "denied" ? "Microphone access was blocked. You can allow it in your browser settings." : recorder.status === "error" ? "The microphone couldn't start." : "";
   const isRecording = recorder.status === "recording" || recorder.status === "paused";
