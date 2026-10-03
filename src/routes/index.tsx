@@ -208,6 +208,9 @@ function KeepApp() {
     return () => window.cancelAnimationFrame(frame);
   }, [screen, rehearsing, scrollPaused, teleprompterSpeed]);
   useEffect(() => { if (screen !== "record") setRehearsing(false); }, [screen]);
+  useEffect(() => {
+    if (screen === "editor" && returnToEditorAfterRecording) setReturnToEditorAfterRecording(false);
+  }, [screen, returnToEditorAfterRecording]);
 
   const go = (next: Screen) => { setHistory((h) => [...h, screen]); setScreen(next); window.scrollTo(0, 0); };
   const back = () => { const last = history[history.length - 1]; setScreen(last ?? "home"); setHistory((h) => h.slice(0, -1)); window.scrollTo(0, 0); };
