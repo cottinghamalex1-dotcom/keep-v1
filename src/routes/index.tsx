@@ -192,7 +192,7 @@ function KeepApp() {
   };
 
   const extractDocxText = async (file: File) => {
-    const mod: any = await import("mammoth/mammoth.browser");
+    const mod: any = await import("mammoth");
     const mammoth = mod.default ?? mod;
     const result = await mammoth.extractRawText({ arrayBuffer: await file.arrayBuffer() });
     return String(result?.value ?? "").replace(/\n{3,}/g, "\n\n").trim();
