@@ -8,8 +8,9 @@ import { KeepRecipientExperience } from "@/components/keep-recipient-experience"
 import { KeepErrorBoundary } from "@/components/keep-error-boundary";
 import { useRecorder } from "@/hooks/use-recorder";
 import { deleteBlobs, putBlob } from "@/lib/keep-media-store";
-import { fetchDraft, fetchNextQuestion, fetchRevision, keepAiAvailable, transcribeAudio } from "@/lib/keep-ai";
-import { ONBOARD_KEY, fmt, hydrateDraftMedia, loadDraft, newId, newProject, projectBlobIds, projectObjectUrls, sampleMemories, saveDraft, stageLabels, type InterviewAnswer, type KeepProject, type MediaItem } from "@/lib/keep-project";
+import { playMusicSample, stopMusicSample } from "@/lib/keep-audio";
+import { fetchDraft, fetchNextQuestion, fetchRevision, keepAiAvailable, transcribeAudio, transcribeTimedAudio, type TimedWord } from "@/lib/keep-ai";
+import { ONBOARD_KEY, fmt, hydrateDraftMedia, loadDraft, newId, newProject, projectBlobIds, projectObjectUrls, sampleMemories, saveDraft, stageLabels, type CaptionCue, type InterviewAnswer, type KeepProject, type MediaItem } from "@/lib/keep-project";
 
 export const Route = createFileRoute("/")({
   head: () => ({ meta: [
@@ -62,7 +63,35 @@ const tracks = [
   { name: "Piano", note: "Just the keys and your words", group: "More feelings" },
 ];
 const captionOptions = ["Clean", "Reel", "Film", "Story", "Minimal", "None"];
-const styles = [{ name: "Natural", note: "Clean, subtle movement" }, { name: "Warm", note: "Gentle warmth, soft dissolves" }, { name: "Film", note: "Cinematic grain, slower movement" }, { name: "Modern", note: "Crisp movement, contemporary type" }];
+const styles = [
+  { name: "Natural", note: "Clean and true to life" },
+  { name: "Warm", note: "Soft warmth and gentle contrast" },
+  { name: "Film", note: "Cinematic color and texture" },
+  { name: "Modern", note: "Crisp and contemporary" },
+  { name: "Black & White", note: "Timeless monochrome" },
+  { name: "Vintage", note: "Faded, nostalgic warmth" },
+  { name: "Soft", note: "Airy highlights and lower contrast" },
+  { name: "Dreamy", note: "Glow, softness, and lifted color" },
+];
+const groupTimedWords = (words: TimedWord[]): CaptionCue[] => {
+  const cues: CaptionCue[] = [];
+  let group: TimedWord[] = [];
+  const flush = () => {
+    if (!group.length) return;
+    const text = group.map((w) => w.word).join(" ").replace(/\s+([,.!?;:])/g, "$1").trim();
+    if (text) cues.push({ text, start: Math.max(0, group[0]!.start - 0.05), end: group[group.length - 1]!.end + 0.16 });
+    group = [];
+  };
+  for (const word of words) {
+    const prev = group[group.length - 1];
+    if (prev && word.start - prev.end > 0.72) flush();
+    group.push(word);
+    if (group.length >= 7 || /[.!?]$/.test(word.word)) flush();
+  }
+  flush();
+  return cues;
+};
+
 const withName = (t: string, name: string) => t.split("Hanna").join(name || "them");
 const releaseUrls = (urls: (string | undefined)[]) => urls.forEach((u) => { if (u && u.startsWith("blob:")) URL.revokeObjectURL(u); });
 
@@ -107,6 +136,10 @@ function KeepApp() {
   const [rehearsing, setRehearsing] = useState(false);
   const [voicePlaying, setVoicePlaying] = useState(false);
   const [voiceTime, setVoiceTime] = useState(0);
+  const [captionSyncing, setCaptionSyncing] = useState(false);
+  const [captionSyncError, setCaptionSyncError] = useState(false);
+  const [musicSampling, setMusicSampling] = useState("");
+  const musicSampleTimer = useRef<number | null>(null);
   const voicePlaybackRef = useRef<HTMLAudioElement>(null);
   const [busy, setBusy] = useState(false);
   const [otherOccasion, setOtherOccasion] = useState("");
@@ -178,6 +211,17 @@ function KeepApp() {
   useEffect(() => {
     if (screen === "editor" && returnToEditorAfterRecording) setReturnToEditorAfterRecording(false);
   }, [screen, returnToEditorAfterRecording]);
+  useEffect(() => {
+    if (screen === "editor") return;
+    stopMusicSample();
+    setMusicSampling("");
+    if (musicSampleTimer.current) window.clearTimeout(musicSampleTimer.current);
+    musicSampleTimer.current = null;
+  }, [screen]);
+  useEffect(() => () => {
+    stopMusicSample();
+    if (musicSampleTimer.current) window.clearTimeout(musicSampleTimer.current);
+  }, []);
 
   const resetPageScroll = () => window.requestAnimationFrame(() => window.scrollTo({ top: 0, left: 0, behavior: "auto" }));
   const go = (next: Screen) => { setHistory((h) => [...h, screen]); setScreen(next); resetPageScroll(); };
