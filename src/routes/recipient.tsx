@@ -20,5 +20,5 @@ export const Route = createFileRoute("/recipient")({
 
 function Recipient() {
   const { name, from, year } = Route.useSearch();
-  return <KeepRecipientExperience name={name} from={from} year={year} />;
+  return <KeepRecipientExperience name={name} from={from.replace(/^FROM\\s+/i, "")} year={year} />;
 }
