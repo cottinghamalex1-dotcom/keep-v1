@@ -55,6 +55,8 @@ button { -webkit-tap-highlight-color: transparent; }
 
 .app-shell { width: 100%; max-width: 540px; min-height: 100svh; min-height: 100dvh; margin: 0 auto; position: relative; overflow-x: hidden; background: var(--background); box-shadow: 0 0 90px oklch(0 0 0 / 28%); }
 .keep-h-screen { height: 100svh; height: 100dvh; }
+.keep-fixed-screen { height: 100svh; height: 100dvh; }
+.keep-sheet-panel { max-height: calc(100svh - env(safe-area-inset-top) - 12px); max-height: calc(100dvh - env(safe-area-inset-top) - 12px); }
 .keep-min-screen { min-height: 100svh; min-height: 100dvh; }
 .keep-min-screen-minus-100 { min-height: calc(100svh - 100px); min-height: calc(100dvh - 100px); }
 .keep-min-screen-minus-90 { min-height: calc(100svh - 90px); min-height: calc(100dvh - 90px); }
