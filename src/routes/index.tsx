@@ -402,10 +402,9 @@ function KeepApp() {
             <li className="list-disc pl-2 marker:text-accent"><strong className="block text-sm font-medium">Mistakes are okay.</strong><p className="mt-1 text-xs leading-5 text-muted-foreground">Pause, restart a sentence, laugh, get emotional. It doesn't have to be polished.</p></li>
           </ul>
         </div>
-        <div className="mt-9 border-t border-border pt-6">
-          <p className="text-sm font-medium">Don't perform. Talk directly to {name || "them"}.</p>
-          <p className="mt-2 text-xs leading-5 text-muted-foreground">Picture them listening.</p>
-        </div>
+        <ul className="mt-5 space-y-5 pl-5 text-left">
+          <li className="list-disc pl-2 marker:text-accent"><strong className="block text-sm font-medium">Don't perform. Talk directly to {name || "them"}.</strong><p className="mt-1 text-xs leading-5 text-muted-foreground">Picture them listening.</p></li>
+        </ul>
       </div>
       <div>{nextButton("I'm ready", () => go("record"))}</div>
     </div>}
