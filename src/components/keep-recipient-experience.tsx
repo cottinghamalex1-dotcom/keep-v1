@@ -5,7 +5,7 @@ import { KeepPlayer, memoryImages, type PlayerMedia } from "@/components/keep-pl
 import type { CaptionCue } from "@/lib/keep-project";
 import { createKeepVoiceMix, type MusicBalance } from "@/lib/keep-audio";
 
-type Experience = "watch" | "listen" | "read";
+export type KeepExperienceMode = "watch" | "listen" | "read";
 
 type Props = {
   name: string;
@@ -13,6 +13,7 @@ type Props = {
   year: string;
   subtitle?: string | undefined;
   media?: PlayerMedia[] | undefined;
+  readMedia?: PlayerMedia[] | undefined;
   audioUrl?: string | undefined;
   audioDuration?: number | undefined;
   messageParagraphs?: string[] | undefined;
@@ -24,6 +25,8 @@ type Props = {
   voiceMusicBalance?: string | undefined;
   persistVisit?: boolean;
   creatorPreview?: boolean;
+  initialExperience?: KeepExperienceMode | undefined;
+  onCreatorExit?: () => void;
   onCreatorContinue?: () => void;
 };
 
@@ -41,6 +44,7 @@ export function KeepRecipientExperience({
   year,
   subtitle,
   media,
+  readMedia,
   audioUrl,
   audioDuration = 237,
   messageParagraphs,
@@ -52,12 +56,14 @@ export function KeepRecipientExperience({
   voiceMusicBalance = "Balanced",
   persistVisit = true,
   creatorPreview = false,
+  initialExperience,
+  onCreatorExit,
   onCreatorContinue,
 }: Props) {
   const visitKey = useMemo(() => `keep.recipient.opened.${name}.${from}.${year}`, [name, from, year]);
   const [visited, setVisited] = useState(false);
-  const [stage, setStage] = useState<"reveal" | "choose" | "experience" | "ending">("reveal");
-  const [experience, setExperience] = useState<Experience>("watch");
+  const [stage, setStage] = useState<"reveal" | "choose" | "experience" | "ending">(creatorPreview && initialExperience ? "experience" : "reveal");
+  const [experience, setExperience] = useState<KeepExperienceMode>(initialExperience ?? "watch");
   const [listening, setListening] = useState(false);
   const [listenProgress, setListenProgress] = useState(0);
   const audio = useRef<HTMLAudioElement>(null);
@@ -66,6 +72,7 @@ export function KeepRecipientExperience({
   const listenIntroTimer = useRef<number | null>(null);
   const listenHasStarted = useRef(false);
   const items = media?.length ? media : memoryImages.map((url) => ({ url, kind: "image" as const }));
+  const readItems = readMedia?.length ? readMedia : items;
   const paragraphs = messageParagraphs?.length ? messageParagraphs : demoMessage;
 
   useEffect(() => {
@@ -100,7 +107,7 @@ export function KeepRecipientExperience({
     setStage("choose");
   };
 
-  const choose = (next: Experience) => {
+  const choose = (next: KeepExperienceMode) => {
     setExperience(next);
     setListening(false);
     setListenProgress(0);
@@ -112,6 +119,10 @@ export function KeepRecipientExperience({
     timer.current = null;
     if (audio.current) audio.current.pause();
     setListening(false);
+    if (creatorPreview && initialExperience && onCreatorExit) {
+      onCreatorExit();
+      return;
+    }
     setStage("choose");
   };
 
@@ -190,7 +201,7 @@ export function KeepRecipientExperience({
       <div className="sticky top-0 z-20 flex items-center justify-between border-b border-border bg-background/95 px-5 py-4 backdrop-blur-xl"><Button variant="bare" size="icon" aria-label="Back" onClick={backToChoose}><ArrowLeft /></Button><span className="brand text-base">KEEP</span><span className="size-10" /></div>
       <article className="px-7 pb-10 pt-14">
         <p className="eyebrow">A KEEP FOR</p><h1 className="display mt-4 text-6xl uppercase">{name}</h1><p className="mt-4 text-sm text-muted-foreground">from {from} · {year}</p>
-        <div className="mt-14 space-y-10">{paragraphs.map((paragraph, i) => <div key={i}><p className="font-display text-[25px] leading-[1.55]">{paragraph}</p>{items[i] && i < 4 && <figure className="mt-9 overflow-hidden rounded-sm">{items[i]!.kind === "video" ? <video src={items[i]!.url} controls playsInline className="aspect-[4/3] w-full object-cover" /> : <img src={items[i]!.url} alt="A memory from this Keep" className="aspect-[4/3] w-full object-cover" />}</figure>}</div>)}</div>
+        <div className="mt-14 space-y-10">{paragraphs.map((paragraph, i) => <div key={i}><p className="font-display text-[25px] leading-[1.55]">{paragraph}</p>{readItems[i] && i < 4 && <figure className="mt-9 overflow-hidden rounded-sm">{readItems[i]!.kind === "video" ? <video src={readItems[i]!.url} controls playsInline className="aspect-[4/3] w-full object-cover" /> : <img src={readItems[i]!.url} alt="A memory from this Keep" className="aspect-[4/3] w-full object-cover" />}</figure>}</div>)}</div>
         <div className="mt-16 border-t border-border pt-10 text-center"><p className="display text-4xl">SOME THINGS ARE<br />WORTH KEEPING.</p><Button variant="quiet" size="touch" className="mt-10 w-full" onClick={finishExperience}>Finish reading</Button></div>
       </article>
     </div></main>;
@@ -199,7 +210,7 @@ export function KeepRecipientExperience({
   if (stage === "ending") {
     return <main className="app-shell"><div className="flex keep-min-screen flex-col items-center justify-center px-7 text-center">
       <span className="brand mb-20">KEEP</span><h1 className="display text-5xl">SOME THINGS ARE<br />WORTH KEEPING.</h1><p className="mt-7 max-w-64 text-sm leading-6 text-muted-foreground">This one is yours. Come back whenever you want to experience it again.</p>
-      <div className="mt-14 w-full space-y-3"><Button variant="keep" size="touch" className="w-full" onClick={() => setStage("choose")}><RotateCcw /> Experience it again</Button>{creatorPreview ? <Button variant="quiet" size="touch" className="w-full" onClick={onCreatorContinue}>Continue as creator <ArrowRight /></Button> : <Button variant="quiet" size="touch" className="w-full" onClick={() => setStage("choose")}><Mic /> Send {from} a response</Button>}</div>
+      <div className="mt-14 w-full space-y-3"><Button variant="keep" size="touch" className="w-full" onClick={() => setStage("choose")}><RotateCcw /> Experience it again</Button>{creatorPreview ? <Button variant="quiet" size="touch" className="w-full" onClick={onCreatorExit ?? onCreatorContinue}>Back to editor <ArrowRight /></Button> : <Button variant="quiet" size="touch" className="w-full" onClick={() => setStage("choose")}><Mic /> Send {from} a response</Button>}</div>
       {!creatorPreview && <p className="mt-5 max-w-64 text-[11px] leading-5 text-muted-foreground">Voice responses are coming next. Your Keep stays private.</p>}
     </div></main>;
   }
