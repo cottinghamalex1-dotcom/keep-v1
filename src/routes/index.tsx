@@ -92,6 +92,7 @@ const groupTimedWords = (words: TimedWord[]): CaptionCue[] => {
   return cues;
 };
 
+const styleSlug = (name: string) => name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 const withName = (t: string, name: string) => t.split("Hanna").join(name || "them");
 const releaseUrls = (urls: (string | undefined)[]) => urls.forEach((u) => { if (u && u.startsWith("blob:")) URL.revokeObjectURL(u); });
 
@@ -595,6 +596,27 @@ function KeepApp() {
     const list = [...(frames.length ? frames : shown)];
     patch({ memories: list.map((m, i) => (i === index ? { ...m, displayDurationSec: next } : m)) });
   };
+  const toggleMusicSample = async (trackName: string) => {
+    if (musicSampleTimer.current) window.clearTimeout(musicSampleTimer.current);
+    musicSampleTimer.current = null;
+    if (musicSampling === trackName) {
+      stopMusicSample();
+      setMusicSampling("");
+      return;
+    }
+    stopMusicSample();
+    setMusicSampling(trackName);
+    try {
+      await playMusicSample(trackName, 9);
+      musicSampleTimer.current = window.setTimeout(() => {
+        setMusicSampling("");
+        musicSampleTimer.current = null;
+      }, 9000);
+    } catch {
+      setMusicSampling("");
+      toast.error("Music preview isn't available in this browser.");
+    }
+  };
 
   useEffect(() => { if (screen !== "generating") return; if (generation >= 3) { const t = window.setTimeout(() => go("editor"), 650); return () => window.clearTimeout(t); } const t = window.setTimeout(() => setGeneration((n) => n + 1), 1250); return () => window.clearTimeout(t); }, [screen, generation]);
   useEffect(() => {
@@ -827,7 +849,7 @@ function KeepApp() {
       <div className="relative flex min-h-0 flex-1 items-center justify-center px-5 py-3">
         <div className="relative flex items-center justify-center">
           <div className="relative aspect-[9/16] h-[min(60dvh,500px)] max-h-[calc(100dvh-190px)] overflow-hidden rounded-[30px] border border-foreground/15 bg-card shadow-[0_24px_70px_oklch(0_0_0/0.55)]">
-            <MediaView key={selected.id} item={selected} alt={`Memory preview ${frame + 1}`} className={`h-full w-full object-cover ${editorPlaying && selected.kind === "image" ? "ken-burns" : ""} editor-image-${project.visualStyle.toLowerCase()}`} />
+            <MediaView key={selected.id} item={selected} alt={`Memory preview ${frame + 1}`} className={`h-full w-full object-cover ${editorPlaying && selected.kind === "image" ? "ken-burns" : ""} editor-image-${styleSlug(project.visualStyle)}`} />
             <div className="absolute inset-0 photo-shade" />
             {project.captionStyle !== "None" && <div className="absolute bottom-16 left-5 right-5 text-center">
               <p className={`${project.captionStyle === "Film" ? "font-display text-3xl font-normal" : project.captionStyle === "Minimal" ? "text-sm" : project.captionStyle === "Story" ? "font-display text-2xl italic" : project.captionStyle === "Clean" ? "text-sm font-medium" : "text-lg font-semibold"} leading-tight drop-shadow-md`}>
