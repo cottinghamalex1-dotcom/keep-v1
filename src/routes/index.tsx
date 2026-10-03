@@ -834,7 +834,7 @@ function KeepApp() {
           } else {
             go("memories");
           }
-        }, !rec || captionSyncing)}
+        }, !rec || captionSyncing || (!!rec && !rec.demo && project.captionCues.length === 0))}
         <Button variant="bare" size="touch" className="w-full text-muted-foreground" onClick={() => go("record")}><RotateCcw /> Record again</Button>
       </div>
     </div></>}
