@@ -397,7 +397,7 @@ function KeepApp() {
           <p className="eyebrow mb-5">A FEW SUGGESTIONS</p>
           <ul className="space-y-5 pl-5 text-left">
             <li className="list-disc pl-2 marker:text-accent"><strong className="block text-sm font-medium">Find a quiet room.</strong><p className="mt-1 text-xs leading-5 text-muted-foreground">Give your voice a little space from background noise.</p></li>
-            <li className="list-disc pl-2 marker:text-accent"><strong className="block text-sm font-medium">Silence notifications.</strong><p className="mt-1 text-xs leading-5 text-muted-foreground">Keep your phone reasonably close and let this moment have your attention.</p></li>
+            <li className="list-disc pl-2 marker:text-accent"><strong className="block text-sm font-medium">Silence notifications.</strong><p className="mt-1 text-xs leading-5 text-muted-foreground">Keep your phone reasonably close (about 6–12 inches away) and let this moment have your attention.</p></li>
             <li className="list-disc pl-2 marker:text-accent"><strong className="block text-sm font-medium">Speak naturally.</strong><p className="mt-1 text-xs leading-5 text-muted-foreground">A little slower than normal is great. Pauses are welcome.</p></li>
             <li className="list-disc pl-2 marker:text-accent"><strong className="block text-sm font-medium">Mistakes are okay.</strong><p className="mt-1 text-xs leading-5 text-muted-foreground">Pause, restart a sentence, laugh, get emotional. It doesn't have to be polished.</p></li>
           </ul>
