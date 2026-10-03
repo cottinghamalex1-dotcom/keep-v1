@@ -113,7 +113,6 @@ function KeepApp() {
   const patch = (p: Partial<KeepProject>) => setProject((o) => ({ ...o, ...p }));
   const name = project.recipientName;
   const q = project.questionIndex;
-  const qs = questions.map((t) => withName(t, name));
 
   // Load lightweight draft + onboarding flag after hydration, then restore media blobs from IndexedDB.
   useEffect(() => {
