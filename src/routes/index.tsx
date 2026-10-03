@@ -925,13 +925,6 @@ function KeepApp() {
         </div>
       </div>)}
 
-      {editorPanel === "Music" && sheet("Music", () => setEditorPanel(null), <div className="pb-2">
-        <p className="mt-2 text-xs leading-5 text-muted-foreground">Choose the feeling underneath your voice.</p>
-        {tracks.map((track) => <Button key={track.name} variant="bare" className="flex h-16 w-full justify-between border-b border-border px-0 text-left" onClick={() => { patch({ musicMood: track.name }); toast(`${track.name} selected`); }}><span className="flex items-center gap-3"><span className="flex size-9 items-center justify-center rounded-full border border-border">{project.musicMood === track.name ? <Music2 className="size-4 text-accent" /> : <Play className="size-3" />}</span><span><strong className="block text-xs font-medium">{track.name}{track.name === "Warm + Nostalgic" && <span className="text-accent"> · recommended</span>}</strong><small className="text-[10px] text-muted-foreground">{track.note}</small></span></span>{project.musicMood === track.name && <Check className="size-4 text-accent" />}</Button>)}
-        <p className="eyebrow mb-3 mt-7">VOICE / MUSIC</p>
-        <div className="flex gap-2">{["Soft", "Balanced", "Full"].map((b) => <Button key={b} variant={project.voiceMusicBalance === b ? "selected" : "quiet"} className="flex-1" onClick={() => patch({ voiceMusicBalance: b })}>{b}</Button>)}</div>
-      </div>)}
-
       {editorPanel === "Voice" && sheet("Voice & words", () => setEditorPanel(null), <div className="pb-2">
         <p className="mt-2 text-xs leading-5 text-muted-foreground">Remember something you want to add? You can change the words or record your voice again without losing the rest of your Keep.</p>
         <div className="mt-6 space-y-3">
@@ -962,15 +955,6 @@ function KeepApp() {
         </div>
       </div>)}
 
-      {editorPanel === "Captions" && sheet("Captions", () => setEditorPanel(null), <div className="pb-2">
-        <p className="mt-2 text-xs leading-5 text-muted-foreground">Choose how your words appear over the memories.</p>
-        <div className="mt-5 grid grid-cols-2 gap-2">{captionOptions.map((c) => <Button key={c} variant={project.captionStyle === c ? "selected" : "quiet"} className="h-24 flex-col whitespace-normal" onClick={() => patch({ captionStyle: c })}><span className={c === "Film" ? "font-display text-xl" : "text-sm"}>{c}</span><small className="text-[10px] font-normal text-muted-foreground">{c === "None" ? "Just the image" : c === "Reel" ? "Bold, word by word" : c === "Film" ? "Elegant serif" : c === "Story" ? "Emotional phrases" : c === "Minimal" ? "Key lines only" : "Simple subtitles"}</small></Button>)}</div>
-      </div>)}
-
-      {editorPanel === "Style" && sheet("Style", () => setEditorPanel(null), <div className="pb-2">
-        <p className="mt-2 text-xs leading-5 text-muted-foreground">Choose the overall visual feel of your Keep.</p>
-        <div className="mt-5 grid grid-cols-2 gap-2">{styles.map((style) => <Button key={style.name} variant={project.visualStyle === style.name ? "selected" : "quiet"} className="h-28 flex-col items-start whitespace-normal p-4 text-left" onClick={() => patch({ visualStyle: style.name })}><span className="font-display text-2xl">{style.name}</span><small className="text-[11px] font-normal leading-4 text-muted-foreground">{style.note}</small></Button>)}</div>
-      </div>)}
     </div>}
     {screen === "preview" && (viewingDemo
       ? <KeepPlayer name="HANNA" from="Alex" year="2026" onExit={back} onFinish={home} />
