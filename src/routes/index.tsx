@@ -879,6 +879,27 @@ function KeepApp() {
         </div>
       </div>
 
+      {(editorPanel === "Music" || editorPanel === "Captions" || editorPanel === "Style") && <div className="border-t border-border/60 bg-card/55 px-5 py-3 backdrop-blur-md page-enter">
+        {editorPanel === "Music" && <>
+          <div className="mb-3 flex items-center justify-between"><div><p className="font-display text-2xl">Music</p><p className="mt-1 text-[10px] text-muted-foreground">Sample first. Choose what feels right.</p></div><Button variant="bare" size="icon" aria-label="Close music" onClick={() => { stopMusicSample(); setMusicSampling(""); setEditorPanel(null); }}><X className="size-4" /></Button></div>
+          <div className="thin-scroll flex gap-2 overflow-x-auto pb-2">
+            {tracks.map((track) => <div key={track.name} className={`w-44 shrink-0 rounded-xl border p-3 ${project.musicMood === track.name ? "border-accent/70 bg-accent/[0.04]" : "border-border bg-background/35"}`}>
+              <div className="min-h-14"><p className="text-xs font-medium">{track.name}</p><p className="mt-1 text-[9px] leading-4 text-muted-foreground">{track.note}</p></div>
+              <div className="mt-3 flex gap-1.5"><Button variant="quiet" size="sm" className="flex-1 px-2 text-[10px]" onClick={() => void toggleMusicSample(track.name)}>{musicSampling === track.name ? <Square className="size-3" fill="currentColor" /> : <Play className="size-3" fill="currentColor" />}{musicSampling === track.name ? "Stop" : "Sample"}</Button><Button variant={project.musicMood === track.name ? "selected" : "bare"} size="sm" className="flex-1 px-2 text-[10px]" onClick={() => patch({ musicMood: track.name })}>{project.musicMood === track.name ? <Check className="size-3" /> : null}{project.musicMood === track.name ? "Selected" : "Use"}</Button></div>
+            </div>)}
+          </div>
+          <div className="mt-2 flex items-center gap-2"><span className="mr-1 text-[9px] tracking-widest text-muted-foreground">MIX</span>{["Soft", "Balanced", "Full"].map((b) => <Button key={b} variant={project.voiceMusicBalance === b ? "selected" : "quiet"} size="sm" className="flex-1 text-[10px]" onClick={() => patch({ voiceMusicBalance: b })}>{b}</Button>)}</div>
+        </>}
+        {editorPanel === "Captions" && <>
+          <div className="mb-3 flex items-center justify-between"><div><p className="font-display text-2xl">Captions</p><p className="mt-1 text-[10px] text-muted-foreground">{project.captionCues.length ? "Synced to your voice." : "Choose how your words appear."}</p></div><Button variant="bare" size="icon" aria-label="Close captions" onClick={() => setEditorPanel(null)}><X className="size-4" /></Button></div>
+          <div className="thin-scroll flex gap-2 overflow-x-auto pb-1">{captionOptions.map((c) => <Button key={c} variant={project.captionStyle === c ? "selected" : "quiet"} className="h-16 min-w-28 shrink-0 flex-col whitespace-normal px-3" onClick={() => patch({ captionStyle: c })}><span className={c === "Film" ? "font-display text-lg" : "text-xs"}>{c}</span><small className="text-[8px] font-normal text-muted-foreground">{c === "None" ? "No words" : c === "Reel" ? "Bold" : c === "Film" ? "Elegant" : c === "Story" ? "Emotional" : c === "Minimal" ? "Quiet" : "Simple"}</small></Button>)}</div>
+        </>}
+        {editorPanel === "Style" && <>
+          <div className="mb-3 flex items-center justify-between"><div><p className="font-display text-2xl">Style</p><p className="mt-1 text-[10px] text-muted-foreground">Tap a look and see it above instantly.</p></div><Button variant="bare" size="icon" aria-label="Close style" onClick={() => setEditorPanel(null)}><X className="size-4" /></Button></div>
+          <div className="thin-scroll flex gap-2 overflow-x-auto pb-1">{styles.map((style) => <button key={style.name} type="button" onClick={() => patch({ visualStyle: style.name })} className={`w-24 shrink-0 overflow-hidden rounded-lg border text-left ${project.visualStyle === style.name ? "border-accent ring-1 ring-accent" : "border-border"}`}><div className="relative h-14 overflow-hidden"><MediaView item={selected} thumb alt={style.name} className={`h-full w-full object-cover editor-image-${styleSlug(style.name)}`} /></div><div className="p-2"><p className="text-[10px] font-medium">{style.name}</p></div></button>)}</div>
+        </>}
+      </div>}
+
       <div className="border-t border-border/70 bg-background/96 px-5 pb-[max(14px,env(safe-area-inset-bottom))] pt-3 backdrop-blur">
         <div className="thin-scroll flex gap-2 overflow-x-auto pb-1">
           {shown.map((m, i) => <button key={m.id} type="button" aria-label={`Select memory ${i + 1}`} onClick={() => setFrame(i)} className={`relative h-14 w-11 shrink-0 overflow-hidden rounded-md border transition-all ${i === frame % shown.length ? "border-accent ring-1 ring-accent" : "border-border opacity-55"}`}>
