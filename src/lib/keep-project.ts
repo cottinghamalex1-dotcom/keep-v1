@@ -6,10 +6,10 @@ export type MediaItem = {
   kind: "image" | "video";
   source: "upload" | "sample";
   url: string; // object URL (uploads) or bundled asset (samples) — never persisted for uploads
-  name?: string;
-  mimeType?: string;
-  sampleIndex?: number;
-  persisted?: boolean; // blob saved in IndexedDB
+  name?: string | undefined;
+  mimeType?: string | undefined;
+  sampleIndex?: number | undefined;
+  persisted?: boolean | undefined; // blob saved in IndexedDB
 };
 
 /** One interview answer. A future transcription/AI service consumes the audio blob
@@ -17,15 +17,15 @@ export type MediaItem = {
 export type InterviewAnswer = {
   questionIndex: number;
   question: string;
-  audioId?: string;
-  audioUrl?: string;
-  durationSec?: number;
-  mimeType?: string;
-  demoText?: string; // set only when the demo fallback was used
-  transcript?: string; // set only by a real transcription service (none connected yet)
+  audioId?: string | undefined;
+  audioUrl?: string | undefined;
+  durationSec?: number | undefined;
+  mimeType?: string | undefined;
+  demoText?: string | undefined; // set only when the demo fallback was used
+  transcript?: string | undefined; // set only by a real transcription service (none connected yet)
 };
 
-export type VoiceRecording = { audioId?: string; audioUrl?: string; durationSec: number; mimeType?: string; demo: boolean };
+export type VoiceRecording = { audioId?: string | undefined; audioUrl?: string | undefined; durationSec: number; mimeType?: string | undefined; demo: boolean };
 
 export type KeepProject = {
   active: boolean;
@@ -36,7 +36,9 @@ export type KeepProject = {
   intent: string;
   questionIndex: number;
   interviewAnswers: InterviewAnswer[];
-  messageSource: "demo" | "own" | null;
+  messageSource: "demo" | "own" | "ai" | null;
+  interviewQuestion: string;
+  interviewSummary: string;
   writtenText: string;
   messageParagraphs: string[];
   finalVoiceRecording: VoiceRecording | null;
@@ -58,7 +60,7 @@ export const sampleMemories = (): MediaItem[] =>
 
 export function newProject(): KeepProject {
   return {
-    active: false, stage: "recipient", recipientName: "", relationship: "", occasion: "Anniversary", intent: "", questionIndex: 0,
+    active: false, stage: "recipient", recipientName: "", relationship: "", occasion: "Anniversary", intent: "", questionIndex: 0, interviewQuestion: "", interviewSummary: "",
     interviewAnswers: [], messageSource: null, writtenText: "", messageParagraphs: [], finalVoiceRecording: null, memories: [],
     musicMood: "Warm + Nostalgic", voiceMusicBalance: "Balanced", captionStyle: "Reel", visualStyle: "Natural", cardEngraving: ["", "FROM ALEX", "2026"],
   };

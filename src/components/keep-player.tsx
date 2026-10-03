@@ -13,7 +13,7 @@ const defaultLines = ["You make people feel at home.", "I still remember that da
 export type PlayerMedia = { url: string; kind: "image" | "video" };
 type Props = {
   name: string; from: string; year: string; onExit: () => void; onFinish?: () => void; recipient?: boolean; style?: string; captions?: string;
-  subtitle?: string; media?: PlayerMedia[]; audioUrl?: string; audioDuration?: number; lines?: string[];
+  subtitle?: string | undefined; media?: PlayerMedia[] | undefined; audioUrl?: string | undefined; audioDuration?: number | undefined; lines?: string[] | undefined;
 };
 
 export function KeepPlayer({ name, from, year, onExit, onFinish, recipient = false, style = "Natural", captions = "Reel", subtitle, media, audioUrl, audioDuration, lines }: Props) {
