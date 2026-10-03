@@ -5,10 +5,10 @@ type Props = { children: ReactNode; onReset: () => void };
 
 /** Visible fallback so a runtime failure never leaves a blank screen. */
 export class KeepErrorBoundary extends Component<Props, { failed: boolean }> {
-  state = { failed: false };
+  override state = { failed: false };
   static getDerivedStateFromError() { return { failed: true }; }
-  componentDidCatch(error: unknown) { console.error(error); reportLovableError(error, { boundary: "keep_app" }); }
-  render() {
+  override componentDidCatch(error: unknown) { console.error(error); reportLovableError(error, { boundary: "keep_app" }); }
+  override render() {
     if (!this.state.failed) return this.props.children;
     return (
       <main className="app-shell flex min-h-dvh flex-col items-center justify-center px-8 text-center">
