@@ -871,7 +871,7 @@ function KeepApp() {
               ["Voice", Mic],
               ["Captions", MessageCircle],
               ["Style", Sparkles],
-            ] as [Mode, any][]).map(([m, Icon]) => <button key={m} type="button" onClick={() => { setMode(m); setEditorPanel(m); }} className="group flex w-12 flex-col items-center gap-1 text-center">
+            ] as [Mode, any][]).map(([m, Icon]) => <button key={m} type="button" onClick={() => { setMode(m); if (m !== "Music") { stopMusicSample(); setMusicSampling(""); } setEditorPanel((current) => current === m ? null : m); }} className="group flex w-12 flex-col items-center gap-1 text-center">
               <span className="flex size-10 items-center justify-center rounded-full border border-border/80 bg-card/90 text-foreground shadow-md backdrop-blur transition-transform group-active:scale-95"><Icon className="size-4" /></span>
               <span className="text-[8px] leading-none text-muted-foreground/85">{m}</span>
             </button>)}
