@@ -752,26 +752,14 @@ function KeepApp() {
     {screen === "editor" && selected && <div className="relative flex keep-h-screen min-h-0 flex-col overflow-hidden bg-background">
       <div className="flex items-center justify-between px-5 pt-[max(14px,env(safe-area-inset-top))]">
         <Button variant="bare" size="icon" aria-label="Back" onClick={back}><ArrowLeft /></Button>
-        <div className="text-center">
-          <p className="eyebrow">EDIT YOUR KEEP</p>
-          <p className="mt-1 text-[10px] text-muted-foreground">Make it feel like yours.</p>
-        </div>
         <Button variant="bare" size="sm" className="text-accent" onClick={() => { setViewingDemo(false); go("preview"); }}><Play className="size-4" /> Preview</Button>
       </div>
 
       <div className="relative flex min-h-0 flex-1 items-center justify-center px-5 py-3">
         <div className="relative flex items-center justify-center">
-          <div className="relative aspect-[9/16] h-[min(58vh,480px)] max-h-[calc(var(--keep-viewport-height,100svh)-240px)] overflow-hidden rounded-[30px] border border-foreground/15 bg-card shadow-[0_24px_70px_oklch(0_0_0/0.55)]">
+          <div className="relative aspect-[9/16] h-[min(64vh,520px)] max-h-[calc(var(--keep-viewport-height,100svh)-190px)] overflow-hidden rounded-[30px] border border-foreground/15 bg-card shadow-[0_24px_70px_oklch(0_0_0/0.55)]">
             <MediaView key={selected.id} item={selected} alt={`Memory preview ${frame + 1}`} className={`h-full w-full object-cover ${editorPlaying && selected.kind === "image" ? "ken-burns" : ""} editor-image-${project.visualStyle.toLowerCase()}`} />
             <div className="absolute inset-0 photo-shade" />
-            <div className="absolute left-0 right-0 top-0 flex items-start justify-between px-4 pt-4">
-              <div>
-                <strong className="block text-[10px] font-medium tracking-[.18em]">{(name || "Your Keep").toUpperCase()}</strong>
-                <small className="text-[8px] text-foreground/75">{project.occasion} · 2026</small>
-              </div>
-              <span className="rounded-full border border-white/20 bg-black/25 px-2 py-1 text-[8px] tracking-widest backdrop-blur">KEEP</span>
-            </div>
-
             {project.captionStyle !== "None" && <div className="absolute bottom-16 left-5 right-5 text-center">
               <p className={`${project.captionStyle === "Film" ? "font-display text-3xl font-normal" : project.captionStyle === "Minimal" ? "text-sm" : project.captionStyle === "Story" ? "font-display text-2xl italic" : project.captionStyle === "Clean" ? "text-sm font-medium" : "text-lg font-semibold"} leading-tight drop-shadow-md`}>
                 {project.captionStyle === "Reel" ? <>YOU MAKE PEOPLE FEEL <span className="text-accent">AT HOME</span></> : project.captionStyle === "Minimal" ? "Feel at home." : "You make people feel at home."}
@@ -792,23 +780,16 @@ function KeepApp() {
               ["Voice", Mic],
               ["Captions", MessageCircle],
               ["Style", Sparkles],
-            ] as [Mode, any][]).map(([m, Icon]) => <button key={m} type="button" onClick={() => { setMode(m); setEditorPanel(m); }} className="group flex w-12 flex-col items-center gap-1.5 text-center">
-              <span className="flex size-11 items-center justify-center rounded-full border border-border bg-card/95 text-foreground shadow-lg backdrop-blur transition-transform group-active:scale-95"><Icon className="size-4" /></span>
-              <span className="text-[8px] leading-none text-muted-foreground">{m}</span>
+            ] as [Mode, any][]).map(([m, Icon]) => <button key={m} type="button" onClick={() => { setMode(m); setEditorPanel(m); }} className="group flex w-12 flex-col items-center gap-1 text-center">
+              <span className="flex size-10 items-center justify-center rounded-full border border-border/80 bg-card/90 text-foreground shadow-md backdrop-blur transition-transform group-active:scale-95"><Icon className="size-4" /></span>
+              <span className="text-[8px] leading-none text-muted-foreground/85">{m}</span>
             </button>)}
           </div>
         </div>
       </div>
 
-      <div className="border-t border-border bg-background/96 px-5 pb-[max(14px,env(safe-area-inset-bottom))] pt-3 backdrop-blur">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-xs font-medium">Moment {frame % shown.length + 1} of {shown.length}</p>
-            <p className="mt-1 text-[10px] text-muted-foreground">Tap a moment to preview it.</p>
-          </div>
-          <Button variant="bare" size="sm" className="text-accent" onClick={() => { setMode("Memories"); setEditorPanel("Memories"); }}><Plus className="size-4" /> Edit moments</Button>
-        </div>
-        <div className="thin-scroll mt-3 flex gap-2 overflow-x-auto pb-1">
+      <div className="border-t border-border/70 bg-background/96 px-5 pb-[max(14px,env(safe-area-inset-bottom))] pt-3 backdrop-blur">
+        <div className="thin-scroll flex gap-2 overflow-x-auto pb-1">
           {shown.map((m, i) => <button key={m.id} type="button" aria-label={`Select memory ${i + 1}`} onClick={() => setFrame(i)} className={`relative h-14 w-11 shrink-0 overflow-hidden rounded-md border transition-all ${i === frame % shown.length ? "border-accent ring-1 ring-accent" : "border-border opacity-55"}`}>
             <MediaView item={m} thumb alt={m.source === "sample" ? memoryLabels[i % memoryLabels.length] ?? "" : m.name ?? ""} className="h-full w-full object-cover" />
             {m.kind === "video" && <Play className="absolute bottom-1 left-1 size-2.5" fill="currentColor" />}
