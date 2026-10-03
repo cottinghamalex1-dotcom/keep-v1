@@ -99,7 +99,6 @@ function KeepApp() {
   const [editorPanel, setEditorPanel] = useState<Mode | null>(null);
   const [returnToEditorAfterRecording, setReturnToEditorAfterRecording] = useState(false);
   const [frame, setFrame] = useState(0);
-  const [duration, setDuration] = useState(4);
   const [editorPlaying, setEditorPlaying] = useState(true);
   const [cardBack, setCardBack] = useState(false);
   const [setting, setSetting] = useState("");
@@ -505,14 +504,14 @@ function KeepApp() {
       if (!kind) continue;
       const id = newId("media");
       const persisted = await putBlob(id, f);
-      items.push({ id, kind, source: "upload", url: URL.createObjectURL(f), name: f.name, mimeType: f.type, persisted });
+      items.push({ id, kind, source: "upload", url: URL.createObjectURL(f), name: f.name, mimeType: f.type, persisted, displayDurationSec: 4 });
     }
     setBusy(false);
     if (!items.length) { toast.error("Those files aren't photos or videos."); return; }
     if (replaceIndex !== undefined) {
       const old = frames[replaceIndex];
       if (old?.source === "upload") { releaseUrls([old.url]); void deleteBlobs([old.id]); }
-      patch({ memories: frames.length ? frames.map((m, i) => (i === replaceIndex ? items[0]! : m)) : shown.map((m, i) => (i === replaceIndex ? items[0]! : m)) });
+      patch({ memories: frames.length ? frames.map((m, i) => (i === replaceIndex ? { ...items[0]!, displayDurationSec: m.displayDurationSec ?? 4 } : m)) : shown.map((m, i) => (i === replaceIndex ? { ...items[0]!, displayDurationSec: m.displayDurationSec ?? 4 } : m)) });
       toast.success("Memory replaced");
     } else {
       patch({ memories: [...frames, ...items] });
@@ -535,9 +534,22 @@ function KeepApp() {
     patch({ memories: list });
     setFrame(to);
   };
+  const cycleMemoryDuration = () => {
+    const index = frame % shown.length;
+    const current = shown[index]?.displayDurationSec ?? 4;
+    const next = current >= 8 ? 2 : current + 1;
+    const list = [...(frames.length ? frames : shown)];
+    patch({ memories: list.map((m, i) => (i === index ? { ...m, displayDurationSec: next } : m)) });
+  };
 
   useEffect(() => { if (screen !== "generating") return; if (generation >= 3) { const t = window.setTimeout(() => go("editor"), 650); return () => window.clearTimeout(t); } const t = window.setTimeout(() => setGeneration((n) => n + 1), 1250); return () => window.clearTimeout(t); }, [screen, generation]);
-  useEffect(() => { if (screen !== "editor" || !editorPlaying || shown.length < 2) return; const t = window.setInterval(() => setFrame((i) => (i + 1) % shown.length), 4200); return () => window.clearInterval(t); }, [screen, editorPlaying, shown.length]);
+  useEffect(() => {
+    if (screen !== "editor" || !editorPlaying || shown.length < 2) return;
+    const current = shown[frame % shown.length];
+    const delay = Math.max(1, current?.displayDurationSec ?? 4) * 1000;
+    const t = window.setTimeout(() => setFrame((i) => (i + 1) % shown.length), delay);
+    return () => window.clearTimeout(t);
+  }, [screen, editorPlaying, shown.length, frame, selected?.displayDurationSec]);
 
   const engraving = project.cardEngraving;
   const updateEngraving = (i: number, value: string) => patch({ cardEngraving: engraving.map((v, j) => (j === i ? value.toUpperCase() : v)) });
@@ -809,7 +821,7 @@ function KeepApp() {
         </div>
         <div className="mt-3 flex items-center justify-between border-t border-border pt-4">
           <Button variant="bare" size="sm" disabled={shown.length <= 1} className="text-muted-foreground" onClick={() => removeMemory(frame % shown.length)}><Trash2 className="size-4" /> Remove</Button>
-          <Button variant="bare" size="sm" onClick={() => setDuration((d) => (d >= 8 ? 2 : d + 1))}>Duration {duration}s</Button>
+          <Button variant="bare" size="sm" onClick={cycleMemoryDuration}>Duration {selected?.displayDurationSec ?? 4}s</Button>
         </div>
       </div>)}
 
@@ -862,14 +874,14 @@ function KeepApp() {
     </div>}
     {screen === "preview" && (viewingDemo
       ? <KeepPlayer name="HANNA" from="Alex" year="2026" onExit={back} onFinish={home} />
-      : <KeepPlayer name={(name || "Your Keep").toUpperCase()} from="Alex" year="2026" subtitle={project.occasion} onExit={back} onFinish={() => go("recipientReveal")} style={project.visualStyle} captions={project.captionStyle} media={frames.length ? frames.map((m) => ({ url: m.url, kind: m.kind })) : undefined} audioUrl={rec && !rec.demo ? rec.audioUrl : undefined} audioDuration={rec?.durationSec} lines={captionLines} />)}
+      : <KeepPlayer name={(name || "Your Keep").toUpperCase()} from="Alex" year="2026" subtitle={project.occasion} onExit={back} onFinish={() => go("recipientReveal")} style={project.visualStyle} captions={project.captionStyle} media={frames.length ? frames.map((m) => ({ url: m.url, kind: m.kind, displayDurationSec: m.displayDurationSec ?? 4 })) : undefined} audioUrl={rec && !rec.demo ? rec.audioUrl : undefined} audioDuration={rec?.durationSec} lines={captionLines} />)}
     {screen === "recipientReveal" && <div className="flex keep-min-screen flex-col justify-between px-7 pb-[max(40px,env(safe-area-inset-bottom))] pt-[max(40px,env(safe-area-inset-top))] text-center"><span className="brand">KEEP</span><div className="py-12"><h1 className="display text-[clamp(48px,13vw,68px)]">Experience it<br />the way they will.</h1><p className="mx-auto mt-7 max-w-sm text-sm leading-7 text-muted-foreground">Step out of the editor for a moment. See the Keep exactly as {name || "they"} will receive it when they tap their card.</p></div><div>{nextButton("I'm ready", () => go("recipientPreview"))}<p className="mt-4 text-[11px] leading-5 text-muted-foreground">No editing. No setup. Just their experience.</p></div></div>}
     {screen === "recipientPreview" && <KeepRecipientExperience
       name={(name || engraving[0] || "You").trim()}
       from={(engraving[1]?.replace(/^FROM\s+/i, "") || "Alex").trim()}
       year={(engraving[2] || "2026").trim()}
       subtitle={project.occasion}
-      media={frames.length ? frames.map((m) => ({ url: m.url, kind: m.kind })) : undefined}
+      media={frames.length ? frames.map((m) => ({ url: m.url, kind: m.kind, displayDurationSec: m.displayDurationSec ?? 4 })) : undefined}
       audioUrl={rec && !rec.demo ? rec.audioUrl : undefined}
       audioDuration={rec?.durationSec}
       messageParagraphs={project.messageParagraphs.length ? project.messageParagraphs : initialMessage.map((p) => withName(p, name))}
