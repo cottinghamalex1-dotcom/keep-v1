@@ -10,6 +10,7 @@ export type MediaItem = {
   mimeType?: string | undefined;
   sampleIndex?: number | undefined;
   persisted?: boolean | undefined; // blob saved in IndexedDB
+  displayDurationSec?: number | undefined; // how long this moment stays on screen in watch mode
 };
 
 /** One interview answer. A future transcription/AI service consumes the audio blob
@@ -56,7 +57,7 @@ export const ONBOARD_KEY = "keep.onboarded.v1";
 export const newId = (prefix: string) => `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 
 export const sampleMemories = (): MediaItem[] =>
-  memoryImages.map((url, i) => ({ id: newId("sample"), kind: "image", source: "sample", url, sampleIndex: i }));
+  memoryImages.map((url, i) => ({ id: newId("sample"), kind: "image", source: "sample", url, sampleIndex: i, displayDurationSec: 4 }));
 
 export function newProject(): KeepProject {
   return {
