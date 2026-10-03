@@ -390,18 +390,22 @@ function KeepApp() {
     {screen === "message" && <>{top("04 / 04")}<div className="px-7 pb-32 pt-9">{title(project.messageSource === "own" ? "In your own words" : "Demo generation", project.messageSource === "own" ? "Your message." : "Your message is ready.", "Tap any paragraph to make it yours.")}<div className="space-y-1">{project.messageParagraphs.map((p, i) => <textarea key={i} aria-label={`Message paragraph ${i + 1}`} rows={Math.max(3, Math.ceil(p.length / 44))} value={p} onFocus={() => setActiveParagraph(i)} onChange={(e) => patch({ messageParagraphs: project.messageParagraphs.map((item, j) => (j === i ? e.target.value : item)) })} className={`w-full resize-none rounded-sm border bg-transparent p-3 font-display text-[23px] leading-[1.3] outline-none transition-colors ${activeParagraph === i ? "border-accent/50" : "border-transparent"}`} />)}</div><Button variant="bare" size="sm" className="mt-2 text-muted-foreground" onClick={() => { patch({ messageParagraphs: [...project.messageParagraphs, ""] }); setActiveParagraph(project.messageParagraphs.length); }}><Plus /> Add paragraph</Button><Button variant="quiet" size="touch" className="mt-5 w-full" onClick={() => setAskOpen(true)}><Sparkles /> Ask KEEP</Button><div className="mt-3">{nextButton("Record Your Keep", () => { patch({ messageParagraphs: project.messageParagraphs.filter((p) => p.trim()) }); go("recordPrep"); }, !project.messageParagraphs.some((p) => p.trim()))}</div></div>{askOpen && sheet("Ask KEEP", () => setAskOpen(false), <><p className="mt-2 mb-6 text-xs text-muted-foreground">For the paragraph you've selected · demo edits</p>{["Make this sound more like me", "Shorten this section", "Make the ending stronger", "Add a memory"].map((prompt) => <Button key={prompt} variant="bare" className="flex h-14 w-full justify-between border-t border-border px-0 font-normal" onClick={() => { patch({ messageParagraphs: project.messageParagraphs.map((p, i) => (i !== activeParagraph ? p : prompt === "Shorten this section" ? p.split(". ").slice(0, 2).join(". ").replace(/\.?$/, ".") : prompt === "Add a memory" ? `${p} I still think of the way we laughed on that trip by the sea.` : prompt === "Make the ending stronger" ? `${p} I love you, and I always will.` : p.replace("I wanted to make this because", "I've been meaning to tell you this because"))) }); setAskOpen(false); toast.success("This paragraph has been updated"); }}>{prompt}<ArrowRight className="size-4 text-accent" /></Button>)}<p className="mt-4 text-[11px] text-muted-foreground">These are simple demo edits until KEEP's writing assistant is connected.</p></>)}</>}
     {screen === "recordPrep" && <div className="flex min-h-dvh flex-col px-7 pb-[max(36px,env(safe-area-inset-bottom))]">
       {top()}
-      <div className="flex flex-1 flex-col justify-center py-10">
-        <p className="eyebrow mb-6">YOUR VOICE, YOUR KEEP</p>
+      <div className="flex flex-1 flex-col justify-center py-8">
         <h1 className="display text-[clamp(48px,13vw,68px)]">Before you record.</h1>
-        <p className="mt-6 max-w-sm text-sm leading-7 text-muted-foreground">This doesn't need to sound perfect. It needs to sound like you.</p>
-        <div className="mt-10 divide-y divide-border border-y border-border text-left">
-          <div className="py-5"><strong className="block text-sm font-medium">Find a quiet room.</strong><p className="mt-1 text-xs leading-5 text-muted-foreground">Give your voice a little space from background noise.</p></div>
-          <div className="py-5"><strong className="block text-sm font-medium">Silence notifications.</strong><p className="mt-1 text-xs leading-5 text-muted-foreground">Keep your phone reasonably close and let this moment have your attention.</p></div>
-          <div className="py-5"><strong className="block text-sm font-medium">Speak naturally.</strong><p className="mt-1 text-xs leading-5 text-muted-foreground">A little slower than normal is great. Pauses are welcome.</p></div>
-          <div className="py-5"><strong className="block text-sm font-medium">Mistakes are okay.</strong><p className="mt-1 text-xs leading-5 text-muted-foreground">Pause, restart a sentence, laugh, get emotional. It doesn't have to be polished.</p></div>
-          <div className="py-5"><strong className="block font-display text-2xl font-normal">Don't perform. Talk directly to {name || "them"}.</strong></div>
+        <p className="mt-5 whitespace-nowrap text-[11px] leading-5 text-muted-foreground">This doesn't need to sound perfect. It needs to sound like you.</p>
+        <div className="mt-10">
+          <p className="eyebrow mb-5">A FEW SUGGESTIONS</p>
+          <ul className="space-y-5 pl-5 text-left">
+            <li className="list-disc pl-2 marker:text-accent"><strong className="block text-sm font-medium">Find a quiet room.</strong><p className="mt-1 text-xs leading-5 text-muted-foreground">Give your voice a little space from background noise.</p></li>
+            <li className="list-disc pl-2 marker:text-accent"><strong className="block text-sm font-medium">Silence notifications.</strong><p className="mt-1 text-xs leading-5 text-muted-foreground">Keep your phone reasonably close and let this moment have your attention.</p></li>
+            <li className="list-disc pl-2 marker:text-accent"><strong className="block text-sm font-medium">Speak naturally.</strong><p className="mt-1 text-xs leading-5 text-muted-foreground">A little slower than normal is great. Pauses are welcome.</p></li>
+            <li className="list-disc pl-2 marker:text-accent"><strong className="block text-sm font-medium">Mistakes are okay.</strong><p className="mt-1 text-xs leading-5 text-muted-foreground">Pause, restart a sentence, laugh, get emotional. It doesn't have to be polished.</p></li>
+          </ul>
         </div>
-        <p className="mt-9 text-center font-display text-2xl">Picture them listening.</p>
+        <div className="mt-9 border-t border-border pt-6">
+          <p className="text-sm font-medium">Don't perform. Talk directly to {name || "them"}.</p>
+          <p className="mt-2 text-xs leading-5 text-muted-foreground">Picture them listening.</p>
+        </div>
       </div>
       <div>{nextButton("I'm ready", () => go("record"))}</div>
     </div>}
