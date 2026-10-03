@@ -47,8 +47,8 @@
 }
 
 * { box-sizing: border-box; border-color: var(--border); }
-html { background: var(--background); }
-body { margin: 0; background: var(--background); color: var(--foreground); font-family: var(--font-sans); }
+html { min-height: 100%; background: var(--background); }
+body { min-height: 100%; margin: 0; background: var(--background); color: var(--foreground); font-family: var(--font-sans); overscroll-behavior-y: none; }
 button, input, textarea { font: inherit; }
 button { -webkit-tap-highlight-color: transparent; }
 ::selection { background: var(--accent); color: var(--accent-foreground); }
