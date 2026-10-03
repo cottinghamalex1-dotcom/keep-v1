@@ -102,7 +102,7 @@ function scheduleMusic(
   };
 }
 
-export function createKeepVoiceMix(audio: HTMLAudioElement, mood: string, balance: MusicBalance, voiceDuration: number) {
+export function createKeepVoiceMix(audio: HTMLAudioElement, mood: string, balance: MusicBalance, voiceDuration: number, introSeconds = 3.2) {
   const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
   if (!AudioCtx) return null;
 
@@ -137,7 +137,7 @@ export function createKeepVoiceMix(audio: HTMLAudioElement, mood: string, balanc
   voiceGain.connect(master);
   master.connect(ctx.destination);
 
-  let music = scheduleMusic(ctx, master, mood, balance, voiceDuration);
+  let music = scheduleMusic(ctx, master, mood, balance, voiceDuration, introSeconds);
   let currentMood = mood;
   let currentBalance = balance;
 
@@ -154,7 +154,7 @@ export function createKeepVoiceMix(audio: HTMLAudioElement, mood: string, balanc
       currentMood = nextMood;
       currentBalance = nextBalance;
       music.stop();
-      music = scheduleMusic(ctx, master, currentMood, currentBalance, voiceDuration);
+      music = scheduleMusic(ctx, master, currentMood, currentBalance, voiceDuration, introSeconds);
     },
     stop: async () => {
       music.stop();
