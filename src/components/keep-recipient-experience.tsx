@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, ArrowRight, BookOpen, Headphones, Images, Mic, Pause, Play, RotateCcw, Volume2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { KeepPlayer, memoryImages, type PlayerMedia } from "@/components/keep-player";
+import type { CaptionCue } from "@/lib/keep-project";
 
 type Experience = "watch" | "listen" | "read";
 
@@ -17,6 +18,9 @@ type Props = {
   style?: string | undefined;
   captions?: string | undefined;
   lines?: string[] | undefined;
+  captionCues?: CaptionCue[] | undefined;
+  musicMood?: string | undefined;
+  voiceMusicBalance?: string | undefined;
   persistVisit?: boolean;
   creatorPreview?: boolean;
   onCreatorContinue?: () => void;
@@ -42,6 +46,9 @@ export function KeepRecipientExperience({
   style = "Natural",
   captions = "Reel",
   lines,
+  captionCues = [],
+  musicMood = "Warm + Nostalgic",
+  voiceMusicBalance = "Balanced",
   persistVisit = true,
   creatorPreview = false,
   onCreatorContinue,
@@ -124,7 +131,7 @@ export function KeepRecipientExperience({
   };
 
   if (stage === "experience" && experience === "watch") {
-    return <main className="app-shell"><KeepPlayer name={name.toUpperCase()} from={from} year={year} subtitle={subtitle} recipient onExit={backToChoose} onFinish={finishExperience} style={style} captions={captions} media={media} audioUrl={audioUrl} audioDuration={audioDuration} lines={lines} /></main>;
+    return <main className="app-shell"><KeepPlayer name={name.toUpperCase()} from={from} year={year} subtitle={subtitle} recipient onExit={backToChoose} onFinish={finishExperience} style={style} captions={captions} media={media} audioUrl={audioUrl} audioDuration={audioDuration} lines={lines} captionCues={captionCues} musicMood={musicMood} voiceMusicBalance={voiceMusicBalance} /></main>;
   }
 
   if (stage === "experience" && experience === "listen") {
