@@ -27,6 +27,7 @@ export type InterviewAnswer = {
 };
 
 export type VoiceRecording = { audioId?: string | undefined; audioUrl?: string | undefined; durationSec: number; mimeType?: string | undefined; demo: boolean };
+export type CaptionCue = { text: string; start: number; end: number };
 
 export type KeepProject = {
   active: boolean;
@@ -43,6 +44,8 @@ export type KeepProject = {
   writtenText: string;
   messageParagraphs: string[];
   finalVoiceRecording: VoiceRecording | null;
+  captionTranscript: string;
+  captionCues: CaptionCue[];
   memories: MediaItem[];
   musicMood: string;
   voiceMusicBalance: string;
@@ -62,7 +65,7 @@ export const sampleMemories = (): MediaItem[] =>
 export function newProject(): KeepProject {
   return {
     active: false, stage: "recipient", recipientName: "", relationship: "", occasion: "Anniversary", intent: "", questionIndex: 0, interviewQuestion: "", interviewSummary: "",
-    interviewAnswers: [], messageSource: null, writtenText: "", messageParagraphs: [], finalVoiceRecording: null, memories: [],
+    interviewAnswers: [], messageSource: null, writtenText: "", messageParagraphs: [], finalVoiceRecording: null, captionTranscript: "", captionCues: [], memories: [],
     musicMood: "Warm + Nostalgic", voiceMusicBalance: "Balanced", captionStyle: "Reel", visualStyle: "Natural", cardEngraving: ["", "FROM ALEX", "2026"],
   };
 }
