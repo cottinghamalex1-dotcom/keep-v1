@@ -35,7 +35,7 @@ export function KeepPlayer({ name, from, year, onExit, onFinish, recipient = fal
       : Math.max(1, items[scene % items.length]?.displayDurationSec ?? 4) * 1000;
     const timer = window.setTimeout(() => setScene((s) => s + 1), delay);
     return () => window.clearTimeout(timer);
-  }, [scene, playing, end, items]);
+  }, [scene, playing, end, media]);
 
   useEffect(() => {
     const a = audio.current;
