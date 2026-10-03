@@ -124,7 +124,20 @@ function KeepApp() {
     let cancelled = false;
     const d = loadDraft();
     if (d) setProject(d);
-    try { if (!localStorage.getItem(ONBOARD_KEY)) setScreen("onboarding"); } catch { /* ignore */ }
+
+    let onboarded = true;
+    try { onboarded = !!localStorage.getItem(ONBOARD_KEY); } catch { /* ignore */ }
+
+    if (!onboarded) {
+      setScreen("onboarding");
+    } else if (d?.active) {
+      const savedStage = d.stage as Screen;
+      if (creationScreens.includes(savedStage)) {
+        setHistory([]);
+        setScreen(resumeScreen(savedStage));
+      }
+    }
+
     setHydrated(true);
     if (d) void hydrateDraftMedia(d).then((h) => { if (!cancelled) setProject((cur) => ({ ...cur, ...h })); });
     return () => { cancelled = true; };
