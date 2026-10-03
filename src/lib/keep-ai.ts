@@ -37,6 +37,22 @@ export async function transcribeAudio(blob: Blob, mimeType?: string) {
   return (r.transcript ?? "").trim();
 }
 
+export type TimedWord = { word: string; start: number; end: number };
+
+export async function transcribeTimedAudio(blob: Blob, mimeType?: string, prompt?: string) {
+  const type = mimeType ?? blob.type;
+  const ext = type.includes("mp4") ? "m4a" : type.includes("ogg") ? "ogg" : "webm";
+  const fd = new FormData();
+  fd.append("action", "transcribe_timed");
+  fd.append("file", new File([blob], `keep-voice.${ext}`, { type: blob.type || mimeType || "audio/webm" }));
+  if (prompt?.trim()) fd.append("prompt", prompt.trim().slice(0, 1200));
+  const r = await post<{ transcript?: string; words?: TimedWord[] }>(fd, false);
+  return {
+    transcript: (r.transcript ?? "").trim(),
+    words: (r.words ?? []).map((w) => ({ word: String(w.word ?? "").trim(), start: Number(w.start) || 0, end: Number(w.end) || 0 })).filter((w) => w.word && w.end >= w.start),
+  };
+}
+
 export async function fetchDraft(ctx: InterviewContext) {
   const r = await post<{ paragraphs?: string[] }>(JSON.stringify({ action: "draft", ...ctx }), true);
   const paras = (r.paragraphs ?? []).map((p) => String(p).trim()).filter(Boolean);
