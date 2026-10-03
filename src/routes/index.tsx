@@ -4,7 +4,7 @@ import { ArrowLeft, ArrowRight, Check, ChevronLeft, ChevronRight, CircleHelp, Do
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { KeepPlayer, memoryImages, memoryLabels } from "@/components/keep-player";
-import { KeepRecipientExperience } from "@/components/keep-recipient-experience";
+import { KeepRecipientExperience, type KeepExperienceMode } from "@/components/keep-recipient-experience";
 import { KeepErrorBoundary } from "@/components/keep-error-boundary";
 import { useRecorder } from "@/hooks/use-recorder";
 import { deleteBlobs, putBlob } from "@/lib/keep-media-store";
@@ -26,8 +26,8 @@ export const Route = createFileRoute("/")({
 
 type Screen = "onboarding" | "home" | "you" | "detail" | "recipient" | "occasion" | "intent" | "path" | "interview" | "summary" | "messageGenerating" | "write" | "message" | "recordPrep" | "record" | "recorded" | "memories" | "generating" | "editor" | "preview" | "recipientReveal" | "recipientPreview" | "giveReady" | "card" | "success";
 type Mode = "Memories" | "Music" | "Captions" | "Style" | "Voice";
-const creationScreens: Screen[] = ["recipient", "occasion", "intent", "path", "interview", "summary", "messageGenerating", "write", "message", "recordPrep", "record", "recorded", "memories", "generating", "editor", "preview", "recipientReveal", "recipientPreview", "giveReady", "card", "success"];
-const resumeScreen = (s: Screen): Screen => (s === "messageGenerating" ? "summary" : s === "generating" ? "memories" : s === "preview" || s === "recipientReveal" || s === "recipientPreview" || s === "giveReady" ? "editor" : s);
+const creationScreens: Screen[] = ["recipient", "occasion", "intent", "path", "interview", "summary", "messageGenerating", "write", "message", "recordPrep", "record", "recorded", "memories", "generating", "editor", "preview", "recipientPreview", "card", "success"];
+const resumeScreen = (s: Screen): Screen => (s === "messageGenerating" ? "summary" : s === "generating" ? "memories" : s === "preview" || s === "recipientPreview" ? "editor" : s);
 const occasions = ["Birthday", "Anniversary", "Wedding", "New Baby", "Mother's Day", "Father's Day", "Graduation", "Thank You", "Trip / Adventure", "Milestone", "Celebration of Life", "Family Memories", "Just Because", "Other"];
 const relationships = ["Spouse / Partner", "Mom", "Dad", "Child", "Grandparent", "Sibling", "Friend", "Myself", "Someone else"];
 const questions = [
@@ -126,6 +126,10 @@ function KeepApp() {
   const [generation, setGeneration] = useState(0);
   const [mode, setMode] = useState<Mode>("Memories");
   const [editorPanel, setEditorPanel] = useState<Mode | null>(null);
+  const [previewChooserOpen, setPreviewChooserOpen] = useState(false);
+  const [creatorPreviewMode, setCreatorPreviewMode] = useState<KeepExperienceMode | null>(null);
+  const [readArrangeOpen, setReadArrangeOpen] = useState(false);
+  const [readArrangeIndex, setReadArrangeIndex] = useState(0);
   const [returnToEditorAfterRecording, setReturnToEditorAfterRecording] = useState(false);
   const [frame, setFrame] = useState(0);
   const [editorPlaying, setEditorPlaying] = useState(true);
@@ -596,6 +600,31 @@ function KeepApp() {
     const list = [...(frames.length ? frames : shown)];
     patch({ memories: list.map((m, i) => (i === index ? { ...m, displayDurationSec: next } : m)) });
   };
+  const readOrderedFrames = (() => {
+    const base = frames.length ? frames : shown;
+    if (!project.readMemoryOrder.length) return base;
+    const byId = new Map(base.map((m) => [m.id, m]));
+    const ordered = project.readMemoryOrder.map((id) => byId.get(id)).filter((m): m is MediaItem => !!m);
+    const used = new Set(ordered.map((m) => m.id));
+    return [...ordered, ...base.filter((m) => !used.has(m.id))];
+  })();
+  const moveReadMemory = (from: number, to: number) => {
+    const ids = readOrderedFrames.map((m) => m.id);
+    if (from < 0 || to < 0 || from >= ids.length || to >= ids.length || from === to) return;
+    const [id] = ids.splice(from, 1);
+    if (!id) return;
+    ids.splice(to, 0, id);
+    patch({ readMemoryOrder: ids });
+    setReadArrangeIndex(to);
+  };
+  const openCreatorPreview = (mode: KeepExperienceMode) => {
+    setPreviewChooserOpen(false);
+    setReadArrangeOpen(false);
+    setCreatorPreviewMode(mode);
+    setHistory((h) => [...h, "editor"]);
+    setScreen("recipientPreview");
+    resetPageScroll();
+  };
   const toggleMusicSample = async (trackName: string) => {
     if (musicSampleTimer.current) window.clearTimeout(musicSampleTimer.current);
     musicSampleTimer.current = null;
@@ -843,7 +872,10 @@ function KeepApp() {
     {screen === "editor" && selected && <div className="relative flex keep-h-screen min-h-0 flex-col overflow-hidden bg-background">
       <div className="flex items-center justify-between px-5 pt-[max(14px,env(safe-area-inset-top))]">
         <Button variant="bare" size="icon" aria-label="Back" onClick={back}><ArrowLeft /></Button>
-        <Button variant="bare" size="sm" className="text-accent" onClick={() => { setViewingDemo(false); go("preview"); }}><Play className="size-4" /> Preview</Button>
+        <div className="flex items-center gap-1">
+          <Button variant="bare" size="sm" className="text-muted-foreground" onClick={() => { setViewingDemo(false); setPreviewChooserOpen(true); setReadArrangeOpen(false); }}><Play className="size-4" /> Preview</Button>
+          <Button variant="keep" size="sm" onClick={toCard}>Done <Check className="size-4" /></Button>
+        </div>
       </div>
 
       <div className="relative flex min-h-0 flex-1 items-center justify-center px-5 py-3">
@@ -955,17 +987,37 @@ function KeepApp() {
         </div>
       </div>)}
 
+      {previewChooserOpen && sheet("Preview your Keep", () => { setPreviewChooserOpen(false); setReadArrangeOpen(false); }, <div className="pb-2">
+        <p className="mt-2 text-xs leading-5 text-muted-foreground">Choose how you want to check it. Previewing is optional — you can come back and make changes anytime.</p>
+        <div className="mt-5 space-y-2">
+          <Button variant="keep" className="h-auto w-full justify-between p-4 text-left" onClick={() => openCreatorPreview("watch")}><span className="flex items-center gap-3"><Images className="size-5" /><span><strong className="block font-normal">Watch</strong><small className="mt-1 block font-normal text-foreground/70">Voice, memories, music + captions</small></span></span><ArrowRight /></Button>
+          <Button variant="quiet" className="h-auto w-full justify-between p-4 text-left" onClick={() => openCreatorPreview("listen")}><span className="flex items-center gap-3"><Music2 className="size-5" /><span><strong className="block font-normal">Listen</strong><small className="mt-1 block font-normal text-muted-foreground">Hear the final voice + music mix</small></span></span><ArrowRight /></Button>
+          <Button variant="quiet" className="h-auto w-full justify-between p-4 text-left" onClick={() => openCreatorPreview("read")}><span className="flex items-center gap-3"><MessageCircle className="size-5" /><span><strong className="block font-normal">Read</strong><small className="mt-1 block font-normal text-muted-foreground">Words woven together with memories</small></span></span><ArrowRight /></Button>
+        </div>
+
+        <div className="mt-5 border-t border-border pt-4">
+          <Button variant="bare" size="sm" className="w-full justify-between px-0 text-muted-foreground" onClick={() => setReadArrangeOpen((v) => !v)}><span>Arrange read-version photos</span>{readArrangeOpen ? <ChevronLeft className="size-4 -rotate-90" /> : <ChevronRight className="size-4 rotate-90" />}</Button>
+          {readArrangeOpen && <div className="mt-4 page-enter">
+            <div className="thin-scroll flex gap-2 overflow-x-auto pb-2">{readOrderedFrames.map((m, i) => <button key={m.id} type="button" onClick={() => setReadArrangeIndex(i)} className={`relative h-20 w-16 shrink-0 overflow-hidden rounded-md border ${i === readArrangeIndex ? "border-accent ring-1 ring-accent" : "border-border opacity-60"}`}><MediaView item={m} thumb alt={m.name ?? `Read memory ${i + 1}`} className="h-full w-full object-cover" /></button>)}</div>
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              <Button variant="quiet" disabled={readArrangeIndex <= 0} onClick={() => moveReadMemory(readArrangeIndex, readArrangeIndex - 1)}><ChevronLeft /> Earlier</Button>
+              <Button variant="quiet" disabled={readArrangeIndex >= readOrderedFrames.length - 1} onClick={() => moveReadMemory(readArrangeIndex, readArrangeIndex + 1)}>Later <ChevronRight /></Button>
+            </div>
+            <p className="mt-3 text-[10px] leading-4 text-muted-foreground">This only changes the Read version. Your Watch order stays the same.</p>
+          </div>}
+        </div>
+      </div>)}
     </div>}
     {screen === "preview" && (viewingDemo
       ? <KeepPlayer name="HANNA" from="Alex" year="2026" onExit={back} onFinish={home} />
       : <KeepPlayer name={(name || "Your Keep").toUpperCase()} from="Alex" year="2026" subtitle={project.occasion} onExit={back} onFinish={() => go("recipientReveal")} style={project.visualStyle} captions={project.captionStyle} media={frames.length ? frames.map((m) => ({ url: m.url, kind: m.kind, displayDurationSec: m.displayDurationSec ?? 4 })) : undefined} audioUrl={rec && !rec.demo ? rec.audioUrl : undefined} audioDuration={rec?.durationSec} lines={captionLines} captionCues={project.captionCues} musicMood={project.musicMood} voiceMusicBalance={project.voiceMusicBalance} />)}
-    {screen === "recipientReveal" && <div className="flex keep-min-screen flex-col justify-between px-7 pb-[max(40px,env(safe-area-inset-bottom))] pt-[max(40px,env(safe-area-inset-top))] text-center"><span className="brand">KEEP</span><div className="py-12"><h1 className="display text-[clamp(48px,13vw,68px)]">Experience it<br />the way they will.</h1><p className="mx-auto mt-7 max-w-sm text-sm leading-7 text-muted-foreground">Step out of the editor for a moment. See the Keep exactly as {name || "they"} will receive it when they tap their card.</p></div><div>{nextButton("I'm ready", () => go("recipientPreview"))}<p className="mt-4 text-[11px] leading-5 text-muted-foreground">No editing. No setup. Just their experience.</p></div></div>}
     {screen === "recipientPreview" && <KeepRecipientExperience
       name={(name || engraving[0] || "You").trim()}
       from={(engraving[1]?.replace(/^FROM\s+/i, "") || "Alex").trim()}
       year={(engraving[2] || "2026").trim()}
       subtitle={project.occasion}
       media={frames.length ? frames.map((m) => ({ url: m.url, kind: m.kind, displayDurationSec: m.displayDurationSec ?? 4 })) : undefined}
+      readMedia={readOrderedFrames.length ? readOrderedFrames.map((m) => ({ url: m.url, kind: m.kind, displayDurationSec: m.displayDurationSec ?? 4 })) : undefined}
       audioUrl={rec && !rec.demo ? rec.audioUrl : undefined}
       audioDuration={rec?.durationSec}
       messageParagraphs={project.messageParagraphs.length ? project.messageParagraphs : initialMessage.map((p) => withName(p, name))}
@@ -977,9 +1029,10 @@ function KeepApp() {
       voiceMusicBalance={project.voiceMusicBalance}
       persistVisit={false}
       creatorPreview
-      onCreatorContinue={() => go("giveReady")}
+      initialExperience={creatorPreviewMode ?? "watch"}
+      onCreatorExit={() => { setCreatorPreviewMode(null); setHistory([]); setScreen("editor"); resetPageScroll(); }}
+      onCreatorContinue={() => { setCreatorPreviewMode(null); setScreen("editor"); resetPageScroll(); }}
     />}
-    {screen === "giveReady" && <div className="flex keep-min-screen flex-col justify-between px-7 pb-[max(40px,env(safe-area-inset-bottom))] pt-[max(40px,env(safe-area-inset-top))] text-center"><span className="brand">KEEP</span><div className="py-12"><div className="mx-auto mb-10 flex size-13 items-center justify-center rounded-full border border-accent text-accent"><Check /></div><h1 className="display text-[clamp(50px,14vw,70px)]">Ready to give<br />this Keep?</h1><p className="mx-auto mt-7 max-w-sm text-sm leading-7 text-muted-foreground">You've seen the moment they'll receive. If it feels right, give these words somewhere physical to live.</p></div><div className="space-y-3">{nextButton("Yes — give it somewhere to live", toCard)}<Button variant="quiet" size="touch" className="w-full" onClick={() => { setHistory((h) => [...h, screen]); setScreen("editor"); window.scrollTo(0, 0); }}>Make changes</Button></div></div>}
     {screen === "card" && <>{top()}<div className="px-7 pb-10 pt-7">{title("The final touch", "Give it somewhere to live.", "Your card opens this Keep with a tap. No app or login required.")}<div className="card-object relative mx-auto aspect-[1.586] w-full max-w-none overflow-hidden rounded-lg border border-foreground/10 p-7 text-white"><span className="brand absolute left-7 top-7 text-sm text-white">KEEP</span><div className="absolute left-7 top-[42%] flex -translate-y-1/2 flex-col items-start gap-1 text-left text-[11px] tracking-[.2em] text-white"><strong className="font-normal">{engraving[0]}</strong>{engraving[1] && <span>{engraving[1]}</span>}{engraving[2] && <span>{engraving[2]}</span>}</div></div><div className="mt-9 space-y-4">{["To / Title", "From (optional)", "Date (optional)"].map((label, i) => <label key={label} className="block"><span className="eyebrow">{label}</span><input aria-label={`Card ${label}`} maxLength={22} value={engraving[i] ?? ""} onChange={(e) => updateEngraving(i, e.target.value)} className="mt-2 w-full border-0 border-b border-border bg-transparent pb-3 text-sm tracking-widest outline-none focus:border-accent" /></label>)}</div><div className="mt-10">{nextButton("Create My Keep", () => engraving[0]?.trim() && go("success"), !engraving[0]?.trim())}</div><p className="mt-3 text-center text-[11px] text-muted-foreground">Only To / Title is required. Physical cards are coming next.</p></div></>}
     {screen === "success" && <div className="flex keep-min-screen flex-col justify-between px-7 pb-10 pt-10"><span className="brand">KEEP</span><div className="py-12"><div className="mb-10 flex size-13 items-center justify-center rounded-full border border-accent text-accent"><Check /></div>{title("", "Your Keep is ready.")}<button type="button" className="card-object relative mt-12 block aspect-[1.586] w-full overflow-hidden rounded-lg border border-foreground/10 p-7 text-left text-white" onClick={() => setCardBack(!cardBack)} aria-label={cardBack ? "View front of keepsake card" : "View back of keepsake card"}>{!cardBack ? <><span className="brand absolute left-7 top-7 text-lg text-white">KEEP</span><div className="absolute left-7 top-[42%] flex -translate-y-1/2 flex-col items-start gap-1 text-left text-[11px] tracking-[.2em] text-white"><span>{engraving[0]}</span>{engraving[1] && <span>{engraving[1]}</span>}{engraving[2] && <span>{engraving[2]}</span>}</div></> : <div className="absolute inset-x-0 bottom-6 flex flex-col items-center gap-2 px-7 text-center text-[11px] font-normal tracking-[.2em] text-white"><span>SOME THINGS ARE WORTH KEEPING.</span><Radio className="size-4 stroke-[1.5]" aria-hidden="true" /></div>}</button><Button variant="bare" className="mx-auto mt-3 flex h-auto items-center gap-2 px-3 py-2 text-xs text-muted-foreground" onClick={() => setCardBack(!cardBack)}>{cardBack ? "View front" : "View back"} <RotateCcw className="size-3.5" /></Button><p className="mt-2 text-xs text-muted-foreground">Card #000001 · {engraving[0]}{engraving[1] ? ` · ${engraving[1].toLowerCase()}` : ""}{engraving[2] ? ` · ${engraving[2]}` : ""}</p><p className="mt-3 text-xs leading-5 text-muted-foreground">Physical card ordering is coming next. No card has been ordered or shipped.</p></div><div className="space-y-3"><Button variant="keep" size="touch" className="w-full justify-between" asChild><Link to="/recipient" search={{ name: (name || engraving[0] || "Hanna").trim(), from: engraving[1]?.replace(/^FROM\\s+/i, "") || "Alex", year: engraving[2] || "2026" }}>Preview recipient experience <ArrowRight /></Link></Button><Button variant="quiet" size="touch" className="w-full" onClick={home}>Back to Keeps</Button></div></div>}
   </div>{primaryNav && <nav aria-label="Main navigation" className="nav-bottom fixed bottom-0 left-1/2 z-20 w-full max-w-[540px] -translate-x-1/2 flex h-[82px] border-t border-border bg-background/95 backdrop-blur-xl"><Button variant="bare" className={`h-16 flex-1 flex-col gap-1 text-[11px] ${screen === "home" ? "text-accent" : "text-muted-foreground"}`} onClick={home}><Images className="size-5" />Keeps</Button><Button variant="bare" className="h-16 flex-1 flex-col gap-1 text-[11px] text-muted-foreground" onClick={() => (project.active ? continueDraft() : begin())}><Plus className="size-5" />Create</Button><Button variant="bare" className={`h-16 flex-1 flex-col gap-1 text-[11px] ${screen === "you" ? "text-accent" : "text-muted-foreground"}`} onClick={() => go("you")}><span className="flex size-5 items-center justify-center rounded-full border text-[10px]">A</span>You</Button></nav>}</main>;
