@@ -485,7 +485,7 @@ function KeepApp() {
     setCaptionSyncing(true);
     setCaptionSyncError(false);
     try {
-      const prompt = project.messageParagraphs.join(" ").slice(0, 1200);
+      const prompt = project.messageParagraphs.join(" ").slice(0, 700);
       const timed = await transcribeTimedAudio(blob, mimeType, prompt);
       const cues = groupTimedWords(timed.words);
       if (!cues.length) throw new Error("No timestamped words returned");
