@@ -958,7 +958,7 @@ function KeepApp() {
     </div>}
     {screen === "preview" && (viewingDemo
       ? <KeepPlayer name="HANNA" from="Alex" year="2026" onExit={back} onFinish={home} />
-      : <KeepPlayer name={(name || "Your Keep").toUpperCase()} from="Alex" year="2026" subtitle={project.occasion} onExit={back} onFinish={() => go("recipientReveal")} style={project.visualStyle} captions={project.captionStyle} media={frames.length ? frames.map((m) => ({ url: m.url, kind: m.kind, displayDurationSec: m.displayDurationSec ?? 4 })) : undefined} audioUrl={rec && !rec.demo ? rec.audioUrl : undefined} audioDuration={rec?.durationSec} lines={captionLines} />)}
+      : <KeepPlayer name={(name || "Your Keep").toUpperCase()} from="Alex" year="2026" subtitle={project.occasion} onExit={back} onFinish={() => go("recipientReveal")} style={project.visualStyle} captions={project.captionStyle} media={frames.length ? frames.map((m) => ({ url: m.url, kind: m.kind, displayDurationSec: m.displayDurationSec ?? 4 })) : undefined} audioUrl={rec && !rec.demo ? rec.audioUrl : undefined} audioDuration={rec?.durationSec} lines={captionLines} captionCues={project.captionCues} musicMood={project.musicMood} voiceMusicBalance={project.voiceMusicBalance} />)}
     {screen === "recipientReveal" && <div className="flex keep-min-screen flex-col justify-between px-7 pb-[max(40px,env(safe-area-inset-bottom))] pt-[max(40px,env(safe-area-inset-top))] text-center"><span className="brand">KEEP</span><div className="py-12"><h1 className="display text-[clamp(48px,13vw,68px)]">Experience it<br />the way they will.</h1><p className="mx-auto mt-7 max-w-sm text-sm leading-7 text-muted-foreground">Step out of the editor for a moment. See the Keep exactly as {name || "they"} will receive it when they tap their card.</p></div><div>{nextButton("I'm ready", () => go("recipientPreview"))}<p className="mt-4 text-[11px] leading-5 text-muted-foreground">No editing. No setup. Just their experience.</p></div></div>}
     {screen === "recipientPreview" && <KeepRecipientExperience
       name={(name || engraving[0] || "You").trim()}
@@ -972,6 +972,9 @@ function KeepApp() {
       style={project.visualStyle}
       captions={project.captionStyle}
       lines={captionLines}
+      captionCues={project.captionCues}
+      musicMood={project.musicMood}
+      voiceMusicBalance={project.voiceMusicBalance}
       persistVisit={false}
       creatorPreview
       onCreatorContinue={() => go("giveReady")}
