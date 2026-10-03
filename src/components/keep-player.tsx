@@ -10,7 +10,7 @@ export const memoryImages = [couple, wedding, travel, home, couple, travel, home
 export const memoryLabels = ["The beginning", "Our wedding", "The places we've been", "The little things", "Us, always", "Another adventure", "Our family", "That day", "Everyday magic", "Home"];
 const defaultLines = ["You make people feel at home.", "I still remember that day.", "Through every version of us.", "Then I got to watch you become a mom.", "I'd choose this life with you again."];
 
-export type PlayerMedia = { url: string; kind: "image" | "video" };
+export type PlayerMedia = { url: string; kind: "image" | "video"; displayDurationSec?: number };
 type Props = {
   name: string; from: string; year: string; onExit: () => void; onFinish?: () => void; recipient?: boolean; style?: string; captions?: string;
   subtitle?: string | undefined; media?: PlayerMedia[] | undefined; audioUrl?: string | undefined; audioDuration?: number | undefined; lines?: string[] | undefined;
@@ -30,9 +30,12 @@ export function KeepPlayer({ name, from, year, onExit, onFinish, recipient = fal
 
   useEffect(() => {
     if (!playing || end) return;
-    const timer = window.setTimeout(() => setScene((s) => s + 1), scene === -1 ? 2600 : 3300);
+    const delay = scene === -1
+      ? 2600
+      : Math.max(1, items[scene % items.length]?.displayDurationSec ?? 4) * 1000;
+    const timer = window.setTimeout(() => setScene((s) => s + 1), delay);
     return () => window.clearTimeout(timer);
-  }, [scene, playing, end]);
+  }, [scene, playing, end, items]);
 
   useEffect(() => {
     const a = audio.current;
