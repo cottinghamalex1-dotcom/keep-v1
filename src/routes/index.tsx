@@ -403,7 +403,7 @@ function KeepApp() {
           </ul>
         </div>
         <ul className="mt-5 space-y-5 pl-5 text-left">
-          <li className="list-disc pl-2 marker:text-accent"><strong className="block text-sm font-medium">Don't perform.</strong><p className="mt-1 text-xs leading-5 text-muted-foreground">Talk directly to {name || "them"}. Picture them listening.</p></li>
+          <li className="list-disc pl-2 marker:text-accent"><strong className="block text-sm font-medium">Don't perform.</strong><p className="mt-1 text-xs leading-5 text-muted-foreground">Talk directly to them. Picture them listening.</p></li>
         </ul>
       </div>
       <div>{nextButton("I'm ready", () => go("record"))}</div>
