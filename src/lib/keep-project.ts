@@ -66,7 +66,7 @@ export function newProject(): KeepProject {
 
 export const stageLabels: Record<string, string> = {
   recipient: "Choosing who it's for", occasion: "Choosing the occasion", path: "Finding the words", interview: "In the interview",
-  summary: "Story gathered", write: "Writing the message", message: "Shaping the message", record: "Recording your voice",
+  summary: "Story gathered", write: "Writing the message", message: "Shaping the message", recordPrep: "Getting ready to record", record: "Recording your voice",
   recorded: "Voice recorded", memories: "Adding memories", editor: "In the editor", card: "Designing the card", success: "Ready",
 };
 
