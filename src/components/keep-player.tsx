@@ -47,7 +47,7 @@ export function KeepPlayer({ name, from, year, onExit, onFinish, recipient = fal
   const replay = () => { setScene(-1); setEnded(false); setPlaying(true); setProgress(0); if (audio.current) audio.current.currentTime = 0; };
   const item = scene >= 0 ? items[scene % items.length] : undefined;
 
-  return <div className="relative h-[100svh] min-h-0 w-full overflow-hidden bg-background text-foreground">
+  return <div className="relative keep-h-screen min-h-0 w-full overflow-hidden bg-background text-foreground">
     {audioUrl && <audio ref={audio} src={audioUrl} muted={muted} playsInline preload="auto" onEnded={() => setEnded(true)} onTimeUpdate={(e) => { const a = e.currentTarget; const d = Number.isFinite(a.duration) ? a.duration : audioDuration || 1; setProgress(Math.min(1, a.currentTime / d)); }} />}
     {item && !end && <div key={scene} className="absolute inset-0 overflow-hidden">{item.kind === "video" ? <video src={item.url} autoPlay muted loop playsInline className={`h-full w-full object-cover editor-image-${style.toLowerCase()}`} /> : <img src={item.url} alt="Memory photograph" className={`h-full w-full object-cover ken-burns editor-image-${style.toLowerCase()}`} />}<div className="absolute inset-0 photo-shade" /></div>}
     {scene === -1 && <div className="absolute inset-0 flex flex-col items-center justify-center text-center page-enter"><div className="brand mb-16">KEEP</div><div className="eyebrow mb-5">A KEEP FOR</div><h1 className="display px-6 text-7xl uppercase">{name}</h1><p className="mt-7 text-sm text-muted-foreground">from {from} · {year}{subtitle ? ` · ${subtitle}` : ""}</p></div>}
