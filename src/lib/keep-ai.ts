@@ -50,6 +50,7 @@ export async function fetchRevision(
   messageParagraphs: string[],
   paragraphIndex: number,
   instruction: string,
+  scope: "section" | "message" = "section",
 ) {
   const r = await post<{ paragraphs?: string[]; changedIndexes?: number[]; note?: string }>(
     JSON.stringify({
@@ -58,6 +59,7 @@ export async function fetchRevision(
       messageParagraphs,
       paragraphIndex,
       instruction,
+      scope,
     }),
     true,
   );
