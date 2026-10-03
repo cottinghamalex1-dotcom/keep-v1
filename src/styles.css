@@ -79,15 +79,28 @@ button { -webkit-tap-highlight-color: transparent; }
 .safe-bottom { padding-bottom: max(20px, env(safe-area-inset-bottom)); }
 .nav-bottom { padding-bottom: max(10px, env(safe-area-inset-bottom)); }
 .editor-image-natural { filter: none; }
-.editor-image-warm { filter: sepia(.16) saturate(.88) contrast(.96); }
-.editor-image-film { filter: sepia(.12) contrast(1.14) saturate(.74); }
+.editor-image-warm { filter: sepia(.16) saturate(.88) contrast(.96) brightness(1.02); }
+.editor-image-film { filter: sepia(.12) contrast(1.14) saturate(.74) brightness(.96); }
 .editor-image-modern { filter: contrast(1.1) saturate(1.08); }
+.editor-image-black-white { filter: grayscale(1) contrast(1.08) brightness(.98); }
+.editor-image-vintage { filter: sepia(.36) saturate(.72) contrast(.92) brightness(.96); }
+.editor-image-soft { filter: contrast(.86) saturate(.9) brightness(1.08); }
+.editor-image-dreamy { filter: contrast(.9) saturate(1.08) brightness(1.06); }
+.memory-scene { animation: memory-reveal .85s ease-out both; }
+.caption-enter { animation: caption-in .32s ease-out both; }
+.cinematic-intro,
+.cinematic-ending { background: oklch(.105 .002 70); animation: cinematic-fade .95s ease-out both; }
+.cinematic-glow { background: radial-gradient(circle at 50% 46%, oklch(.72 .045 78 / 9%), transparent 38%); animation: cinematic-breathe 4.2s ease-in-out infinite alternate; }
 .script-fade { mask-image: linear-gradient(to bottom, transparent, black 15%, black 80%, transparent); }
 .engraved { text-shadow: 0 1px 0 oklch(1 0 0 / 15%); }
 .card-object { background: linear-gradient(145deg, oklch(.23 .006 70), oklch(.105 .002 70) 53%, oklch(.17 .003 70)); box-shadow: 0 24px 45px oklch(0 0 0 / 48%), inset 0 1px 1px oklch(1 0 0 / 15%), inset 0 -1px 0 oklch(0 0 0 / 80%); }
 .thin-scroll::-webkit-scrollbar { display: none; }
 .thin-scroll { scrollbar-width: none; }
 @keyframes page-in { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes memory-reveal { from { opacity: 0; transform: scale(1.018); } to { opacity: 1; transform: scale(1); } }
+@keyframes caption-in { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes cinematic-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes cinematic-breathe { from { opacity: .55; transform: scale(.96); } to { opacity: 1; transform: scale(1.05); } }
 @keyframes ken-burns { from { transform: scale(1.02) translateX(0); } to { transform: scale(1.15) translateX(-2%); } }
 @keyframes wave { from { transform: scaleY(.35); opacity: .45; } to { transform: scaleY(1); opacity: 1; } }
 @keyframes pulse-ring { 0% { transform: scale(.95); opacity: .6; } 100% { transform: scale(1.55); opacity: 0; } }
