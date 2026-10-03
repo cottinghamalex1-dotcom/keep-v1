@@ -43,3 +43,29 @@ export async function fetchDraft(ctx: InterviewContext) {
   if (!paras.length) throw new Error("empty draft");
   return paras;
 }
+
+
+export async function fetchRevision(
+  ctx: InterviewContext,
+  messageParagraphs: string[],
+  paragraphIndex: number,
+  instruction: string,
+) {
+  const r = await post<{ paragraphs?: string[]; changedIndexes?: number[]; note?: string }>(
+    JSON.stringify({
+      action: "revise",
+      ...ctx,
+      messageParagraphs,
+      paragraphIndex,
+      instruction,
+    }),
+    true,
+  );
+  const paragraphs = (r.paragraphs ?? []).map((p) => String(p).trim()).filter(Boolean);
+  if (!paragraphs.length) throw new Error("empty revision");
+  return {
+    paragraphs,
+    changedIndexes: (r.changedIndexes ?? []).filter((i) => Number.isInteger(i) && i >= 0 && i < paragraphs.length),
+    note: String(r.note ?? "").trim(),
+  };
+}
