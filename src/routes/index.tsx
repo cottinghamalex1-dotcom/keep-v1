@@ -8,6 +8,7 @@ import { KeepRecipientExperience } from "@/components/keep-recipient-experience"
 import { KeepErrorBoundary } from "@/components/keep-error-boundary";
 import { useRecorder } from "@/hooks/use-recorder";
 import { deleteBlobs, putBlob } from "@/lib/keep-media-store";
+import { fetchDraft, fetchNextQuestion, keepAiAvailable, transcribeAudio } from "@/lib/keep-ai";
 import { ONBOARD_KEY, fmt, hydrateDraftMedia, loadDraft, newId, newProject, projectBlobIds, projectObjectUrls, sampleMemories, saveDraft, stageLabels, type InterviewAnswer, type KeepProject, type MediaItem } from "@/lib/keep-project";
 
 export const Route = createFileRoute("/")({
@@ -84,6 +85,8 @@ function KeepApp() {
   const [viewingDemo, setViewingDemo] = useState(false);
   const [activeParagraph, setActiveParagraph] = useState(0);
   const [askOpen, setAskOpen] = useState(false);
+  const [aiBusy, setAiBusy] = useState<null | "start" | "transcribe" | "next" | "draft">(null);
+  const [aiError, setAiError] = useState<null | { kind: "start" | "transcribe" | "next" | "draft"; retry: () => void }>(null);
   const [generation, setGeneration] = useState(0);
   const [mode, setMode] = useState<Mode>("Memories");
   const [frame, setFrame] = useState(0);
@@ -146,23 +149,61 @@ function KeepApp() {
 
   // ---- Interview ----
   const currentAnswer = project.interviewAnswers.find((a) => a.questionIndex === q);
+  const upsertAnswer = (a: InterviewAnswer) => setProject((o) => ({ ...o, interviewAnswers: [...o.interviewAnswers.filter((x) => x.questionIndex !== a.questionIndex), a].sort((x, y) => x.questionIndex - y.questionIndex) }));
   const setAnswer = (a: InterviewAnswer) => {
     const old = project.interviewAnswers.find((x) => x.questionIndex === a.questionIndex);
     if (old) { releaseUrls([old.audioUrl]); if (old.audioId) void deleteBlobs([old.audioId]); }
-    patch({ interviewAnswers: [...project.interviewAnswers.filter((x) => x.questionIndex !== a.questionIndex), a].sort((x, y) => x.questionIndex - y.questionIndex) });
+    upsertAnswer(a);
   };
-  const startAnswer = async () => { const ok = await recorder.start(); if (!ok) toast.error("The microphone isn't available right now."); };
+  const aiReady = keepAiAvailable();
+  const aiContext = (list: InterviewAnswer[] = project.interviewAnswers) => ({
+    recipientName: project.recipientName, relationship: project.relationship, occasion: project.occasion, intent: project.intent,
+    answers: list.filter((a) => a.transcript?.trim()).map((a) => ({ question: a.question, transcript: (a.transcript ?? "").trim() })),
+  });
+  const runAi = async (kind: "start" | "transcribe" | "next" | "draft", fn: () => Promise<void>) => {
+    setAiBusy(kind); setAiError(null);
+    try { await fn(); } catch { setAiError({ kind, retry: () => void runAi(kind, fn) }); } finally { setAiBusy(null); }
+  };
+  const startInterview = () => {
+    go("interview");
+    if (!aiReady || project.interviewQuestion) return;
+    void runAi("start", async () => {
+      const r = await fetchNextQuestion(aiContext([]));
+      if (r.done) throw new Error("no question");
+      patch({ interviewQuestion: r.question, questionIndex: 0, interviewAnswers: [], interviewSummary: "" });
+    });
+  };
+  const setTypedAnswer = (text: string) => {
+    if (!currentAnswer && !text) return;
+    upsertAnswer({ ...(currentAnswer ?? { questionIndex: q, question: project.interviewQuestion }), transcript: text });
+  };
+  const startAnswer = async () => { const ok = await recorder.start(); if (!ok) toast.error("The microphone isn't available right now. You can type your answer instead."); };
   const stopAnswer = async () => {
     const r = await recorder.stop();
     if (!r) { toast.error("Nothing was recorded. Try again."); return; }
     const id = newId("answer");
     const stored = await putBlob(id, r.blob);
-    setAnswer({ questionIndex: q, question: qs[q] ?? "", audioId: stored ? id : undefined, audioUrl: URL.createObjectURL(r.blob), durationSec: r.durationSec, mimeType: r.mimeType });
+    const answer: InterviewAnswer = { questionIndex: q, question: project.interviewQuestion, audioId: stored ? id : undefined, audioUrl: URL.createObjectURL(r.blob), durationSec: r.durationSec, mimeType: r.mimeType, transcript: currentAnswer?.transcript };
+    setAnswer(answer);
+    if (!aiReady) return;
+    void runAi("transcribe", async () => {
+      const text = await transcribeAudio(r.blob, r.mimeType);
+      if (!text) throw new Error("empty transcript");
+      setProject((o) => ({ ...o, interviewAnswers: o.interviewAnswers.map((a) => (a.questionIndex === answer.questionIndex && a.audioUrl === answer.audioUrl ? { ...a, transcript: text } : a)) }));
+    });
   };
-  const useDemoAnswer = () => setAnswer({ questionIndex: q, question: qs[q] ?? "", demoText: withName(answers[q] ?? "", name) });
-  const nextQuestion = () => { if (q < questions.length - 1) patch({ questionIndex: q + 1 }); else go("summary"); };
-  const realAnswers = project.interviewAnswers.filter((a) => a.audioId || a.audioUrl);
-  const demoMessage = () => { patch({ messageParagraphs: initialMessage.map((p) => withName(p, name)), messageSource: "demo" }); setActiveParagraph(0); go("message"); };
+  const nextQuestion = () => void runAi("next", async () => {
+    const r = await fetchNextQuestion(aiContext());
+    if (r.done) { patch({ interviewSummary: r.summary }); go("summary"); }
+    else patch({ questionIndex: q + 1, interviewQuestion: r.question });
+  });
+  const createAiMessage = () => void runAi("draft", async () => {
+    const paragraphs = await fetchDraft(aiContext());
+    patch({ messageParagraphs: paragraphs, messageSource: "ai" });
+    setActiveParagraph(0); go("message");
+  });
+  const completedAnswers = project.interviewAnswers.filter((a) => a.questionIndex < q && a.transcript?.trim()).length;
+  const aiErrorText = aiError?.kind === "transcribe" ? "We couldn't turn your recording into text. Your recording is safe — you can type what you said below, or try again." : aiError?.kind === "draft" ? "We couldn't put your message together just now." : "We couldn't reach KEEP just now.";
 
   // ---- Voice dictation for “I know what I want to say” ----
   const toggleDictation = (target: "write" | "intent" = "write") => {
