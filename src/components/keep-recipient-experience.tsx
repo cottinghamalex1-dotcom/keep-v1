@@ -3,6 +3,7 @@ import { ArrowLeft, ArrowRight, BookOpen, Headphones, Images, Mic, Pause, Play, 
 import { Button } from "@/components/ui/button";
 import { KeepPlayer, memoryImages, type PlayerMedia } from "@/components/keep-player";
 import type { CaptionCue } from "@/lib/keep-project";
+import { createKeepVoiceMix, type MusicBalance } from "@/lib/keep-audio";
 
 type Experience = "watch" | "listen" | "read";
 
@@ -61,6 +62,9 @@ export function KeepRecipientExperience({
   const [listenProgress, setListenProgress] = useState(0);
   const audio = useRef<HTMLAudioElement>(null);
   const timer = useRef<number | null>(null);
+  const listenMix = useRef<ReturnType<typeof createKeepVoiceMix>>(null);
+  const listenIntroTimer = useRef<number | null>(null);
+  const listenHasStarted = useRef(false);
   const items = media?.length ? media : memoryImages.map((url) => ({ url, kind: "image" as const }));
   const paragraphs = messageParagraphs?.length ? messageParagraphs : demoMessage;
 
@@ -72,6 +76,21 @@ export function KeepRecipientExperience({
   useEffect(() => () => {
     if (timer.current) window.clearInterval(timer.current);
   }, []);
+
+  useEffect(() => {
+    if (stage !== "experience" || experience !== "listen" || !audioUrl || !audio.current) return;
+    const balance = (["Soft", "Balanced", "Full"].includes(voiceMusicBalance) ? voiceMusicBalance : "Balanced") as MusicBalance;
+    const controller = createKeepVoiceMix(audio.current, musicMood, balance, audioDuration, 3.2);
+    listenMix.current = controller;
+    listenHasStarted.current = false;
+    return () => {
+      if (listenIntroTimer.current) window.clearTimeout(listenIntroTimer.current);
+      listenIntroTimer.current = null;
+      void controller?.stop();
+      listenMix.current = null;
+      listenHasStarted.current = false;
+    };
+  }, [stage, experience, audioUrl, audioDuration, musicMood, voiceMusicBalance]);
 
   const enter = () => {
     if (persistVisit) {
@@ -105,8 +124,26 @@ export function KeepRecipientExperience({
 
   const toggleListen = () => {
     if (audioUrl && audio.current) {
-      if (audio.current.paused) void audio.current.play();
-      else audio.current.pause();
+      const element = audio.current;
+      if (listening) {
+        if (listenIntroTimer.current) window.clearTimeout(listenIntroTimer.current);
+        listenIntroTimer.current = null;
+        element.pause();
+        void listenMix.current?.pause();
+        setListening(false);
+      } else {
+        setListening(true);
+        void listenMix.current?.play();
+        if (!listenHasStarted.current && element.currentTime < 0.05) {
+          listenIntroTimer.current = window.setTimeout(() => {
+            listenIntroTimer.current = null;
+            listenHasStarted.current = true;
+            void element.play();
+          }, 3200);
+        } else {
+          void element.play();
+        }
+      }
       return;
     }
     if (listening) {
@@ -140,7 +177,7 @@ export function KeepRecipientExperience({
       <div className="flex flex-1 flex-col items-center justify-center text-center">
         <div className="mb-10 flex size-16 items-center justify-center rounded-full border border-border"><Headphones className="size-6 text-accent" /></div>
         <p className="eyebrow mb-5">A KEEP FOR</p><h1 className="display text-6xl uppercase">{name}</h1><p className="mt-5 text-sm text-muted-foreground">from {from} · {year}</p>
-        {audioUrl && <audio ref={audio} src={audioUrl} preload="metadata" onPlay={() => setListening(true)} onPause={() => setListening(false)} onEnded={finishExperience} onTimeUpdate={(e) => { const a=e.currentTarget; const d=Number.isFinite(a.duration)&&a.duration>0?a.duration:audioDuration; setListenProgress(Math.min(100,(a.currentTime/d)*100)); }} />}
+        {audioUrl && <audio ref={audio} src={audioUrl} preload="metadata" onPlay={() => { listenHasStarted.current = true; setListening(true); }} onPause={() => { if (!listenIntroTimer.current) setListening(false); }} onEnded={() => { setListening(false); timer.current = window.setTimeout(finishExperience, 3200); }} onTimeUpdate={(e) => { const a=e.currentTarget; const d=Number.isFinite(a.duration)&&a.duration>0?a.duration:audioDuration; setListenProgress(Math.min(100,(a.currentTime/d)*100)); }} />}
         <div className="mt-14 w-full"><div className="h-px w-full bg-border"><div className="h-px bg-foreground transition-[width]" style={{ width: `${listenProgress}%` }} /></div><div className="mt-3 flex justify-between text-[10px] tracking-widest text-muted-foreground"><span>{Math.floor((listenProgress / 100) * audioDuration / 60)}:{String(Math.floor((listenProgress / 100) * audioDuration % 60)).padStart(2,"0")}</span><span>{Math.floor(audioDuration / 60)}:{String(Math.floor(audioDuration % 60)).padStart(2,"0")}</span></div></div>
         <Button variant="keep" className="mt-10 size-16 rounded-full p-0" aria-label={listening ? "Pause" : "Play"} onClick={toggleListen}>{listening ? <Pause fill="currentColor" /> : <Play fill="currentColor" />}</Button>
         <p className="mt-8 max-w-64 text-xs leading-5 text-muted-foreground">Just {from}'s voice and the music behind it. Nothing else competing for your attention.</p>
