@@ -24,7 +24,7 @@ export const Route = createFileRoute("/")({
 });
 
 type Screen = "onboarding" | "home" | "you" | "detail" | "recipient" | "occasion" | "intent" | "path" | "interview" | "summary" | "messageGenerating" | "write" | "message" | "recordPrep" | "record" | "recorded" | "memories" | "generating" | "editor" | "preview" | "recipientReveal" | "recipientPreview" | "giveReady" | "card" | "success";
-type Mode = "Memories" | "Music" | "Captions" | "Style";
+type Mode = "Memories" | "Music" | "Captions" | "Style" | "Voice";
 const creationScreens: Screen[] = ["recipient", "occasion", "intent", "path", "interview", "summary", "messageGenerating", "write", "message", "recordPrep", "record", "recorded", "memories", "generating", "editor", "preview", "recipientReveal", "recipientPreview", "giveReady", "card", "success"];
 const fixedViewportScreens = new Set<Screen>(["onboarding", "recipient", "occasion", "intent", "path", "interview", "summary", "messageGenerating", "recordPrep", "record", "recorded", "generating", "editor", "preview", "recipientReveal", "recipientPreview", "giveReady", "success"]);
 const resumeScreen = (s: Screen): Screen => (s === "messageGenerating" ? "summary" : s === "generating" ? "memories" : s === "preview" || s === "recipientReveal" || s === "recipientPreview" || s === "giveReady" ? "editor" : s);
@@ -97,6 +97,7 @@ function KeepApp() {
   const [generation, setGeneration] = useState(0);
   const [mode, setMode] = useState<Mode>("Memories");
   const [editorPanel, setEditorPanel] = useState<Mode | null>(null);
+  const [returnToEditorAfterRecording, setReturnToEditorAfterRecording] = useState(false);
   const [frame, setFrame] = useState(0);
   const [duration, setDuration] = useState(4);
   const [editorPlaying, setEditorPlaying] = useState(true);
@@ -213,6 +214,7 @@ function KeepApp() {
   const home = () => { setHistory([]); setScreen("home"); setViewingDemo(false); window.scrollTo(0, 0); };
   const discard = (p: KeepProject) => { releaseUrls(projectObjectUrls(p)); void deleteBlobs(projectBlobIds(p)); };
   const startProject = (p: KeepProject, at: Screen) => {
+    setReturnToEditorAfterRecording(false);
     if (project.active && !window.confirm("Start a new Keep? Your current draft will be replaced.")) return;
     discard(project);
     setProject({ ...p, active: true, stage: at });
@@ -444,6 +446,23 @@ function KeepApp() {
 
   // ---- Final voice recording ----
   const rec = project.finalVoiceRecording;
+  const editWordsFromEditor = () => {
+    setEditorPanel(null);
+    setReturnToEditorAfterRecording(true);
+    setHistory((h) => [...h, "editor"]);
+    setScreen("message");
+    window.scrollTo(0, 0);
+  };
+  const rerecordFromEditor = () => {
+    setEditorPanel(null);
+    setReturnToEditorAfterRecording(true);
+    setHistory((h) => [...h, "editor"]);
+    setScreen("record");
+    setScroll(0);
+    setScrollPaused(false);
+    setRehearsing(false);
+    window.scrollTo(0, 0);
+  };
   const startFinal = async () => { setRehearsing(false); setScroll(0); setScrollPaused(false); lastElapsed.current = 0; const ok = await recorder.start(); if (!ok) toast.error("The microphone isn't available right now."); };
   const finishFinal = async () => {
     const r = await recorder.stop();
@@ -712,7 +731,16 @@ function KeepApp() {
       </div>
 
       <div className="relative z-10 space-y-2">
-        {nextButton("Keep this recording", () => go("memories"), !rec)}
+        {nextButton(returnToEditorAfterRecording ? "Use updated recording" : "Keep this recording", () => {
+          if (returnToEditorAfterRecording) {
+            setReturnToEditorAfterRecording(false);
+            setHistory([]);
+            setScreen("editor");
+            window.scrollTo(0, 0);
+          } else {
+            go("memories");
+          }
+        }, !rec)}
         <Button variant="bare" size="touch" className="w-full text-muted-foreground" onClick={() => go("record")}><RotateCcw /> Record again</Button>
       </div>
     </div></>}
@@ -754,10 +782,11 @@ function KeepApp() {
             </div>
           </div>
 
-          <div className="absolute -right-[58px] top-1/2 flex -translate-y-1/2 flex-col gap-3">
+          <div className="absolute -right-[58px] top-1/2 flex -translate-y-1/2 flex-col gap-2.5">
             {([
               ["Memories", Images],
               ["Music", Music2],
+              ["Voice", Mic],
               ["Captions", MessageCircle],
               ["Style", Sparkles],
             ] as [Mode, any][]).map(([m, Icon]) => <button key={m} type="button" onClick={() => { setMode(m); setEditorPanel(m); }} className="group flex w-12 flex-col items-center gap-1.5 text-center">
@@ -805,6 +834,36 @@ function KeepApp() {
         {tracks.map((track) => <Button key={track.name} variant="bare" className="flex h-16 w-full justify-between border-b border-border px-0 text-left" onClick={() => { patch({ musicMood: track.name }); toast(`${track.name} selected`); }}><span className="flex items-center gap-3"><span className="flex size-9 items-center justify-center rounded-full border border-border">{project.musicMood === track.name ? <Music2 className="size-4 text-accent" /> : <Play className="size-3" />}</span><span><strong className="block text-xs font-medium">{track.name}{track.name === "Warm + Nostalgic" && <span className="text-accent"> · recommended</span>}</strong><small className="text-[10px] text-muted-foreground">{track.note}</small></span></span>{project.musicMood === track.name && <Check className="size-4 text-accent" />}</Button>)}
         <p className="eyebrow mb-3 mt-7">VOICE / MUSIC</p>
         <div className="flex gap-2">{["Soft", "Balanced", "Full"].map((b) => <Button key={b} variant={project.voiceMusicBalance === b ? "selected" : "quiet"} className="flex-1" onClick={() => patch({ voiceMusicBalance: b })}>{b}</Button>)}</div>
+      </div>)}
+
+      {editorPanel === "Voice" && sheet("Voice & words", () => setEditorPanel(null), <div className="pb-2">
+        <p className="mt-2 text-xs leading-5 text-muted-foreground">Remember something you want to add? You can change the words or record your voice again without losing the rest of your Keep.</p>
+        <div className="mt-6 space-y-3">
+          <button type="button" onClick={editWordsFromEditor} className="flex w-full items-center justify-between rounded-xl border border-border bg-background/45 p-5 text-left transition-colors hover:border-accent/45">
+            <span className="flex items-center gap-4">
+              <span className="flex size-11 shrink-0 items-center justify-center rounded-full border border-accent/25 bg-accent/[0.05] text-accent"><MessageCircle className="size-5" /></span>
+              <span>
+                <strong className="block font-display text-2xl font-normal">Edit my words</strong>
+                <small className="mt-1 block max-w-[250px] text-[11px] leading-5 text-muted-foreground">Add a memory, change a line, or use Ask KEEP again. Then record the updated message.</small>
+              </span>
+            </span>
+            <ArrowRight className="size-4 shrink-0 text-accent" />
+          </button>
+
+          <button type="button" onClick={rerecordFromEditor} className="flex w-full items-center justify-between rounded-xl border border-border bg-background/45 p-5 text-left transition-colors hover:border-accent/45">
+            <span className="flex items-center gap-4">
+              <span className="flex size-11 shrink-0 items-center justify-center rounded-full border border-accent/25 bg-accent/[0.05] text-accent"><Mic className="size-5" /></span>
+              <span>
+                <strong className="block font-display text-2xl font-normal">Re-record my voice</strong>
+                <small className="mt-1 block max-w-[250px] text-[11px] leading-5 text-muted-foreground">Keep your current words and record them again with the teleprompter.</small>
+              </span>
+            </span>
+            <ArrowRight className="size-4 shrink-0 text-accent" />
+          </button>
+        </div>
+        <div className="mt-6 rounded-lg border border-accent/15 bg-accent/[0.03] p-4">
+          <p className="text-xs leading-5 text-muted-foreground">Your photos, order, music, captions, and visual style stay exactly as they are while you update the words or voice.</p>
+        </div>
       </div>)}
 
       {editorPanel === "Captions" && sheet("Captions", () => setEditorPanel(null), <div className="pb-2">
