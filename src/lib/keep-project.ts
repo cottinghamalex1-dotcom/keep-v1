@@ -33,6 +33,7 @@ export type KeepProject = {
   recipientName: string;
   relationship: string;
   occasion: string;
+  intent: string;
   questionIndex: number;
   interviewAnswers: InterviewAnswer[];
   messageSource: "demo" | "own" | null;
@@ -57,7 +58,7 @@ export const sampleMemories = (): MediaItem[] =>
 
 export function newProject(): KeepProject {
   return {
-    active: false, stage: "recipient", recipientName: "", relationship: "", occasion: "Anniversary", questionIndex: 0,
+    active: false, stage: "recipient", recipientName: "", relationship: "", occasion: "Anniversary", intent: "", questionIndex: 0,
     interviewAnswers: [], messageSource: null, writtenText: "", messageParagraphs: [], finalVoiceRecording: null, memories: [],
     musicMood: "Warm + Nostalgic", voiceMusicBalance: "Balanced", captionStyle: "Reel", visualStyle: "Natural", cardEngraving: ["", "FROM ALEX", "2026"],
   };
