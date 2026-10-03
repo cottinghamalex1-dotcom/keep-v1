@@ -25,7 +25,7 @@ type Screen = "onboarding" | "home" | "you" | "detail" | "recipient" | "occasion
 type Mode = "Memories" | "Music" | "Captions" | "Style";
 const creationScreens: Screen[] = ["recipient", "occasion", "path", "interview", "summary", "write", "message", "record", "recorded", "memories", "generating", "editor", "preview", "card", "success"];
 const resumeScreen = (s: Screen): Screen => (s === "generating" ? "memories" : s === "preview" ? "editor" : s);
-const occasions = ["Birthday", "Anniversary", "Wedding", "New Baby", "Mother's Day", "Father's Day", "Graduation", "Thank You", "Just Because", "Other"];
+const occasions = ["Birthday", "Anniversary", "Wedding", "New Baby", "Mother's Day", "Father's Day", "Graduation", "Thank You", "Trip / Adventure", "Milestone", "Celebration of Life", "Family Memories", "Just Because", "Other"];
 const relationships = ["Spouse", "Mom", "Dad", "Child", "Grandparent", "Friend", "Someone else"];
 const questions = [
   "Tell me about Hanna. Who is she to you beyond just being your wife?",
