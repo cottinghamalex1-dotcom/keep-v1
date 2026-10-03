@@ -104,6 +104,7 @@ function KeepApp() {
   const [scroll, setScroll] = useState(0);
   const [scrollPaused, setScrollPaused] = useState(false);
   const [teleprompterSpeed, setTeleprompterSpeed] = useState(1);
+  const [rehearsing, setRehearsing] = useState(false);
   const [voicePlaying, setVoicePlaying] = useState(false);
   const [voiceTime, setVoiceTime] = useState(0);
   const voicePlaybackRef = useRef<HTMLAudioElement>(null);
@@ -191,6 +192,20 @@ function KeepApp() {
   }, [screen]);
   useEffect(() => { if (screen !== "write" && screen !== "intent" && dictationRef.current) { dictationRef.current.stop(); dictationRef.current = null; setDictating(false); } }, [screen]);
   useEffect(() => { const d = recorder.elapsed - lastElapsed.current; lastElapsed.current = recorder.elapsed; if (screen === "record" && d > 0 && d < 2 && !scrollPaused) setScroll((s) => s + d * 15 * teleprompterSpeed); }, [recorder.elapsed, screen, scrollPaused, teleprompterSpeed]);
+  useEffect(() => {
+    if (screen !== "record" || !rehearsing) return;
+    let frame = 0;
+    let last = performance.now();
+    const tick = (now: number) => {
+      const delta = Math.min((now - last) / 1000, 0.12);
+      last = now;
+      if (!scrollPaused) setScroll((value) => value + delta * 15 * teleprompterSpeed);
+      frame = window.requestAnimationFrame(tick);
+    };
+    frame = window.requestAnimationFrame(tick);
+    return () => window.cancelAnimationFrame(frame);
+  }, [screen, rehearsing, scrollPaused, teleprompterSpeed]);
+  useEffect(() => { if (screen !== "record") setRehearsing(false); }, [screen]);
 
   const go = (next: Screen) => { setHistory((h) => [...h, screen]); setScreen(next); window.scrollTo(0, 0); };
   const back = () => { const last = history[history.length - 1]; setScreen(last ?? "home"); setHistory((h) => h.slice(0, -1)); window.scrollTo(0, 0); };
@@ -428,7 +443,7 @@ function KeepApp() {
 
   // ---- Final voice recording ----
   const rec = project.finalVoiceRecording;
-  const startFinal = async () => { setScroll(0); setScrollPaused(false); setTeleprompterSpeed(1); lastElapsed.current = 0; const ok = await recorder.start(); if (!ok) toast.error("The microphone isn't available right now."); };
+  const startFinal = async () => { setRehearsing(false); setScroll(0); setScrollPaused(false); lastElapsed.current = 0; const ok = await recorder.start(); if (!ok) toast.error("The microphone isn't available right now."); };
   const finishFinal = async () => {
     const r = await recorder.stop();
     if (!r) { toast.error("Nothing was recorded. Try again."); return; }
@@ -636,7 +651,22 @@ function KeepApp() {
       </div>
       <div>{nextButton("I'm ready", () => go("record"))}</div>
     </div>}
-    {screen === "record" && <div className="relative flex keep-h-screen min-h-[650px] flex-col overflow-hidden px-7 pb-[max(28px,env(safe-area-inset-bottom))]">{top()}<div className="pt-4 text-center"><h1 className="display mt-5 text-5xl">Now say it in your own voice.</h1><p className="mt-4 text-sm text-muted-foreground">These are your words. They should sound like you.</p></div><div className="script-fade my-8 min-h-0 flex-1 overflow-hidden"><div className="space-y-9 pt-16 text-center transition-transform duration-1000 ease-linear" style={{ transform: `translateY(-${scroll}px)` }}>{project.messageParagraphs.map((p, i) => <p key={i} className={`font-display text-3xl leading-[1.35] ${isRecording ? "text-foreground" : i === 0 ? "text-foreground" : "text-muted-foreground"}`}>{p}</p>)}</div></div><div className="text-center"><div className={`mb-1 text-sm tabular-nums ${isRecording ? "text-accent" : ""}`}>{isRecording && "● "}{fmt(recorder.elapsed)}</div>{wave(33, recorder.status === "recording")}{micUnavailable ? <><p className="mt-4 text-xs leading-5 text-muted-foreground">{micMessage}</p><Button variant="keep" size="touch" className="mt-4 w-full" onClick={useDemoRecording}>Use demo recording (3:57)</Button></> : <>{isRecording && <div className="mt-4 flex items-center gap-2"><Button variant="quiet" size="sm" className="flex-1" disabled={teleprompterSpeed <= 0.6} onClick={() => setTeleprompterSpeed((v) => Math.max(0.6, Math.round((v - 0.2) * 10) / 10))}>Slower</Button><div className="min-w-[92px] text-center"><span className="block text-[10px] tracking-widest text-muted-foreground">TELEPROMPTER</span><span className="mt-1 block text-sm tabular-nums text-foreground">{teleprompterSpeed.toFixed(1)}×</span></div><Button variant="quiet" size="sm" className="flex-1" disabled={teleprompterSpeed >= 2} onClick={() => setTeleprompterSpeed((v) => Math.min(2, Math.round((v + 0.2) * 10) / 10))}>Faster</Button></div>}<div className="mt-5 flex gap-2">{!isRecording ? <Button variant="keep" size="touch" className="w-full" disabled={recorder.status === "requesting" || recorder.supported === null} onClick={() => void startFinal()}><Mic /> {recorder.status === "requesting" ? "Waiting for microphone…" : "Start Recording"}</Button> : <>{recorder.canPause ? <Button variant="quiet" size="touch" className="flex-1" onClick={() => (recorder.status === "paused" ? recorder.resume() : recorder.pause())}>{recorder.status === "paused" ? <Play /> : <Pause />}{recorder.status === "paused" ? "Resume" : "Pause"}</Button> : <Button variant="quiet" size="touch" className="flex-1" onClick={() => setScrollPaused(!scrollPaused)}>{scrollPaused ? <Play /> : <Pause />}{scrollPaused ? "Resume script" : "Pause script"}</Button>}<Button variant="keep" size="touch" className="flex-1" onClick={() => void finishFinal()}><Check /> Finish</Button></>}</div></>}<p className="mx-auto mt-4 max-w-xs text-[11px] leading-5 text-muted-foreground">{isRecording && !recorder.canPause ? "This browser keeps recording while the script is paused. " : ""}KEEP will clean background noise and balance levels. Your voice stays your voice.</p></div></div>}
+    {screen === "record" && <div className="relative flex keep-h-screen min-h-[650px] flex-col overflow-hidden px-7 pb-[max(28px,env(safe-area-inset-bottom))]">{top()}<div className="pt-4 text-center"><h1 className="display mt-5 text-5xl">Now say it in your own voice.</h1><p className="mt-4 text-sm text-muted-foreground">These are your words. They should sound like you.</p></div><div className="script-fade my-6 min-h-0 flex-1 overflow-hidden"><div className="space-y-9 pt-16 text-center transition-transform duration-300 ease-linear" style={{ transform: `translateY(-${scroll}px)` }}>{project.messageParagraphs.map((p, i) => <p key={i} className={`font-display text-3xl leading-[1.35] ${isRecording || rehearsing ? "text-foreground" : i === 0 ? "text-foreground" : "text-muted-foreground"}`}>{p}</p>)}</div></div><div className="text-center">
+      <div className="mb-3 flex items-center gap-2">
+        <Button variant="quiet" size="sm" className="flex-1" disabled={teleprompterSpeed <= 0.2} onClick={() => setTeleprompterSpeed((v) => Math.max(0.2, Math.round((v - 0.2) * 10) / 10))}>Slower</Button>
+        <div className="min-w-[96px] text-center"><span className="block text-[10px] tracking-widest text-muted-foreground">TELEPROMPTER</span><span className="mt-1 block text-sm tabular-nums text-foreground">{teleprompterSpeed.toFixed(1)}×</span></div>
+        <Button variant="quiet" size="sm" className="flex-1" disabled={teleprompterSpeed >= 3} onClick={() => setTeleprompterSpeed((v) => Math.min(3, Math.round((v + 0.2) * 10) / 10))}>Faster</Button>
+      </div>
+
+      {!isRecording && <div className="mb-4">
+        <Button variant="quiet" size="touch" className="w-full" onClick={() => { setScrollPaused(false); setRehearsing((value) => !value); }}>{rehearsing ? <Pause /> : <Play />}{rehearsing ? "Pause rehearsal" : scroll > 0 ? "Continue rehearsal" : "Rehearse teleprompter"}</Button>
+        {scroll > 0 && <Button variant="bare" size="sm" className="mt-1 text-muted-foreground" onClick={() => { setRehearsing(false); setScroll(0); setScrollPaused(false); }}><RotateCcw /> Restart rehearsal</Button>}
+      </div>}
+
+      <div className={`mb-1 text-sm tabular-nums ${isRecording ? "text-accent" : rehearsing ? "text-foreground/80" : "text-muted-foreground"}`}>{isRecording ? `● ${fmt(recorder.elapsed)}` : rehearsing ? "REHEARSING · NOT RECORDING" : "Ready when you are"}</div>
+      {wave(33, recorder.status === "recording" || rehearsing)}
+      {micUnavailable ? <><p className="mt-4 text-xs leading-5 text-muted-foreground">{micMessage}</p><Button variant="keep" size="touch" className="mt-4 w-full" onClick={useDemoRecording}>Use demo recording (3:57)</Button></> : <div className="mt-4 flex gap-2">{!isRecording ? <Button variant="keep" size="touch" className="w-full" disabled={recorder.status === "requesting" || recorder.supported === null} onClick={() => void startFinal()}><Mic /> {recorder.status === "requesting" ? "Waiting for microphone…" : "Start Recording"}</Button> : <>{recorder.canPause ? <Button variant="quiet" size="touch" className="flex-1" onClick={() => (recorder.status === "paused" ? recorder.resume() : recorder.pause())}>{recorder.status === "paused" ? <Play /> : <Pause />}{recorder.status === "paused" ? "Resume" : "Pause"}</Button> : <Button variant="quiet" size="touch" className="flex-1" onClick={() => setScrollPaused(!scrollPaused)}>{scrollPaused ? <Play /> : <Pause />}{scrollPaused ? "Resume script" : "Pause script"}</Button>}<Button variant="keep" size="touch" className="flex-1" onClick={() => void finishFinal()}><Check /> Finish</Button></>}</div>}
+    </div></div>}
     {screen === "recorded" && <>{top()}<div className="relative flex keep-min-screen-minus-90 flex-col overflow-hidden px-7 pb-[max(36px,env(safe-area-inset-bottom))] pt-8">
       <div className="pointer-events-none absolute left-1/2 top-[31%] h-80 w-80 -translate-x-1/2 rounded-full bg-accent/[0.07] blur-3xl" />
       <div className="relative z-10 text-center">
