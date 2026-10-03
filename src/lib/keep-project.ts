@@ -47,6 +47,7 @@ export type KeepProject = {
   captionTranscript: string;
   captionCues: CaptionCue[];
   memories: MediaItem[];
+  readMemoryOrder: string[];
   musicMood: string;
   voiceMusicBalance: string;
   captionStyle: string;
@@ -65,7 +66,7 @@ export const sampleMemories = (): MediaItem[] =>
 export function newProject(): KeepProject {
   return {
     active: false, stage: "recipient", recipientName: "", relationship: "", occasion: "Anniversary", intent: "", questionIndex: 0, interviewQuestion: "", interviewSummary: "",
-    interviewAnswers: [], messageSource: null, writtenText: "", messageParagraphs: [], finalVoiceRecording: null, captionTranscript: "", captionCues: [], memories: [],
+    interviewAnswers: [], messageSource: null, writtenText: "", messageParagraphs: [], finalVoiceRecording: null, captionTranscript: "", captionCues: [], memories: [], readMemoryOrder: [],
     musicMood: "Warm + Nostalgic", voiceMusicBalance: "Balanced", captionStyle: "Reel", visualStyle: "Natural", cardEngraving: ["", "FROM ALEX", "2026"],
   };
 }
