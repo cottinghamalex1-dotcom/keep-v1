@@ -251,7 +251,7 @@ function KeepApp() {
   const captionLines = project.messageParagraphs.map((p) => (p.split(/(?<=[.!?])\s/)[0] ?? p).trim()).filter(Boolean).slice(0, 8);
   const totalSec = rec?.durationSec ?? 237;
 
-  const title = (eyebrow: string, heading: string, sub?: string) => <div className="mb-8"><p className="eyebrow mb-5">{eyebrow}</p><h1 className="display text-[clamp(48px,13vw,70px)]">{heading}</h1>{sub && <p className="mt-5 text-sm leading-6 text-muted-foreground">{sub}</p>}</div>;
+  const title = (_eyebrow: string, heading: string, sub?: string) => <div className="mb-8"><h1 className="display text-[clamp(48px,13vw,70px)]">{heading}</h1>{sub && <p className="mt-5 text-sm leading-6 text-muted-foreground">{sub}</p>}</div>;
   const top = (label?: string) => <header className="flex h-20 items-center justify-between px-6 pt-3"><Button variant="bare" size="icon" aria-label="Go back" onClick={back}><ArrowLeft /></Button><span className="brand text-base">KEEP</span><span className="min-w-9 text-right text-[10px] tracking-widest text-muted-foreground">{label}</span></header>;
   const nextButton = (label: string, action: () => void, disabled = false) => <Button variant="keep" size="touch" className="w-full justify-between" onClick={action} disabled={disabled}>{label}<ArrowRight /></Button>;
   const wave = (count = 27, active = true) => <div className="flex h-12 items-center justify-center gap-[3px]" aria-hidden="true">{Array.from({ length: count }, (_, i) => <span key={i} className={`${active ? "wave-bar" : "opacity-40"} w-[2px] rounded-full bg-accent`} style={{ height: `${10 + ((i * 17) % 34)}px`, animationDelay: `${-(i % 7) * 0.13}s` }} />)}</div>;
