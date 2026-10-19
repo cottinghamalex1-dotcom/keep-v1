@@ -164,26 +164,17 @@ function KeepApp() {
   const name = project.recipientName;
   const q = project.questionIndex;
 
-  // Load lightweight draft + onboarding flag after hydration, then restore media blobs from IndexedDB.
+  // Always open the public KEEP link on the intro experience.
+  // Existing drafts remain preserved and can be continued intentionally from the intro/home screen.
   useEffect(() => {
     let cancelled = false;
     const d = loadDraft();
     if (d) setProject(d);
 
-    let onboarded = true;
-    try { onboarded = !!localStorage.getItem(ONBOARD_KEY); } catch { /* ignore */ }
-
-    if (!onboarded) {
-      setScreen("onboarding");
-    } else if (d?.active) {
-      const savedStage = d.stage as Screen;
-      if (creationScreens.includes(savedStage)) {
-        setHistory([]);
-        setScreen(resumeScreen(savedStage));
-      }
-    }
-
+    setHistory([]);
+    setScreen("onboarding");
     setHydrated(true);
+
     if (d) void hydrateDraftMedia(d).then((h) => { if (!cancelled) setProject((cur) => ({ ...cur, ...h })); });
     return () => { cancelled = true; };
   }, []);
@@ -680,7 +671,7 @@ function KeepApp() {
   const fileInputs = <><input ref={draftInput} type="file" accept=".docx,.pdf,.txt,.md,.rtf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/pdf,text/plain,text/markdown,application/rtf" className="sr-only" aria-label="Upload something you have already written" tabIndex={-1} onChange={(e) => void importDraft(e)} /><input ref={addInput} type="file" accept="image/*,video/*" multiple className="sr-only" aria-label="Choose photos and videos" tabIndex={-1} onChange={(e) => void addFiles(e)} /><input ref={replaceInput} type="file" accept="image/*,video/*" className="sr-only" aria-label="Choose a replacement photo or video" tabIndex={-1} onChange={(e) => void addFiles(e, frame % Math.max(1, shown.length))} /></>;
 
   return <main className="app-shell">{fileInputs}<div key={screen} className={`page-enter ${primaryNav ? "pb-28" : ""}`}>
-    {screen === "onboarding" && <div className="flex keep-min-screen flex-col justify-between px-7 pb-[max(36px,env(safe-area-inset-bottom))] pt-[max(40px,env(safe-area-inset-top))]"><span className="brand">KEEP</span><div className="py-10"><h1 className="display whitespace-nowrap text-[clamp(43px,12vw,64px)]">Say what matters.<br />Keep it forever.</h1><p className="mt-6 max-w-sm text-sm leading-7 text-muted-foreground">KEEP helps you turn the words you want to say and the memories you don't want to lose into a beautiful keepsake someone can physically hold, tap, and experience forever.</p><ol className="mt-12 grid grid-cols-3 border-t border-border">{[{ l: "Create message", I: MessageCircle }, { l: "Add media", I: Images }, { l: "Enjoy memories", I: Play }].map(({ l, I }, i) => <li key={l} className="pt-5 pr-3"><span className="eyebrow">0{i + 1}</span><I className="mt-4 size-5 text-accent" /><p className="mt-3 text-xs leading-4">{l}</p></li>)}</ol></div><div className="space-y-2">{nextButton("Create something worth keeping", () => { dismissOnboarding(); begin(); })}<Button variant="bare" size="touch" className="w-full text-muted-foreground" onClick={() => { dismissOnboarding(); home(); }}>See my Keeps</Button></div></div>}
+    {screen === "onboarding" && <div className="flex keep-min-screen flex-col justify-between px-7 pb-[max(36px,env(safe-area-inset-bottom))] pt-[max(40px,env(safe-area-inset-top))]"><span className="brand">KEEP</span><div className="py-10"><h1 className="display whitespace-nowrap text-[clamp(43px,12vw,64px)]">Say what matters.<br />Keep it forever.</h1><p className="mt-6 max-w-sm text-sm leading-7 text-muted-foreground">KEEP helps you turn the words you want to say and the memories you don't want to lose into a beautiful keepsake someone can physically hold, tap, and experience forever.</p><ol className="mt-12 grid grid-cols-3 border-t border-border">{[{ l: "Create message", I: MessageCircle }, { l: "Add media", I: Images }, { l: "Enjoy memories", I: Play }].map(({ l, I }, i) => <li key={l} className="pt-5 pr-3"><span className="eyebrow">0{i + 1}</span><I className="mt-4 size-5 text-accent" /><p className="mt-3 text-xs leading-4">{l}</p></li>)}</ol></div><div className="space-y-2">{nextButton("Create something worth keeping", () => { dismissOnboarding(); begin(); })}{project.active && <Button variant="quiet" size="touch" className="w-full" onClick={() => { dismissOnboarding(); continueDraft(); }}><Sparkles className="size-4" /> Continue your Keep</Button>}<Button variant="bare" size="touch" className="w-full text-muted-foreground" onClick={() => { dismissOnboarding(); home(); }}>See my Keeps</Button></div></div>}
     {screen === "home" && <>
       <header className="flex items-center justify-between px-7 pb-8 pt-[max(40px,env(safe-area-inset-top))]"><span className="brand">KEEP</span><Button variant="bare" size="icon" aria-label="Profile" onClick={() => go("you")}><span className="flex size-9 items-center justify-center rounded-full border border-border text-xs">A</span></Button></header>
       <div className="px-7"><div className="mb-8"><h1 className="display text-[clamp(48px,13vw,70px)]">Say what matters. Keep it forever.</h1></div>{nextButton("Create a Keep", begin)}<div className="mt-12 mb-5 flex items-end justify-between"><h2 className="text-sm font-medium">Your Keeps</h2><span className="text-xs text-muted-foreground">{project.active ? "03" : "02"} keeps</span></div></div>
