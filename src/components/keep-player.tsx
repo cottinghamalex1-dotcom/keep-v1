@@ -18,10 +18,10 @@ export type PlayerMedia = { url: string; kind: "image" | "video"; displayDuratio
 type Props = {
   name: string; from: string; year: string; onExit: () => void; onFinish?: () => void; recipient?: boolean; style?: string; captions?: string;
   subtitle?: string | undefined; media?: PlayerMedia[] | undefined; audioUrl?: string | undefined; audioDuration?: number | undefined; lines?: string[] | undefined;
-  captionCues?: CaptionCue[] | undefined; musicMood?: string | undefined; voiceMusicBalance?: string | undefined;
+  captionCues?: CaptionCue[] | undefined; musicMood?: string | undefined; voiceMusicBalance?: string | undefined; musicMix?: number | undefined;
 };
 
-export function KeepPlayer({ name, from, year, onExit, onFinish, recipient = false, style = "Natural", captions = "Reel", subtitle, media, audioUrl, audioDuration, lines, captionCues = [], musicMood = "Warm + Nostalgic", voiceMusicBalance = "Balanced" }: Props) {
+export function KeepPlayer({ name, from, year, onExit, onFinish, recipient = false, style = "Natural", captions = "Reel", subtitle, media, audioUrl, audioDuration, lines, captionCues = [], musicMood = "Warm + Nostalgic", voiceMusicBalance = "Balanced", musicMix = 50 }: Props) {
   const [scene, setScene] = useState(-1);
   const [playing, setPlaying] = useState(true);
   const [muted, setMuted] = useState(false);
@@ -50,6 +50,7 @@ export function KeepPlayer({ name, from, year, onExit, onFinish, recipient = fal
     if (!a || !audioUrl) return;
     const controller = createKeepVoiceMix(a, musicMood, (["Soft", "Balanced", "Full"].includes(voiceMusicBalance) ? voiceMusicBalance : "Balanced") as MusicBalance, audioDuration || 1);
     mix.current = controller;
+    controller?.setMix(musicMix);
     if (controller) {
       controller.setMuted(muted);
       void controller.play().catch(() => setBlocked(true));
@@ -83,6 +84,7 @@ export function KeepPlayer({ name, from, year, onExit, onFinish, recipient = fal
   }, [scene >= 0, playing, end, audioUrl]);
 
   useEffect(() => { mix.current?.setMuted(muted); }, [muted]);
+  useEffect(() => { mix.current?.setMix(musicMix); }, [musicMix]);
 
   const replay = () => { if (endingTimer.current) window.clearTimeout(endingTimer.current); endingTimer.current = null; setScene(-1); setEnded(false); setPlaying(true); setProgress(0); setAudioTime(0); if (audio.current) audio.current.currentTime = 0; mix.current?.restartMusic(musicMood, (["Soft", "Balanced", "Full"].includes(voiceMusicBalance) ? voiceMusicBalance : "Balanced") as MusicBalance); };
   const item = scene >= 0 ? items[scene % items.length] : undefined;
