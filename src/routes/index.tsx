@@ -1003,7 +1003,7 @@ function KeepApp() {
                 <input id="keep-music-volume" type="range" min="0" max="100" step="1" value={project.musicVolume ?? 50} onChange={(e) => patch({ musicVolume: Number(e.target.value) })} className="w-full accent-current" />
               </div>
               <div className="flex items-center justify-between text-[10px] text-muted-foreground"><span>Adjust each independently while your Keep plays.</span><button type="button" className="underline" onClick={() => patch({ voiceVolume: 100, musicVolume: 50 })}>Reset levels</button></div>
-            </div></div>
+            </div>
         </>}
         {editorPanel === "Captions" && <>
           {!rec?.demo && rec?.audioUrl && <div className="mb-3 rounded-lg border border-border bg-background/50 p-3 text-xs"><div className="flex items-center justify-between gap-3"><span>{captionSyncing ? "Syncing captions to your voice…" : project.captionCues.length ? `${project.captionCues.length} caption segments ready` : captionSyncError ? "Captions could not be synchronized." : "Captions have not been generated yet."}</span>{!captionSyncing && !project.captionCues.length && <Button variant="quiet" size="sm" onClick={() => void retryCaptionSync()}><RotateCcw className="size-3.5" /> Retry sync</Button>}</div>{!captionSyncing && !project.captionCues.length && <p className="mt-2 text-[10px] text-muted-foreground">Your voice recording is saved. Retrying captions will not erase it.</p>}</div>}
