@@ -646,6 +646,7 @@ function KeepApp() {
   };
 
   useEffect(() => { if (screen !== "generating") return; if (generation >= 3) { const t = window.setTimeout(() => go("editor"), 650); return () => window.clearTimeout(t); } const t = window.setTimeout(() => setGeneration((n) => n + 1), 1250); return () => window.clearTimeout(t); }, [screen, generation]);
+  const captionLines = project.messageParagraphs.map((p) => (p.split(/(?<=[.!?])\s/)[0] ?? p).trim()).filter(Boolean).slice(0, 8);
   // The recorded voice is the editor's master clock. Photo timing and captions follow it.
   const editorDuration = rec?.durationSec || 237;
   const editorMediaTotal = shown.reduce((sum, item) => sum + Math.max(1, item.displayDurationSec ?? 4), 0);
@@ -691,7 +692,6 @@ function KeepApp() {
   const engraving = project.cardEngraving;
   const updateEngraving = (i: number, value: string) => patch({ cardEngraving: engraving.map((v, j) => (j === i ? value.toUpperCase() : v)) });
   const toCard = () => { if (!engraving[0]) patch({ cardEngraving: [(name || "Hanna").toUpperCase(), engraving[1] || "FROM ALEX", engraving[2] || "2026"] }); go("card"); };
-  const captionLines = project.messageParagraphs.map((p) => (p.split(/(?<=[.!?])\s/)[0] ?? p).trim()).filter(Boolean).slice(0, 8);
   const totalSec = rec?.durationSec ?? 237;
 
   const title = (_eyebrow: string, heading: string, sub?: string) => <div className="mb-8"><h1 className="display text-[clamp(48px,13vw,70px)]">{heading}</h1>{sub && <p className="mt-5 text-sm leading-6 text-muted-foreground">{sub}</p>}</div>;
