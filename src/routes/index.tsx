@@ -132,7 +132,9 @@ function KeepApp() {
   const [readArrangeIndex, setReadArrangeIndex] = useState(0);
   const [returnToEditorAfterRecording, setReturnToEditorAfterRecording] = useState(false);
   const [frame, setFrame] = useState(0);
-  const [editorPlaying, setEditorPlaying] = useState(true);
+  const [editorPlaying, setEditorPlaying] = useState(false);
+  const [editorTime, setEditorTime] = useState(0);
+  const editorAudioRef = useRef<HTMLAudioElement>(null);
   const [cardBack, setCardBack] = useState(false);
   const [setting, setSetting] = useState("");
   const [scroll, setScroll] = useState(0);
@@ -644,13 +646,47 @@ function KeepApp() {
   };
 
   useEffect(() => { if (screen !== "generating") return; if (generation >= 3) { const t = window.setTimeout(() => go("editor"), 650); return () => window.clearTimeout(t); } const t = window.setTimeout(() => setGeneration((n) => n + 1), 1250); return () => window.clearTimeout(t); }, [screen, generation]);
+  // The recorded voice is the editor's master clock. Photo timing and captions follow it.
+  const editorDuration = rec?.durationSec || 237;
+  const editorMediaTotal = shown.reduce((sum, item) => sum + Math.max(1, item.displayDurationSec ?? 4), 0);
+  const editorSceneAt = (time: number) => {
+    if (!shown.length || !editorMediaTotal) return 0;
+    const position = Math.min(Math.max(time / editorDuration, 0), 0.999999) * editorMediaTotal;
+    let elapsed = 0;
+    for (let i = 0; i < shown.length; i++) {
+      elapsed += Math.max(1, shown[i]?.displayDurationSec ?? 4);
+      if (position < elapsed) return i;
+    }
+    return shown.length - 1;
+  };
+  const editorCue = project.captionCues.find((cue) => editorTime >= cue.start && editorTime <= cue.end + 0.12);
+  const editorCaption = editorCue?.text ?? (rec?.demo ? captionLines[Math.min(captionLines.length - 1, Math.floor(editorTime / Math.max(1, editorDuration / Math.max(1, captionLines.length))))] ?? "" : "");
+  const seekEditor = (time: number) => {
+    const next = Math.max(0, Math.min(editorDuration, time));
+    if (editorAudioRef.current) editorAudioRef.current.currentTime = next;
+    setEditorTime(next);
+    setFrame(editorSceneAt(next));
+  };
   useEffect(() => {
-    if (screen !== "editor" || !editorPlaying || shown.length < 2) return;
-    const current = shown[frame % shown.length];
-    const delay = Math.max(1, current?.displayDurationSec ?? 4) * 1000;
-    const t = window.setTimeout(() => setFrame((i) => (i + 1) % shown.length), delay);
-    return () => window.clearTimeout(t);
-  }, [screen, editorPlaying, shown.length, frame, selected?.displayDurationSec]);
+    if (screen !== "editor") return;
+    const audio = editorAudioRef.current;
+    if (!audio || !rec?.audioUrl || rec.demo) return;
+    if (editorPlaying) void audio.play().catch(() => { setEditorPlaying(false); toast.error("Tap play again to enable audio."); });
+    else audio.pause();
+    return () => audio.pause();
+  }, [screen, editorPlaying, rec?.audioUrl, rec?.demo]);
+  useEffect(() => {
+    if (screen !== "editor" || !editorPlaying || (rec?.audioUrl && !rec.demo)) return;
+    const timer = window.setInterval(() => setEditorTime((t) => {
+      const next = t + 0.1;
+      if (next >= editorDuration) { setEditorPlaying(false); return editorDuration; }
+      return next;
+    }), 100);
+    return () => window.clearInterval(timer);
+  }, [screen, editorPlaying, rec?.audioUrl, rec?.demo, editorDuration]);
+  useEffect(() => {
+    if (screen === "editor" && editorPlaying) setFrame(editorSceneAt(editorTime));
+  }, [screen, editorTime, editorPlaying, shown.length, editorDuration, editorMediaTotal]);
 
   const engraving = project.cardEngraving;
   const updateEngraving = (i: number, value: string) => patch({ cardEngraving: engraving.map((v, j) => (j === i ? value.toUpperCase() : v)) });
@@ -874,21 +910,22 @@ function KeepApp() {
         </div>
       </div>
 
+      {rec?.audioUrl && !rec.demo && <audio ref={editorAudioRef} src={rec.audioUrl} preload="metadata" onTimeUpdate={(e) => { const time = e.currentTarget.currentTime; setEditorTime(time); setFrame(editorSceneAt(time)); }} onEnded={() => { setEditorPlaying(false); setEditorTime(editorDuration); }} />}
       <div className="relative flex min-h-0 flex-1 items-center justify-center px-5 py-3">
         <div className="relative flex items-center justify-center">
           <div className="relative aspect-[9/16] h-[min(60dvh,500px)] max-h-[calc(100dvh-190px)] overflow-hidden rounded-[30px] border border-foreground/15 bg-card shadow-[0_24px_70px_oklch(0_0_0/0.55)]">
             <MediaView key={selected.id} item={selected} alt={`Memory preview ${frame + 1}`} className={`h-full w-full object-cover ${editorPlaying && selected.kind === "image" ? "ken-burns" : ""} editor-image-${styleSlug(project.visualStyle)}`} />
             <div className="absolute inset-0 photo-shade" />
-            {project.captionStyle !== "None" && <div className="absolute bottom-16 left-5 right-5 text-center">
+            {project.captionStyle !== "None" && editorCaption && <div className="absolute bottom-16 left-5 right-5 text-center">
               <p className={`${project.captionStyle === "Film" ? "font-display text-3xl font-normal" : project.captionStyle === "Minimal" ? "text-sm" : project.captionStyle === "Story" ? "font-display text-2xl italic" : project.captionStyle === "Clean" ? "text-sm font-medium" : "text-lg font-semibold"} leading-tight drop-shadow-md`}>
-                {project.captionStyle === "Reel" ? <>YOU MAKE PEOPLE FEEL <span className="text-accent">AT HOME</span></> : project.captionStyle === "Minimal" ? "Feel at home." : "You make people feel at home."}
+                {editorCaption}
               </p>
             </div>}
 
             <div className="absolute bottom-4 left-4 right-4 flex items-center gap-3">
-              <Button variant="bare" size="icon" className="size-8 bg-black/25 backdrop-blur" aria-label={editorPlaying ? "Pause preview" : "Play preview"} onClick={() => setEditorPlaying(!editorPlaying)}>{editorPlaying ? <Pause className="size-3.5" fill="currentColor" /> : <Play className="size-3.5" fill="currentColor" />}</Button>
-              <div className="h-[2px] flex-1 bg-foreground/35"><div className="h-full bg-foreground transition-[width] duration-500" style={{ width: `${((frame % shown.length) + 1) / shown.length * 100}%` }} /></div>
-              <span className="text-[9px] tabular-nums">{fmt(totalSec * ((frame % shown.length) + 1) / shown.length)}</span>
+              <Button variant="bare" size="icon" className="size-8 bg-black/25 backdrop-blur" aria-label={editorPlaying ? "Pause preview" : "Play preview"} onClick={() => { if (editorTime >= editorDuration - 0.1) seekEditor(0); setEditorPlaying(!editorPlaying); }}>{editorPlaying ? <Pause className="size-3.5" fill="currentColor" /> : <Play className="size-3.5" fill="currentColor" />}</Button>
+              <input type="range" min={0} max={editorDuration} step={0.1} value={Math.min(editorTime, editorDuration)} aria-label="Seek Keep playback" onChange={(e) => seekEditor(Number(e.target.value))} className="h-5 min-w-0 flex-1 accent-white" />
+              <span className="text-[9px] tabular-nums">{fmt(editorTime)} / {fmt(editorDuration)}</span>
             </div>
           </div>
 
@@ -930,7 +967,7 @@ function KeepApp() {
 
       <div className="border-t border-border/70 bg-background/96 px-5 pb-[max(14px,env(safe-area-inset-bottom))] pt-3 backdrop-blur">
         <div className="thin-scroll flex gap-2 overflow-x-auto pb-1">
-          {shown.map((m, i) => <button key={m.id} type="button" aria-label={`Select memory ${i + 1}`} onClick={() => setFrame(i)} className={`relative h-14 w-11 shrink-0 overflow-hidden rounded-md border transition-all ${i === frame % shown.length ? "border-accent ring-1 ring-accent" : "border-border opacity-55"}`}>
+          {shown.map((m, i) => <button key={m.id} type="button" aria-label={`Select memory ${i + 1}`} onClick={() => { setEditorPlaying(false); const before = shown.slice(0, i).reduce((sum, item) => sum + Math.max(1, item.displayDurationSec ?? 4), 0); seekEditor(editorMediaTotal ? before / editorMediaTotal * editorDuration : 0); }} className={`relative h-14 w-11 shrink-0 overflow-hidden rounded-md border transition-all ${i === frame % shown.length ? "border-accent ring-1 ring-accent" : "border-border opacity-55"}`}>
             <MediaView item={m} thumb alt={m.source === "sample" ? memoryLabels[i % memoryLabels.length] ?? "" : m.name ?? ""} className="h-full w-full object-cover" />
             {m.kind === "video" && <Play className="absolute bottom-1 left-1 size-2.5" fill="currentColor" />}
           </button>)}
