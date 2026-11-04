@@ -182,10 +182,13 @@ function KeepApp() {
           const remote = await loadCloudDraft(session);
           if (remote) next = remote;
           else if (local?.active) {
-            const hydratedLocal = { ...local, ...await hydrateDraftMedia(local) };
-            await saveCloudDraft(hydratedLocal, session);
-            next = hydratedLocal;
-          }
+            // Never silently attach an unclaimed device draft to a different account.
+            if (window.confirm("A draft was found on this device. Import it into your signed-in Keep account?")) {
+              const hydratedLocal = { ...local, ...await hydrateDraftMedia(local) };
+              await saveCloudDraft(hydratedLocal, session);
+              next = hydratedLocal;
+            } else next = newProject();
+          } else next = newProject();
         }
       } catch (error) {
         toast.error(error instanceof Error ? error.message : "Cloud draft unavailable; showing this device's draft.");
