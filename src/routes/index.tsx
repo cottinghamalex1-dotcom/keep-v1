@@ -73,7 +73,7 @@ const styles = [
   { name: "Soft", note: "Airy highlights and lower contrast" },
   { name: "Dreamy", note: "Glow, softness, and lifted color" },
 ];
-const groupTimedWords = (words: TimedWord[]): CaptionCue[] => {
+const groupTimedWords = (words: TimedWord[], limit = 5): CaptionCue[] => {
   const cues: CaptionCue[] = [];
   let group: TimedWord[] = [];
   const flush = () => {
@@ -86,7 +86,7 @@ const groupTimedWords = (words: TimedWord[]): CaptionCue[] => {
     const prev = group[group.length - 1];
     if (prev && word.start - prev.end > 0.72) flush();
     group.push(word);
-    if (group.length >= 7 || /[.!?]$/.test(word.word)) flush();
+    if (group.length >= limit || (limit > 2 && /[.!?]$/.test(word.word))) flush();
   }
   flush();
   return cues;
@@ -485,9 +485,9 @@ function KeepApp() {
     try {
       const prompt = project.messageParagraphs.join(" ").slice(0, 700);
       const timed = await transcribeTimedAudio(blob, mimeType, prompt);
-      const cues = groupTimedWords(timed.words);
+      const cues = groupTimedWords(timed.words, project.captionWordsPerCue ?? 5);
       if (!cues.length) throw new Error("No timestamped words returned");
-      setProject((o) => ({ ...o, captionTranscript: timed.transcript, captionCues: cues }));
+      setProject((o) => ({ ...o, captionTranscript: timed.transcript, captionWords: timed.words, captionCues: cues }));
     } catch {
       setCaptionSyncError(true);
       toast.error("Caption syncing failed. You can retry from the editor without recording again.");
@@ -508,6 +508,7 @@ function KeepApp() {
       finalVoiceRecording: { audioId: stored ? id : undefined, audioUrl, durationSec: r.durationSec, mimeType: r.mimeType, demo: false },
       captionTranscript: "",
       captionCues: [],
+      captionWords: [],
     }));
     go("recorded");
     void syncFinalCaptions(r.blob, r.mimeType);
@@ -532,7 +533,7 @@ function KeepApp() {
 
   const useDemoRecording = () => {
     if (rec) { releaseUrls([rec.audioUrl]); if (rec.audioId) void deleteBlobs([rec.audioId]); }
-    patch({ finalVoiceRecording: { durationSec: 237, demo: true }, captionTranscript: "", captionCues: [] });
+    patch({ finalVoiceRecording: { durationSec: 237, demo: true }, captionTranscript: "", captionCues: [], captionWords: [] });
     go("recorded");
   };
   const toggleVoicePlayback = () => {
@@ -954,8 +955,8 @@ function KeepApp() {
           <div className="relative aspect-[9/16] h-[min(60dvh,500px)] max-h-[calc(100dvh-190px)] overflow-hidden rounded-[30px] border border-foreground/15 bg-card shadow-[0_24px_70px_oklch(0_0_0/0.55)]">
             <MediaView key={selected.id} item={selected} alt={`Memory preview ${frame + 1}`} className={`h-full w-full object-cover ${editorPlaying && selected.kind === "image" ? "ken-burns" : ""} editor-image-${styleSlug(project.visualStyle)}`} />
             <div className="absolute inset-0 photo-shade" />
-            {project.captionStyle !== "None" && editorCaption && <div className="absolute bottom-16 left-5 right-5 text-center">
-              <p className={`${project.captionStyle === "Film" ? "font-display text-3xl font-normal" : project.captionStyle === "Minimal" ? "text-sm" : project.captionStyle === "Story" ? "font-display text-2xl italic" : project.captionStyle === "Clean" ? "text-sm font-medium" : "text-lg font-semibold"} leading-tight drop-shadow-md`}>
+            {project.captionStyle !== "None" && editorCaption && <div className={`absolute left-5 right-5 text-center ${project.captionPosition === "top" ? "top-16" : project.captionPosition === "middle" ? "top-1/2 -translate-y-1/2" : "bottom-16"}`}>
+              <p className={`${project.captionStyle === "Film" ? "font-display text-3xl font-normal" : project.captionStyle === "Minimal" ? "text-sm" : project.captionStyle === "Story" ? "font-display text-2xl italic" : project.captionStyle === "Clean" ? "text-sm font-medium" : "text-lg font-semibold"} leading-tight drop-shadow-md`} style={{ maxWidth: (project.captionLines ?? 2) === 1 ? "95%" : (project.captionLines ?? 2) === 3 ? "65%" : "80%", marginInline: "auto", whiteSpace: "pre-line" }}>
                 {editorCaption}
               </p>
             </div>}
@@ -1009,6 +1010,14 @@ function KeepApp() {
           {!rec?.demo && rec?.audioUrl && <div className="mb-3 rounded-lg border border-border bg-background/50 p-3 text-xs"><div className="flex items-center justify-between gap-3"><span>{captionSyncing ? "Syncing captions to your voice…" : project.captionCues.length ? `${project.captionCues.length} caption segments ready` : captionSyncError ? "Captions could not be synchronized." : "Captions have not been generated yet."}</span>{!captionSyncing && !project.captionCues.length && <Button variant="quiet" size="sm" onClick={() => void retryCaptionSync()}><RotateCcw className="size-3.5" /> Retry sync</Button>}</div>{!captionSyncing && !project.captionCues.length && <p className="mt-2 text-[10px] text-muted-foreground">Your voice recording is saved. Retrying captions will not erase it.</p>}</div>}
           <div className="mb-3 flex items-center justify-between"><div><p className="font-display text-2xl">Captions</p><p className="mt-1 text-[10px] text-muted-foreground">{project.captionCues.length ? "Synced to your voice." : "Choose how your words appear."}</p></div><Button variant="bare" size="icon" aria-label="Close captions" onClick={() => setEditorPanel(null)}><X className="size-4" /></Button></div>
           <div className="thin-scroll flex gap-2 overflow-x-auto pb-1">{captionOptions.map((c) => <Button key={c} variant={project.captionStyle === c ? "selected" : "quiet"} className="h-16 min-w-28 shrink-0 flex-col whitespace-normal px-3" onClick={() => patch({ captionStyle: c })}><span className={c === "Film" ? "font-display text-lg" : "text-xs"}>{c}</span><small className="text-[8px] font-normal text-muted-foreground">{c === "None" ? "No words" : c === "Reel" ? "Bold" : c === "Film" ? "Elegant" : c === "Story" ? "Emotional" : c === "Minimal" ? "Quiet" : "Simple"}</small></Button>)}</div>
+          <div className="mt-4 space-y-3 rounded-lg border border-border bg-background/50 p-3">
+            <div><label className="mb-1 block text-xs font-medium" htmlFor="caption-words">Words per caption: {project.captionWordsPerCue ?? 5}</label><input id="caption-words" type="range" min="1" max="18" value={project.captionWordsPerCue ?? 5} className="w-full" onChange={(e) => { const count = Number(e.target.value); patch({ captionWordsPerCue: count, ...(project.captionWords?.length ? { captionCues: groupTimedWords(project.captionWords, count) } : {}) }); }} /><p className="text-[10px] text-muted-foreground">Choose one word at a time or longer phrases. Timing follows each spoken word.</p></div>
+            <div><label className="mb-1 block text-xs font-medium" htmlFor="caption-lines">Maximum display lines</label><select id="caption-lines" className="w-full rounded-md border border-border bg-background p-2 text-xs" value={project.captionLines ?? 2} onChange={(e) => patch({ captionLines: Number(e.target.value) })}><option value={1}>1 line</option><option value={2}>2 lines</option><option value={3}>3 lines</option></select></div>
+            <div><p className="mb-1 text-xs font-medium">Position</p><div className="flex gap-2">{(["top","middle","bottom"] as const).map((pos) => <Button key={pos} size="sm" variant={(project.captionPosition ?? "bottom") === pos ? "selected" : "quiet"} className="flex-1 capitalize" onClick={() => patch({ captionPosition: pos })}>{pos}</Button>)}</div></div>
+            <p className="text-xs font-medium">Edit individual caption segments</p>
+            <div className="max-h-52 space-y-2 overflow-y-auto">{project.captionCues.map((cue, i) => <div key={i} className="rounded-md border border-border/60 p-2"><div className="mb-1 flex items-center justify-between"><button type="button" className="text-[10px] underline" onClick={() => seekEditor(cue.start)}>{cue.start.toFixed(1)}s – {cue.end.toFixed(1)}s · Preview</button><span className="text-[10px] text-muted-foreground">#{i + 1}</span></div><textarea aria-label={`Caption segment ${i+1}`} rows={2} className="w-full resize-y rounded border border-border bg-background p-2 text-xs" value={cue.text} onChange={(e) => patch({ captionCues: project.captionCues.map((c, j) => j === i ? { ...c, text: e.target.value } : c) })} /><div className="mt-1 flex gap-2"><label className="flex-1 text-[10px]">Start (s)<input type="number" min={0} step={0.1} className="w-full rounded border border-border bg-background p-1" value={cue.start.toFixed(2)} onChange={(e) => patch({ captionCues: project.captionCues.map((c,j) => j === i ? { ...c, start: Math.max(0, Number(e.target.value)) } : c) })}/></label><label className="flex-1 text-[10px]">End (s)<input type="number" min={0} step={0.1} className="w-full rounded border border-border bg-background p-1" value={cue.end.toFixed(2)} onChange={(e) => patch({ captionCues: project.captionCues.map((c,j) => j === i ? { ...c, end: Math.max(0, Number(e.target.value)) } : c) })}/></label></div></div>)}</div>
+            {!!project.captionWords?.length && <Button variant="quiet" size="sm" onClick={() => patch({ captionCues: groupTimedWords(project.captionWords ?? [], project.captionWordsPerCue ?? 5) })}>Restore automatic timing and text</Button>}
+          </div>
         </>}
         {editorPanel === "Style" && <>
           <div className="mb-3 flex items-center justify-between"><div><p className="font-display text-2xl">Style</p><p className="mt-1 text-[10px] text-muted-foreground">Tap a look and see it above instantly.</p></div><Button variant="bare" size="icon" aria-label="Close style" onClick={() => setEditorPanel(null)}><X className="size-4" /></Button></div>
@@ -1094,7 +1103,7 @@ function KeepApp() {
     </div>}
     {screen === "preview" && (viewingDemo
       ? <KeepPlayer name="HANNA" from="Alex" year="2026" onExit={back} onFinish={home} />
-      : <KeepPlayer name={(name || "Your Keep").toUpperCase()} from="Alex" year="2026" subtitle={project.occasion} onExit={back} onFinish={() => { setScreen("editor"); resetPageScroll(); }} style={project.visualStyle} captions={project.captionStyle} media={frames.length ? frames.map((m) => ({ url: m.url, kind: m.kind, displayDurationSec: m.displayDurationSec ?? 4 })) : undefined} audioUrl={rec && !rec.demo ? rec.audioUrl : undefined} audioDuration={rec?.durationSec} lines={captionLines} captionCues={project.captionCues} musicMood={project.musicMood} voiceMusicBalance={project.voiceMusicBalance} voiceVolume={project.voiceVolume} musicVolume={project.musicVolume} />)}
+      : <KeepPlayer name={(name || "Your Keep").toUpperCase()} from="Alex" year="2026" subtitle={project.occasion} onExit={back} onFinish={() => { setScreen("editor"); resetPageScroll(); }} style={project.visualStyle} captions={project.captionStyle} media={frames.length ? frames.map((m) => ({ url: m.url, kind: m.kind, displayDurationSec: m.displayDurationSec ?? 4 })) : undefined} audioUrl={rec && !rec.demo ? rec.audioUrl : undefined} audioDuration={rec?.durationSec} lines={captionLines} captionCues={project.captionCues} musicMood={project.musicMood} voiceMusicBalance={project.voiceMusicBalance} voiceVolume={project.voiceVolume} musicVolume={project.musicVolume} captionPosition={project.captionPosition} captionLines={project.captionLines} />)}
     {screen === "recipientPreview" && <KeepRecipientExperience
       name={(name || engraving[0] || "You").trim()}
       from={(engraving[1]?.replace(/^FROM\s+/i, "") || "Alex").trim()}
@@ -1110,7 +1119,7 @@ function KeepApp() {
       lines={captionLines}
       captionCues={project.captionCues}
       musicMood={project.musicMood}
-      voiceMusicBalance={project.voiceMusicBalance} voiceVolume={project.voiceVolume} musicVolume={project.musicVolume}
+      voiceMusicBalance={project.voiceMusicBalance} voiceVolume={project.voiceVolume} musicVolume={project.musicVolume} captionPosition={project.captionPosition} captionLines={project.captionLines}
       persistVisit={false}
       creatorPreview
       initialExperience={creatorPreviewMode ?? "watch"}
