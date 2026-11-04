@@ -158,9 +158,9 @@ export function createKeepVoiceMix(audio: HTMLAudioElement, mood: string, balanc
   compressor.release.value = 0.24;
 
   const voiceGain = ctx.createGain();
-  voiceGain.gain.value = 1.06;
+  voiceGain.gain.value = 0.36;
   const musicLevel = ctx.createGain();
-  musicLevel.gain.value = 1;
+  musicLevel.gain.value = 1.5;
   const master = ctx.createGain();
   master.gain.value = 0.92;
 
@@ -181,11 +181,11 @@ export function createKeepVoiceMix(audio: HTMLAudioElement, mood: string, balanc
     play: async () => { if (ctx.state !== "running") await ctx.resume(); },
     pause: async () => { if (ctx.state === "running") await ctx.suspend(); },
     setLevels: (voice: number, backing: number) => {
-      const v = Math.max(0, Math.min(100, Number.isFinite(voice) ? voice : 100)) / 100;
-      const m = Math.max(0, Math.min(100, Number.isFinite(backing) ? backing : 50)) / 100;
+      const v = Math.max(0, Math.min(100, Number.isFinite(voice) ? voice : 60)) / 100;
+      const m = Math.max(0, Math.min(100, Number.isFinite(backing) ? backing : 60)) / 100;
       const at = ctx.currentTime;
-      voiceGain.gain.setTargetAtTime(v * 1.06, at, 0.025);
-      musicLevel.gain.setTargetAtTime(m * 2, at, 0.025);
+      voiceGain.gain.setTargetAtTime(v * 0.6, at, 0.025);
+      musicLevel.gain.setTargetAtTime(m * 2.5, at, 0.025);
     },
     setMuted: (muted: boolean) => {
       const at = ctx.currentTime;
