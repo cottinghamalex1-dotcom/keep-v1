@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, ArrowRight, BookOpen, Headphones, Images, Mic, Pause, Play, RotateCcw, Volume2 } from "lucide-react";
+import { ArrowLeft, ArrowRight, BookOpen, Headphones, Images, Pause, Play, RotateCcw, Volume2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { KeepPlayer, memoryImages, type PlayerMedia } from "@/components/keep-player";
 import type { CaptionCue } from "@/lib/keep-project";
@@ -210,8 +210,7 @@ export function KeepRecipientExperience({
   if (stage === "ending") {
     return <main className="app-shell"><div className="flex keep-min-screen flex-col items-center justify-center px-7 text-center">
       <span className="brand mb-20">KEEP</span><h1 className="display text-5xl">SOME THINGS ARE<br />WORTH KEEPING.</h1><p className="mt-7 max-w-64 text-sm leading-6 text-muted-foreground">This one is yours. Come back whenever you want to experience it again.</p>
-      <div className="mt-14 w-full space-y-3"><Button variant="keep" size="touch" className="w-full" onClick={() => setStage("choose")}><RotateCcw /> Experience it again</Button>{creatorPreview ? <Button variant="quiet" size="touch" className="w-full" onClick={onCreatorExit ?? onCreatorContinue}>Back to editor <ArrowRight /></Button> : <Button variant="quiet" size="touch" className="w-full" onClick={() => setStage("choose")}><Mic /> Send {from} a response</Button>}</div>
-      {!creatorPreview && <p className="mt-5 max-w-64 text-[11px] leading-5 text-muted-foreground">Voice responses are coming next. Your Keep stays private.</p>}
+      <div className="mt-14 w-full space-y-3"><Button variant="keep" size="touch" className="w-full" onClick={() => setStage("choose")}><RotateCcw /> Experience it again</Button>{creatorPreview ? <Button variant="quiet" size="touch" className="w-full" onClick={onCreatorExit ?? onCreatorContinue}>Back to editor <ArrowRight /></Button> : null}</div>
     </div></main>;
   }
 
