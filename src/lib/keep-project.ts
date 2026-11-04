@@ -28,6 +28,7 @@ export type InterviewAnswer = {
 
 export type VoiceRecording = { audioId?: string | undefined; audioUrl?: string | undefined; durationSec: number; mimeType?: string | undefined; demo: boolean };
 export type CaptionCue = { text: string; start: number; end: number };
+export type CaptionWord = { word: string; start: number; end: number };
 
 export type KeepProject = {
   active: boolean;
@@ -46,6 +47,10 @@ export type KeepProject = {
   finalVoiceRecording: VoiceRecording | null;
   captionTranscript: string;
   captionCues: CaptionCue[];
+  captionWords?: CaptionWord[];
+  captionWordsPerCue?: number;
+  captionLines?: number;
+  captionPosition?: "top" | "middle" | "bottom";
   memories: MediaItem[];
   readMemoryOrder: string[];
   musicMood: string;
@@ -70,7 +75,7 @@ export const sampleMemories = (): MediaItem[] =>
 export function newProject(): KeepProject {
   return {
     active: false, stage: "recipient", recipientName: "", relationship: "", occasion: "Anniversary", intent: "", questionIndex: 0, interviewQuestion: "", interviewSummary: "",
-    interviewAnswers: [], messageSource: null, writtenText: "", messageParagraphs: [], finalVoiceRecording: null, captionTranscript: "", captionCues: [], memories: [], readMemoryOrder: [],
+    interviewAnswers: [], messageSource: null, writtenText: "", messageParagraphs: [], finalVoiceRecording: null, captionTranscript: "", captionCues: [], captionWords: [], captionWordsPerCue: 5, captionLines: 2, captionPosition: "bottom", memories: [], readMemoryOrder: [],
     musicMood: "Warm + Nostalgic", voiceMusicBalance: "Balanced", musicMix: 50, voiceVolume: 60, musicVolume: 60, audioMixVersion: 2, captionStyle: "Reel", visualStyle: "Natural", cardEngraving: ["", "FROM ALEX", "2026"],
   };
 }
