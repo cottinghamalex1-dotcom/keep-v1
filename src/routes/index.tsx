@@ -554,6 +554,11 @@ function KeepApp() {
   const frames = project.memories;
   const shown = frames.length ? frames : sampleMemories();
   const selected = shown[frame % shown.length];
+  const photoDrag = useRef<{ x: number; y: number; focusX: number; focusY: number; width: number; height: number } | null>(null);
+  const updateSelectedMoment = (changes: Partial<MediaItem>) => setProject((prev) => {
+    const moments = prev.memories.length ? prev.memories : sampleMemories();
+    return { ...prev, memories: moments.map((m, i) => i === frame % moments.length ? { ...m, ...changes } : m) };
+  });
   const addFiles = async (e: ChangeEvent<HTMLInputElement>, replaceIndex?: number) => {
     const files = Array.from(e.target.files ?? []);
     e.target.value = "";
@@ -572,7 +577,7 @@ function KeepApp() {
     if (replaceIndex !== undefined) {
       const old = frames[replaceIndex];
       if (old?.source === "upload") { releaseUrls([old.url]); void deleteBlobs([old.id]); }
-      patch({ memories: frames.length ? frames.map((m, i) => (i === replaceIndex ? { ...items[0]!, displayDurationSec: m.displayDurationSec ?? 7, focusX: m.focusX, focusY: m.focusY, zoom: m.zoom, motion: m.motion } : m)) : shown.map((m, i) => (i === replaceIndex ? { ...items[0]!, displayDurationSec: m.displayDurationSec ?? 4 } : m)) });
+      patch({ memories: frames.length ? frames.map((m, i) => (i === replaceIndex ? { ...items[0]!, displayDurationSec: m.displayDurationSec ?? 7, focusX: m.focusX, focusY: m.focusY, zoom: m.zoom, motion: m.motion, transition: m.transition } : m)) : shown.map((m, i) => (i === replaceIndex ? { ...items[0]!, displayDurationSec: m.displayDurationSec ?? 4 } : m)) });
       toast.success("Memory replaced");
     } else {
       patch({ memories: [...frames, ...items] });
@@ -739,7 +744,7 @@ function KeepApp() {
   const nextButton = (label: string, action: () => void, disabled = false) => <Button variant="keep" size="touch" className="w-full justify-between" onClick={action} disabled={disabled}>{label}<ArrowRight /></Button>;
   const wave = (count = 27, active = true) => <div className="flex h-12 items-center justify-center gap-[3px]" aria-hidden="true">{Array.from({ length: count }, (_, i) => <span key={i} className={`${active ? "wave-bar" : "opacity-40"} w-[2px] rounded-full bg-accent`} style={{ height: `${10 + ((i * 17) % 34)}px`, animationDelay: `${-(i % 7) * 0.13}s` }} />)}</div>;
   const note = (children: ReactNode) => <p className="text-center text-[11px] leading-5 text-muted-foreground">{children}</p>;
-  const sheet = (heading: string, onClose: () => void, children: ReactNode) => <div className="keep-fixed-screen fixed left-0 right-0 top-0 z-40 flex items-end justify-center bg-background/80" onClick={onClose}><div className="keep-sheet-panel w-full max-w-[540px] overflow-y-auto rounded-t-lg bg-card px-7 pb-[max(40px,env(safe-area-inset-bottom))] pt-6" onClick={(e) => e.stopPropagation()}><div className="flex items-center justify-between"><h2 className="font-display text-4xl">{heading}</h2><Button variant="bare" size="icon" aria-label="Close" onClick={onClose}><X /></Button></div>{children}</div></div>;
+  const sheet = (heading: string, onClose: () => void, children: ReactNode) => <div className={`keep-fixed-screen fixed left-0 right-0 top-0 z-40 flex items-end justify-center ${heading === "Moments" ? "pointer-events-none bg-transparent" : "bg-background/80"}`} onClick={heading === "Moments" ? undefined : onClose}><div className={`keep-sheet-panel w-full max-w-[540px] overflow-y-auto rounded-t-lg bg-card px-7 pb-[max(40px,env(safe-area-inset-bottom))] pt-6 ${heading === "Moments" ? "pointer-events-auto max-h-[43dvh] border-t border-border shadow-2xl" : ""}`} onClick={(e) => e.stopPropagation()}><div className="flex items-center justify-between"><h2 className="font-display text-4xl">{heading}</h2><Button variant="bare" size="icon" aria-label="Close" onClick={onClose}><X /></Button></div>{children}</div></div>;
   const micUnavailable = recorder.supported === false || recorder.status === "denied" || recorder.status === "error";
   const micMessage = recorder.supported === false ? "This browser can't record audio here." : recorder.status === "denied" ? "Microphone access was blocked. You can allow it in your browser settings." : recorder.status === "error" ? "The microphone couldn't start." : "";
   const isRecording = recorder.status === "recording" || recorder.status === "paused";
@@ -953,7 +958,7 @@ function KeepApp() {
       {rec?.audioUrl && !rec.demo && <audio ref={editorAudioRef} src={rec.audioUrl} preload="metadata" onTimeUpdate={(e) => { const time = e.currentTarget.currentTime; setEditorTime(time); setFrame(editorSceneAt(time)); }} onEnded={() => { setEditorPlaying(false); setEditorTime(editorDuration); }} />}
       <div className="relative flex min-h-0 flex-1 items-center justify-center px-5 py-3">
         <div className="relative flex items-center justify-center">
-          <div className="relative aspect-[9/16] h-[min(60dvh,500px)] max-h-[calc(100dvh-190px)] overflow-hidden rounded-[30px] border border-foreground/15 bg-card shadow-[0_24px_70px_oklch(0_0_0/0.55)]">
+          <div className={`relative aspect-[9/16] ${editorPanel === "Memories" ? "h-[min(42dvh,370px)]" : "h-[min(60dvh,500px)]"} max-h-[calc(100dvh-190px)] overflow-hidden rounded-[30px] border border-foreground/15 bg-card shadow-[0_24px_70px_oklch(0_0_0/0.55)]`}>
             <CinematicMedia item={selected} playing={editorPlaying} duration={Math.max(5, selected.displayDurationSec ?? 7)} className="absolute inset-0" imageClassName={`editor-image-${styleSlug(project.visualStyle)}`} />
             <div className="absolute inset-0 photo-shade" />
             {project.captionStyle !== "None" && editorCaption && <div className={`absolute left-5 right-5 text-center ${project.captionPosition === "top" ? "top-16" : project.captionPosition === "middle" ? "top-1/2 -translate-y-1/2" : "bottom-16"}`}>
@@ -1048,7 +1053,7 @@ function KeepApp() {
         <div className="mt-4 space-y-3 rounded-xl border border-border bg-background/50 p-3">
           <p className="text-xs font-medium">Frame and movement · Moment {frame % shown.length + 1}</p>
           <p className="text-[10px] text-muted-foreground">Move the focus to keep faces and important details in view. Changes appear in the preview.</p>
-          {([["focusX","Horizontal focus"],["focusY","Vertical focus"]] as const).map(([field,label]) => <label key={field} className="block text-xs">{label}: {selected?.[field] ?? 50}%<input type="range" min="0" max="100" step="1" value={selected?.[field] ?? 50} className="mt-1 w-full" onChange={(e) => patch({ memories: shown.map((m,i) => i === frame % shown.length ? { ...m, [field]: Number(e.target.value) } : m) })} /></label>)}
+          <p className="text-xs">Touch and drag the photo above to reposition it. Changes appear instantly.</p>
           <label className="block text-xs">Zoom: {Math.round((selected?.zoom ?? 1.08) * 100)}%<input type="range" min="100" max="140" step="1" value={Math.round((selected?.zoom ?? 1.08) * 100)} className="mt-1 w-full" onChange={(e) => patch({ memories: shown.map((m,i) => i === frame % shown.length ? { ...m, zoom: Number(e.target.value) / 100 } : m) })} /></label>
           <div><p className="mb-2 text-xs">Motion direction</p><div className="grid grid-cols-4 gap-1">{(["in","out","left","right"] as const).map((direction) => <Button key={direction} size="sm" variant={(selected?.motion ?? "in") === direction ? "selected" : "quiet"} className="capitalize px-1 text-[10px]" onClick={() => patch({ memories: shown.map((m,i) => i === frame % shown.length ? { ...m, motion: direction } : m) })}>{direction}</Button>)}</div></div>
           <label className="block text-xs">Moment duration: {selected?.displayDurationSec ?? 7}s<input type="range" min="4" max="15" step="1" value={selected?.displayDurationSec ?? 7} className="mt-1 w-full" onChange={(e) => patch({ memories: shown.map((m,i) => i === frame % shown.length ? { ...m, displayDurationSec: Number(e.target.value) } : m) })} /></label>
