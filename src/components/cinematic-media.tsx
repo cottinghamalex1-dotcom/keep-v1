@@ -24,6 +24,6 @@ export function CinematicMedia({ item, playing = true, duration = 7, className =
   return <div className={`relative overflow-hidden ${className}`}>
     <style>{`@keyframes keep-cinematic-move {from {transform:var(--keep-from)} to {transform:var(--keep-to)}} @keyframes keep-cinematic-fade {from {opacity:0} to {opacity:1}} .keep-cinematic-fade {animation:keep-cinematic-fade 1.25s ease-in-out both} @media (prefers-reduced-motion:reduce) {.keep-cinematic-fade {animation-duration:.15s!important} [style*="keep-cinematic-move"] {animation:none!important}}`}</style>
     {previous && render(previous, false)}
-    {render(current, !previous)}
+    {render(current, true)}
   </div>;
 }
