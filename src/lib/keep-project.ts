@@ -53,6 +53,7 @@ export type KeepProject = {
   musicMix?: number;
   voiceVolume?: number;
   musicVolume?: number;
+  audioMixVersion?: number;
   captionStyle: string;
   visualStyle: string;
   cardEngraving: string[];
@@ -70,7 +71,7 @@ export function newProject(): KeepProject {
   return {
     active: false, stage: "recipient", recipientName: "", relationship: "", occasion: "Anniversary", intent: "", questionIndex: 0, interviewQuestion: "", interviewSummary: "",
     interviewAnswers: [], messageSource: null, writtenText: "", messageParagraphs: [], finalVoiceRecording: null, captionTranscript: "", captionCues: [], memories: [], readMemoryOrder: [],
-    musicMood: "Warm + Nostalgic", voiceMusicBalance: "Balanced", musicMix: 50, voiceVolume: 100, musicVolume: 50, captionStyle: "Reel", visualStyle: "Natural", cardEngraving: ["", "FROM ALEX", "2026"],
+    musicMood: "Warm + Nostalgic", voiceMusicBalance: "Balanced", musicMix: 50, voiceVolume: 60, musicVolume: 60, audioMixVersion: 2, captionStyle: "Reel", visualStyle: "Natural", cardEngraving: ["", "FROM ALEX", "2026"],
   };
 }
 
@@ -99,6 +100,11 @@ export function loadDraft(): KeepProject | null {
     if (!raw) return null;
     const parsed = JSON.parse(raw) as Partial<KeepProject>;
     const p = { ...newProject(), ...parsed };
+    if ((parsed.audioMixVersion ?? 1) < 2) {
+      if (parsed.voiceVolume == null || parsed.voiceVolume === 100) p.voiceVolume = 60;
+      if (parsed.musicVolume == null || parsed.musicVolume === 50) p.musicVolume = 60;
+      p.audioMixVersion = 2;
+    }
     p.memories = (p.memories ?? []).map((m) => (m.source === "sample" ? { ...m, url: memoryImages[m.sampleIndex ?? 0] ?? "" } : m));
     return p;
   } catch {
