@@ -25,6 +25,8 @@ type Props = {
   voiceMusicBalance?: string | undefined;
   voiceVolume?: number | undefined;
   musicVolume?: number | undefined;
+  captionPosition?: "top" | "middle" | "bottom";
+  captionLines?: number;
   persistVisit?: boolean;
   creatorPreview?: boolean;
   initialExperience?: KeepExperienceMode | undefined;
@@ -58,6 +60,8 @@ export function KeepRecipientExperience({
   voiceMusicBalance = "Balanced",
   voiceVolume = 60,
   musicVolume = 60,
+  captionPosition = "bottom",
+  captionLines = 2,
   persistVisit = true,
   creatorPreview = false,
   initialExperience,
@@ -184,7 +188,7 @@ export function KeepRecipientExperience({
   };
 
   if (stage === "experience" && experience === "watch") {
-    return <main className="app-shell"><KeepPlayer name={name.toUpperCase()} from={from} year={year} subtitle={subtitle} recipient onExit={backToChoose} onFinish={finishExperience} style={style} captions={captions} media={media} audioUrl={audioUrl} audioDuration={audioDuration} lines={lines} captionCues={captionCues} musicMood={musicMood} voiceMusicBalance={voiceMusicBalance} voiceVolume={voiceVolume} musicVolume={musicVolume} /></main>;
+    return <main className="app-shell"><KeepPlayer name={name.toUpperCase()} from={from} year={year} subtitle={subtitle} recipient onExit={backToChoose} onFinish={finishExperience} style={style} captions={captions} media={media} audioUrl={audioUrl} audioDuration={audioDuration} lines={lines} captionCues={captionCues} musicMood={musicMood} voiceMusicBalance={voiceMusicBalance} voiceVolume={voiceVolume} musicVolume={musicVolume} captionPosition={captionPosition} captionLines={captionLines} /></main>;
   }
 
   if (stage === "experience" && experience === "listen") {
