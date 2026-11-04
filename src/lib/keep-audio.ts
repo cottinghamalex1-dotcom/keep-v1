@@ -180,11 +180,12 @@ export function createKeepVoiceMix(audio: HTMLAudioElement, mood: string, balanc
     context: ctx,
     play: async () => { if (ctx.state !== "running") await ctx.resume(); },
     pause: async () => { if (ctx.state === "running") await ctx.suspend(); },
-    setMix: (mix: number) => {
-      const position = Math.max(0, Math.min(100, Number.isFinite(mix) ? mix : 50)) / 100;
+    setLevels: (voice: number, backing: number) => {
+      const v = Math.max(0, Math.min(100, Number.isFinite(voice) ? voice : 100)) / 100;
+      const m = Math.max(0, Math.min(100, Number.isFinite(backing) ? backing : 50)) / 100;
       const at = ctx.currentTime;
-      voiceGain.gain.setTargetAtTime(1.06 * (1.4 - position * 0.65), at, 0.035);
-      musicLevel.gain.setTargetAtTime(position === 0 ? 0 : Math.pow(position / 0.5, 1.6), at, 0.035);
+      voiceGain.gain.setTargetAtTime(v * 1.06, at, 0.025);
+      musicLevel.gain.setTargetAtTime(m * 2, at, 0.025);
     },
     setMuted: (muted: boolean) => {
       const at = ctx.currentTime;
