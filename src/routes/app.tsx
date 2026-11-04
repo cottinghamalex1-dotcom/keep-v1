@@ -22,6 +22,7 @@ function KeepDashboard() {
   const [tab, setTab] = useState<"home" | "given" | "received" | "account">("home");
   const [cards, setCards] = useState<Card[]>([]);
   const [keeps, setKeeps] = useState<Keep[]>([]);
+  const [cloudDraft, setCloudDraft] = useState<{recipientName?:string;stage?:string}|null>(null);
   const [displayName, setDisplayName] = useState("");
   const api = useCallback(async (path: string, options: RequestInit = {}, token?: string) => {
     const res = await fetch(endpoint + path, { ...options, headers: { apikey: publicKey, "Content-Type": "application/json", ...(token ? { Authorization: "Bearer " + token } : {}), ...options.headers } });
@@ -42,12 +43,13 @@ function KeepDashboard() {
           current = { ...renewed, expires_at: Math.floor(Date.now() / 1000) + renewed.expires_in };
           if (!cancelled) { localStorage.setItem(sessionKey, JSON.stringify(current)); setSession(current); }
         }
-        const [cs, ks, ps] = await Promise.all([
+        const [cs, ks, ps, drafts] = await Promise.all([
           api("/rest/v1/keep_cards?select=id,card_code,recipient_label,status,creator_id,recipient_id,keep_id&order=created_at.desc", {}, current.access_token),
           api("/rest/v1/keeps?select=id,recipient_name,status&order=created_at.desc", {}, current.access_token),
-          api("/rest/v1/keep_profiles?select=display_name&user_id=eq." + encodeURIComponent(current.user.id), {}, current.access_token)
+          api("/rest/v1/keep_profiles?select=display_name&user_id=eq." + encodeURIComponent(current.user.id), {}, current.access_token),
+          api("/rest/v1/keep_drafts?select=project&owner_id=eq." + encodeURIComponent(current.user.id) + "&limit=1", {}, current.access_token)
         ]);
-        if (!cancelled) { setCards(cs); setKeeps(ks); setDisplayName(ps?.[0]?.display_name || ""); }
+        if (!cancelled) { setCards(cs); setKeeps(ks); setDisplayName(ps?.[0]?.display_name || ""); setCloudDraft(drafts?.[0]?.project || null); }
       } catch (err) { if (!cancelled) toast.error(err instanceof Error ? err.message : "Couldn't load your account"); }
     };
     void load();
@@ -90,6 +92,7 @@ function KeepDashboard() {
     </section> : <>
       <section className="mb-9"><p className="text-xs uppercase tracking-widest text-[#d9c4a7]">Your Keep app</p><h1 className="mt-3 font-serif text-4xl">{tab === "home" ? "Your memories, kept." : tab === "given" ? "Keeps you've given." : tab === "received" ? "Keeps you've received." : "Your account."}</h1><p className="mt-3 text-sm leading-6 text-white/55">{tab === "home" ? "Create something meaningful. Protect what you've given and received." : tab === "account" ? "Manage your identity and account." : "Manage the physical cards, not a digital playback library."}</p></section>
       {tab === "home" && <div className="space-y-4">
+        {cloudDraft && <Link to="/" className="flex items-center justify-between rounded-2xl border border-[#d9c4a7]/35 bg-[#d9c4a7]/10 p-5"><span><strong className="block text-lg">Continue your Keep</strong><small className="mt-1 block text-white/60">For {cloudDraft.recipientName || "someone special"} · Saved to your account</small></span><ArrowRight className="text-[#d9c4a7]" /></Link>}
         <Link to="/" className="flex items-center justify-between rounded-2xl bg-[#d9c4a7] p-5 text-[#161513]"><span><strong className="block text-lg">Create a Keep</strong><small>Open the voice, photo and music editor</small></span><Plus /></Link>
         {keeps.length > 0 && <div className="rounded-2xl border border-white/15 p-5"><h2 className="mb-3 text-sm font-semibold">Your creations</h2>{keeps.map((keep) => <div key={keep.id} className="flex items-center justify-between border-t border-white/10 py-3 text-sm"><span>For {keep.recipient_name || "someone special"}</span><span className="text-xs text-white/50">{keep.status}</span></div>)}<p className="mt-2 text-xs text-white/40">Published Keeps are experienced through their physical cards.</p></div>}
         <div className="grid grid-cols-2 gap-3"><button className={secondary} onClick={() => setTab("given")}><Gift className="mb-3 text-[#d9c4a7]" />Given Keeps <span className="block pt-1 text-2xl">{cards.filter(c => c.creator_id === session.user.id).length}</span></button><button className={secondary} onClick={() => setTab("received")}><Heart className="mb-3 text-[#d9c4a7]" />Received Keeps <span className="block pt-1 text-2xl">{cards.filter(c => c.recipient_id === session.user.id).length}</span></button></div>
