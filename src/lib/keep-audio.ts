@@ -52,7 +52,7 @@ function scheduleMusic(
   filter.connect(destination);
 
   const start = ctx.currentTime + 0.02;
-  const total = Math.max(14, introSeconds + voiceDuration + 3.6);
+  const total = Math.max(60, introSeconds + voiceDuration + 3.6);
   const voiceEnd = start + introSeconds + Math.max(1, voiceDuration);
 
   musicGain.gain.cancelScheduledValues(start);
@@ -65,28 +65,60 @@ function scheduleMusic(
   musicGain.gain.setValueAtTime(levels.outro, voiceEnd + 1.8);
   musicGain.gain.exponentialRampToValueAtTime(0.0001, voiceEnd + 3.3);
 
+  // "Worth Keeping": original 60-second instrumental arrangement in C major / A minor.
+  // Layered, individually enveloped piano notes, arpeggios, and gentle string swells
+  // replace the old four continuously running oscillators (which sounded like a drone).
   const nodes: OscillatorNode[] = [];
-  const voices = 4;
-  for (let voice = 0; voice < voices; voice++) {
+  const beat = 0.625; // 96 BPM; 24 bars of 4 beats = 60 seconds
+  const bars = Math.ceil(total / (beat * 4)) + 1;
+  const progression = [
+    [48, 55, 60, 64], [45, 52, 57, 60], [41, 48, 53, 57], [43, 50, 55, 59],
+    [48, 55, 60, 64], [45, 52, 57, 60], [53, 60, 65, 69], [43, 50, 55, 59],
+  ];
+  const melody = [76, 74, 72, 71, 72, 76, 79, 76, 74, 72, 69, 71, 72, 74, 76, 72,
+                  76, 79, 81, 79, 76, 74, 72, 71, 69, 72, 74, 76, 72, 71, 69, 67];
+  const note = (pitch: number, at: number, length: number, volume: number, timbre: "piano" | "strings") => {
+    if (at > start + total) return;
     const osc = ctx.createOscillator();
     const voiceGain = ctx.createGain();
-    osc.type = cfg.waveform;
-    osc.detune.value = (voice - 1.5) * 2.5;
-    voiceGain.gain.value = voice === 0 ? 0.48 : voice === 3 ? 0.28 : 0.36;
+    osc.type = timbre === "piano" ? "triangle" : "sine";
+    osc.frequency.setValueAtTime(midiHz(pitch), at);
+    if (timbre === "piano") {
+      osc.frequency.exponentialRampToValueAtTime(midiHz(pitch) * 0.9995, at + 0.08);
+      voiceGain.gain.setValueAtTime(0.0001, at);
+      voiceGain.gain.exponentialRampToValueAtTime(volume, at + 0.018);
+      voiceGain.gain.exponentialRampToValueAtTime(Math.max(0.0001, volume * 0.26), at + Math.min(length * 0.6, 0.85));
+      voiceGain.gain.exponentialRampToValueAtTime(0.0001, at + length);
+    } else {
+      voiceGain.gain.setValueAtTime(0.0001, at);
+      voiceGain.gain.linearRampToValueAtTime(volume, at + Math.min(0.75, length * 0.35));
+      voiceGain.gain.setValueAtTime(volume, at + Math.max(0.8, length * 0.7));
+      voiceGain.gain.linearRampToValueAtTime(0.0001, at + length);
+    }
     osc.connect(voiceGain);
     voiceGain.connect(musicGain);
-
-    const chordCount = Math.ceil(total / cfg.chordSeconds) + 2;
-    for (let c = 0; c < chordCount; c++) {
-      const chord = cfg.chords[c % cfg.chords.length]!;
-      const note = chord[Math.min(voice, chord.length - 1)]!;
-      const at = start + c * cfg.chordSeconds;
-      if (c === 0) osc.frequency.setValueAtTime(midiHz(note), at);
-      else osc.frequency.exponentialRampToValueAtTime(midiHz(note), at + 0.18);
-    }
-    osc.start(start);
-    osc.stop(start + total + 0.2);
+    osc.start(at);
+    osc.stop(at + length + 0.02);
     nodes.push(osc);
+  };
+  for (let bar = 0; bar < bars; bar++) {
+    const chord = progression[bar % progression.length]!;
+    const barStart = start + bar * beat * 4;
+    // Gentle bass notes and chord pads, deliberately restrained under speech.
+    note(chord[0]! - 12, barStart, beat * 3.85, 0.18, "strings");
+    for (let k = 1; k < 4; k++) note(chord[k]!, barStart + 0.08, beat * 3.7, 0.065, "strings");
+    // Broken piano chords create movement and clear harmonic changes.
+    const pattern = [0, 2, 1, 3, 1, 2, 3, 1];
+    for (let i = 0; i < 8; i++) {
+      const pitch = chord[pattern[i]!]! + (i >= 4 ? 12 : 0);
+      note(pitch, barStart + i * beat * 0.5, beat * 1.2, 0.19, "piano");
+    }
+    // A sparse original melody; leave intentional gaps for the voice.
+    if (bar % 4 !== 3) {
+      const base = (bar * 2) % melody.length;
+      note(melody[base]!, barStart + beat * 0.15, beat * 1.65, 0.12, "piano");
+      note(melody[(base + 1) % melody.length]!, barStart + beat * 2.1, beat * 1.5, 0.095, "piano");
+    }
   }
 
   return {
