@@ -1,3 +1,4 @@
+import { activeKeepSession, loadCloudDraft, saveCloudDraft, removeCloudDraft } from "@/lib/keep-cloud";
 import { CinematicMedia } from "@/components/cinematic-media";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useRef, useState, type ChangeEvent, type ReactNode } from "react";
@@ -168,21 +169,56 @@ function KeepApp() {
   const name = project.recipientName;
   const q = project.questionIndex;
 
-  // Always open the public KEEP link on the intro experience.
-  // Existing drafts remain preserved and can be continued intentionally from the intro/home screen.
+  // Hydrate local media first, then prefer the authenticated account's cloud draft.
+  // Do not autosave until hydration is finished; that would overwrite the remote draft.
   useEffect(() => {
     let cancelled = false;
-    const d = loadDraft();
-    if (d) setProject(d);
-
-    setHistory([]);
-    setScreen("onboarding");
-    setHydrated(true);
-
-    if (d) void hydrateDraftMedia(d).then((h) => { if (!cancelled) setProject((cur) => ({ ...cur, ...h })); });
+    const initialize = async () => {
+      const local = loadDraft();
+      let next = local;
+      try {
+        const session = await activeKeepSession();
+        if (session) {
+          const remote = await loadCloudDraft(session);
+          if (remote) next = remote;
+          else if (local?.active) {
+            const hydratedLocal = { ...local, ...await hydrateDraftMedia(local) };
+            await saveCloudDraft(hydratedLocal, session);
+            next = hydratedLocal;
+          }
+        }
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : "Cloud draft unavailable; showing this device's draft.");
+      }
+      if (cancelled) return;
+      if (next) {
+        setProject(next);
+        if (next === local) {
+          void hydrateDraftMedia(next).then(h => { if (!cancelled) setProject(cur => ({ ...cur, ...h })); });
+        }
+      }
+      setHistory([]);
+      setScreen("onboarding");
+      setHydrated(true);
+    };
+    void initialize();
     return () => { cancelled = true; };
   }, []);
-  useEffect(() => { if (hydrated) saveDraft(project); }, [project, hydrated]);
+  useEffect(() => {
+    if (!hydrated) return;
+    saveDraft(project);
+    const timer = window.setTimeout(async () => {
+      try {
+        const session = await activeKeepSession();
+        if (!session) return;
+        if (project.active) await saveCloudDraft(project,session);
+        else await removeCloudDraft(session);
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : "Cloud sync failed. This device still has your draft.");
+      }
+    }, 2500);
+    return () => window.clearTimeout(timer);
+  }, [project, hydrated]);
   useEffect(() => { if (project.active && !viewingDemo && creationScreens.includes(screen)) setProject((o) => (o.stage === resumeScreen(screen) ? o : { ...o, stage: resumeScreen(screen) })); }, [screen]);
   useEffect(() => { if (screen !== "interview" && screen !== "record") recorder.cancel(); }, [screen]);
   useEffect(() => {
