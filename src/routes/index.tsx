@@ -52,7 +52,7 @@ const initialMessage = [
   "Twenty years from now, I hope you know this: through every version of us, I'd choose this life with you again. Always.",
 ];
 const tracks = [
-  { name: "Warm + Nostalgic", note: "Soft piano, golden-hour feeling", group: "For You" },
+  { name: "Worth Keeping", note: "Original 60-second KEEP demo · warm piano and strings", group: "For You" },
   { name: "Joyful", note: "Lighthearted and full of life", group: "For You" },
   { name: "Cinematic", note: "A story that stays with you", group: "For You" },
   { name: "Romantic", note: "Tender, close, timeless", group: "More feelings" },
@@ -636,11 +636,11 @@ function KeepApp() {
     stopMusicSample();
     setMusicSampling(trackName);
     try {
-      await playMusicSample(trackName, 9);
+      await playMusicSample(trackName, trackName === "Worth Keeping" ? 60 : 9);
       musicSampleTimer.current = window.setTimeout(() => {
         setMusicSampling("");
         musicSampleTimer.current = null;
-      }, 9000);
+      }, trackName === "Worth Keeping" ? 60000 : 9000);
     } catch {
       setMusicSampling("");
       toast.error("Music preview isn't available in this browser.");
@@ -990,7 +990,7 @@ function KeepApp() {
               <div className="mt-3 flex gap-1.5"><Button variant="quiet" size="sm" className="flex-1 px-2 text-[10px]" onClick={() => void toggleMusicSample(track.name)}>{musicSampling === track.name ? <Square className="size-3" fill="currentColor" /> : <Play className="size-3" fill="currentColor" />}{musicSampling === track.name ? "Stop" : "Sample"}</Button><Button variant={project.musicMood === track.name ? "selected" : "bare"} size="sm" className="flex-1 px-2 text-[10px]" onClick={() => patch({ musicMood: track.name })}>{project.musicMood === track.name ? <Check className="size-3" /> : null}{project.musicMood === track.name ? "Selected" : "Use"}</Button></div>
             </div>)}
           </div>
-          <p className="mt-2 text-[10px] leading-4 text-muted-foreground">Music is currently generated instrumentally in your browser. Licensed recorded tracks are not yet included. Press play in the editor to hear the selected music with your actual voice.</p>
+          <p className="mt-2 text-[10px] leading-4 text-muted-foreground">Worth Keeping is an original 60-second instrumental arrangement generated in your browser, not a studio-recorded audio file. Press play in the editor to hear the selected music with your actual voice.</p>
           <div className="mt-2 flex items-center gap-2"><span className="mr-1 text-[9px] tracking-widest text-muted-foreground">MIX</span>{["Soft", "Balanced", "Full"].map((b) => <Button key={b} variant={project.voiceMusicBalance === b ? "selected" : "quiet"} size="sm" className="flex-1 text-[10px]" onClick={() => patch({ voiceMusicBalance: b })}>{b}</Button>)}</div>
         </>}
         {editorPanel === "Captions" && <>
