@@ -70,7 +70,7 @@ export const ONBOARD_KEY = "keep.onboarded.v1";
 export const newId = (prefix: string) => `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 
 export const sampleMemories = (): MediaItem[] =>
-  memoryImages.map((url, i) => ({ id: newId("sample"), kind: "image", source: "sample", url, sampleIndex: i, displayDurationSec: 4 }));
+  memoryImages.map((url, i) => ({ id: newId("sample"), kind: "image", source: "sample", url, sampleIndex: i, displayDurationSec: 7 }));
 
 export function newProject(): KeepProject {
   return {
