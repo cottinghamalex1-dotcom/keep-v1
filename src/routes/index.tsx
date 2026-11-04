@@ -681,7 +681,7 @@ function KeepApp() {
     try {
       controller = createKeepVoiceMix(audio, project.musicMood, project.voiceMusicBalance as MusicBalance, rec.durationSec, 0.8);
       editorMixRef.current = controller;
-      controller?.setLevels(project.voiceVolume ?? 100, project.musicVolume ?? 50);
+      controller?.setLevels(project.voiceVolume ?? 60, project.musicVolume ?? 60);
       if (controller) void controller.pause();
     } catch {
       toast.error("Music mixing is unavailable on this device. Voice playback will still work.");
@@ -697,7 +697,7 @@ function KeepApp() {
     if (screen !== "editor" || !editorMixRef.current) return;
     editorMixRef.current.restartMusic(project.musicMood, project.voiceMusicBalance as MusicBalance);
   }, [screen, project.musicMood, project.voiceMusicBalance]);
-  useEffect(() => { editorMixRef.current?.setLevels(project.voiceVolume ?? 100, project.musicVolume ?? 50); }, [screen, project.voiceVolume, project.musicVolume]);
+  useEffect(() => { editorMixRef.current?.setLevels(project.voiceVolume ?? 60, project.musicVolume ?? 60); }, [screen, project.voiceVolume, project.musicVolume]);
 
   useEffect(() => {
     if (screen !== "editor") return;
@@ -995,14 +995,14 @@ function KeepApp() {
           <p className="mt-2 text-[10px] leading-4 text-muted-foreground">Worth Keeping is an original 60-second instrumental arrangement generated in your browser, not a studio-recorded audio file. Press play in the editor to hear the selected music with your actual voice.</p>
           <div className="mt-2 flex items-center gap-2"><span className="mr-1 text-[9px] tracking-widest text-muted-foreground">MIX</span><span className="text-[10px] text-muted-foreground">Voice / Music</span></div><div className="mt-3 space-y-4 rounded-lg border border-border bg-background/60 p-3">
               <div>
-                <div className="mb-2 flex items-center justify-between text-xs"><label htmlFor="keep-voice-volume" className="font-medium">Voice volume</label><span>{project.voiceVolume ?? 100}%</span></div>
-                <input id="keep-voice-volume" type="range" min="0" max="100" step="1" value={project.voiceVolume ?? 100} onChange={(e) => patch({ voiceVolume: Number(e.target.value) })} className="w-full accent-current" />
+                <div className="mb-2 flex items-center justify-between text-xs"><label htmlFor="keep-voice-volume" className="font-medium">Voice volume</label><span>{project.voiceVolume ?? 60}%</span></div>
+                <input id="keep-voice-volume" type="range" min="0" max="100" step="1" value={project.voiceVolume ?? 60} onChange={(e) => patch({ voiceVolume: Number(e.target.value) })} className="w-full accent-current" />
               </div>
               <div>
-                <div className="mb-2 flex items-center justify-between text-xs"><label htmlFor="keep-music-volume" className="font-medium">Music volume</label><span>{project.musicVolume ?? 50}%</span></div>
-                <input id="keep-music-volume" type="range" min="0" max="100" step="1" value={project.musicVolume ?? 50} onChange={(e) => patch({ musicVolume: Number(e.target.value) })} className="w-full accent-current" />
+                <div className="mb-2 flex items-center justify-between text-xs"><label htmlFor="keep-music-volume" className="font-medium">Music volume</label><span>{project.musicVolume ?? 60}%</span></div>
+                <input id="keep-music-volume" type="range" min="0" max="100" step="1" value={project.musicVolume ?? 60} onChange={(e) => patch({ musicVolume: Number(e.target.value) })} className="w-full accent-current" />
               </div>
-              <div className="flex items-center justify-between text-[10px] text-muted-foreground"><span>Adjust each independently while your Keep plays.</span><button type="button" className="underline" onClick={() => patch({ voiceVolume: 100, musicVolume: 50 })}>Reset levels</button></div>
+              <div className="flex items-center justify-between text-[10px] text-muted-foreground"><span>Adjust each independently while your Keep plays.</span><button type="button" className="underline" onClick={() => patch({ voiceVolume: 60, musicVolume: 60 })}>Reset levels</button></div>
             </div>
         </>}
         {editorPanel === "Captions" && <>
