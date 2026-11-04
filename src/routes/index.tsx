@@ -8,7 +8,7 @@ import { KeepRecipientExperience, type KeepExperienceMode } from "@/components/k
 import { KeepErrorBoundary } from "@/components/keep-error-boundary";
 import { useRecorder } from "@/hooks/use-recorder";
 import { deleteBlobs, putBlob } from "@/lib/keep-media-store";
-import { playMusicSample, stopMusicSample } from "@/lib/keep-audio";
+import { createKeepVoiceMix, playMusicSample, stopMusicSample, type MusicBalance } from "@/lib/keep-audio";
 import { fetchDraft, fetchNextQuestion, fetchRevision, keepAiAvailable, transcribeAudio, transcribeTimedAudio, type TimedWord } from "@/lib/keep-ai";
 import { ONBOARD_KEY, fmt, hydrateDraftMedia, loadDraft, newId, newProject, projectBlobIds, projectObjectUrls, sampleMemories, saveDraft, stageLabels, type CaptionCue, type InterviewAnswer, type KeepProject, type MediaItem } from "@/lib/keep-project";
 
@@ -135,6 +135,7 @@ function KeepApp() {
   const [editorPlaying, setEditorPlaying] = useState(false);
   const [editorTime, setEditorTime] = useState(0);
   const editorAudioRef = useRef<HTMLAudioElement>(null);
+  const editorMixRef = useRef<ReturnType<typeof createKeepVoiceMix>>(null);
   const [cardBack, setCardBack] = useState(false);
   const [setting, setSetting] = useState("");
   const [scroll, setScroll] = useState(0);
@@ -665,16 +666,50 @@ function KeepApp() {
   const editorCaption = editorCue?.text ?? (rec?.demo ? captionLines[Math.min(captionLines.length - 1, Math.floor(editorTime / Math.max(1, editorDuration / Math.max(1, captionLines.length))))] ?? "" : "");
   const seekEditor = (time: number) => {
     const next = Math.max(0, Math.min(editorDuration, time));
+    if (editorMixRef.current && editorPlaying) editorMixRef.current.restartMusic(project.musicMood, project.voiceMusicBalance as MusicBalance);
     if (editorAudioRef.current) editorAudioRef.current.currentTime = next;
     setEditorTime(next);
     setFrame(editorSceneAt(next));
   };
+  // The editor and recipient player use the same voice-processing and music-mixing engine.
+  // Keep one AudioContext per editor audio element; changing moods updates its backing track.
+  useEffect(() => {
+    if (screen !== "editor" || !rec?.audioUrl || rec.demo) return;
+    const audio = editorAudioRef.current;
+    if (!audio) return;
+    let controller: ReturnType<typeof createKeepVoiceMix> = null;
+    try {
+      controller = createKeepVoiceMix(audio, project.musicMood, project.voiceMusicBalance as MusicBalance, rec.durationSec, 0.8);
+      editorMixRef.current = controller;
+      if (controller) void controller.pause();
+    } catch {
+      toast.error("Music mixing is unavailable on this device. Voice playback will still work.");
+    }
+    return () => {
+      audio.pause();
+      if (editorMixRef.current === controller) editorMixRef.current = null;
+      void controller?.stop();
+    };
+  }, [screen, rec?.audioUrl, rec?.demo, rec?.durationSec]);
+
+  useEffect(() => {
+    if (screen !== "editor" || !editorMixRef.current) return;
+    editorMixRef.current.restartMusic(project.musicMood, project.voiceMusicBalance as MusicBalance);
+  }, [screen, project.musicMood, project.voiceMusicBalance]);
+
   useEffect(() => {
     if (screen !== "editor") return;
     const audio = editorAudioRef.current;
     if (!audio || !rec?.audioUrl || rec.demo) return;
-    if (editorPlaying) void audio.play().catch(() => { setEditorPlaying(false); toast.error("Tap play again to enable audio."); });
-    else audio.pause();
+    if (editorPlaying) {
+      stopMusicSample();
+      setMusicSampling("");
+      void editorMixRef.current?.play().catch(() => undefined);
+      void audio.play().catch(() => { setEditorPlaying(false); toast.error("Tap play again to enable audio."); });
+    } else {
+      audio.pause();
+      void editorMixRef.current?.pause();
+    }
     return () => audio.pause();
   }, [screen, editorPlaying, rec?.audioUrl, rec?.demo]);
   useEffect(() => {
@@ -948,13 +983,14 @@ function KeepApp() {
       {!rec?.demo && rec?.audioUrl && project.captionStyle !== "None" && !project.captionCues.length && <div className="border-t border-border/60 bg-card/70 px-5 py-3 text-xs"><div className="flex items-center justify-between gap-3"><span>{captionSyncing ? "Syncing captions to your recording…" : captionSyncError ? "Captions did not sync. Your recording is safe." : "Captions are not ready yet."}</span>{!captionSyncing && <Button variant="quiet" size="sm" onClick={() => void retryCaptionSync()}><RotateCcw className="size-3" /> Retry captions</Button>}</div></div>}
       {(editorPanel === "Music" || editorPanel === "Captions" || editorPanel === "Style") && <div className="border-t border-border/60 bg-card/55 px-5 py-3 backdrop-blur-md page-enter">
         {editorPanel === "Music" && <>
-          <div className="mb-3 flex items-center justify-between"><div><p className="font-display text-2xl">Music</p><p className="mt-1 text-[10px] text-muted-foreground">Sample first. Choose what feels right.</p></div><Button variant="bare" size="icon" aria-label="Close music" onClick={() => { stopMusicSample(); setMusicSampling(""); setEditorPanel(null); }}><X className="size-4" /></Button></div>
+          <div className="mb-3 flex items-center justify-between"><div><p className="font-display text-2xl">Music</p><p className="mt-1 text-[10px] text-muted-foreground">Hear each mood, then play your Keep to hear it under your voice.</p></div><Button variant="bare" size="icon" aria-label="Close music" onClick={() => { stopMusicSample(); setMusicSampling(""); setEditorPanel(null); }}><X className="size-4" /></Button></div>
           <div className="thin-scroll flex gap-2 overflow-x-auto pb-2">
             {tracks.map((track) => <div key={track.name} className={`w-44 shrink-0 rounded-xl border p-3 ${project.musicMood === track.name ? "border-accent/70 bg-accent/[0.04]" : "border-border bg-background/35"}`}>
               <div className="min-h-14"><p className="text-xs font-medium">{track.name}</p><p className="mt-1 text-[9px] leading-4 text-muted-foreground">{track.note}</p></div>
               <div className="mt-3 flex gap-1.5"><Button variant="quiet" size="sm" className="flex-1 px-2 text-[10px]" onClick={() => void toggleMusicSample(track.name)}>{musicSampling === track.name ? <Square className="size-3" fill="currentColor" /> : <Play className="size-3" fill="currentColor" />}{musicSampling === track.name ? "Stop" : "Sample"}</Button><Button variant={project.musicMood === track.name ? "selected" : "bare"} size="sm" className="flex-1 px-2 text-[10px]" onClick={() => patch({ musicMood: track.name })}>{project.musicMood === track.name ? <Check className="size-3" /> : null}{project.musicMood === track.name ? "Selected" : "Use"}</Button></div>
             </div>)}
           </div>
+          <p className="mt-2 text-[10px] leading-4 text-muted-foreground">Music is currently generated instrumentally in your browser. Licensed recorded tracks are not yet included. Press play in the editor to hear the selected music with your actual voice.</p>
           <div className="mt-2 flex items-center gap-2"><span className="mr-1 text-[9px] tracking-widest text-muted-foreground">MIX</span>{["Soft", "Balanced", "Full"].map((b) => <Button key={b} variant={project.voiceMusicBalance === b ? "selected" : "quiet"} size="sm" className="flex-1 text-[10px]" onClick={() => patch({ voiceMusicBalance: b })}>{b}</Button>)}</div>
         </>}
         {editorPanel === "Captions" && <>
