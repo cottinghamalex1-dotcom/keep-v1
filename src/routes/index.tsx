@@ -1,3 +1,4 @@
+import { CinematicMedia } from "@/components/cinematic-media";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useRef, useState, type ChangeEvent, type ReactNode } from "react";
 import { ArrowLeft, ArrowRight, Check, ChevronLeft, ChevronRight, CircleHelp, Download, Ellipsis, GripVertical, Images, LockKeyhole, MessageCircle, Mic, Music2, FileUp, Pause, Play, Plus, Radio, RotateCcw, Settings2, Sparkles, Square, Trash2, X } from "lucide-react";
@@ -564,14 +565,14 @@ function KeepApp() {
       if (!kind) continue;
       const id = newId("media");
       const persisted = await putBlob(id, f);
-      items.push({ id, kind, source: "upload", url: URL.createObjectURL(f), name: f.name, mimeType: f.type, persisted, displayDurationSec: 4 });
+      items.push({ id, kind, source: "upload", url: URL.createObjectURL(f), name: f.name, mimeType: f.type, persisted, displayDurationSec: 7 });
     }
     setBusy(false);
     if (!items.length) { toast.error("Those files aren't photos or videos."); return; }
     if (replaceIndex !== undefined) {
       const old = frames[replaceIndex];
       if (old?.source === "upload") { releaseUrls([old.url]); void deleteBlobs([old.id]); }
-      patch({ memories: frames.length ? frames.map((m, i) => (i === replaceIndex ? { ...items[0]!, displayDurationSec: m.displayDurationSec ?? 4 } : m)) : shown.map((m, i) => (i === replaceIndex ? { ...items[0]!, displayDurationSec: m.displayDurationSec ?? 4 } : m)) });
+      patch({ memories: frames.length ? frames.map((m, i) => (i === replaceIndex ? { ...items[0]!, displayDurationSec: m.displayDurationSec ?? 7, focusX: m.focusX, focusY: m.focusY, zoom: m.zoom, motion: m.motion } : m)) : shown.map((m, i) => (i === replaceIndex ? { ...items[0]!, displayDurationSec: m.displayDurationSec ?? 4 } : m)) });
       toast.success("Memory replaced");
     } else {
       patch({ memories: [...frames, ...items] });
@@ -953,7 +954,7 @@ function KeepApp() {
       <div className="relative flex min-h-0 flex-1 items-center justify-center px-5 py-3">
         <div className="relative flex items-center justify-center">
           <div className="relative aspect-[9/16] h-[min(60dvh,500px)] max-h-[calc(100dvh-190px)] overflow-hidden rounded-[30px] border border-foreground/15 bg-card shadow-[0_24px_70px_oklch(0_0_0/0.55)]">
-            <MediaView key={selected.id} item={selected} alt={`Memory preview ${frame + 1}`} className={`h-full w-full object-cover ${editorPlaying && selected.kind === "image" ? "ken-burns" : ""} editor-image-${styleSlug(project.visualStyle)}`} />
+            <CinematicMedia item={selected} playing={editorPlaying} duration={Math.max(5, selected.displayDurationSec ?? 7)} className="absolute inset-0" imageClassName={`editor-image-${styleSlug(project.visualStyle)}`} />
             <div className="absolute inset-0 photo-shade" />
             {project.captionStyle !== "None" && editorCaption && <div className={`absolute left-5 right-5 text-center ${project.captionPosition === "top" ? "top-16" : project.captionPosition === "middle" ? "top-1/2 -translate-y-1/2" : "bottom-16"}`}>
               <p className={`${project.captionStyle === "Film" ? "font-display text-3xl font-normal" : project.captionStyle === "Minimal" ? "text-sm" : project.captionStyle === "Story" ? "font-display text-2xl italic" : project.captionStyle === "Clean" ? "text-sm font-medium" : "text-lg font-semibold"} leading-tight drop-shadow-md`} style={{ maxWidth: (project.captionLines ?? 2) === 1 ? "95%" : (project.captionLines ?? 2) === 3 ? "65%" : "80%", marginInline: "auto", whiteSpace: "pre-line" }}>
@@ -1043,6 +1044,15 @@ function KeepApp() {
           <Button variant="quiet" onClick={() => replaceInput.current?.click()}>Replace</Button>
           <Button variant="quiet" disabled={frame % shown.length === 0} onClick={() => moveMemory(frame % shown.length, frame % shown.length - 1)}><ChevronLeft /> Earlier</Button>
           <Button variant="quiet" disabled={frame % shown.length >= shown.length - 1} onClick={() => moveMemory(frame % shown.length, frame % shown.length + 1)}>Later <ChevronRight /></Button>
+        </div>
+        <div className="mt-4 space-y-3 rounded-xl border border-border bg-background/50 p-3">
+          <p className="text-xs font-medium">Frame and movement · Moment {frame % shown.length + 1}</p>
+          <p className="text-[10px] text-muted-foreground">Move the focus to keep faces and important details in view. Changes appear in the preview.</p>
+          {([["focusX","Horizontal focus"],["focusY","Vertical focus"]] as const).map(([field,label]) => <label key={field} className="block text-xs">{label}: {selected?.[field] ?? 50}%<input type="range" min="0" max="100" step="1" value={selected?.[field] ?? 50} className="mt-1 w-full" onChange={(e) => patch({ memories: shown.map((m,i) => i === frame % shown.length ? { ...m, [field]: Number(e.target.value) } : m) })} /></label>)}
+          <label className="block text-xs">Zoom: {Math.round((selected?.zoom ?? 1.08) * 100)}%<input type="range" min="100" max="140" step="1" value={Math.round((selected?.zoom ?? 1.08) * 100)} className="mt-1 w-full" onChange={(e) => patch({ memories: shown.map((m,i) => i === frame % shown.length ? { ...m, zoom: Number(e.target.value) / 100 } : m) })} /></label>
+          <div><p className="mb-2 text-xs">Motion direction</p><div className="grid grid-cols-4 gap-1">{(["in","out","left","right"] as const).map((direction) => <Button key={direction} size="sm" variant={(selected?.motion ?? "in") === direction ? "selected" : "quiet"} className="capitalize px-1 text-[10px]" onClick={() => patch({ memories: shown.map((m,i) => i === frame % shown.length ? { ...m, motion: direction } : m) })}>{direction}</Button>)}</div></div>
+          <label className="block text-xs">Moment duration: {selected?.displayDurationSec ?? 7}s<input type="range" min="4" max="15" step="1" value={selected?.displayDurationSec ?? 7} className="mt-1 w-full" onChange={(e) => patch({ memories: shown.map((m,i) => i === frame % shown.length ? { ...m, displayDurationSec: Number(e.target.value) } : m) })} /></label>
+          <Button variant="quiet" size="sm" onClick={() => patch({ memories: shown.map((m,i) => i === frame % shown.length ? { ...m, focusX: 50, focusY: 50, zoom: 1.08, motion: "in" } : m) })}>Reset framing</Button>
         </div>
         <div className="mt-3 flex items-center justify-between border-t border-border pt-4">
           <Button variant="bare" size="sm" disabled={shown.length <= 1} className="text-muted-foreground" onClick={() => removeMemory(frame % shown.length)}><Trash2 className="size-4" /> Remove</Button>
