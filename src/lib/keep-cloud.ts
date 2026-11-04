@@ -40,15 +40,20 @@ function safeProject(project: KeepProject): KeepProject {
     finalVoiceRecording: project.finalVoiceRecording ? {...project.finalVoiceRecording,audioUrl:undefined}:null
   };
 }
+const uploadedThisSession = new Set<string>();
 async function uploadBlob(session:KeepSession,id:string,blob:Blob) {
+  const cacheKey=session.user.id+":"+id;
+  if(uploadedThisSession.has(cacheKey)) return;
   const path = encodeURIComponent(session.user.id)+"/"+encodeURIComponent(id);
   await request("/storage/v1/object/keep-draft-media/"+path,session,{method:"POST",headers:{"Content-Type":blob.type||"application/octet-stream","x-upsert":"true"},body:blob});
+  uploadedThisSession.add(cacheKey);
 }
 async function downloadBlob(session:KeepSession,id:string) {
   const path=encodeURIComponent(session.user.id)+"/"+encodeURIComponent(id);
   const res=await request("/storage/v1/object/authenticated/keep-draft-media/"+path,session);
   const blob=await res.blob();
   await putBlob(id,blob);
+  uploadedThisSession.add(session.user.id+":"+id);
   return URL.createObjectURL(blob);
 }
 export async function saveCloudDraft(project:KeepProject,session:KeepSession):Promise<void> {
