@@ -1,5 +1,6 @@
 import { getBlob, putBlob } from "./keep-media-store";
 import { newProject, type KeepProject } from "./keep-project";
+import { memoryImages } from "@/components/keep-player";
 
 const endpoint = "https://lwkzhpwugtosbidxvdcr.supabase.co";
 const publicKey = "sb_publishable_K8_SWJByLhV78h7gY4NySw_4sgjEVTi";
@@ -68,7 +69,7 @@ export async function loadCloudDraft(session:KeepSession):Promise<KeepProject|nu
   const p:KeepProject={...newProject(),...rows[0].project};
   const memories=[];
   for(const m of p.memories) {
-    if(m.source==="sample") { memories.push(m); continue; }
+    if(m.source==="sample") { memories.push({...m,url:memoryImages[m.sampleIndex??0]??""}); continue; }
     try { memories.push({...m,url:await downloadBlob(session,m.id)}); } catch { throw new Error("A saved photo or video could not be restored. Please try again."); }
   }
   const interviewAnswers=[];
