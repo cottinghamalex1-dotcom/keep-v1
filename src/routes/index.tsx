@@ -114,6 +114,7 @@ function KeepApp() {
   const [history, setHistory] = useState<Screen[]>([]);
   const [project, setProject] = useState<KeepProject>(newProject);
   const [hydrated, setHydrated] = useState(false);
+  const [cloudSyncAllowed, setCloudSyncAllowed] = useState(true);
   const [viewingDemo, setViewingDemo] = useState(false);
   const [activeParagraph, setActiveParagraph] = useState(0);
   const [askOpen, setAskOpen] = useState(false);
@@ -210,6 +211,7 @@ function KeepApp() {
   useEffect(() => {
     if (!hydrated) return;
     saveDraft(project);
+    if (!cloudSyncAllowed) return;
     const timer = window.setTimeout(async () => {
       try {
         const session = await activeKeepSession();
@@ -221,7 +223,7 @@ function KeepApp() {
       }
     }, 2500);
     return () => window.clearTimeout(timer);
-  }, [project, hydrated]);
+  }, [project, hydrated, cloudSyncAllowed]);
   useEffect(() => { if (project.active && !viewingDemo && creationScreens.includes(screen)) setProject((o) => (o.stage === resumeScreen(screen) ? o : { ...o, stage: resumeScreen(screen) })); }, [screen]);
   useEffect(() => { if (screen !== "interview" && screen !== "record") recorder.cancel(); }, [screen]);
   useEffect(() => {
