@@ -50,6 +50,7 @@ export type KeepProject = {
   readMemoryOrder: string[];
   musicMood: string;
   voiceMusicBalance: string;
+  musicMix?: number;
   captionStyle: string;
   visualStyle: string;
   cardEngraving: string[];
@@ -67,7 +68,7 @@ export function newProject(): KeepProject {
   return {
     active: false, stage: "recipient", recipientName: "", relationship: "", occasion: "Anniversary", intent: "", questionIndex: 0, interviewQuestion: "", interviewSummary: "",
     interviewAnswers: [], messageSource: null, writtenText: "", messageParagraphs: [], finalVoiceRecording: null, captionTranscript: "", captionCues: [], memories: [], readMemoryOrder: [],
-    musicMood: "Warm + Nostalgic", voiceMusicBalance: "Balanced", captionStyle: "Reel", visualStyle: "Natural", cardEngraving: ["", "FROM ALEX", "2026"],
+    musicMood: "Warm + Nostalgic", voiceMusicBalance: "Balanced", musicMix: 50, captionStyle: "Reel", visualStyle: "Natural", cardEngraving: ["", "FROM ALEX", "2026"],
   };
 }
 
