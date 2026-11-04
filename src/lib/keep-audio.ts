@@ -159,6 +159,8 @@ export function createKeepVoiceMix(audio: HTMLAudioElement, mood: string, balanc
 
   const voiceGain = ctx.createGain();
   voiceGain.gain.value = 1.06;
+  const musicLevel = ctx.createGain();
+  musicLevel.gain.value = 1;
   const master = ctx.createGain();
   master.gain.value = 0.92;
 
@@ -169,7 +171,8 @@ export function createKeepVoiceMix(audio: HTMLAudioElement, mood: string, balanc
   voiceGain.connect(master);
   master.connect(ctx.destination);
 
-  let music = scheduleMusic(ctx, master, mood, balance, voiceDuration, introSeconds);
+  musicLevel.connect(master);
+  let music = scheduleMusic(ctx, musicLevel, mood, balance, voiceDuration, introSeconds);
   let currentMood = mood;
   let currentBalance = balance;
 
@@ -177,6 +180,12 @@ export function createKeepVoiceMix(audio: HTMLAudioElement, mood: string, balanc
     context: ctx,
     play: async () => { if (ctx.state !== "running") await ctx.resume(); },
     pause: async () => { if (ctx.state === "running") await ctx.suspend(); },
+    setMix: (mix: number) => {
+      const position = Math.max(0, Math.min(100, Number.isFinite(mix) ? mix : 50)) / 100;
+      const at = ctx.currentTime;
+      voiceGain.gain.setTargetAtTime(1.06 * (1.4 - position * 0.65), at, 0.035);
+      musicLevel.gain.setTargetAtTime(position === 0 ? 0 : Math.pow(position / 0.5, 1.6), at, 0.035);
+    },
     setMuted: (muted: boolean) => {
       const at = ctx.currentTime;
       master.gain.cancelScheduledValues(at);
@@ -186,7 +195,7 @@ export function createKeepVoiceMix(audio: HTMLAudioElement, mood: string, balanc
       currentMood = nextMood;
       currentBalance = nextBalance;
       music.stop();
-      music = scheduleMusic(ctx, master, currentMood, currentBalance, voiceDuration, introSeconds);
+      music = scheduleMusic(ctx, musicLevel, currentMood, currentBalance, voiceDuration, introSeconds);
     },
     stop: async () => {
       music.stop();
