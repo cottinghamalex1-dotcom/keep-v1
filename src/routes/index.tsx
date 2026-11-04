@@ -681,7 +681,7 @@ function KeepApp() {
     try {
       controller = createKeepVoiceMix(audio, project.musicMood, project.voiceMusicBalance as MusicBalance, rec.durationSec, 0.8);
       editorMixRef.current = controller;
-      controller?.setMix(project.musicMix ?? 50);
+      controller?.setLevels(project.voiceVolume ?? 100, project.musicVolume ?? 50);
       if (controller) void controller.pause();
     } catch {
       toast.error("Music mixing is unavailable on this device. Voice playback will still work.");
@@ -697,7 +697,7 @@ function KeepApp() {
     if (screen !== "editor" || !editorMixRef.current) return;
     editorMixRef.current.restartMusic(project.musicMood, project.voiceMusicBalance as MusicBalance);
   }, [screen, project.musicMood, project.voiceMusicBalance]);
-  useEffect(() => { editorMixRef.current?.setMix(project.musicMix ?? 50); }, [screen, project.musicMix]);
+  useEffect(() => { editorMixRef.current?.setLevels(project.voiceVolume ?? 100, project.musicVolume ?? 50); }, [screen, project.voiceVolume, project.musicVolume]);
 
   useEffect(() => {
     if (screen !== "editor") return;
@@ -993,7 +993,17 @@ function KeepApp() {
             </div>)}
           </div>
           <p className="mt-2 text-[10px] leading-4 text-muted-foreground">Worth Keeping is an original 60-second instrumental arrangement generated in your browser, not a studio-recorded audio file. Press play in the editor to hear the selected music with your actual voice.</p>
-          <div className="mt-2 flex items-center gap-2"><span className="mr-1 text-[9px] tracking-widest text-muted-foreground">MIX</span><span className="text-[10px] text-muted-foreground">Voice / Music</span></div><div className="mt-3 rounded-lg border border-border bg-background/60 p-3"><div className="mb-2 flex justify-between text-[11px]"><span>Voice louder</span><span>Music louder</span></div><input type="range" min="0" max="100" step="1" value={project.musicMix ?? 50} onChange={(e) => patch({ musicMix: Number(e.target.value) })} aria-label="Voice and music mix" className="w-full accent-current" /><div className="mt-2 flex justify-between text-[10px] text-muted-foreground"><span>Voice {100 - (project.musicMix ?? 50)}%</span><button type="button" className="underline" onClick={() => patch({ musicMix: 50 })}>Reset</button><span>Music {project.musicMix ?? 50}%</span></div></div>
+          <div className="mt-2 flex items-center gap-2"><span className="mr-1 text-[9px] tracking-widest text-muted-foreground">MIX</span><span className="text-[10px] text-muted-foreground">Voice / Music</span></div><div className="mt-3 space-y-4 rounded-lg border border-border bg-background/60 p-3">
+              <div>
+                <div className="mb-2 flex items-center justify-between text-xs"><label htmlFor="keep-voice-volume" className="font-medium">Voice volume</label><span>{project.voiceVolume ?? 100}%</span></div>
+                <input id="keep-voice-volume" type="range" min="0" max="100" step="1" value={project.voiceVolume ?? 100} onChange={(e) => patch({ voiceVolume: Number(e.target.value) })} className="w-full accent-current" />
+              </div>
+              <div>
+                <div className="mb-2 flex items-center justify-between text-xs"><label htmlFor="keep-music-volume" className="font-medium">Music volume</label><span>{project.musicVolume ?? 50}%</span></div>
+                <input id="keep-music-volume" type="range" min="0" max="100" step="1" value={project.musicVolume ?? 50} onChange={(e) => patch({ musicVolume: Number(e.target.value) })} className="w-full accent-current" />
+              </div>
+              <div className="flex items-center justify-between text-[10px] text-muted-foreground"><span>Adjust each independently while your Keep plays.</span><button type="button" className="underline" onClick={() => patch({ voiceVolume: 100, musicVolume: 50 })}>Reset levels</button></div>
+            </div></div>
         </>}
         {editorPanel === "Captions" && <>
           {!rec?.demo && rec?.audioUrl && <div className="mb-3 rounded-lg border border-border bg-background/50 p-3 text-xs"><div className="flex items-center justify-between gap-3"><span>{captionSyncing ? "Syncing captions to your voice…" : project.captionCues.length ? `${project.captionCues.length} caption segments ready` : captionSyncError ? "Captions could not be synchronized." : "Captions have not been generated yet."}</span>{!captionSyncing && !project.captionCues.length && <Button variant="quiet" size="sm" onClick={() => void retryCaptionSync()}><RotateCcw className="size-3.5" /> Retry sync</Button>}</div>{!captionSyncing && !project.captionCues.length && <p className="mt-2 text-[10px] text-muted-foreground">Your voice recording is saved. Retrying captions will not erase it.</p>}</div>}
@@ -1084,7 +1094,7 @@ function KeepApp() {
     </div>}
     {screen === "preview" && (viewingDemo
       ? <KeepPlayer name="HANNA" from="Alex" year="2026" onExit={back} onFinish={home} />
-      : <KeepPlayer name={(name || "Your Keep").toUpperCase()} from="Alex" year="2026" subtitle={project.occasion} onExit={back} onFinish={() => { setScreen("editor"); resetPageScroll(); }} style={project.visualStyle} captions={project.captionStyle} media={frames.length ? frames.map((m) => ({ url: m.url, kind: m.kind, displayDurationSec: m.displayDurationSec ?? 4 })) : undefined} audioUrl={rec && !rec.demo ? rec.audioUrl : undefined} audioDuration={rec?.durationSec} lines={captionLines} captionCues={project.captionCues} musicMood={project.musicMood} voiceMusicBalance={project.voiceMusicBalance} musicMix={project.musicMix} />)}
+      : <KeepPlayer name={(name || "Your Keep").toUpperCase()} from="Alex" year="2026" subtitle={project.occasion} onExit={back} onFinish={() => { setScreen("editor"); resetPageScroll(); }} style={project.visualStyle} captions={project.captionStyle} media={frames.length ? frames.map((m) => ({ url: m.url, kind: m.kind, displayDurationSec: m.displayDurationSec ?? 4 })) : undefined} audioUrl={rec && !rec.demo ? rec.audioUrl : undefined} audioDuration={rec?.durationSec} lines={captionLines} captionCues={project.captionCues} musicMood={project.musicMood} voiceMusicBalance={project.voiceMusicBalance} voiceVolume={project.voiceVolume} musicVolume={project.musicVolume} />)}
     {screen === "recipientPreview" && <KeepRecipientExperience
       name={(name || engraving[0] || "You").trim()}
       from={(engraving[1]?.replace(/^FROM\s+/i, "") || "Alex").trim()}
@@ -1100,7 +1110,7 @@ function KeepApp() {
       lines={captionLines}
       captionCues={project.captionCues}
       musicMood={project.musicMood}
-      voiceMusicBalance={project.voiceMusicBalance} musicMix={project.musicMix}
+      voiceMusicBalance={project.voiceMusicBalance} voiceVolume={project.voiceVolume} musicVolume={project.musicVolume}
       persistVisit={false}
       creatorPreview
       initialExperience={creatorPreviewMode ?? "watch"}
