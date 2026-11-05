@@ -185,9 +185,22 @@ function KeepApp() {
           else if (local?.active) {
             // Never silently attach an unclaimed device draft to a different account.
             if (window.confirm("A draft was found on this device. Import it into your signed-in Keep account?")) {
+              // Never block the editor behind large iPhone photo/video uploads.
+              // Show the local draft immediately and import in the background.
+              setCloudSyncAllowed(false);
               const hydratedLocal = { ...local, ...await hydrateDraftMedia(local) };
-              await saveCloudDraft(hydratedLocal, session);
               next = hydratedLocal;
+              const importToast = toast.loading("Importing your draft to Keep. You can keep editing while it uploads.");
+              void saveCloudDraft(hydratedLocal, session).then(() => {
+                if (cancelled) return;
+                setCloudSyncAllowed(true);
+                toast.success("Your draft was imported to your account.", { id: importToast });
+              }).catch((error) => {
+                if (cancelled) return;
+                toast.error("Import couldn't finish: " + (error instanceof Error ? error.message : "Please try again"), { id: importToast, duration: 10000 });
+                // Preserve the device draft and prevent incomplete cloud overwrites.
+                setCloudSyncAllowed(false);
+              });
             } else next = newProject();
           } else next = newProject();
         }
