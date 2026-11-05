@@ -737,11 +737,11 @@ function KeepApp() {
   useEffect(() => { if (screen !== "generating") return; if (generation >= 3) { const t = window.setTimeout(() => go("editor"), 650); return () => window.clearTimeout(t); } const t = window.setTimeout(() => setGeneration((n) => n + 1), 1250); return () => window.clearTimeout(t); }, [screen, generation]);
   const captionLines = project.messageParagraphs.map((p) => (p.split(/(?<=[.!?])\s/)[0] ?? p).trim()).filter(Boolean).slice(0, 8);
   // The recorded voice is the editor's master clock. Photo timing and captions follow it.
-  const editorDuration = rec?.durationSec || shown.reduce((sum, item) => sum + Math.max(1, item.displayDurationSec ?? 4), 0) || 30;
+  const editorDuration = Math.max(rec?.durationSec ?? 0, shown.reduce((sum, item) => sum + Math.max(1, item.displayDurationSec ?? 7), 0), 1);
   const editorMediaTotal = shown.reduce((sum, item) => sum + Math.max(1, item.displayDurationSec ?? 4), 0);
   const editorSceneAt = (time: number) => {
     if (!shown.length || !editorMediaTotal) return 0;
-    const position = Math.min(Math.max(time / editorDuration, 0), 0.999999) * editorMediaTotal;
+    const position = Math.min(Math.max(time, 0), editorMediaTotal - 0.000001);
     let elapsed = 0;
     for (let i = 0; i < shown.length; i++) {
       elapsed += Math.max(1, shown[i]?.displayDurationSec ?? 4);
@@ -810,8 +810,13 @@ function KeepApp() {
     const voiceClock = !!(rec?.audioUrl && !rec.demo && audio);
     const started = performance.now();
     const initialTime = editorTime;
+    const audioStart = audio?.currentTime ?? 0;
+    const audioLength = rec?.durationSec ?? 0;
     const tick = (now: number) => {
-      const next = Math.min(editorDuration, voiceClock ? (audio?.currentTime ?? initialTime) : initialTime + (now - started) / 1000);
+      const elapsed = (now - started) / 1000;
+      const audioTime = audio?.currentTime ?? 0;
+      const useAudio = voiceClock && audioTime < audioLength - 0.05 && audioTime > audioStart + 0.005;
+      const next = Math.min(editorDuration, useAudio ? audioTime : initialTime + elapsed);
       setEditorTime(next);
       if (next >= editorDuration) { setEditorPlaying(false); return; }
       raf = window.requestAnimationFrame(tick);
@@ -1044,7 +1049,7 @@ function KeepApp() {
         </div>
       </div>
 
-      {rec?.audioUrl && !rec.demo && <audio ref={editorAudioRef} src={rec.audioUrl} preload="metadata" onTimeUpdate={(e) => { const time = e.currentTarget.currentTime; setEditorTime(time); setFrame(editorSceneAt(time)); }} onEnded={() => { setEditorPlaying(false); setEditorTime(editorDuration); }} />}
+      {rec?.audioUrl && !rec.demo && <audio ref={editorAudioRef} src={rec.audioUrl} preload="metadata" onTimeUpdate={(e) => { const time = e.currentTarget.currentTime; setEditorTime(time); setFrame(editorSceneAt(time)); }} onEnded={() => { if (editorDuration <= (rec?.durationSec ?? 0) + 0.1) { setEditorPlaying(false); setEditorTime(editorDuration); } }} />}
       <div className="relative flex w-full shrink-0 items-center justify-center gap-3 px-3 py-3">
         <div className="flex min-w-0 items-center justify-center gap-2">
           <div className="relative aspect-[9/16] h-[clamp(220px,38dvh,350px)] max-w-[calc(100vw-32px)] shrink-0 overflow-hidden rounded-[20px] border border-foreground/15 bg-card shadow-lg">
