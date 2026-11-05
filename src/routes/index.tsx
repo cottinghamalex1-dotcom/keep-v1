@@ -10,7 +10,7 @@ import { KeepPlayer, memoryImages, memoryLabels } from "@/components/keep-player
 import { KeepRecipientExperience, type KeepExperienceMode } from "@/components/keep-recipient-experience";
 import { KeepErrorBoundary } from "@/components/keep-error-boundary";
 import { useRecorder } from "@/hooks/use-recorder";
-import { deleteBlobs, putBlob } from "@/lib/keep-media-store";
+import { deleteBlobs, getBlob, putBlob } from "@/lib/keep-media-store";
 import { createKeepVoiceMix, playMusicSample, stopMusicSample, type MusicBalance } from "@/lib/keep-audio";
 import { fetchDraft, fetchNextQuestion, fetchRevision, keepAiAvailable, transcribeAudio, transcribeTimedAudio, type TimedWord } from "@/lib/keep-ai";
 import { ONBOARD_KEY, fmt, hydrateDraftMedia, loadDraft, newId, newProject, projectBlobIds, projectObjectUrls, sampleMemories, saveDraft, stageLabels, type CaptionCue, type InterviewAnswer, type KeepProject, type MediaItem } from "@/lib/keep-project";
@@ -655,6 +655,31 @@ function KeepApp() {
     patch({ memories: list });
     setFrame(to);
   };
+  const duplicateMoment = async (index:number, firstDuration?:number, secondDuration?:number) => {
+    const item = shown[index];
+    if (!item) return;
+    const id = newId("media");
+    let persisted = item.persisted;
+    let url = item.url;
+    if (item.source === "upload") {
+      const blob = await getBlob(item.id);
+      if (!blob) { toast.error("The original photo is missing. Please re-add it."); return; }
+      persisted = await putBlob(id,blob);
+      url = URL.createObjectURL(blob);
+    }
+    const copy:MediaItem = {...item,id,url,persisted,displayDurationSec:secondDuration??item.displayDurationSec};
+    const list = [...shown];
+    if(firstDuration!==undefined) list[index]={...item,displayDurationSec:firstDuration};
+    list.splice(index+1,0,copy);
+    patch({memories:list});
+    setFrame(index+1);
+    toast.success(firstDuration!==undefined?"Moment split into two clips.":"Moment duplicated.");
+  };
+  const splitMoment = (index:number, at:number) => {
+    const duration = shown[index]?.displayDurationSec??7;
+    if(at<1||duration-at<1){toast.error("Move the playhead inside the clip to split it.");return;}
+    void duplicateMoment(index,Math.round(at*2)/2,Math.round((duration-at)*2)/2);
+  };
   const cycleMemoryDuration = () => {
     const index = frame % shown.length;
     const current = shown[index]?.displayDurationSec ?? 4;
@@ -1104,6 +1129,13 @@ function KeepApp() {
         onAdd={() => addInput.current?.click()}
         onVoice={() => setEditorPanel("Voice")}
         onMusic={() => setEditorPanel("Music")}
+        onSplit={splitMoment}
+        onDuplicate={(i)=>{void duplicateMoment(i);}}
+        onDelete={removeMemory}
+        onReplace={()=>replaceInput.current?.click()}
+        onPhotoSettings={()=>setEditorPanel("Memories")}
+        onCaptionChange={(i,text)=>patch({captionCues:project.captionCues.map((c,j)=>j===i?{...c,text}:c)})}
+        onCaptionTime={(i,start,end)=>patch({captionCues:project.captionCues.map((c,j)=>j===i?{...c,start:Math.max(0,Math.min(start,end-.1)),end:Math.min(editorDuration,Math.max(end,start+.1))}:c)})}
       />
 
       {editorPanel === "Memories" && sheet("Moments", () => setEditorPanel(null), <div className="pb-2">
