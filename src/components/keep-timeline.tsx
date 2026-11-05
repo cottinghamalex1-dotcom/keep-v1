@@ -34,6 +34,8 @@ export function KeepTimeline({ media, captions, duration, time, selectedIndex, v
   const [zoom,setZoom] = useState(1);
   const [draggingPlayhead,setDraggingPlayhead] = useState(false);
   const drag = useRef<{index:number;x:number;width:number;duration:number}|null>(null);
+  const reorder = useRef<{index:number;startX:number;startY:number}|null>(null);
+  const [reorderTarget,setReorderTarget] = useState<number|null>(null);
   const total = media.reduce((sum, m) => sum + Math.max(1,m.displayDurationSec ?? 7),0) || 1;
   const safeDuration = Math.max(1,duration);
   const scale = Math.max(2.1, Math.min(12, 550 / safeDuration));
@@ -54,7 +56,7 @@ export function KeepTimeline({ media, captions, duration, time, selectedIndex, v
     </div>
     <div className="mb-2 flex items-center gap-2 overflow-x-auto pb-1 text-[11px]">
       <button type="button" onClick={()=>setZoom(z=>clamp(z-.5,.75,4))} className="rounded-lg border border-white/20 px-3 py-2">−</button><ZoomIn className="size-3 shrink-0 text-white/50"/><span className="shrink-0 text-white/60">{Math.round(zoom*100)}%</span><button type="button" onClick={()=>setZoom(z=>clamp(z+.5,.75,4))} className="rounded-lg border border-white/20 px-3 py-2">+</button>
-      <span className="ml-auto shrink-0 text-white/50">Pinch-free zoom · swipe timeline</span>
+      <span className="ml-auto shrink-0 text-white/50">Swipe to scroll · drag grips to reorder</span>
     </div>
     <div className="flex gap-2">
       <div className="flex w-12 shrink-0 flex-col gap-1 pt-6 text-[9px] text-white/55">
@@ -72,7 +74,8 @@ export function KeepTimeline({ media, captions, duration, time, selectedIndex, v
             {media.map((m,i)=>{
               const segment = Math.max(1,m.displayDurationSec ?? 7)/total*100;
               const start = elapsed; elapsed += segment;
-              return <div key={m.id} className={`group relative h-full shrink-0 overflow-hidden rounded-md border ${i===selectedIndex?"border-[#e5c69b] ring-1 ring-[#e5c69b]":"border-white/20"}`} style={{width:`calc(${segment}% - 2px)`}}>
+              return <div key={m.id} data-clip-index={i} className={`group relative h-full shrink-0 overflow-hidden rounded-md border ${reorderTarget===i?"ring-2 ring-white":i===selectedIndex?"border-[#e5c69b] ring-1 ring-[#e5c69b]":"border-white/20"}`} style={{width:`calc(${segment}% - 2px)`}}>
+                <div role="button" tabIndex={0} aria-label={`Drag to reorder moment ${i+1}`} className="absolute bottom-0 left-0 top-5 z-10 flex w-5 touch-none items-center justify-center bg-black/60 text-white" onPointerDown={e=>{e.stopPropagation();e.currentTarget.setPointerCapture(e.pointerId);reorder.current={index:i,startX:e.clientX,startY:e.clientY};setReorderTarget(i);}} onPointerMove={e=>{if(!reorder.current)return;const row=e.currentTarget.parentElement?.parentElement;const clips=Array.from(row?.querySelectorAll<HTMLElement>("[data-clip-index]")??[]);const hit=clips.find(el=>{const r=el.getBoundingClientRect();return e.clientX>=r.left&&e.clientX<=r.right;});if(hit)setReorderTarget(Number(hit.dataset.clipIndex));}} onPointerUp={e=>{e.stopPropagation();const from=reorder.current?.index;const to=reorderTarget;reorder.current=null;setReorderTarget(null);if(from!==undefined&&to!==null&&from!==to)onMove(from,to);}} onPointerCancel={()=>{reorder.current=null;setReorderTarget(null);}} onKeyDown={e=>{if(e.key==="ArrowLeft"||e.key==="ArrowRight"){e.preventDefault();onMove(i,i+(e.key==="ArrowRight"?1:-1));}}}><GripVertical className="size-4"/></div>
                 <button type="button" aria-label={`Edit photo ${i+1}`} className="relative h-full w-full" onClick={()=>{onSelect(i);onSeek(start/100*safeDuration);setSelectedCaption(null);}}>
                   {m.kind==="video"?<video src={m.url} muted playsInline preload="metadata" className="h-full w-full object-cover"/>:<img src={m.url} alt="" className="h-full w-full object-cover"/>}
                   <span className="absolute bottom-1 left-1 rounded bg-black/65 px-1 text-[9px]">{Math.round(m.displayDurationSec ?? 7)}s</span>
@@ -100,7 +103,7 @@ export function KeepTimeline({ media, captions, duration, time, selectedIndex, v
       <div className="grid grid-cols-2 gap-3">{(["start","end"] as const).map(field=><label key={field} className="text-[11px] capitalize text-white/60">{field} (seconds)<input type="number" step=".1" min="0" max={safeDuration} value={Number(activeCaption[field].toFixed(1))} onChange={e=>onCaptionTime(selectedCaption!,field==="start"?Number(e.target.value):activeCaption.start,field==="end"?Number(e.target.value):activeCaption.end)} className="mt-1 w-full rounded-lg border border-white/20 bg-black/30 p-2 text-white"/></label>)}</div>
       <button type="button" onClick={()=>onCaption(selectedCaption!)} className="text-xs text-[#e5c69b]">Open caption styles and timing</button>
     </div> : <div className="mt-3 space-y-2 rounded-xl border border-white/15 bg-white/[.04] p-3">
-      <div className="flex items-center justify-between"><strong className="text-xs">Moment {selectedIndex+1} of {media.length}</strong><span className="text-[10px] text-white/50">Tap any photo to select</span></div>
+      <div className="flex items-center justify-between"><strong className="text-xs">Moment {selectedIndex+1} of {media.length}</strong><span className="text-[10px] text-white/50">Drag the left grip to reorder</span></div>
       <div className="grid grid-cols-5 gap-1">
         {[
           {label:"Replace",icon:Image,fn:onReplace},
