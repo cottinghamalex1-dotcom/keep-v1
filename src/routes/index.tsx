@@ -1035,7 +1035,7 @@ function KeepApp() {
     </div></>}
     {screen === "memories" && <>{top()}<div className="px-7 pb-10 pt-9">{title("The moments in between", "Bring your words to life.", "Add photos & videos that belong to your Keep.")}{frames.length === 0 ? <div className="mt-10"><div className="grid h-72 grid-cols-3 gap-1 overflow-hidden opacity-60"><img className="col-span-2 h-full w-full object-cover" src={memoryImages[2]} alt="Travel memory placeholder" /><div className="flex flex-col gap-1"><img className="h-1/2 w-full object-cover" src={memoryImages[1]} alt="Wedding memory placeholder" /><img className="h-1/2 w-full object-cover" src={memoryImages[3]} alt="Family memory placeholder" /></div></div><Button variant="keep" size="touch" className="mt-8 w-full" disabled={busy} onClick={() => addInput.current?.click()}><Images /> {busy ? "Adding…" : "Choose Photos & Videos"}</Button><Button variant="bare" size="sm" className="mt-3 w-full text-muted-foreground" onClick={() => patch({ memories: sampleMemories() })}>Use sample memories</Button>{note("Your photos and videos stay on this device.")}</div> : <div className="page-enter"><div className="grid grid-cols-3 gap-1">{frames.map((m, i) => <div key={m.id} className="relative aspect-square overflow-hidden bg-card"><MediaView item={m} thumb alt={m.name ?? `Memory ${i + 1}`} className="h-full w-full object-cover" />{m.kind === "video" && <Play className="absolute bottom-1.5 left-1.5 size-3.5" fill="currentColor" />}<button type="button" aria-label={`Remove memory ${i + 1}`} onClick={() => removeMemory(i)} className="absolute top-1 right-1 flex size-7 items-center justify-center rounded-full bg-background/70 text-foreground"><X className="size-3.5" /></button></div>)}<button type="button" onClick={() => addInput.current?.click()} disabled={busy} className="flex aspect-square flex-col items-center justify-center gap-1 border border-border text-xs text-muted-foreground"><Plus className="size-4" />{busy ? "Adding…" : "Add more"}</button></div><p className="mt-5 text-center text-sm">{frames.length} {frames.length === 1 ? "memory" : "memories"} added <Check className="ml-1 inline size-4 text-accent" /></p><div className="mt-10">{nextButton("Create My Keep", () => { setGeneration(0); setFrame(0); go("generating"); })}</div><div className="mt-4">{note(frames.some((m) => m.source === "upload" && !m.persisted) ? "Some media couldn't be saved on this device and will be cleared on refresh." : "Saved on this device only.")}</div></div>}</div></>}
     {screen === "generating" && <div className="flex keep-h-screen flex-col items-center justify-center px-8 text-center"><div className="relative mb-14 flex size-30 items-center justify-center"><div className="pulse-ring absolute inset-0 rounded-full border border-accent" /><Sparkles className="size-8 text-accent" /></div><div className="eyebrow mb-5">MAKING SOMETHING THAT LASTS</div><h1 key={generation} className="display min-h-32 text-5xl page-enter">{["Listening to your story…", "Finding the moments that fit…", "Building your Keep…", "Almost there…"][generation]}</h1><p className="mt-8 text-xs text-muted-foreground">MVP preview · memories are arranged in the order you added them</p></div>}
-    {screen === "editor" && selected && <div className="relative flex keep-h-screen min-h-0 flex-col overflow-hidden bg-background">
+    {screen === "editor" && selected && <div className="relative flex min-h-[100dvh] w-full flex-col overflow-x-hidden bg-background pb-[max(16px,env(safe-area-inset-bottom))]">
       <div className="flex items-center justify-between px-5 pt-[max(14px,env(safe-area-inset-top))]">
         <Button variant="bare" size="icon" aria-label="Back" onClick={back}><ArrowLeft /></Button>
         <div className="flex items-center gap-1">
@@ -1045,9 +1045,9 @@ function KeepApp() {
       </div>
 
       {rec?.audioUrl && !rec.demo && <audio ref={editorAudioRef} src={rec.audioUrl} preload="metadata" onTimeUpdate={(e) => { const time = e.currentTarget.currentTime; setEditorTime(time); setFrame(editorSceneAt(time)); }} onEnded={() => { setEditorPlaying(false); setEditorTime(editorDuration); }} />}
-      <div className="relative flex min-h-0 flex-1 items-center justify-center px-5 py-3">
-        <div className="relative flex items-center justify-center">
-          <div className={`relative aspect-[9/16] ${editorPanel === "Memories" ? "h-[min(42dvh,370px)]" : "h-[min(60dvh,500px)]"} max-h-[calc(100dvh-190px)] overflow-hidden rounded-[30px] border border-foreground/15 bg-card shadow-[0_24px_70px_oklch(0_0_0/0.55)]`}>
+      <div className="relative flex w-full shrink-0 items-center justify-center gap-3 px-3 py-3">
+        <div className="flex min-w-0 items-center justify-center gap-2">
+          <div className="relative aspect-[9/16] h-[clamp(185px,32dvh,310px)] max-w-[calc(100vw-108px)] shrink-0 overflow-hidden rounded-[20px] border border-foreground/15 bg-card shadow-lg">
             <CinematicMedia item={selected} playing={editorPlaying} duration={Math.max(5, selected.displayDurationSec ?? 7)} className="absolute inset-0" imageClassName={`editor-image-${styleSlug(project.visualStyle)}`} />
             <div className="absolute inset-0 photo-shade" />
             {editorPanel === "Memories" && <div className="absolute inset-x-0 top-0 bottom-14 z-20 cursor-grab touch-none active:cursor-grabbing" aria-label="Drag photo to reposition" onPointerDown={(e) => { e.currentTarget.setPointerCapture(e.pointerId); const r = e.currentTarget.getBoundingClientRect(); photoDrag.current = { x: e.clientX, y: e.clientY, focusX: selected.focusX ?? 50, focusY: selected.focusY ?? 50, width: r.width, height: r.height }; setEditorPlaying(false); }} onPointerMove={(e) => { const d = photoDrag.current; if (!d) return; updateSelectedMoment({ focusX: Math.max(0, Math.min(100, d.focusX - (e.clientX - d.x) / d.width * 100)), focusY: Math.max(0, Math.min(100, d.focusY - (e.clientY - d.y) / d.height * 100)) }); }} onPointerUp={() => { photoDrag.current = null; }} onPointerCancel={() => { photoDrag.current = null; }}><span className="absolute left-1/2 top-3 -translate-x-1/2 whitespace-nowrap rounded-full bg-black/65 px-3 py-1 text-[10px] text-white">Drag photo to reposition</span></div>}
@@ -1065,15 +1065,15 @@ function KeepApp() {
             </div>
           </div>
 
-          <div className="absolute -right-[58px] top-1/2 flex -translate-y-1/2 flex-col gap-2.5">
+          <div className="flex shrink-0 flex-col gap-2">
             {([
               ["Memories", Images],
               ["Music", Music2],
               ["Voice", Mic],
               ["Captions", MessageCircle],
               ["Style", Sparkles],
-            ] as [Mode, any][]).map(([m, Icon]) => <button key={m} type="button" onClick={() => { setMode(m); if (m !== "Music") { stopMusicSample(); setMusicSampling(""); } setEditorPanel((current) => current === m ? null : m); }} className="group flex w-12 flex-col items-center gap-1 text-center">
-              <span className="flex size-10 items-center justify-center rounded-full border border-border/80 bg-card/90 text-foreground shadow-md backdrop-blur transition-transform group-active:scale-95"><Icon className="size-4" /></span>
+            ] as [Mode, any][]).map(([m, Icon]) => <button key={m} type="button" onClick={() => { setMode(m); if (m !== "Music") { stopMusicSample(); setMusicSampling(""); } setEditorPanel((current) => current === m ? null : m); }} className="group flex w-11 flex-col items-center gap-1 text-center">
+              <span className="flex size-9 items-center justify-center rounded-full border border-border/80 bg-card/90 text-foreground shadow-md backdrop-blur transition-transform group-active:scale-95"><Icon className="size-4" /></span>
               <span className="text-[8px] leading-none text-muted-foreground/85">{m}</span>
             </button>)}
           </div>
