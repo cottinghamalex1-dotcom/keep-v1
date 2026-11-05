@@ -59,11 +59,11 @@ export function KeepTimeline({ media, captions, duration, time, selectedIndex, v
       <span className="ml-auto shrink-0 text-white/50">Swipe to scroll · drag grips to reorder</span>
     </div>
     <div className="flex gap-2">
-      <div className="flex w-12 shrink-0 flex-col gap-1 pt-6 text-[9px] text-white/55">
-        <div className="flex h-[66px] items-center">Photos</div>
-        <div className="flex h-8 items-center">Captions</div>
-        <div className="flex h-8 items-center">Voice</div>
-        <div className="flex h-8 items-center">Music</div>
+      <div className="flex w-14 shrink-0 flex-col gap-1 pt-6 text-[10px] text-white/70">
+        <button type="button" onClick={onPhotoSettings} className="flex h-[66px] items-center text-left font-medium text-[#e5c69b]">Moments ›</button>
+        <button type="button" onClick={()=>onCaption(0)} className="flex h-8 items-center text-left">Captions ›</button>
+        <button type="button" onClick={onVoice} className="flex h-8 items-center text-left">Voice ›</button>
+        <button type="button" onClick={onMusic} className="flex h-8 items-center text-left">Music ›</button>
       </div>
       <div ref={scroller} className="thin-scroll min-w-0 flex-1 overflow-x-auto pb-2">
         <div className="relative select-none" style={{width:timelineWidth}}>
