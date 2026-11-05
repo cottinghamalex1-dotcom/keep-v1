@@ -737,7 +737,7 @@ function KeepApp() {
   useEffect(() => { if (screen !== "generating") return; if (generation >= 3) { const t = window.setTimeout(() => go("editor"), 650); return () => window.clearTimeout(t); } const t = window.setTimeout(() => setGeneration((n) => n + 1), 1250); return () => window.clearTimeout(t); }, [screen, generation]);
   const captionLines = project.messageParagraphs.map((p) => (p.split(/(?<=[.!?])\s/)[0] ?? p).trim()).filter(Boolean).slice(0, 8);
   // The recorded voice is the editor's master clock. Photo timing and captions follow it.
-  const editorDuration = rec?.durationSec || 237;
+  const editorDuration = rec?.durationSec || shown.reduce((sum, item) => sum + Math.max(1, item.displayDurationSec ?? 4), 0) || 30;
   const editorMediaTotal = shown.reduce((sum, item) => sum + Math.max(1, item.displayDurationSec ?? 4), 0);
   const editorSceneAt = (time: number) => {
     if (!shown.length || !editorMediaTotal) return 0;
@@ -753,7 +753,7 @@ function KeepApp() {
   const editorCaption = editorCue?.text ?? (rec?.demo ? captionLines[Math.min(captionLines.length - 1, Math.floor(editorTime / Math.max(1, editorDuration / Math.max(1, captionLines.length))))] ?? "" : "");
   const seekEditor = (time: number) => {
     const next = Math.max(0, Math.min(editorDuration, time));
-    if (editorMixRef.current && editorPlaying) editorMixRef.current.restartMusic(project.musicMood, project.voiceMusicBalance as MusicBalance);
+    // Seeking should not restart the soundtrack; that causes audible jumps and drift.
     if (editorAudioRef.current) editorAudioRef.current.currentTime = next;
     setEditorTime(next);
     setFrame(editorSceneAt(next));
@@ -801,14 +801,23 @@ function KeepApp() {
     }
     return () => audio.pause();
   }, [screen, editorPlaying, rec?.audioUrl, rec?.demo]);
+  // One playback clock: recorded narration when present; otherwise a monotonic
+  // animation-frame clock. The preview, playhead and captions read the same time.
   useEffect(() => {
-    if (screen !== "editor" || !editorPlaying || (rec?.audioUrl && !rec.demo)) return;
-    const timer = window.setInterval(() => setEditorTime((t) => {
-      const next = t + 0.1;
-      if (next >= editorDuration) { setEditorPlaying(false); return editorDuration; }
-      return next;
-    }), 100);
-    return () => window.clearInterval(timer);
+    if (screen !== "editor" || !editorPlaying) return;
+    let raf = 0;
+    const audio = editorAudioRef.current;
+    const voiceClock = !!(rec?.audioUrl && !rec.demo && audio);
+    const started = performance.now();
+    const initialTime = editorTime;
+    const tick = (now: number) => {
+      const next = Math.min(editorDuration, voiceClock ? (audio?.currentTime ?? initialTime) : initialTime + (now - started) / 1000);
+      setEditorTime(next);
+      if (next >= editorDuration) { setEditorPlaying(false); return; }
+      raf = window.requestAnimationFrame(tick);
+    };
+    raf = window.requestAnimationFrame(tick);
+    return () => window.cancelAnimationFrame(raf);
   }, [screen, editorPlaying, rec?.audioUrl, rec?.demo, editorDuration]);
   useEffect(() => {
     if (screen === "editor" && editorPlaying) setFrame(editorSceneAt(editorTime));
