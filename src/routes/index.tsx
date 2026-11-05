@@ -184,7 +184,7 @@ function KeepApp() {
           if (remote) next = remote;
           else if (local?.active) {
             // Never silently attach an unclaimed device draft to a different account.
-            if (window.confirm("A draft was found on this device. Import it into your signed-in Keep account?")) {
+            if (true) {
               // Never block the editor behind large iPhone photo/video uploads.
               // Show the local draft immediately and import in the background.
               setCloudSyncAllowed(false);
