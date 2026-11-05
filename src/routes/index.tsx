@@ -1,3 +1,4 @@
+import { KeepTimeline } from "@/components/keep-timeline";
 import { activeKeepSession, loadCloudDraft, saveCloudDraft, removeCloudDraft } from "@/lib/keep-cloud";
 import { CinematicMedia } from "@/components/cinematic-media";
 import { createFileRoute, Link } from "@tanstack/react-router";
@@ -1087,15 +1088,23 @@ function KeepApp() {
         </>}
       </div>}
 
-      <div className="border-t border-border/70 bg-background/96 px-5 pb-[max(14px,env(safe-area-inset-bottom))] pt-3 backdrop-blur">
-        <div className="thin-scroll flex gap-2 overflow-x-auto pb-1">
-          {shown.map((m, i) => <button key={m.id} type="button" aria-label={`Select memory ${i + 1}`} onClick={() => { setEditorPlaying(false); const before = shown.slice(0, i).reduce((sum, item) => sum + Math.max(1, item.displayDurationSec ?? 4), 0); seekEditor(editorMediaTotal ? before / editorMediaTotal * editorDuration : 0); }} className={`relative h-14 w-11 shrink-0 overflow-hidden rounded-md border transition-all ${i === frame % shown.length ? "border-accent ring-1 ring-accent" : "border-border opacity-55"}`}>
-            <MediaView item={m} thumb alt={m.source === "sample" ? memoryLabels[i % memoryLabels.length] ?? "" : m.name ?? ""} className="h-full w-full object-cover" />
-            {m.kind === "video" && <Play className="absolute bottom-1 left-1 size-2.5" fill="currentColor" />}
-          </button>)}
-          <button type="button" onClick={() => addInput.current?.click()} disabled={busy} className="flex h-14 w-11 shrink-0 items-center justify-center rounded-md border border-dashed border-border text-muted-foreground"><Plus className="size-4" /></button>
-        </div>
-      </div>
+      <KeepTimeline
+        media={shown}
+        captions={project.captionCues}
+        duration={editorDuration}
+        time={editorTime}
+        selectedIndex={frame % Math.max(1,shown.length)}
+        voicePresent={!!rec && !rec.demo}
+        musicMood={project.musicMood}
+        onSeek={(t) => { setEditorPlaying(false); seekEditor(t); }}
+        onSelect={(i) => { setEditorPlaying(false); setFrame(i); }}
+        onMove={moveMemory}
+        onDuration={(i,seconds) => patch({ memories: shown.map((m,j)=>j===i?{...m,displayDurationSec:seconds}:m) })}
+        onCaption={(i) => { setEditorPanel("Captions"); seekEditor(project.captionCues[i]?.start??0); }}
+        onAdd={() => addInput.current?.click()}
+        onVoice={() => setEditorPanel("Voice")}
+        onMusic={() => setEditorPanel("Music")}
+      />
 
       {editorPanel === "Memories" && sheet("Moments", () => setEditorPanel(null), <div className="pb-2">
         <p className="mt-2 text-xs leading-5 text-muted-foreground">Choose the moments that bring your words to life. Reorder, replace, or add anything you want.</p>
