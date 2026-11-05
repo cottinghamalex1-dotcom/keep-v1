@@ -1047,7 +1047,7 @@ function KeepApp() {
       {rec?.audioUrl && !rec.demo && <audio ref={editorAudioRef} src={rec.audioUrl} preload="metadata" onTimeUpdate={(e) => { const time = e.currentTarget.currentTime; setEditorTime(time); setFrame(editorSceneAt(time)); }} onEnded={() => { setEditorPlaying(false); setEditorTime(editorDuration); }} />}
       <div className="relative flex w-full shrink-0 items-center justify-center gap-3 px-3 py-3">
         <div className="flex min-w-0 items-center justify-center gap-2">
-          <div className="relative aspect-[9/16] h-[clamp(185px,32dvh,310px)] max-w-[calc(100vw-108px)] shrink-0 overflow-hidden rounded-[20px] border border-foreground/15 bg-card shadow-lg">
+          <div className="relative aspect-[9/16] h-[clamp(220px,38dvh,350px)] max-w-[calc(100vw-32px)] shrink-0 overflow-hidden rounded-[20px] border border-foreground/15 bg-card shadow-lg">
             <CinematicMedia item={selected} playing={editorPlaying} duration={Math.max(5, selected.displayDurationSec ?? 7)} className="absolute inset-0" imageClassName={`editor-image-${styleSlug(project.visualStyle)}`} />
             <div className="absolute inset-0 photo-shade" />
             {editorPanel === "Memories" && <div className="absolute inset-x-0 top-0 bottom-14 z-20 cursor-grab touch-none active:cursor-grabbing" aria-label="Drag photo to reposition" onPointerDown={(e) => { e.currentTarget.setPointerCapture(e.pointerId); const r = e.currentTarget.getBoundingClientRect(); photoDrag.current = { x: e.clientX, y: e.clientY, focusX: selected.focusX ?? 50, focusY: selected.focusY ?? 50, width: r.width, height: r.height }; setEditorPlaying(false); }} onPointerMove={(e) => { const d = photoDrag.current; if (!d) return; updateSelectedMoment({ focusX: Math.max(0, Math.min(100, d.focusX - (e.clientX - d.x) / d.width * 100)), focusY: Math.max(0, Math.min(100, d.focusY - (e.clientY - d.y) / d.height * 100)) }); }} onPointerUp={() => { photoDrag.current = null; }} onPointerCancel={() => { photoDrag.current = null; }}><span className="absolute left-1/2 top-3 -translate-x-1/2 whitespace-nowrap rounded-full bg-black/65 px-3 py-1 text-[10px] text-white">Drag photo to reposition</span></div>}
@@ -1058,25 +1058,14 @@ function KeepApp() {
               </p>
             </div>}
 
-            <div className="absolute bottom-4 left-4 right-4 flex items-center gap-3">
+            <div className="absolute bottom-3 left-3 right-3 flex items-center gap-2 rounded-xl bg-black/45 px-2 py-1 backdrop-blur">
               <Button variant="bare" size="icon" className="size-8 bg-black/25 backdrop-blur" aria-label={editorPlaying ? "Pause preview" : "Play preview"} onClick={() => { if (editorTime >= editorDuration - 0.1) seekEditor(0); setEditorPlaying(!editorPlaying); }}>{editorPlaying ? <Pause className="size-3.5" fill="currentColor" /> : <Play className="size-3.5" fill="currentColor" />}</Button>
               <input type="range" min={0} max={editorDuration} step={0.1} value={Math.min(editorTime, editorDuration)} aria-label="Seek Keep playback" onChange={(e) => seekEditor(Number(e.target.value))} className="h-5 min-w-0 flex-1 accent-white" />
               <span className="text-[9px] tabular-nums">{fmt(editorTime)} / {fmt(editorDuration)}</span>
             </div>
           </div>
 
-          <div className="flex shrink-0 flex-col gap-2">
-            {([
-              ["Memories", Images],
-              ["Music", Music2],
-              ["Voice", Mic],
-              ["Captions", MessageCircle],
-              ["Style", Sparkles],
-            ] as [Mode, any][]).map(([m, Icon]) => <button key={m} type="button" onClick={() => { setMode(m); if (m !== "Music") { stopMusicSample(); setMusicSampling(""); } setEditorPanel((current) => current === m ? null : m); }} className="group flex w-11 flex-col items-center gap-1 text-center">
-              <span className="flex size-9 items-center justify-center rounded-full border border-border/80 bg-card/90 text-foreground shadow-md backdrop-blur transition-transform group-active:scale-95"><Icon className="size-4" /></span>
-              <span className="text-[8px] leading-none text-muted-foreground/85">{m}</span>
-            </button>)}
-          </div>
+
         </div>
       </div>
 
