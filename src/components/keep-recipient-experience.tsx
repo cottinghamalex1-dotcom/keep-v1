@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, ArrowRight, BookOpen, Headphones, Images, Pause, Play, RotateCcw, Volume2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { KeepPlayer, memoryImages, type PlayerMedia } from "@/components/keep-player";
-import type { CaptionCue } from "@/lib/keep-project";
+import type { AudioMix, CaptionCue } from "@/lib/keep-project";
 import { createKeepVoiceMix, type MusicBalance } from "@/lib/keep-audio";
 
 export type KeepExperienceMode = "watch" | "listen" | "read";
@@ -25,8 +25,9 @@ type Props = {
   voiceMusicBalance?: string | undefined;
   voiceVolume?: number | undefined;
   musicVolume?: number | undefined;
-  captionPosition?: "top" | "middle" | "bottom";
-  captionLines?: number;
+  captionPosition?: "top" | "middle" | "bottom" | undefined;
+  captionLines?: number | undefined;
+  audioMix?: AudioMix | undefined;
   persistVisit?: boolean;
   creatorPreview?: boolean;
   initialExperience?: KeepExperienceMode | undefined;
@@ -62,6 +63,7 @@ export function KeepRecipientExperience({
   musicVolume = 60,
   captionPosition = "bottom",
   captionLines = 2,
+  audioMix,
   persistVisit = true,
   creatorPreview = false,
   initialExperience,
@@ -95,7 +97,7 @@ export function KeepRecipientExperience({
   useEffect(() => {
     if (stage !== "experience" || experience !== "listen" || !audioUrl || !audio.current) return;
     const balance = (["Soft", "Balanced", "Full"].includes(voiceMusicBalance) ? voiceMusicBalance : "Balanced") as MusicBalance;
-    const controller = createKeepVoiceMix(audio.current, musicMood, balance, audioDuration, 3.2);
+    const controller = createKeepVoiceMix(audio.current, musicMood, balance, audioDuration, 3.2, audioMix);
     listenMix.current = controller;
     controller?.setLevels(voiceVolume, musicVolume);
     listenHasStarted.current = false;
@@ -188,7 +190,7 @@ export function KeepRecipientExperience({
   };
 
   if (stage === "experience" && experience === "watch") {
-    return <main className="app-shell"><KeepPlayer name={name.toUpperCase()} from={from} year={year} subtitle={subtitle} recipient onExit={backToChoose} onFinish={finishExperience} style={style} captions={captions} media={media} audioUrl={audioUrl} audioDuration={audioDuration} lines={lines} captionCues={captionCues} musicMood={musicMood} voiceMusicBalance={voiceMusicBalance} voiceVolume={voiceVolume} musicVolume={musicVolume} captionPosition={captionPosition} captionLines={captionLines} /></main>;
+    return <main className="app-shell"><KeepPlayer name={name.toUpperCase()} from={from} year={year} subtitle={subtitle} recipient onExit={backToChoose} onFinish={finishExperience} style={style} captions={captions} media={media} audioUrl={audioUrl} audioDuration={audioDuration} lines={lines} captionCues={captionCues} musicMood={musicMood} voiceMusicBalance={voiceMusicBalance} voiceVolume={voiceVolume} musicVolume={musicVolume} captionPosition={captionPosition} captionLines={captionLines} audioMix={audioMix} /></main>;
   }
 
   if (stage === "experience" && experience === "listen") {

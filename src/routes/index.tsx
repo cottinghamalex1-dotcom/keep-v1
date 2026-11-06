@@ -3,7 +3,7 @@ import { activeKeepSession, loadCloudDraft, saveCloudDraft, removeCloudDraft } f
 import { CinematicMedia } from "@/components/cinematic-media";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useRef, useState, type ChangeEvent, type ReactNode } from "react";
-import { ArrowLeft, ArrowRight, Check, ChevronLeft, ChevronRight, CircleHelp, Download, Ellipsis, GripVertical, Images, LockKeyhole, MessageCircle, Mic, Music2, FileUp, Pause, Play, Plus, Radio, RotateCcw, Settings2, Sparkles, Square, Trash2, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, ChevronLeft, ChevronRight, CircleHelp, Download, Ellipsis, GripVertical, Images, LockKeyhole, MessageCircle, Mic, Music2, FileUp, Pause, Play, Plus, Radio, RotateCcw, Settings2, Sparkles, Square, Trash2, Undo2, Redo2, VolumeX, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { KeepPlayer, memoryImages, memoryLabels } from "@/components/keep-player";
@@ -13,7 +13,7 @@ import { useRecorder } from "@/hooks/use-recorder";
 import { deleteBlobs, getBlob, putBlob } from "@/lib/keep-media-store";
 import { createKeepVoiceMix, playMusicSample, stopMusicSample, type MusicBalance } from "@/lib/keep-audio";
 import { fetchDraft, fetchNextQuestion, fetchRevision, keepAiAvailable, transcribeAudio, transcribeTimedAudio, type TimedWord } from "@/lib/keep-ai";
-import { ONBOARD_KEY, fmt, hydrateDraftMedia, loadDraft, newId, newProject, projectBlobIds, projectObjectUrls, sampleMemories, saveDraft, stageLabels, type CaptionCue, type InterviewAnswer, type KeepProject, type MediaItem } from "@/lib/keep-project";
+import { ONBOARD_KEY, fmt, hydrateDraftMedia, loadDraft, newId, newProject, projectBlobIds, projectObjectUrls, sampleMemories, saveDraft, stageLabels, defaultAudioMix, type AudioMix, type CaptionCue, type InterviewAnswer, type KeepProject, type MediaItem } from "@/lib/keep-project";
 
 export const Route = createFileRoute("/")({
   head: () => ({ meta: [
@@ -95,6 +95,10 @@ const groupTimedWords = (words: TimedWord[], limit = 5): CaptionCue[] => {
   return cues;
 };
 
+const EDIT_KEYS = ["memories", "captionCues", "captionStyle", "visualStyle", "musicMood", "voiceMusicBalance", "voiceVolume", "musicVolume", "captionPosition", "captionLines", "captionWordsPerCue", "audioMix"] as const;
+type EditSnapshot = Pick<KeepProject, (typeof EDIT_KEYS)[number]>;
+const takeSnapshot = (p: KeepProject): EditSnapshot => Object.fromEntries(EDIT_KEYS.map((k) => [k, p[k]])) as EditSnapshot;
+const sameSnapshot = (a: EditSnapshot, b: EditSnapshot) => EDIT_KEYS.every((k) => a[k] === b[k]);
 const styleSlug = (name: string) => name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 const withName = (t: string, name: string) => t.split("Hanna").join(name || "them");
 const releaseUrls = (urls: (string | undefined)[]) => urls.forEach((u) => { if (u && u.startsWith("blob:")) URL.revokeObjectURL(u); });
@@ -168,6 +172,15 @@ function KeepApp() {
   const replaceInput = useRef<HTMLInputElement>(null);
   const dragFrom = useRef<number | null>(null);
   const patch = (p: Partial<KeepProject>) => setProject((o) => ({ ...o, ...p }));
+  const mix: AudioMix = { ...defaultAudioMix, ...project.audioMix };
+  const patchMix = (m: Partial<AudioMix>) => setProject((o) => ({ ...o, audioMix: { ...defaultAudioMix, ...o.audioMix, ...m } }));
+  // Editor undo/redo: snapshots of editable fields, committed after edits settle (350ms),
+  // so a slider drag becomes one undo step. Media blobs are never deleted while editing,
+  // so undoing a removal always restores a working photo/video.
+  const undoPast = useRef<EditSnapshot[]>([]);
+  const undoFuture = useRef<EditSnapshot[]>([]);
+  const undoLast = useRef<EditSnapshot | null>(null);
+  const [, setUndoVersion] = useState(0);
   const name = project.recipientName;
   const q = project.questionIndex;
 
@@ -630,8 +643,6 @@ function KeepApp() {
     setBusy(false);
     if (!items.length) { toast.error("Those files aren't photos or videos."); return; }
     if (replaceIndex !== undefined) {
-      const old = frames[replaceIndex];
-      if (old?.source === "upload") { releaseUrls([old.url]); void deleteBlobs([old.id]); }
       patch({ memories: frames.length ? frames.map((m, i) => (i === replaceIndex ? { ...items[0]!, displayDurationSec: m.displayDurationSec ?? 7, focusX: m.focusX, focusY: m.focusY, zoom: m.zoom, motion: m.motion, transition: m.transition } : m)) : shown.map((m, i) => (i === replaceIndex ? { ...items[0]!, displayDurationSec: m.displayDurationSec ?? 4 } : m)) });
       toast.success("Memory replaced");
     } else {
@@ -641,8 +652,7 @@ function KeepApp() {
   };
   const removeMemory = (i: number) => {
     const list = frames.length ? frames : shown;
-    const old = list[i];
-    if (old?.source === "upload") { releaseUrls([old.url]); void deleteBlobs([old.id]); }
+    // Blob and object URL are kept so Undo can bring this moment back.
     patch({ memories: list.filter((_, j) => j !== i) });
     setFrame((f) => Math.max(0, Math.min(f, list.length - 2)));
   };
@@ -766,7 +776,7 @@ function KeepApp() {
     if (!audio) return;
     let controller: ReturnType<typeof createKeepVoiceMix> = null;
     try {
-      controller = createKeepVoiceMix(audio, project.musicMood, project.voiceMusicBalance as MusicBalance, rec.durationSec, 0.8);
+      controller = createKeepVoiceMix(audio, project.musicMood, project.voiceMusicBalance as MusicBalance, rec.durationSec, 0.8, mix);
       editorMixRef.current = controller;
       controller?.setLevels(project.voiceVolume ?? 60, project.musicVolume ?? 60);
       if (controller) void controller.pause();
@@ -782,9 +792,47 @@ function KeepApp() {
 
   useEffect(() => {
     if (screen !== "editor" || !editorMixRef.current) return;
-    editorMixRef.current.restartMusic(project.musicMood, project.voiceMusicBalance as MusicBalance);
-  }, [screen, project.musicMood, project.voiceMusicBalance]);
+    editorMixRef.current.restartMusic(project.musicMood, project.voiceMusicBalance as MusicBalance, mix);
+  }, [screen, project.musicMood, project.voiceMusicBalance, mix.fadeIn, mix.fadeOut, mix.ducking]);
+  useEffect(() => { editorMixRef.current?.setTrackMutes(mix.voiceMuted, mix.musicMuted); }, [screen, mix.voiceMuted, mix.musicMuted]);
   useEffect(() => { editorMixRef.current?.setLevels(project.voiceVolume ?? 60, project.musicVolume ?? 60); }, [screen, project.voiceVolume, project.musicVolume]);
+
+  useEffect(() => {
+    if (screen !== "editor") { undoLast.current = null; return; }
+    const snap = takeSnapshot(project);
+    if (!undoLast.current) { undoLast.current = snap; return; }
+    const t = window.setTimeout(() => {
+      const last = undoLast.current;
+      if (last && !sameSnapshot(last, snap)) {
+        undoPast.current = [...undoPast.current.slice(-59), last];
+        undoFuture.current = [];
+        undoLast.current = snap;
+        setUndoVersion((v) => v + 1);
+      }
+    }, 350);
+    return () => window.clearTimeout(t);
+  }, [screen, ...EDIT_KEYS.map((k) => project[k])]);
+  const stepHistory = (dir: "undo" | "redo") => {
+    const from = dir === "undo" ? undoPast : undoFuture;
+    const to = dir === "undo" ? undoFuture : undoPast;
+    const target = from.current[from.current.length - 1];
+    if (!target) return;
+    from.current = from.current.slice(0, -1);
+    to.current = [...to.current, takeSnapshot(project)];
+    undoLast.current = target;
+    setProject((o) => ({ ...o, ...target }));
+    setUndoVersion((v) => v + 1);
+  };
+  useEffect(() => {
+    if (screen !== "editor") return;
+    const onKey = (e: KeyboardEvent) => {
+      const el = e.target as HTMLElement | null;
+      if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA")) return;
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "z") { e.preventDefault(); stepHistory(e.shiftKey ? "redo" : "undo"); }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  });
 
   useEffect(() => {
     if (screen !== "editor") return;
@@ -915,7 +963,7 @@ function KeepApp() {
             ["Make it more emotional", "Deepen what you mean without making it feel overdone."],
             ["Make it flow better", "Improve the structure and transitions from beginning to end."],
             ["Strengthen the ending", "Help the final part land with more meaning and connection."],
-          ].map(([prompt, note]) => <Button key={prompt} variant="bare" disabled={askBusy} className="flex h-auto min-h-16 w-full items-center justify-between border-t border-border px-0 py-3 text-left font-normal whitespace-normal" onClick={() => void askKeep(prompt, "message")}><span className="pr-4"><span className="block">{prompt}</span><span className="mt-1 block text-xs leading-5 text-muted-foreground">{note}</span></span><ArrowRight className="size-4 shrink-0 text-accent" /></Button>)}
+          ].map(([prompt, note]) => <Button key={prompt} variant="bare" disabled={askBusy} className="flex h-auto min-h-16 w-full items-center justify-between border-t border-border px-0 py-3 text-left font-normal whitespace-normal" onClick={() => void askKeep(prompt ?? "", "message")}><span className="pr-4"><span className="block">{prompt}</span><span className="mt-1 block text-xs leading-5 text-muted-foreground">{note}</span></span><ArrowRight className="size-4 shrink-0 text-accent" /></Button>)}
 
           <div className="mt-5 border-t border-border pt-5">
             <label htmlFor="ask-keep-whole-custom" className="eyebrow">TELL KEEP WHAT YOU WANT</label>
@@ -1044,6 +1092,8 @@ function KeepApp() {
       <div className="flex items-center justify-between px-5 pt-[max(14px,env(safe-area-inset-top))]">
         <Button variant="bare" size="icon" aria-label="Back" onClick={back}><ArrowLeft /></Button>
         <div className="flex items-center gap-1">
+          <Button variant="bare" size="icon" aria-label="Undo" disabled={!undoPast.current.length} onClick={() => stepHistory("undo")}><Undo2 className="size-4" /></Button>
+          <Button variant="bare" size="icon" aria-label="Redo" disabled={!undoFuture.current.length} onClick={() => stepHistory("redo")}><Redo2 className="size-4" /></Button>
           <Button variant="bare" size="sm" className="text-muted-foreground" onClick={() => { setViewingDemo(false); setPreviewChooserOpen(true); setReadArrangeOpen(false); }}><Play className="size-4" /> Preview</Button>
           <Button variant="keep" size="sm" onClick={toCard}>Done <Check className="size-4" /></Button>
         </div>
@@ -1094,6 +1144,16 @@ function KeepApp() {
                 <div className="mb-2 flex items-center justify-between text-xs"><label htmlFor="keep-music-volume" className="font-medium">Music volume</label><span>{project.musicVolume ?? 60}%</span></div>
                 <input id="keep-music-volume" type="range" min="0" max="100" step="1" value={project.musicVolume ?? 60} onChange={(e) => patch({ musicVolume: Number(e.target.value) })} className="w-full accent-current" />
               </div>
+              <div className="grid grid-cols-2 gap-2">
+                <Button size="sm" variant={mix.voiceMuted ? "selected" : "quiet"} aria-pressed={mix.voiceMuted} onClick={() => patchMix({ voiceMuted: !mix.voiceMuted })}>{mix.voiceMuted ? <VolumeX className="size-3.5" /> : <Mic className="size-3.5" />}{mix.voiceMuted ? "Voice muted" : "Mute voice"}</Button>
+                <Button size="sm" variant={mix.musicMuted ? "selected" : "quiet"} aria-pressed={mix.musicMuted} onClick={() => patchMix({ musicMuted: !mix.musicMuted })}>{mix.musicMuted ? <VolumeX className="size-3.5" /> : <Music2 className="size-3.5" />}{mix.musicMuted ? "Music muted" : "Mute music"}</Button>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <label className="text-xs">Music fade in: {mix.fadeIn.toFixed(1)}s<input type="range" min="0.5" max="6" step="0.5" value={mix.fadeIn} onChange={(e) => patchMix({ fadeIn: Number(e.target.value) })} className="mt-1 w-full" /></label>
+                <label className="text-xs">Music fade out: {mix.fadeOut.toFixed(1)}s<input type="range" min="1" max="8" step="0.5" value={mix.fadeOut} onChange={(e) => patchMix({ fadeOut: Number(e.target.value) })} className="mt-1 w-full" /></label>
+              </div>
+              <label className="flex items-center justify-between gap-3 text-xs"><span><span className="block font-medium">Lower music while you speak</span><span className="text-[10px] text-muted-foreground">Music rises again at the end.</span></span><input type="checkbox" checked={mix.ducking} onChange={(e) => patchMix({ ducking: e.target.checked })} className="size-4 accent-current" /></label>
+              <p className="text-[10px] text-muted-foreground">Fade and ducking changes restart the music bed from the beginning of the preview.</p>
               <div className="flex items-center justify-between text-[10px] text-muted-foreground"><span>Adjust each independently while your Keep plays.</span><button type="button" className="underline" onClick={() => patch({ voiceVolume: 60, musicVolume: 60 })}>Reset levels</button></div>
             </div>
         </>}
@@ -1219,7 +1279,7 @@ function KeepApp() {
     </div>}
     {screen === "preview" && (viewingDemo
       ? <KeepPlayer name="HANNA" from="Alex" year="2026" onExit={back} onFinish={home} />
-      : <KeepPlayer name={(name || "Your Keep").toUpperCase()} from="Alex" year="2026" subtitle={project.occasion} onExit={back} onFinish={() => { setScreen("editor"); resetPageScroll(); }} style={project.visualStyle} captions={project.captionStyle} media={frames.length ? frames.map((m) => ({ url: m.url, kind: m.kind, displayDurationSec: m.displayDurationSec ?? 7, focusX: m.focusX, focusY: m.focusY, zoom: m.zoom, motion: m.motion })) : undefined} audioUrl={rec && !rec.demo ? rec.audioUrl : undefined} audioDuration={rec?.durationSec} lines={captionLines} captionCues={project.captionCues} musicMood={project.musicMood} voiceMusicBalance={project.voiceMusicBalance} voiceVolume={project.voiceVolume} musicVolume={project.musicVolume} captionPosition={project.captionPosition} captionLines={project.captionLines} />)}
+      : <KeepPlayer name={(name || "Your Keep").toUpperCase()} from="Alex" year="2026" subtitle={project.occasion} onExit={back} onFinish={() => { setScreen("editor"); resetPageScroll(); }} style={project.visualStyle} captions={project.captionStyle} media={frames.length ? frames.map((m) => ({ url: m.url, kind: m.kind, displayDurationSec: m.displayDurationSec ?? 7, focusX: m.focusX, focusY: m.focusY, zoom: m.zoom, motion: m.motion })) : undefined} audioUrl={rec && !rec.demo ? rec.audioUrl : undefined} audioDuration={rec?.durationSec} lines={captionLines} captionCues={project.captionCues} musicMood={project.musicMood} voiceMusicBalance={project.voiceMusicBalance} voiceVolume={project.voiceVolume} musicVolume={project.musicVolume} captionPosition={project.captionPosition} captionLines={project.captionLines} audioMix={mix} />)}
     {screen === "recipientPreview" && <KeepRecipientExperience
       name={(name || engraving[0] || "You").trim()}
       from={(engraving[1]?.replace(/^FROM\s+/i, "") || "Alex").trim()}
@@ -1235,7 +1295,7 @@ function KeepApp() {
       lines={captionLines}
       captionCues={project.captionCues}
       musicMood={project.musicMood}
-      voiceMusicBalance={project.voiceMusicBalance} voiceVolume={project.voiceVolume} musicVolume={project.musicVolume} captionPosition={project.captionPosition} captionLines={project.captionLines}
+      voiceMusicBalance={project.voiceMusicBalance} voiceVolume={project.voiceVolume} musicVolume={project.musicVolume} captionPosition={project.captionPosition} captionLines={project.captionLines} audioMix={mix}
       persistVisit={false}
       creatorPreview
       initialExperience={creatorPreviewMode ?? "watch"}
