@@ -1104,7 +1104,7 @@ function KeepApp() {
       {rec?.audioUrl && !rec.demo && <audio ref={editorAudioRef} src={rec.audioUrl} preload="metadata" onTimeUpdate={(e) => { const time = e.currentTarget.currentTime; setEditorTime(time); setFrame(editorSceneAt(time)); }} onEnded={() => { if (editorDuration <= (rec?.durationSec ?? 0) + 0.1) { setEditorPlaying(false); setEditorTime(editorDuration); } }} />}
       <div className="relative flex w-full shrink-0 items-center justify-center gap-3 px-3 py-3">
         <div className="flex min-w-0 items-center justify-center gap-2">
-          <div className="relative aspect-[9/16] h-[clamp(220px,38dvh,350px)] max-w-[calc(100vw-32px)] shrink-0 overflow-hidden rounded-[20px] border border-foreground/15 bg-card shadow-lg">
+          <div className="relative aspect-[9/16] h-[clamp(210px,34dvh,320px)] max-w-[calc(100vw-32px)] shrink-0 overflow-hidden rounded-[20px] border border-foreground/15 bg-card shadow-lg">
             <CinematicMedia item={selected} playing={editorPlaying} duration={Math.max(5, selected.displayDurationSec ?? 7)} className="absolute inset-0" imageClassName={`editor-image-${styleSlug(project.visualStyle)}`} />
             <div className="absolute inset-0 photo-shade" />
             {editorPanel === "Memories" && <div className="absolute inset-x-0 top-0 bottom-14 z-20 cursor-grab touch-none active:cursor-grabbing" aria-label="Drag photo to reposition" onPointerDown={(e) => { e.currentTarget.setPointerCapture(e.pointerId); const r = e.currentTarget.getBoundingClientRect(); photoDrag.current = { x: e.clientX, y: e.clientY, focusX: selected.focusX ?? 50, focusY: selected.focusY ?? 50, width: r.width, height: r.height }; setEditorPlaying(false); }} onPointerMove={(e) => { const d = photoDrag.current; if (!d) return; updateSelectedMoment({ focusX: Math.max(0, Math.min(100, d.focusX - (e.clientX - d.x) / d.width * 100)), focusY: Math.max(0, Math.min(100, d.focusY - (e.clientY - d.y) / d.height * 100)) }); }} onPointerUp={() => { photoDrag.current = null; }} onPointerCancel={() => { photoDrag.current = null; }}><span className="absolute left-1/2 top-3 -translate-x-1/2 whitespace-nowrap rounded-full bg-black/65 px-3 py-1 text-[10px] text-white">Drag photo to reposition</span></div>}
@@ -1117,7 +1117,6 @@ function KeepApp() {
 
             <div className="absolute bottom-3 left-3 right-3 flex items-center gap-2 rounded-xl bg-black/45 px-2 py-1 backdrop-blur">
               <Button variant="bare" size="icon" className="size-8 bg-black/25 backdrop-blur" aria-label={editorPlaying ? "Pause preview" : "Play preview"} onClick={() => { if (editorTime >= editorDuration - 0.1) seekEditor(0); setEditorPlaying(!editorPlaying); }}>{editorPlaying ? <Pause className="size-3.5" fill="currentColor" /> : <Play className="size-3.5" fill="currentColor" />}</Button>
-              <input type="range" min={0} max={editorDuration} step={0.1} value={Math.min(editorTime, editorDuration)} aria-label="Seek Keep playback" onChange={(e) => seekEditor(Number(e.target.value))} className="h-5 min-w-0 flex-1 accent-white" />
               <span className="text-[9px] tabular-nums">{fmt(editorTime)} / {fmt(editorDuration)}</span>
             </div>
           </div>
@@ -1127,7 +1126,35 @@ function KeepApp() {
       </div>
 
       {!rec?.demo && rec?.audioUrl && project.captionStyle !== "None" && !project.captionCues.length && <div className="border-t border-border/60 bg-card/70 px-5 py-3 text-xs"><div className="flex items-center justify-between gap-3"><span>{captionSyncing ? "Syncing captions to your recording…" : captionSyncError ? "Captions did not sync. Your recording is safe." : "Captions are not ready yet."}</span>{!captionSyncing && <Button variant="quiet" size="sm" onClick={() => void retryCaptionSync()}><RotateCcw className="size-3" /> Retry captions</Button>}</div></div>}
-      {(editorPanel === "Music" || editorPanel === "Captions" || editorPanel === "Style") && <div className="border-t border-border/60 bg-card/55 px-5 py-3 backdrop-blur-md page-enter">
+      <div className="thin-scroll flex shrink-0 gap-2 overflow-x-auto border-t border-border/40 px-4 py-2">
+        {(["Memories","Captions","Music","Voice","Style"] as Mode[]).map((tool) => <button key={tool} type="button" aria-pressed={editorPanel === tool} onClick={() => { stopMusicSample(); setMusicSampling(""); setEditorPanel((current) => current === tool ? null : tool); }} className={`shrink-0 rounded-full border px-4 py-2 text-xs transition-colors ${editorPanel === tool ? "border-accent bg-accent/15 text-accent" : "border-border text-muted-foreground"}`}>{tool === "Memories" ? "Clips" : tool}</button>)}
+      </div>
+      <KeepTimeline
+        media={shown}
+        captions={project.captionCues}
+        duration={editorDuration}
+        time={editorTime}
+        selectedIndex={frame % Math.max(1,shown.length)}
+        voicePresent={!!rec && !rec.demo}
+        musicMood={project.musicMood}
+        onSeek={(t) => { setEditorPlaying(false); seekEditor(t); }}
+        onSelect={(i) => { setEditorPlaying(false); setFrame(i); }}
+        onMove={moveMemory}
+        onDuration={(i,seconds) => patch({ memories: shown.map((m,j)=>j===i?{...m,displayDurationSec:seconds}:m) })}
+        onCaption={(i) => { setEditorPanel("Captions"); seekEditor(project.captionCues[i]?.start??0); }}
+        onAdd={() => addInput.current?.click()}
+        onVoice={() => setEditorPanel("Voice")}
+        onMusic={() => setEditorPanel("Music")}
+        onSplit={splitMoment}
+        onDuplicate={(i)=>{void duplicateMoment(i);}}
+        onDelete={removeMemory}
+        onReplace={()=>replaceInput.current?.click()}
+        onPhotoSettings={()=>setEditorPanel("Memories")}
+        onCaptionChange={(i,text)=>patch({captionCues:project.captionCues.map((c,j)=>j===i?{...c,text}:c)})}
+        onCaptionTime={(i,start,end)=>patch({captionCues:project.captionCues.map((c,j)=>j===i?{...c,start:Math.max(0,Math.min(start,end-.1)),end:Math.min(editorDuration,Math.max(end,start+.1))}:c)})}
+      />
+
+      {(editorPanel === "Music" || editorPanel === "Captions" || editorPanel === "Style") && <div className="max-h-[32dvh] overflow-y-auto border-t border-border/60 bg-card/55 px-4 py-3 page-enter">
         {editorPanel === "Music" && <>
           <div className="mb-3 flex items-center justify-between"><div><p className="font-display text-2xl">Music</p><p className="mt-1 text-[10px] text-muted-foreground">Hear each mood, then play your Keep to hear it under your voice.</p></div><Button variant="bare" size="icon" aria-label="Close music" onClick={() => { stopMusicSample(); setMusicSampling(""); setEditorPanel(null); }}><X className="size-4" /></Button></div>
           <div className="thin-scroll flex gap-2 overflow-x-auto pb-2">
@@ -1177,31 +1204,6 @@ function KeepApp() {
           <div className="thin-scroll flex gap-2 overflow-x-auto pb-1">{styles.map((style) => <button key={style.name} type="button" onClick={() => patch({ visualStyle: style.name })} className={`w-24 shrink-0 overflow-hidden rounded-lg border text-left ${project.visualStyle === style.name ? "border-accent ring-1 ring-accent" : "border-border"}`}><div className="relative h-14 overflow-hidden"><MediaView item={selected} thumb alt={style.name} className={`h-full w-full object-cover editor-image-${styleSlug(style.name)}`} /></div><div className="p-2"><p className="text-[10px] font-medium">{style.name}</p></div></button>)}</div>
         </>}
       </div>}
-
-      <KeepTimeline
-        media={shown}
-        captions={project.captionCues}
-        duration={editorDuration}
-        time={editorTime}
-        selectedIndex={frame % Math.max(1,shown.length)}
-        voicePresent={!!rec && !rec.demo}
-        musicMood={project.musicMood}
-        onSeek={(t) => { setEditorPlaying(false); seekEditor(t); }}
-        onSelect={(i) => { setEditorPlaying(false); setFrame(i); }}
-        onMove={moveMemory}
-        onDuration={(i,seconds) => patch({ memories: shown.map((m,j)=>j===i?{...m,displayDurationSec:seconds}:m) })}
-        onCaption={(i) => { setEditorPanel("Captions"); seekEditor(project.captionCues[i]?.start??0); }}
-        onAdd={() => addInput.current?.click()}
-        onVoice={() => setEditorPanel("Voice")}
-        onMusic={() => setEditorPanel("Music")}
-        onSplit={splitMoment}
-        onDuplicate={(i)=>{void duplicateMoment(i);}}
-        onDelete={removeMemory}
-        onReplace={()=>replaceInput.current?.click()}
-        onPhotoSettings={()=>setEditorPanel("Memories")}
-        onCaptionChange={(i,text)=>patch({captionCues:project.captionCues.map((c,j)=>j===i?{...c,text}:c)})}
-        onCaptionTime={(i,start,end)=>patch({captionCues:project.captionCues.map((c,j)=>j===i?{...c,start:Math.max(0,Math.min(start,end-.1)),end:Math.min(editorDuration,Math.max(end,start+.1))}:c)})}
-      />
 
       {editorPanel === "Memories" && sheet("Moments", () => setEditorPanel(null), <div className="pb-2">
         <p className="mt-2 text-xs leading-5 text-muted-foreground">Choose the moments that bring your words to life. Reorder, replace, or add anything you want.</p>
