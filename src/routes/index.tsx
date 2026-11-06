@@ -1380,29 +1380,25 @@ function KeepApp() {
       onCreatorContinue={() => { setCreatorPreviewMode(null); setScreen("editor"); resetPageScroll(); }}
     />}
     {screen === "card" && <>{top()}<div className="px-7 pb-10 pt-7">{title("The final touch", "Give it somewhere to live.", "Your card opens this Keep with a tap. No app or login required.")}<div className="card-object relative mx-auto aspect-[1.586] w-full max-w-none overflow-hidden rounded-lg border border-foreground/10 p-7 text-white"><span className="brand absolute left-7 top-7 text-sm text-white">keep</span><div className="absolute left-7 top-[42%] flex -translate-y-1/2 flex-col items-start gap-1 text-left text-[11px] tracking-[.2em] text-white"><strong className="font-normal">{engraving[0]}</strong>{engraving[1] && <span>{engraving[1]}</span>}{engraving[2] && <span>{engraving[2]}</span>}</div></div><div className="mt-9 space-y-4">{["To / Title", "From (optional)", "Date (optional)"].map((label, i) => <label key={label} className="block"><span className="eyebrow">{label}</span><input aria-label={`Card ${label}`} maxLength={22} value={engraving[i] ?? ""} onChange={(e) => updateEngraving(i, e.target.value)} className="mt-2 w-full border-0 border-b border-border bg-transparent pb-3 text-sm tracking-widest outline-none focus:border-accent" /></label>)}</div><div className="mt-10">{nextButton("Continue to gift experience", () => engraving[0]?.trim() && go("success"), !engraving[0]?.trim())}</div><p className="mt-3 text-center text-[11px] text-muted-foreground">Only To / Title is required. Physical cards are coming next.</p></div></>}
-    {screen === "success" && <div className="min-h-dvh px-6 pb-12 pt-8">
+    {screen === "success" && <div className="min-h-dvh px-7 pb-12 pt-9">
       {top()}
-      <div className="pb-7 pt-8">
-        <h1 className="display text-[clamp(34px,9vw,48px)] leading-tight">Make it theirs.</h1>
-        <p className="mt-3 text-sm leading-6 text-muted-foreground">Tap the name or message below to edit it. This is the first screen they'll see when they tap their card.</p>
-      </div>
-      <div className="relative mx-auto flex aspect-[9/15] max-h-[570px] w-full max-w-[370px] flex-col justify-between overflow-hidden rounded-[24px] border border-white/15 bg-[#171717] p-6 text-center shadow-[0_20px_70px_rgba(0,0,0,.35)]">
-        {shown[0]?.url ? (shown[0].kind === "video" ? <video src={shown[0].url} muted playsInline autoPlay loop className="absolute inset-0 h-full w-full object-cover opacity-35"/> : <img src={shown[0].url} alt="" className="absolute inset-0 h-full w-full object-cover opacity-35"/>) : null}
-        <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-black/20 to-black/75"/>
-        <span className="brand relative z-10 pt-2 text-white">keep</span>
-        <div className="relative z-10 space-y-4">
-          <p className="text-[10px] uppercase tracking-[.24em] text-white/75">A KEEP FOR</p>
-          <input aria-label="Recipient title" value={project.recipientName} maxLength={70} onChange={e=>patch({recipientName:e.target.value})} placeholder="Recipient's name" className="display w-full border-b border-dashed border-white/35 bg-transparent px-2 pb-2 text-center text-[clamp(34px,9vw,48px)] text-white outline-none placeholder:text-white/50 focus:border-white"/>
-          <textarea aria-label="Welcome message" value={(recipientDesign??defaultRecipientDesign(project)).greeting} maxLength={100} rows={2} onChange={e=>setRecipientDesign(o=>({...defaultRecipientDesign(project),...o,greeting:e.target.value}))} placeholder="A little message for them…" className="mx-auto block w-full resize-none border-b border-dashed border-white/35 bg-transparent px-2 py-1 text-center font-display text-[23px] leading-tight text-white outline-none placeholder:text-white/60 focus:border-white"/>
-          <p className="text-xs text-white/75">from {(recipientDesign??defaultRecipientDesign(project)).from} · {(recipientDesign??defaultRecipientDesign(project)).year}</p>
+      <div className="pt-8">{title("","Make it theirs.","This is the first screen they'll see when they tap their card. Tap the words to edit them.")}</div>
+      <div className="relative mx-auto flex aspect-[9/15] max-h-[66dvh] w-full max-w-sm flex-col overflow-hidden rounded-xl border border-white/10 bg-[#181716] text-center text-white shadow-2xl">
+        {frames[0]?.url ? (frames[0].kind === "video"
+          ? <video src={frames[0].url} muted autoPlay loop playsInline className="absolute inset-0 h-full w-full object-cover opacity-50"/>
+          : <img src={frames[0].url} alt="" className="absolute inset-0 h-full w-full object-cover opacity-50"/>) : null}
+        <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-black/25 to-black/85"/>
+        <div className="relative z-10 pt-8"><span className="brand text-xl">keep</span></div>
+        <div className="relative z-10 flex flex-1 flex-col items-center justify-center px-7">
+          <p className="mb-5 text-[10px] uppercase tracking-[.3em] text-white/75">A KEEP FOR</p>
+          <input aria-label="Edit recipient title" value={project.recipientName} onChange={e=>patch({recipientName:e.target.value.slice(0,70)})} placeholder="Recipient's name" className="display w-full min-w-0 border-0 border-b border-dashed border-white/40 bg-transparent pb-2 text-center text-[clamp(36px,9vw,56px)] text-white outline-none placeholder:text-white/60 focus:border-white" />
+          <textarea aria-label="Edit opening message" rows={2} maxLength={100} value={(recipientDesign??defaultRecipientDesign(project)).greeting} onChange={e=>setRecipientDesign(o=>({...defaultRecipientDesign(project),...o,greeting:e.target.value}))} placeholder="Your short welcome message" className="mt-6 w-full resize-none border-0 border-b border-dashed border-white/40 bg-transparent px-2 py-1 text-center font-display text-[24px] leading-tight text-white outline-none placeholder:text-white/60 focus:border-white" />
+          <p className="mt-4 text-xs text-white/75">from {(recipientDesign??defaultRecipientDesign(project)).from} · {(recipientDesign??defaultRecipientDesign(project)).year}</p>
         </div>
-        <div className="relative z-10 space-y-4 pb-2"><VolumeX className="mx-auto size-4 text-white/80"/><div className="rounded-lg bg-white px-4 py-4 text-center text-sm font-medium text-black">Experience your Keep <ArrowRight className="ml-2 inline size-4"/></div></div>
+        <div className="relative z-10 px-7 pb-9"><div className="flex h-12 items-center justify-between rounded-lg bg-white px-5 text-sm text-black"><span>Experience your Keep</span><ArrowRight className="size-4"/></div></div>
       </div>
-      <p className="mx-auto mt-4 max-w-sm text-center text-xs leading-5 text-muted-foreground">Preview of the recipient's welcome screen. Their film, voice, and memories follow when they tap Experience your Keep.</p>
-      <div className="mx-auto mt-7 max-w-sm space-y-3">
-        <Button variant="keep" size="touch" className="w-full" disabled={publishing||!project.recipientName.trim()} onClick={()=>void saveAndLink()}>{publishing?"Saving your Keep…":"Save Keep & link a card"} <ArrowRight/></Button>
-        <Button variant="bare" size="touch" className="w-full text-muted-foreground" onClick={()=>{setCreatorPreviewMode(null);setScreen("recipientPreview");resetPageScroll();}}>See the full recipient experience <Play className="size-4"/></Button>
-      </div>
+      <p className="mt-4 text-center text-xs leading-5 text-muted-foreground">Only the name and short welcome message are editable here. The rest of the experience is already set.</p>
+      <Button variant="keep" size="touch" className="mt-7 w-full" disabled={publishing||!project.recipientName.trim()} onClick={()=>void saveAndLink()}>{publishing?"Saving your Keep…":"Save Keep & link a card"} <ArrowRight/></Button>
     </div>}
     {screen === "linkCard" && <div className="min-h-dvh px-7 pb-12 pt-9">{top()}
       <div className="pt-10">{title("","Link your physical card.","Give this Keep a permanent home on your black NFC card.")}</div>
