@@ -35,7 +35,7 @@ function fileRefs(project: KeepProject): string[] {
 function safeProject(project: KeepProject): KeepProject {
   return {
     ...project,
-    memories: project.memories.map(m=>({...m,url:""})),
+    memories: project.memories.map(m=>({...m,url:m.source==="text"?m.url:""})),
     interviewAnswers: project.interviewAnswers.map(a=>({...a,audioUrl:undefined})),
     finalVoiceRecording: project.finalVoiceRecording ? {...project.finalVoiceRecording,audioUrl:undefined}:null
   };
