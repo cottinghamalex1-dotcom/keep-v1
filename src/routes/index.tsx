@@ -1153,14 +1153,6 @@ function KeepApp() {
         onCaptionTime={(i,start,end)=>patch({captionCues:project.captionCues.map((c,j)=>j===i?{...c,start:Math.max(0,Math.min(start,end-.1)),end:Math.min(editorDuration,Math.max(end,start+.1))}:c)})}
       />
 
-      <div className="sticky bottom-0 z-40 border-t border-white/10 bg-[#101115]/95 pb-[max(10px,env(safe-area-inset-bottom))] pt-2 text-white backdrop-blur-xl">
-        <div className="thin-scroll flex items-center justify-around gap-1 overflow-x-auto px-2">
-          {(["Memories","Captions","Music","Voice","Style"] as Mode[]).map((tool) => {
-            const Icon = tool === "Memories" ? Images : tool === "Captions" ? MessageCircle : tool === "Music" ? Music2 : tool === "Voice" ? Mic : Settings2;
-            return <button key={tool} type="button" aria-pressed={editorPanel === tool} onClick={() => { stopMusicSample(); setMusicSampling(""); setEditorPanel((current) => current === tool ? null : tool); }} className={`flex min-w-[62px] flex-col items-center gap-1 rounded-lg px-3 py-2 text-[10px] ${editorPanel === tool ? "bg-white/15 text-white" : "text-white/70"}`}><Icon className="size-5"/>{tool === "Memories" ? "Clips" : tool}</button>;
-          })}
-        </div>
-      </div>
       {(editorPanel === "Music" || editorPanel === "Captions" || editorPanel === "Style") && <div className="border-t border-border/60 bg-card/95 px-4 py-4 page-enter">
         {editorPanel === "Music" && <>
           <div className="mb-3 flex items-center justify-between"><div><p className="font-display text-2xl">Music</p><p className="mt-1 text-[10px] text-muted-foreground">Hear each mood, then play your Keep to hear it under your voice.</p></div><Button variant="bare" size="icon" aria-label="Close music" onClick={() => { stopMusicSample(); setMusicSampling(""); setEditorPanel(null); }}><X className="size-4" /></Button></div>
@@ -1267,6 +1259,14 @@ function KeepApp() {
         </div>
       </div></div>}
 
+      <div className="sticky bottom-0 z-40 border-t border-white/10 bg-[#101115]/95 pb-[max(10px,env(safe-area-inset-bottom))] pt-2 text-white backdrop-blur-xl">
+        <div className="thin-scroll flex items-center justify-around gap-1 overflow-x-auto px-2">
+          {(["Memories","Captions","Music","Voice","Style"] as Mode[]).map((tool) => {
+            const Icon = tool === "Memories" ? Images : tool === "Captions" ? MessageCircle : tool === "Music" ? Music2 : tool === "Voice" ? Mic : Settings2;
+            return <button key={tool} type="button" aria-pressed={editorPanel === tool} onClick={() => { stopMusicSample(); setMusicSampling(""); setEditorPanel((current) => current === tool ? null : tool); }} className={`flex min-w-[62px] flex-col items-center gap-1 rounded-lg px-3 py-2 text-[10px] ${editorPanel === tool ? "bg-white/15 text-white" : "text-white/70"}`}><Icon className="size-5"/>{tool === "Memories" ? "Clips" : tool}</button>;
+          })}
+        </div>
+      </div>
       {previewChooserOpen && sheet("Preview your Keep", () => { setPreviewChooserOpen(false); setReadArrangeOpen(false); }, <div className="pb-2">
         <p className="mt-2 text-xs leading-5 text-muted-foreground">Choose how you want to check it. Previewing is optional — you can come back and make changes anytime.</p>
         <div className="mt-5 space-y-2">
