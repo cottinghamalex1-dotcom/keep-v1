@@ -168,6 +168,15 @@ function KeepApp() {
   const replaceInput = useRef<HTMLInputElement>(null);
   const dragFrom = useRef<number | null>(null);
   const patch = (p: Partial<KeepProject>) => setProject((o) => ({ ...o, ...p }));
+  const mix: AudioMix = { ...defaultAudioMix, ...project.audioMix };
+  const patchMix = (m: Partial<AudioMix>) => setProject((o) => ({ ...o, audioMix: { ...defaultAudioMix, ...o.audioMix, ...m } }));
+  // Editor undo/redo: snapshots of editable fields, committed after edits settle (350ms),
+  // so a slider drag becomes one undo step. Media blobs are never deleted while editing,
+  // so undoing a removal always restores a working photo/video.
+  const undoPast = useRef<EditSnapshot[]>([]);
+  const undoFuture = useRef<EditSnapshot[]>([]);
+  const undoLast = useRef<EditSnapshot | null>(null);
+  const [, setUndoVersion] = useState(0);
   const name = project.recipientName;
   const q = project.questionIndex;
 
@@ -766,7 +775,7 @@ function KeepApp() {
     if (!audio) return;
     let controller: ReturnType<typeof createKeepVoiceMix> = null;
     try {
-      controller = createKeepVoiceMix(audio, project.musicMood, project.voiceMusicBalance as MusicBalance, rec.durationSec, 0.8);
+      controller = createKeepVoiceMix(audio, project.musicMood, project.voiceMusicBalance as MusicBalance, rec.durationSec, 0.8, mix);
       editorMixRef.current = controller;
       controller?.setLevels(project.voiceVolume ?? 60, project.musicVolume ?? 60);
       if (controller) void controller.pause();
@@ -782,8 +791,9 @@ function KeepApp() {
 
   useEffect(() => {
     if (screen !== "editor" || !editorMixRef.current) return;
-    editorMixRef.current.restartMusic(project.musicMood, project.voiceMusicBalance as MusicBalance);
-  }, [screen, project.musicMood, project.voiceMusicBalance]);
+    editorMixRef.current.restartMusic(project.musicMood, project.voiceMusicBalance as MusicBalance, mix);
+  }, [screen, project.musicMood, project.voiceMusicBalance, mix.fadeIn, mix.fadeOut, mix.ducking]);
+  useEffect(() => { editorMixRef.current?.setTrackMutes(mix.voiceMuted, mix.musicMuted); }, [screen, mix.voiceMuted, mix.musicMuted]);
   useEffect(() => { editorMixRef.current?.setLevels(project.voiceVolume ?? 60, project.musicVolume ?? 60); }, [screen, project.voiceVolume, project.musicVolume]);
 
   useEffect(() => {
