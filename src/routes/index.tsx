@@ -896,7 +896,7 @@ function KeepApp() {
   const toCard = () => { if (!engraving[0]) patch({ cardEngraving: [(name || "Hanna").toUpperCase(), engraving[1] || "FROM ALEX", engraving[2] || "2026"] }); go("card"); };
   const totalSec = rec?.durationSec ?? 237;
 
-  const title = (eyebrow: string, heading: string, sub?: string) => <div className="mb-9 keep-page-heading">{eyebrow && <p className="eyebrow mb-4">{eyebrow}</p>}<h1 className="display text-[clamp(34px,8vw,46px)]">{heading}</h1>{sub && <p className="mt-4 max-w-[34ch] text-[13px] leading-6 text-muted-foreground">{sub}</p>}</div>;
+  const title = (eyebrow: string, heading: string, sub?: string) => <div className="mb-9 keep-page-heading"><h1 className="display text-[clamp(34px,8vw,46px)]">{heading}</h1>{sub && <p className="mt-4 max-w-[34ch] text-[13px] leading-6 text-muted-foreground">{sub}</p>}</div>;
   const top = (label?: string) => <header className="sticky top-0 z-30 flex h-[calc(4.25rem+env(safe-area-inset-top))] items-center justify-between border-b border-border/50 bg-background/95 px-6 pt-[env(safe-area-inset-top)] backdrop-blur-sm"><Button variant="bare" size="icon" aria-label="Go back" onClick={back}><ArrowLeft /></Button><span className="brand text-base">keep</span><span className="min-w-9 text-right text-[10px] tracking-widest text-muted-foreground">{label}</span></header>;
   const nextButton = (label: string, action: () => void, disabled = false) => <Button variant="keep" size="touch" className="w-full justify-between" onClick={action} disabled={disabled}>{label}<ArrowRight /></Button>;
   const wave = (count = 27, active = true) => <div className="flex h-12 items-center justify-center gap-[3px]" aria-hidden="true">{Array.from({ length: count }, (_, i) => <span key={i} className={`${active ? "wave-bar" : "opacity-40"} w-[2px] rounded-full bg-accent`} style={{ height: `${10 + ((i * 17) % 34)}px`, animationDelay: `${-(i % 7) * 0.13}s` }} />)}</div>;
@@ -1055,7 +1055,7 @@ function KeepApp() {
     {screen === "recorded" && <>{top()}<div className="relative flex keep-min-screen-minus-90 flex-col overflow-hidden px-7 pb-[max(36px,env(safe-area-inset-bottom))] pt-8">
       <div className="pointer-events-none absolute left-1/2 top-[31%] h-80 w-80 -translate-x-1/2 rounded-full bg-accent/[0.07] blur-3xl" />
       <div className="relative z-10 text-center">
-        <p className="eyebrow">A VOICE WORTH KEEPING</p>
+        
         <h1 className="display mx-auto mt-5 max-w-sm text-[clamp(50px,13vw,68px)] leading-[0.96]">Your voice is ready.</h1>
         <p className="mx-auto mt-5 max-w-xs text-sm leading-6 text-muted-foreground">Not polished. Not performed. Just you — exactly how they should hear it.</p>
       </div>
@@ -1138,7 +1138,7 @@ function KeepApp() {
       </div>
       <div className="mt-10">{nextButton("Create My Keep", createStory)}</div>
     </div></>}
-    {screen === "generating" && <div className="flex keep-h-screen flex-col items-center justify-center px-8 text-center"><div className="relative mb-14 flex size-30 items-center justify-center"><div className="pulse-ring absolute inset-0 rounded-full border border-accent" /><Sparkles className="size-8 text-accent" /></div><div className="eyebrow mb-5">MAKING SOMETHING THAT LASTS</div><h1 key={generation} className="display min-h-32 text-5xl page-enter">{["Listening to your story…", "Finding the moments that fit…", "Building your Keep…", "Almost there…"][generation]}</h1><p className="mt-8 text-xs text-muted-foreground">MVP preview · memories are arranged in the order you added them</p></div>}
+    {screen === "generating" && <div className="flex keep-h-screen flex-col items-center justify-center px-8 text-center"><div className="relative mb-14 flex size-30 items-center justify-center"><div className="pulse-ring absolute inset-0 rounded-full border border-accent" /><Sparkles className="size-8 text-accent" /></div><h1 key={generation} className="display min-h-32 text-5xl page-enter">{["Listening to your story…", "Finding the moments that fit…", "Building your Keep…", "Almost there…"][generation]}</h1><p className="mt-8 text-xs text-muted-foreground">MVP preview · memories are arranged in the order you added them</p></div>}
     {screen === "editor" && selected && <div className="relative flex min-h-[100dvh] w-full flex-col overflow-x-hidden bg-background pb-[max(16px,env(safe-area-inset-bottom))]">
       <div className="flex items-center justify-between px-5 pt-[max(14px,env(safe-area-inset-top))]">
         <Button variant="bare" size="icon" aria-label="Back" onClick={back}><ArrowLeft /></Button>
