@@ -77,7 +77,7 @@ function KeepDashboard() {
   const secondary = "rounded-xl border border-white/15 bg-white/5 px-4 py-3 text-sm";
   if (!ready) return <main className="min-h-dvh bg-[#111111]" />;
   return <main className="min-h-dvh bg-[#111111] text-[#F6F3ED]"><div className="mx-auto min-h-dvh max-w-[540px] px-6 pb-28 pt-9">
-    <header className="mb-12 flex items-center justify-between border-b border-border/50 pb-6"><span className="font-display text-[28px] tracking-tight">keep.</span><span className="text-[10px] uppercase tracking-[.24em] text-white/50">MEMORIES, KEPT.</span></header>
+    <header className="mb-12 flex items-center justify-between border-b border-border/50 pb-6"><span className="font-display text-[28px] tracking-tight">keep</span></header>
     {!session ? <section className="mx-auto max-w-sm pt-12">
       <div className="mb-5 flex h-14 w-14 items-center justify-center rounded-xl border border-[#C6B49A]/30"><LockKeyhole className="text-[#C6B49A]" /></div>
       <h1 className="font-display text-[31px] leading-tight">{register ? "Make something meaningful." : "Welcome back"}</h1>
