@@ -195,7 +195,7 @@ export function KeepRecipientExperience({
 
   if (stage === "experience" && experience === "listen") {
     return <main className="app-shell"><div className="flex keep-min-screen flex-col px-7 pb-[max(38px,env(safe-area-inset-bottom))] pt-[max(32px,env(safe-area-inset-top))]">
-      <div className="flex items-center justify-between"><Button variant="bare" size="icon" aria-label="Back" onClick={backToChoose}><ArrowLeft /></Button><span className="brand text-base">keep.</span><span className="size-10" /></div>
+      <div className="flex items-center justify-between"><Button variant="bare" size="icon" aria-label="Back" onClick={backToChoose}><ArrowLeft /></Button><span className="brand text-base">keep</span><span className="size-10" /></div>
       <div className="flex flex-1 flex-col items-center justify-center text-center">
         <div className="mb-10 flex size-16 items-center justify-center rounded-full border border-border"><Headphones className="size-6 text-accent" /></div>
         <p className="eyebrow mb-5">A KEEP FOR</p><h1 className="display text-[clamp(38px,10vw,52px)]">{name}</h1><p className="mt-5 text-sm text-muted-foreground">from {from} · {year}</p>
@@ -209,7 +209,7 @@ export function KeepRecipientExperience({
 
   if (stage === "experience" && experience === "read") {
     return <main className="app-shell"><div className="keep-min-screen pb-20">
-      <div className="sticky top-0 z-20 flex items-center justify-between border-b border-border bg-background/95 px-5 py-4 backdrop-blur-xl"><Button variant="bare" size="icon" aria-label="Back" onClick={backToChoose}><ArrowLeft /></Button><span className="brand text-base">keep.</span><span className="size-10" /></div>
+      <div className="sticky top-0 z-20 flex items-center justify-between border-b border-border bg-background/95 px-5 py-4 backdrop-blur-xl"><Button variant="bare" size="icon" aria-label="Back" onClick={backToChoose}><ArrowLeft /></Button><span className="brand text-base">keep</span><span className="size-10" /></div>
       <article className="px-7 pb-10 pt-14">
         <p className="eyebrow">A KEEP FOR</p><h1 className="display mt-4 text-[clamp(38px,10vw,52px)]">{name}</h1><p className="mt-4 text-sm text-muted-foreground">from {from} · {year}</p>
         <div className="mt-14 space-y-10">{paragraphs.map((paragraph, i) => <div key={i}><p className="font-display text-[22px] leading-[1.55]">{paragraph}</p>{readItems[i] && i < 4 && <figure className="mt-9 overflow-hidden rounded-sm">{readItems[i]!.kind === "video" ? <video src={readItems[i]!.url} controls playsInline className="aspect-[4/3] w-full object-cover" /> : <img src={readItems[i]!.url} alt="A memory from this Keep" className="aspect-[4/3] w-full object-cover" />}</figure>}</div>)}</div>
@@ -220,14 +220,14 @@ export function KeepRecipientExperience({
 
   if (stage === "ending") {
     return <main className="app-shell"><div className="flex keep-min-screen flex-col items-center justify-center px-7 text-center">
-      <span className="brand mb-20">keep.</span><h1 className="display text-[clamp(37px,9vw,49px)]">SOME THINGS ARE<br />WORTH KEEPING.</h1><p className="mt-7 max-w-64 text-sm leading-6 text-muted-foreground">This one is yours. Come back whenever you want to experience it again.</p>
+      <span className="brand mb-20">keep</span><h1 className="display text-[clamp(37px,9vw,49px)]">SOME THINGS ARE<br />WORTH KEEPING.</h1><p className="mt-7 max-w-64 text-sm leading-6 text-muted-foreground">This one is yours. Come back whenever you want to experience it again.</p>
       <div className="mt-14 w-full space-y-3"><Button variant="keep" size="touch" className="w-full" onClick={() => setStage("choose")}><RotateCcw /> Experience it again</Button>{creatorPreview ? <Button variant="quiet" size="touch" className="w-full" onClick={onCreatorExit ?? onCreatorContinue}>Back to editor <ArrowRight /></Button> : null}</div>
     </div></main>;
   }
 
   if (stage === "choose") {
     return <main className="app-shell"><div className="flex keep-min-screen flex-col px-7 pb-[max(38px,env(safe-area-inset-bottom))] pt-[max(38px,env(safe-area-inset-top))]">
-      <span className="brand">keep.</span><div className="flex flex-1 flex-col justify-center py-12">
+      <span className="brand">keep</span><div className="flex flex-1 flex-col justify-center py-12">
         <p className="eyebrow">{visited && !creatorPreview ? "WELCOME BACK" : "A KEEP FOR"}</p><h1 className="display mt-5 text-[clamp(38px,10vw,52px)]">{name}</h1><p className="mt-4 text-sm text-muted-foreground">from {from} · {year}</p>
         <p className="mt-10 max-w-sm font-display text-[26px] leading-tight">{visited && !creatorPreview ? "How would you like to experience it?" : "How would you like to experience it?"}</p>
         <div className="mt-8 space-y-3">
@@ -239,5 +239,5 @@ export function KeepRecipientExperience({
     </div></main>;
   }
 
-  return <main className="app-shell"><div className="relative flex keep-h-screen min-h-0 flex-col overflow-hidden">{items[0] ? (items[0].kind === "video" ? <video src={items[0].url} autoPlay muted loop playsInline className="absolute inset-0 h-full w-full object-cover opacity-35" /> : <img src={items[0].url} alt="A memory from this Keep" className="absolute inset-0 h-full w-full object-cover opacity-35" />) : <div className="absolute inset-0 bg-card" />}<div className="absolute inset-0 photo-shade" /><div className="relative z-10 flex h-full flex-col items-center justify-between px-7 pb-[max(45px,env(safe-area-inset-bottom))] pt-[max(38px,env(safe-area-inset-top))] text-center"><span className="brand">keep.</span><div><p className="eyebrow mb-7 text-foreground">A KEEP FOR</p><h1 className="display text-[clamp(42px,11vw,58px)]">{name}</h1><p className="mt-7 font-display text-[27px]">Made just for you.</p><p className="mt-5 text-sm text-foreground/75">from {from} · {year}</p></div><div className="w-full"><Volume2 className="mx-auto mb-6 size-5 text-accent" /><Button variant="keep" size="touch" className="w-full justify-between" onClick={enter}>Experience your Keep <ArrowRight /></Button></div></div></div></main>;
+  return <main className="app-shell"><div className="relative flex keep-h-screen min-h-0 flex-col overflow-hidden">{items[0] ? (items[0].kind === "video" ? <video src={items[0].url} autoPlay muted loop playsInline className="absolute inset-0 h-full w-full object-cover opacity-35" /> : <img src={items[0].url} alt="A memory from this Keep" className="absolute inset-0 h-full w-full object-cover opacity-35" />) : <div className="absolute inset-0 bg-card" />}<div className="absolute inset-0 photo-shade" /><div className="relative z-10 flex h-full flex-col items-center justify-between px-7 pb-[max(45px,env(safe-area-inset-bottom))] pt-[max(38px,env(safe-area-inset-top))] text-center"><span className="brand">keep</span><div><p className="eyebrow mb-7 text-foreground">A KEEP FOR</p><h1 className="display text-[clamp(42px,11vw,58px)]">{name}</h1><p className="mt-7 font-display text-[27px]">Made just for you.</p><p className="mt-5 text-sm text-foreground/75">from {from} · {year}</p></div><div className="w-full"><Volume2 className="mx-auto mb-6 size-5 text-accent" /><Button variant="keep" size="touch" className="w-full justify-between" onClick={enter}>Experience your Keep <ArrowRight /></Button></div></div></div></main>;
 }
