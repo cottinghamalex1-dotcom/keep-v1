@@ -1102,9 +1102,9 @@ function KeepApp() {
       </div>
 
       {rec?.audioUrl && !rec.demo && <audio ref={editorAudioRef} src={rec.audioUrl} preload="metadata" onTimeUpdate={(e) => { const time = e.currentTarget.currentTime; setEditorTime(time); setFrame(editorSceneAt(time)); }} onEnded={() => { if (editorDuration <= (rec?.durationSec ?? 0) + 0.1) { setEditorPlaying(false); setEditorTime(editorDuration); } }} />}
-      <div className="sticky top-[max(58px,env(safe-area-inset-top))] z-30 flex w-full shrink-0 items-center justify-center gap-3 border-b border-border/30 bg-background/95 px-3 py-2 backdrop-blur">
+      <div className="flex w-full shrink-0 items-center justify-center gap-3 bg-background px-3 py-2">
         <div className="flex min-w-0 items-center justify-center gap-2">
-          <div className="relative aspect-[9/16] h-[clamp(320px,64dvh,740px)] max-w-[calc(100vw-32px)] shrink-0 overflow-hidden rounded-[20px] border border-foreground/15 bg-card shadow-lg">
+          <div className="relative aspect-[9/16] h-[clamp(330px,56dvh,650px)] max-w-[calc(100vw-32px)] shrink-0 overflow-hidden rounded-[20px] border border-foreground/15 bg-card shadow-lg">
             <CinematicMedia item={selected} playing={editorPlaying} duration={Math.max(5, selected.displayDurationSec ?? 7)} className="absolute inset-0" imageClassName={`editor-image-${styleSlug(project.visualStyle)}`} />
             <div className="absolute inset-0 photo-shade" />
             {editorPanel === "Memories" && <div className="absolute inset-x-0 top-0 bottom-14 z-20 cursor-grab touch-none active:cursor-grabbing" aria-label="Drag photo to reposition" onPointerDown={(e) => { e.currentTarget.setPointerCapture(e.pointerId); const r = e.currentTarget.getBoundingClientRect(); photoDrag.current = { x: e.clientX, y: e.clientY, focusX: selected.focusX ?? 50, focusY: selected.focusY ?? 50, width: r.width, height: r.height }; setEditorPlaying(false); }} onPointerMove={(e) => { const d = photoDrag.current; if (!d) return; updateSelectedMoment({ focusX: Math.max(0, Math.min(100, d.focusX - (e.clientX - d.x) / d.width * 100)), focusY: Math.max(0, Math.min(100, d.focusY - (e.clientY - d.y) / d.height * 100)) }); }} onPointerUp={() => { photoDrag.current = null; }} onPointerCancel={() => { photoDrag.current = null; }}><span className="absolute left-1/2 top-3 -translate-x-1/2 whitespace-nowrap rounded-full bg-black/65 px-3 py-1 text-[10px] text-white">Drag photo to reposition</span></div>}
@@ -1126,10 +1126,8 @@ function KeepApp() {
       </div>
 
       {!rec?.demo && rec?.audioUrl && project.captionStyle !== "None" && !project.captionCues.length && <div className="border-t border-border/60 bg-card/70 px-5 py-3 text-xs"><div className="flex items-center justify-between gap-3"><span>{captionSyncing ? "Syncing captions to your recording…" : captionSyncError ? "Captions did not sync. Your recording is safe." : "Captions are not ready yet."}</span>{!captionSyncing && <Button variant="quiet" size="sm" onClick={() => void retryCaptionSync()}><RotateCcw className="size-3" /> Retry captions</Button>}</div></div>}
-      <div className="thin-scroll flex shrink-0 gap-2 overflow-x-auto border-t border-border/40 px-4 py-3">
-        {(["Memories","Captions","Music","Voice","Style"] as Mode[]).map((tool) => <button key={tool} type="button" aria-pressed={editorPanel === tool} onClick={() => { stopMusicSample(); setMusicSampling(""); setEditorPanel((current) => current === tool ? null : tool); }} className={`shrink-0 rounded-full border px-4 py-2 text-xs transition-colors ${editorPanel === tool ? "border-accent bg-accent/15 text-accent" : "border-border text-muted-foreground"}`}>{tool === "Memories" ? "Clips" : tool}</button>)}
-      </div>
-      <div className="px-4 pt-3"><p className="text-xs font-medium">Timeline</p><p className="mt-1 text-[11px] text-muted-foreground">Scroll down to edit. Tap a clip, caption, voice or music bar to work directly below the preview.</p></div>
+
+
       <KeepTimeline
         media={shown}
         captions={project.captionCues}
@@ -1155,7 +1153,15 @@ function KeepApp() {
         onCaptionTime={(i,start,end)=>patch({captionCues:project.captionCues.map((c,j)=>j===i?{...c,start:Math.max(0,Math.min(start,end-.1)),end:Math.min(editorDuration,Math.max(end,start+.1))}:c)})}
       />
 
-      {(editorPanel === "Music" || editorPanel === "Captions" || editorPanel === "Style") && <div className="border-t border-border/60 bg-card/55 px-4 py-4 page-enter">
+      <div className="sticky bottom-0 z-40 border-t border-white/10 bg-[#101115]/95 pb-[max(10px,env(safe-area-inset-bottom))] pt-2 text-white backdrop-blur-xl">
+        <div className="thin-scroll flex items-center justify-around gap-1 overflow-x-auto px-2">
+          {(["Memories","Captions","Music","Voice","Style"] as Mode[]).map((tool) => {
+            const Icon = tool === "Memories" ? Images : tool === "Captions" ? MessageCircle : tool === "Music" ? Music2 : tool === "Voice" ? Mic : Settings2;
+            return <button key={tool} type="button" aria-pressed={editorPanel === tool} onClick={() => { stopMusicSample(); setMusicSampling(""); setEditorPanel((current) => current === tool ? null : tool); }} className={`flex min-w-[62px] flex-col items-center gap-1 rounded-lg px-3 py-2 text-[10px] ${editorPanel === tool ? "bg-white/15 text-white" : "text-white/70"}`}><Icon className="size-5"/>{tool === "Memories" ? "Clips" : tool}</button>;
+          })}
+        </div>
+      </div>
+      {(editorPanel === "Music" || editorPanel === "Captions" || editorPanel === "Style") && <div className="border-t border-border/60 bg-card/95 px-4 py-4 page-enter">
         {editorPanel === "Music" && <>
           <div className="mb-3 flex items-center justify-between"><div><p className="font-display text-2xl">Music</p><p className="mt-1 text-[10px] text-muted-foreground">Hear each mood, then play your Keep to hear it under your voice.</p></div><Button variant="bare" size="icon" aria-label="Close music" onClick={() => { stopMusicSample(); setMusicSampling(""); setEditorPanel(null); }}><X className="size-4" /></Button></div>
           <div className="thin-scroll flex gap-2 overflow-x-auto pb-2">
