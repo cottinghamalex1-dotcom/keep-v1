@@ -47,8 +47,8 @@
 }
 
 * { box-sizing: border-box; border-color: var(--border); }
-html { min-height: 100%; background: var(--background); }
-body { min-height: 100svh; min-height: 100dvh; margin: 0; background: var(--background); color: var(--foreground); font-family: var(--font-sans); overscroll-behavior-y: none; }
+html { min-height: 100%; width: 100%; max-width: 100%; overflow-x: clip; background: var(--background); }
+body { width: 100%; max-width: 100%; overflow-x: clip; min-height: 100svh; min-height: 100dvh; margin: 0; background: var(--background); color: var(--foreground); font-family: var(--font-sans); overscroll-behavior-y: none; }
 button, input, textarea { font: inherit; }
 button { -webkit-tap-highlight-color: transparent; }
 ::selection { background: var(--accent); color: var(--accent-foreground); }
@@ -134,3 +134,4 @@ button { transition: background-color .18s ease, border-color .18s ease, color .
 .app-shell :is(.rounded-2xl,.rounded-xl) { border-radius: 10px; }
 .app-shell .eyebrow { color: var(--muted-foreground); }
 @media (max-width: 420px) { .app-shell .display { letter-spacing: -.025em; } }
+\n/* Prevent mobile Safari from auto-magnifying creation form fields on focus. */\n@media (max-width: 767px) { input:not([type="checkbox"]):not([type="radio"]), textarea, select { font-size: 16px; } }\n
