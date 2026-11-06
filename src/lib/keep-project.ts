@@ -4,7 +4,7 @@ import { getBlob } from "./keep-media-store";
 export type MediaItem = {
   id: string;
   kind: "image" | "video";
-  source: "upload" | "sample";
+  source: "upload" | "sample" | "text";
   url: string; // object URL (uploads) or bundled asset (samples) — never persisted for uploads
   name?: string | undefined;
   mimeType?: string | undefined;
@@ -60,6 +60,7 @@ export type KeepProject = {
   captionWordsPerCue?: number;
   captionLines?: number;
   captionPosition?: "top" | "middle" | "bottom";
+  creationStyle?: "memories" | "words";
   memories: MediaItem[];
   readMemoryOrder: string[];
   musicMood: string;
@@ -85,7 +86,7 @@ export const sampleMemories = (): MediaItem[] =>
 export function newProject(): KeepProject {
   return {
     active: false, stage: "recipient", recipientName: "", relationship: "", occasion: "Anniversary", intent: "", questionIndex: 0, interviewQuestion: "", interviewSummary: "",
-    interviewAnswers: [], messageSource: null, writtenText: "", messageParagraphs: [], finalVoiceRecording: null, captionTranscript: "", captionCues: [], captionWords: [], captionWordsPerCue: 5, captionLines: 2, captionPosition: "bottom", memories: [], readMemoryOrder: [],
+    interviewAnswers: [], messageSource: null, writtenText: "", messageParagraphs: [], finalVoiceRecording: null, captionTranscript: "", captionCues: [], captionWords: [], captionWordsPerCue: 5, captionLines: 2, captionPosition: "bottom", creationStyle: "memories", memories: [], readMemoryOrder: [],
     musicMood: "Warm + Nostalgic", voiceMusicBalance: "Balanced", musicMix: 50, voiceVolume: 60, musicVolume: 60, audioMixVersion: 2, captionStyle: "Reel", visualStyle: "Natural", cardEngraving: ["", "FROM ALEX", "2026"],
   };
 }
@@ -101,7 +102,7 @@ export function saveDraft(p: KeepProject) {
     if (!p.active) { localStorage.removeItem(DRAFT_KEY); return; }
     const lite: KeepProject = {
       ...p,
-      memories: p.memories.filter((m) => m.source === "sample" || m.persisted).map((m) => ({ ...m, url: "" })),
+      memories: p.memories.filter((m) => m.source === "sample" || m.source === "text" || m.persisted).map((m) => ({ ...m, url: m.source === "text" ? m.url : "" })),
       interviewAnswers: p.interviewAnswers.map(({ audioUrl: _a, ...a }) => a),
       finalVoiceRecording: p.finalVoiceRecording ? { ...p.finalVoiceRecording, audioUrl: undefined } : null,
     };
@@ -141,7 +142,7 @@ const blobUrl = async (id?: string) => {
 export async function hydrateDraftMedia(p: KeepProject) {
   const memories: MediaItem[] = [];
   for (const m of p.memories) {
-    if (m.source === "sample") { memories.push(m); continue; }
+    if (m.source === "sample" || m.source === "text") { memories.push(m); continue; }
     const url = await blobUrl(m.id);
     if (url) memories.push({ ...m, url });
   }
