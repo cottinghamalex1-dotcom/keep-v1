@@ -25,8 +25,9 @@ type Props = {
   voiceMusicBalance?: string | undefined;
   voiceVolume?: number | undefined;
   musicVolume?: number | undefined;
-  captionPosition?: "top" | "middle" | "bottom";
-  captionLines?: number;
+  captionPosition?: "top" | "middle" | "bottom" | undefined;
+  captionLines?: number | undefined;
+  audioMix?: AudioMix | undefined;
   persistVisit?: boolean;
   creatorPreview?: boolean;
   initialExperience?: KeepExperienceMode | undefined;

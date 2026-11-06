@@ -71,7 +71,7 @@ export async function loadCloudDraft(session:KeepSession):Promise<KeepProject|nu
   const res=await request("/rest/v1/keep_drafts?select=project&owner_id=eq."+encodeURIComponent(session.user.id)+"&limit=1",session);
   const rows=await res.json() as {project:Partial<KeepProject>}[];
   if (!rows.length) return null;
-  const p:KeepProject={...newProject(),...rows[0].project};
+  const p:KeepProject={...newProject(),...rows[0]!.project};
   const memories=[];
   for(const m of p.memories) {
     if(m.source==="sample") { memories.push({...m,url:memoryImages[m.sampleIndex??0]??""}); continue; }

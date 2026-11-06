@@ -11,7 +11,16 @@ export type MediaItem = {
   sampleIndex?: number | undefined;
   persisted?: boolean | undefined; // blob saved in IndexedDB
   displayDurationSec?: number | undefined; // how long this moment stays on screen in watch mode
+  focusX?: number | undefined;
+  focusY?: number | undefined;
+  zoom?: number | undefined;
+  motion?: "in" | "out" | "left" | "right" | undefined;
+  transition?: "fade" | "dissolve" | "cut" | undefined;
 };
+
+/** Per-track audio settings. Optional on KeepProject so older saved drafts load unchanged. */
+export type AudioMix = { voiceMuted: boolean; musicMuted: boolean; fadeIn: number; fadeOut: number; ducking: boolean };
+export const defaultAudioMix: AudioMix = { voiceMuted: false, musicMuted: false, fadeIn: 2.5, fadeOut: 3, ducking: true };
 
 /** One interview answer. A future transcription/AI service consumes the audio blob
  *  (looked up by audioId) plus all prior answers as conversation context. */
@@ -59,6 +68,7 @@ export type KeepProject = {
   voiceVolume?: number;
   musicVolume?: number;
   audioMixVersion?: number;
+  audioMix?: AudioMix | undefined;
   captionStyle: string;
   visualStyle: string;
   cardEngraving: string[];
