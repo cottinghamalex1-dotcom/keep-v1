@@ -1090,8 +1090,8 @@ function KeepApp() {
     </div></>}
     {screen === "memories" && <>{top()}<div className="px-7 pb-10 pt-9">{title("The moments in between", "Bring your words to life.", "Add photos & videos that belong to your Keep.")}{frames.length === 0 ? <div className="mt-10"><div className="grid h-72 grid-cols-3 gap-1 overflow-hidden opacity-60"><img className="col-span-2 h-full w-full object-cover" src={memoryImages[2]} alt="Travel memory placeholder" /><div className="flex flex-col gap-1"><img className="h-1/2 w-full object-cover" src={memoryImages[1]} alt="Wedding memory placeholder" /><img className="h-1/2 w-full object-cover" src={memoryImages[3]} alt="Family memory placeholder" /></div></div><Button variant="keep" size="touch" className="mt-8 w-full" disabled={busy} onClick={() => addInput.current?.click()}><Images /> {busy ? "Adding…" : "Choose Photos & Videos"}</Button><Button variant="bare" size="sm" className="mt-3 w-full text-muted-foreground" onClick={() => patch({ memories: sampleMemories() })}>Use sample memories</Button>{note("Your photos and videos stay on this device.")}</div> : <div className="page-enter"><div className="grid grid-cols-3 gap-1">{frames.map((m, i) => <div key={m.id} className="relative aspect-square overflow-hidden bg-card"><MediaView item={m} thumb alt={m.name ?? `Memory ${i + 1}`} className="h-full w-full object-cover" />{m.kind === "video" && <Play className="absolute bottom-1.5 left-1.5 size-3.5" fill="currentColor" />}<button type="button" aria-label={`Remove memory ${i + 1}`} onClick={() => removeMemory(i)} className="absolute top-1 right-1 flex size-7 items-center justify-center rounded-full bg-background/70 text-foreground"><X className="size-3.5" /></button></div>)}<button type="button" onClick={() => addInput.current?.click()} disabled={busy} className="flex aspect-square flex-col items-center justify-center gap-1 border border-border text-xs text-muted-foreground"><Plus className="size-4" />{busy ? "Adding…" : "Add more"}</button></div><p className="mt-5 text-center text-sm">{frames.length} {frames.length === 1 ? "memory" : "memories"} added <Check className="ml-1 inline size-4 text-accent" /></p><div className="mt-10">{nextButton("Create My Keep", () => { setGeneration(0); setFrame(0); go("generating"); })}</div><div className="mt-4">{note(frames.some((m) => m.source === "upload" && !m.persisted) ? "Some media couldn't be saved on this device and will be cleared on refresh." : "Saved on this device only.")}</div></div>}</div></>}
     {screen === "generating" && <div className="flex keep-h-screen flex-col items-center justify-center px-8 text-center"><div className="relative mb-14 flex size-30 items-center justify-center"><div className="pulse-ring absolute inset-0 rounded-full border border-accent" /><Sparkles className="size-8 text-accent" /></div><div className="eyebrow mb-5">MAKING SOMETHING THAT LASTS</div><h1 key={generation} className="display min-h-32 text-5xl page-enter">{["Listening to your story…", "Finding the moments that fit…", "Building your Keep…", "Almost there…"][generation]}</h1><p className="mt-8 text-xs text-muted-foreground">MVP preview · memories are arranged in the order you added them</p></div>}
-    {screen === "editor" && selected && <div className="relative flex min-h-[100dvh] w-full flex-col overflow-x-hidden bg-background pb-[max(16px,env(safe-area-inset-bottom))]">
-      <div className="flex items-center justify-between px-5 pt-[max(14px,env(safe-area-inset-top))]">
+    {screen === "editor" && selected && <div className="relative flex min-h-[100dvh] w-full flex-col overflow-x-hidden bg-background pb-[max(28px,env(safe-area-inset-bottom))]">
+      <div className="sticky top-0 z-40 flex items-center justify-between border-b border-border/40 bg-background/95 px-5 pb-2 pt-[max(14px,env(safe-area-inset-top))] backdrop-blur">
         <Button variant="bare" size="icon" aria-label="Back" onClick={back}><ArrowLeft /></Button>
         <div className="flex items-center gap-1">
           <Button variant="bare" size="icon" aria-label="Undo" disabled={!undoPast.current.length} onClick={() => stepHistory("undo")}><Undo2 className="size-4" /></Button>
@@ -1102,9 +1102,9 @@ function KeepApp() {
       </div>
 
       {rec?.audioUrl && !rec.demo && <audio ref={editorAudioRef} src={rec.audioUrl} preload="metadata" onTimeUpdate={(e) => { const time = e.currentTarget.currentTime; setEditorTime(time); setFrame(editorSceneAt(time)); }} onEnded={() => { if (editorDuration <= (rec?.durationSec ?? 0) + 0.1) { setEditorPlaying(false); setEditorTime(editorDuration); } }} />}
-      <div className="relative flex w-full shrink-0 items-center justify-center gap-3 px-3 py-3">
+      <div className="sticky top-[max(58px,env(safe-area-inset-top))] z-30 flex w-full shrink-0 items-center justify-center gap-3 border-b border-border/30 bg-background/95 px-3 py-2 backdrop-blur">
         <div className="flex min-w-0 items-center justify-center gap-2">
-          <div className="relative aspect-[9/16] h-[clamp(210px,34dvh,320px)] max-w-[calc(100vw-32px)] shrink-0 overflow-hidden rounded-[20px] border border-foreground/15 bg-card shadow-lg">
+          <div className="relative aspect-[9/16] h-[clamp(320px,64dvh,740px)] max-w-[calc(100vw-32px)] shrink-0 overflow-hidden rounded-[20px] border border-foreground/15 bg-card shadow-lg">
             <CinematicMedia item={selected} playing={editorPlaying} duration={Math.max(5, selected.displayDurationSec ?? 7)} className="absolute inset-0" imageClassName={`editor-image-${styleSlug(project.visualStyle)}`} />
             <div className="absolute inset-0 photo-shade" />
             {editorPanel === "Memories" && <div className="absolute inset-x-0 top-0 bottom-14 z-20 cursor-grab touch-none active:cursor-grabbing" aria-label="Drag photo to reposition" onPointerDown={(e) => { e.currentTarget.setPointerCapture(e.pointerId); const r = e.currentTarget.getBoundingClientRect(); photoDrag.current = { x: e.clientX, y: e.clientY, focusX: selected.focusX ?? 50, focusY: selected.focusY ?? 50, width: r.width, height: r.height }; setEditorPlaying(false); }} onPointerMove={(e) => { const d = photoDrag.current; if (!d) return; updateSelectedMoment({ focusX: Math.max(0, Math.min(100, d.focusX - (e.clientX - d.x) / d.width * 100)), focusY: Math.max(0, Math.min(100, d.focusY - (e.clientY - d.y) / d.height * 100)) }); }} onPointerUp={() => { photoDrag.current = null; }} onPointerCancel={() => { photoDrag.current = null; }}><span className="absolute left-1/2 top-3 -translate-x-1/2 whitespace-nowrap rounded-full bg-black/65 px-3 py-1 text-[10px] text-white">Drag photo to reposition</span></div>}
@@ -1126,9 +1126,10 @@ function KeepApp() {
       </div>
 
       {!rec?.demo && rec?.audioUrl && project.captionStyle !== "None" && !project.captionCues.length && <div className="border-t border-border/60 bg-card/70 px-5 py-3 text-xs"><div className="flex items-center justify-between gap-3"><span>{captionSyncing ? "Syncing captions to your recording…" : captionSyncError ? "Captions did not sync. Your recording is safe." : "Captions are not ready yet."}</span>{!captionSyncing && <Button variant="quiet" size="sm" onClick={() => void retryCaptionSync()}><RotateCcw className="size-3" /> Retry captions</Button>}</div></div>}
-      <div className="thin-scroll flex shrink-0 gap-2 overflow-x-auto border-t border-border/40 px-4 py-2">
+      <div className="thin-scroll flex shrink-0 gap-2 overflow-x-auto border-t border-border/40 px-4 py-3">
         {(["Memories","Captions","Music","Voice","Style"] as Mode[]).map((tool) => <button key={tool} type="button" aria-pressed={editorPanel === tool} onClick={() => { stopMusicSample(); setMusicSampling(""); setEditorPanel((current) => current === tool ? null : tool); }} className={`shrink-0 rounded-full border px-4 py-2 text-xs transition-colors ${editorPanel === tool ? "border-accent bg-accent/15 text-accent" : "border-border text-muted-foreground"}`}>{tool === "Memories" ? "Clips" : tool}</button>)}
       </div>
+      <div className="px-4 pt-3"><p className="text-xs font-medium">Timeline</p><p className="mt-1 text-[11px] text-muted-foreground">Scroll down to edit. Tap a clip, caption, voice or music bar to work directly below the preview.</p></div>
       <KeepTimeline
         media={shown}
         captions={project.captionCues}
@@ -1154,7 +1155,7 @@ function KeepApp() {
         onCaptionTime={(i,start,end)=>patch({captionCues:project.captionCues.map((c,j)=>j===i?{...c,start:Math.max(0,Math.min(start,end-.1)),end:Math.min(editorDuration,Math.max(end,start+.1))}:c)})}
       />
 
-      {(editorPanel === "Music" || editorPanel === "Captions" || editorPanel === "Style") && <div className="max-h-[32dvh] overflow-y-auto border-t border-border/60 bg-card/55 px-4 py-3 page-enter">
+      {(editorPanel === "Music" || editorPanel === "Captions" || editorPanel === "Style") && <div className="border-t border-border/60 bg-card/55 px-4 py-4 page-enter">
         {editorPanel === "Music" && <>
           <div className="mb-3 flex items-center justify-between"><div><p className="font-display text-2xl">Music</p><p className="mt-1 text-[10px] text-muted-foreground">Hear each mood, then play your Keep to hear it under your voice.</p></div><Button variant="bare" size="icon" aria-label="Close music" onClick={() => { stopMusicSample(); setMusicSampling(""); setEditorPanel(null); }}><X className="size-4" /></Button></div>
           <div className="thin-scroll flex gap-2 overflow-x-auto pb-2">
@@ -1205,7 +1206,7 @@ function KeepApp() {
         </>}
       </div>}
 
-      {editorPanel === "Memories" && sheet("Moments", () => setEditorPanel(null), <div className="pb-2">
+      {editorPanel === "Memories" && <div className="border-t border-border/60 bg-card/55 px-4 py-4 page-enter"><div className="mb-3 flex items-center justify-between"><p className="font-display text-2xl">Edit clips</p><Button variant="bare" size="icon" aria-label="Close clip tools" onClick={() => setEditorPanel(null)}><X className="size-4"/></Button></div><div className="pb-2">
         <p className="mt-2 text-xs leading-5 text-muted-foreground">Choose the moments that bring your words to life. Reorder, replace, or add anything you want.</p>
         <div className="thin-scroll mt-5 flex gap-2 overflow-x-auto pb-2">{shown.map((m, i) => <div key={m.id} draggable onDragStart={() => { dragFrom.current = i; }} onDragOver={(e) => e.preventDefault()} onDrop={() => { if (dragFrom.current !== null) moveMemory(dragFrom.current, i); dragFrom.current = null; }} className="shrink-0"><Button variant="bare" className={`relative h-24 w-18 overflow-hidden rounded-lg !p-0 ${i === frame % shown.length ? "ring-2 ring-accent" : "opacity-65"}`} aria-label={`Select memory ${i + 1}`} onClick={() => setFrame(i)}><MediaView item={m} thumb alt={m.source === "sample" ? memoryLabels[i % memoryLabels.length] ?? "" : m.name ?? ""} className="h-full w-full object-cover" />{m.kind === "video" && <Play className="absolute bottom-1.5 left-1.5 size-3" fill="currentColor" />}</Button></div>)}</div>
         <div className="mt-5 grid grid-cols-2 gap-2">
@@ -1228,9 +1229,9 @@ function KeepApp() {
           <Button variant="bare" size="sm" disabled={shown.length <= 1} className="text-muted-foreground" onClick={() => removeMemory(frame % shown.length)}><Trash2 className="size-4" /> Remove</Button>
           <Button variant="bare" size="sm" onClick={cycleMemoryDuration}>Duration {selected?.displayDurationSec ?? 4}s</Button>
         </div>
-      </div>)}
+      </div></div>}
 
-      {editorPanel === "Voice" && sheet("Voice & words", () => setEditorPanel(null), <div className="pb-2">
+      {editorPanel === "Voice" && <div className="border-t border-border/60 bg-card/55 px-4 py-4 page-enter"><div className="mb-3 flex items-center justify-between"><p className="font-display text-2xl">Voice & words</p><Button variant="bare" size="icon" aria-label="Close voice tools" onClick={() => setEditorPanel(null)}><X className="size-4"/></Button></div><div className="pb-2">
         <p className="mt-2 text-xs leading-5 text-muted-foreground">Remember something you want to add? You can change the words or record your voice again without losing the rest of your Keep.</p>
         <div className="mt-6 space-y-3">
           <button type="button" onClick={editWordsFromEditor} className="flex w-full items-center justify-between rounded-xl border border-border bg-background/45 p-5 text-left transition-colors hover:border-accent/45">
@@ -1258,7 +1259,7 @@ function KeepApp() {
         <div className="mt-6 rounded-lg border border-accent/15 bg-accent/[0.03] p-4">
           <p className="text-xs leading-5 text-muted-foreground">Your photos, order, music, captions, and visual style stay exactly as they are while you update the words or voice.</p>
         </div>
-      </div>)}
+      </div></div>}
 
       {previewChooserOpen && sheet("Preview your Keep", () => { setPreviewChooserOpen(false); setReadArrangeOpen(false); }, <div className="pb-2">
         <p className="mt-2 text-xs leading-5 text-muted-foreground">Choose how you want to check it. Previewing is optional — you can come back and make changes anytime.</p>
