@@ -32,17 +32,18 @@ export function KeepTimeline({ media, captions, duration, time, selectedIndex, v
   const scroller = useRef<HTMLDivElement>(null);
   const [selectedCaption,setSelectedCaption] = useState<number|null>(null);
   const [zoom,setZoom] = useState(1);
-  const [draggingPlayhead,setDraggingPlayhead] = useState(false);
+  const draggingPlayhead = useRef(false);
   const drag = useRef<{index:number;x:number;width:number;duration:number}|null>(null);
   const reorder = useRef<{index:number;startX:number;startY:number}|null>(null);
   const [reorderTarget,setReorderTarget] = useState<number|null>(null);
+  const reorderTargetRef = useRef<number|null>(null);
   const total = media.reduce((sum, m) => sum + Math.max(1,m.displayDurationSec ?? 7),0) || 1;
   const safeDuration = Math.max(1,duration);
   const scale = Math.max(2.1, Math.min(12, 550 / safeDuration));
   const timelineWidth = Math.max(340, safeDuration * scale * zoom);
   const seekFromPointer = (e: PointerEvent<HTMLDivElement>) => {
     const rect = e.currentTarget.getBoundingClientRect();
-    onSeek(clamp((e.clientX - rect.left) / rect.width,0,1) * safeDuration);
+    onSeek(clamp((e.clientX - rect.left) / Math.max(1,rect.width),0,1) * safeDuration);
   };
   const activeCaption = selectedCaption===null ? null : captions[selectedCaption];
   const clipStart = media.slice(0,selectedIndex).reduce((sum,m)=>sum+Math.max(1,m.displayDurationSec??7),0)/total*safeDuration;
@@ -67,7 +68,7 @@ export function KeepTimeline({ media, captions, duration, time, selectedIndex, v
       </div>
       <div ref={scroller} className="thin-scroll min-w-0 flex-1 overflow-x-auto pb-2">
         <div className="relative select-none" style={{width:timelineWidth}}>
-          <div className="relative mb-1 h-5 border-b border-white/15 text-[9px] text-white/45" onPointerDown={e=>{e.currentTarget.setPointerCapture(e.pointerId);setDraggingPlayhead(true);seekFromPointer(e);}} onPointerMove={e=>{if(draggingPlayhead)seekFromPointer(e);}} onPointerUp={()=>setDraggingPlayhead(false)} onPointerCancel={()=>setDraggingPlayhead(false)}>
+          <div role="slider" tabIndex={0} aria-label="Scrub story timeline" aria-valuemin={0} aria-valuemax={Math.round(safeDuration)} aria-valuenow={Math.round(time)} onKeyDown={e=>{if(e.key==="ArrowLeft"||e.key==="ArrowRight"){e.preventDefault();onSeek(clamp(time+(e.key==="ArrowRight"?1:-1)*(e.shiftKey?5:0.5),0,safeDuration));}else if(e.key==="Home"){e.preventDefault();onSeek(0);}else if(e.key==="End"){e.preventDefault();onSeek(safeDuration);}}} className="relative mb-1 h-7 cursor-crosshair touch-none border-b border-white/15 text-[9px] text-white/45" onPointerDown={e=>{e.currentTarget.setPointerCapture(e.pointerId);draggingPlayhead.current=true;seekFromPointer(e);}} onPointerMove={e=>{if(draggingPlayhead.current)seekFromPointer(e);}} onPointerUp={()=>{draggingPlayhead.current=false;}} onPointerCancel={()=>{draggingPlayhead.current=false;}}>
             {Array.from({length:Math.ceil(safeDuration/10)+1},(_,i)=><span key={i} className="absolute top-0 -translate-x-1/2" style={{left:`${i*10/safeDuration*100}%`}}>{format(i*10)}</span>)}
           </div>
           <div className="relative flex h-[66px] gap-[2px]">
@@ -75,7 +76,7 @@ export function KeepTimeline({ media, captions, duration, time, selectedIndex, v
               const segment = Math.max(1,m.displayDurationSec ?? 7)/total*100;
               const start = elapsed; elapsed += segment;
               return <div key={m.id} data-clip-index={i} className={`group relative h-full shrink-0 overflow-hidden rounded-md border ${reorderTarget===i?"ring-2 ring-white":i===selectedIndex?"border-[#e5c69b] ring-1 ring-[#e5c69b]":"border-white/20"}`} style={{width:`calc(${segment}% - 2px)`}}>
-                <div role="button" tabIndex={0} aria-label={`Drag to reorder moment ${i+1}`} className="absolute bottom-0 left-0 top-5 z-10 flex w-5 touch-none items-center justify-center bg-black/60 text-white" onPointerDown={e=>{e.stopPropagation();e.currentTarget.setPointerCapture(e.pointerId);reorder.current={index:i,startX:e.clientX,startY:e.clientY};setReorderTarget(i);}} onPointerMove={e=>{if(!reorder.current)return;const row=e.currentTarget.parentElement?.parentElement;const clips=Array.from(row?.querySelectorAll<HTMLElement>("[data-clip-index]")??[]);const hit=clips.find(el=>{const r=el.getBoundingClientRect();return e.clientX>=r.left&&e.clientX<=r.right;});if(hit)setReorderTarget(Number(hit.dataset["clipIndex"]));}} onPointerUp={e=>{e.stopPropagation();const from=reorder.current?.index;const to=reorderTarget;reorder.current=null;setReorderTarget(null);if(from!==undefined&&to!==null&&from!==to)onMove(from,to);}} onPointerCancel={()=>{reorder.current=null;setReorderTarget(null);}} onKeyDown={e=>{if(e.key==="ArrowLeft"||e.key==="ArrowRight"){e.preventDefault();onMove(i,i+(e.key==="ArrowRight"?1:-1));}}}><GripVertical className="size-4"/></div>
+                <div role="button" tabIndex={0} aria-label={`Drag to reorder moment ${i+1}`} className="absolute bottom-0 left-0 top-5 z-10 flex w-5 touch-none items-center justify-center bg-black/60 text-white" onPointerDown={e=>{e.stopPropagation();e.currentTarget.setPointerCapture(e.pointerId);reorder.current={index:i,startX:e.clientX,startY:e.clientY};setReorderTarget(i);reorderTargetRef.current=i;}} onPointerMove={e=>{if(!reorder.current)return;const row=e.currentTarget.parentElement?.parentElement;const clips=Array.from(row?.querySelectorAll<HTMLElement>("[data-clip-index]")??[]);const hit=clips.find(el=>{const r=el.getBoundingClientRect();return e.clientX>=r.left&&e.clientX<=r.right;});if(hit){const target=Number(hit.dataset["clipIndex"]);reorderTargetRef.current=target;setReorderTarget(target);}}} onPointerUp={e=>{e.stopPropagation();const from=reorder.current?.index;const to=reorderTargetRef.current;reorder.current=null;reorderTargetRef.current=null;setReorderTarget(null);if(from!==undefined&&to!==null&&from!==to)onMove(from,to);}} onPointerCancel={()=>{reorder.current=null;reorderTargetRef.current=null;setReorderTarget(null);}} onKeyDown={e=>{if(e.key==="ArrowLeft"||e.key==="ArrowRight"){e.preventDefault();onMove(i,i+(e.key==="ArrowRight"?1:-1));}}}><GripVertical className="size-4"/></div>
                 <button type="button" aria-label={`Edit photo ${i+1}`} className="relative h-full w-full" onClick={()=>{onSelect(i);onSeek(start/100*safeDuration);setSelectedCaption(null);}}>
                   {m.kind==="video"?<video src={m.url} muted playsInline preload="metadata" className="h-full w-full object-cover"/>:<img src={m.url} alt="" className="h-full w-full object-cover"/>}
                   <span className="absolute bottom-1 left-1 rounded bg-black/65 px-1 text-[9px]">{Math.round(m.displayDurationSec ?? 7)}s</span>
