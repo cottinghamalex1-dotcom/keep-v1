@@ -1101,7 +1101,32 @@ function KeepApp() {
         <Button variant="bare" size="touch" className="w-full text-muted-foreground" onClick={() => go("record")}><RotateCcw /> Record again</Button>
       </div>
     </div></>}
-    {screen === "memories" && <>{top()}<div className="px-7 pb-10 pt-9">{title("The moments in between", "Bring your words to life.", "Add photos & videos that belong to your Keep.")}{frames.length === 0 ? <div className="mt-10"><div className="flex h-56 flex-col items-center justify-center gap-4 rounded-md border border-dashed border-border bg-card/40 text-muted-foreground"><Images className="size-7 text-accent/70" /><span className="text-xs">Your photos and videos</span></div><Button variant="keep" size="touch" className="mt-8 w-full" disabled={busy} onClick={() => addInput.current?.click()}><Images /> {busy ? "Adding…" : "Choose Photos & Videos"}</Button>{note("Your photos and videos stay on this device.")}</div> : <div className="page-enter"><div className="grid grid-cols-3 gap-1">{frames.map((m, i) => <div key={m.id} className="relative aspect-square overflow-hidden bg-card"><MediaView item={m} thumb alt={m.name ?? `Memory ${i + 1}`} className="h-full w-full object-cover" />{m.kind === "video" && <Play className="absolute bottom-1.5 left-1.5 size-3.5" fill="currentColor" />}<button type="button" aria-label={`Remove memory ${i + 1}`} onClick={() => removeMemory(i)} className="absolute top-1 right-1 flex size-7 items-center justify-center rounded-full bg-background/70 text-foreground"><X className="size-3.5" /></button></div>)}<button type="button" onClick={() => addInput.current?.click()} disabled={busy} className="flex aspect-square flex-col items-center justify-center gap-1 border border-border text-xs text-muted-foreground"><Plus className="size-4" />{busy ? "Adding…" : "Add more"}</button></div><p className="mt-5 text-center text-sm">{frames.length} {frames.length === 1 ? "memory" : "memories"} added <Check className="ml-1 inline size-4 text-accent" /></p><div className="mt-10">{nextButton("Create My Keep", () => { setGeneration(0); setFrame(0); go("generating"); })}</div><div className="mt-4">{note(frames.some((m) => m.source === "upload" && !m.persisted) ? "Some media couldn't be saved on this device and will be cleared on refresh." : "Saved on this device only.")}</div></div>}</div></>}
+    {screen === "memories" && <>{top()}<div className="px-7 pb-10 pt-9">
+      {title("YOUR MOMENTS", "Add photos & videos.", "As many or as few as you like. Even none is okay.")}
+      <div className="grid grid-cols-3 gap-1">
+        {personalMedia.map((m, i) => <div key={m.id} className="relative aspect-square overflow-hidden bg-card"><MediaView item={m} thumb alt={m.name ?? "Your memory"} className="h-full w-full object-cover" /><button type="button" aria-label={"Remove memory " + (i+1)} onClick={() => removeMemory(i)} className="absolute right-1 top-1 rounded-full bg-black/70 p-2 text-white"><X className="size-4" /></button></div>)}
+        <button type="button" onClick={() => addInput.current?.click()} disabled={busy} className="flex aspect-square flex-col items-center justify-center gap-2 border border-border text-xs text-muted-foreground"><Plus className="size-5" />{busy ? "Adding…" : "Add media"}</button>
+      </div>
+      <p className="mt-4 text-xs text-muted-foreground">{personalMedia.length} personal moments added</p>
+      <div className="mt-10">{nextButton("Continue", () => { setStyleTouched(false); go("storyStyle"); })}</div>
+      <Button variant="bare" size="touch" className="mt-3 w-full text-muted-foreground" onClick={() => { setStyleTouched(false); go("storyStyle"); }}>Continue without more photos</Button>
+    </div></>}
+    {screen === "storyStyle" && <>{top()}<div className="px-7 pb-10 pt-9">
+      {title("YOUR STORY", "How should it come to life?", "Both include your voice, music, captions and personal moments.")}
+      <div className="space-y-3">
+        <button type="button" onClick={() => { setStyleTouched(true); patch({ creationStyle: "memories" }); }} className={`w-full rounded-lg border p-5 text-left ${chosenStyle === "memories" ? "border-accent bg-accent/5" : "border-border"}`}>
+          <span className="flex items-center justify-between text-sm">Memories First {chosenStyle === "memories" && <Check className="size-4 text-accent" />}</span>
+          <span className="mt-2 block text-xs leading-5 text-muted-foreground">Let your photos and videos tell the story from beginning to end.</span>
+          {suggestedStyle === "memories" && <span className="mt-3 block text-[10px] uppercase tracking-widest text-accent">Recommended</span>}
+        </button>
+        <button type="button" onClick={() => { setStyleTouched(true); patch({ creationStyle: "words" }); }} className={`w-full rounded-lg border p-5 text-left ${chosenStyle === "words" ? "border-accent bg-accent/5" : "border-border"}`}>
+          <span className="flex items-center justify-between text-sm">Words First {chosenStyle === "words" && <Check className="size-4 text-accent" />}</span>
+          <span className="mt-2 block text-xs leading-5 text-muted-foreground">Your voice and meaningful words lead, with your photos at special moments.</span>
+          {suggestedStyle === "words" && <span className="mt-3 block text-[10px] uppercase tracking-widest text-accent">Recommended for your media</span>}
+        </button>
+      </div>
+      <div className="mt-10">{nextButton("Create My Keep", createStory)}</div>
+    </div></>}
     {screen === "generating" && <div className="flex keep-h-screen flex-col items-center justify-center px-8 text-center"><div className="relative mb-14 flex size-30 items-center justify-center"><div className="pulse-ring absolute inset-0 rounded-full border border-accent" /><Sparkles className="size-8 text-accent" /></div><div className="eyebrow mb-5">MAKING SOMETHING THAT LASTS</div><h1 key={generation} className="display min-h-32 text-5xl page-enter">{["Listening to your story…", "Finding the moments that fit…", "Building your Keep…", "Almost there…"][generation]}</h1><p className="mt-8 text-xs text-muted-foreground">MVP preview · memories are arranged in the order you added them</p></div>}
     {screen === "editor" && selected && <div className="relative flex min-h-[100dvh] w-full flex-col overflow-x-hidden bg-background pb-[max(16px,env(safe-area-inset-bottom))]">
       <div className="flex items-center justify-between px-5 pt-[max(14px,env(safe-area-inset-top))]">
