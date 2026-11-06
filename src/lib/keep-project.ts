@@ -40,6 +40,8 @@ export type CaptionCue = { text: string; start: number; end: number };
 export type CaptionWord = { word: string; start: number; end: number };
 
 export type KeepProject = {
+  publicationId?: string;
+  publicationToken?: string;
   active: boolean;
   stage: string;
   recipientName: string;

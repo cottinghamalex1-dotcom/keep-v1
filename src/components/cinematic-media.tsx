@@ -3,11 +3,11 @@ import { useEffect, useState } from "react";
 export type CinematicMoment = {
   url: string;
   kind: "image" | "video";
-  focusX?: number;
-  focusY?: number;
-  zoom?: number;
-  motion?: "in" | "out" | "left" | "right";
-  transition?: "fade" | "dissolve" | "cut";
+  focusX?: number | undefined;
+  focusY?: number | undefined;
+  zoom?: number | undefined;
+  motion?: "in" | "out" | "left" | "right" | undefined;
+  transition?: "fade" | "dissolve" | "cut" | undefined;
 };
 
 export function CinematicMedia({ item, playing = true, duration = 7, className = "", imageClassName = "" }: {
