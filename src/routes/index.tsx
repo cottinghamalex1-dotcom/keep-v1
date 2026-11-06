@@ -1,6 +1,7 @@
 import { KeepTimeline } from "@/components/keep-timeline";
 import { arrangeWords, spreadMemories, recommendedStyle } from "@/lib/keep-story-layout";
 import { activeKeepSession, loadCloudDraft, saveCloudDraft, removeCloudDraft } from "@/lib/keep-cloud";
+import { publishKeep, registerCard, cardUrl, defaultRecipientDesign, type RecipientDesign } from "@/lib/keep-publishing";
 import { CinematicMedia } from "@/components/cinematic-media";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useRef, useState, type ChangeEvent, type ReactNode } from "react";
@@ -28,9 +29,9 @@ export const Route = createFileRoute("/")({
   component: KeepRoute,
 });
 
-type Screen = "onboarding" | "home" | "you" | "detail" | "recipient" | "occasion" | "intent" | "path" | "interview" | "summary" | "messageGenerating" | "write" | "message" | "recordPrep" | "record" | "recorded" | "memories" | "storyStyle" | "generating" | "editor" | "preview" | "recipientReveal" | "recipientPreview" | "giveReady" | "card" | "success";
+type Screen = "onboarding" | "home" | "you" | "detail" | "recipient" | "occasion" | "intent" | "path" | "interview" | "summary" | "messageGenerating" | "write" | "message" | "recordPrep" | "record" | "recorded" | "memories" | "storyStyle" | "generating" | "editor" | "preview" | "recipientReveal" | "recipientPreview" | "giveReady" | "card" | "success" | "linkCard";
 type Mode = "Memories" | "Music" | "Captions" | "Style" | "Voice";
-const creationScreens: Screen[] = ["recipient", "occasion", "intent", "path", "interview", "summary", "messageGenerating", "write", "message", "recordPrep", "record", "recorded", "memories", "storyStyle", "generating", "editor", "preview", "recipientPreview", "card", "success"];
+const creationScreens: Screen[] = ["recipient", "occasion", "intent", "path", "interview", "summary", "messageGenerating", "write", "message", "recordPrep", "record", "recorded", "memories", "storyStyle", "generating", "editor", "preview", "recipientPreview", "card", "success", "linkCard"];
 const resumeScreen = (s: Screen): Screen => (s === "messageGenerating" ? "summary" : s === "generating" ? "memories" : s === "preview" || s === "recipientPreview" ? "editor" : s);
 const occasions = ["Birthday", "Anniversary", "Wedding", "New Baby", "Mother's Day", "Father's Day", "Graduation", "Thank You", "Trip / Adventure", "Milestone", "Celebration of Life", "Family Memories", "Just Because", "Other"];
 const relationships = ["Spouse / Partner", "Mom", "Dad", "Child", "Grandparent", "Sibling", "Friend", "Myself", "Someone else"];
@@ -146,6 +147,11 @@ function KeepApp() {
   const editorAudioRef = useRef<HTMLAudioElement>(null);
   const editorMixRef = useRef<ReturnType<typeof createKeepVoiceMix>>(null);
   const [cardBack, setCardBack] = useState(false);
+  const [publishedKeepId,setPublishedKeepId] = useState("");
+  const [linkedCode,setLinkedCode] = useState("");
+  const [cardCodeInput,setCardCodeInput] = useState("");
+  const [publishing,setPublishing] = useState(false);
+  const [recipientDesign,setRecipientDesign] = useState<RecipientDesign | null>(null);
   const [setting, setSetting] = useState("");
   const [scroll, setScroll] = useState(0);
   const [scrollPaused, setScrollPaused] = useState(false);
@@ -893,7 +899,25 @@ function KeepApp() {
 
   const engraving = project.cardEngraving;
   const updateEngraving = (i: number, value: string) => patch({ cardEngraving: engraving.map((v, j) => (j === i ? value.toUpperCase() : v)) });
-  const toCard = () => { if (!engraving[0]) patch({ cardEngraving: [(name || "Hanna").toUpperCase(), engraving[1] || "FROM ALEX", engraving[2] || "2026"] }); go("card"); };
+  const toCard = () => { if (!recipientDesign) setRecipientDesign(defaultRecipientDesign(project)); if (!engraving[0]) patch({ cardEngraving: [(name || "Hanna").toUpperCase(), engraving[1] || "FROM ALEX", engraving[2] || "2026"] }); go("card"); };
+  const saveAndLink = async () => {
+    if (publishing) return;
+    setPublishing(true);
+    try {
+      const published=await publishKeep(project,publishedKeepId||undefined,recipientDesign??defaultRecipientDesign(project));
+      setPublishedKeepId(published.keepId);
+      toast.success("Your Keep is saved and ready to link.");
+      go("linkCard");
+    } catch(e){toast.error(e instanceof Error?e.message:"Could not publish your Keep.");}
+    finally{setPublishing(false);}
+  };
+  const linkPhysicalCard = async () => {
+    if (!publishedKeepId) return;
+    setPublishing(true);
+    try { const result=await registerCard(publishedKeepId,cardCodeInput.trim(),engraving[0]||name);setLinkedCode(result.code);toast.success("Card linked. Write the URL to your NFC card."); }
+    catch(e){toast.error(e instanceof Error?e.message:"Could not link this card.");}
+    finally {setPublishing(false);}
+  };
   const totalSec = rec?.durationSec ?? 237;
 
   const title = (eyebrow: string, heading: string, sub?: string) => <div className="mb-9 keep-page-heading"><h1 className="display text-[clamp(34px,8vw,46px)]">{heading}</h1>{sub && <p className="mt-4 max-w-[34ch] text-[13px] leading-6 text-muted-foreground">{sub}</p>}</div>;
@@ -1336,6 +1360,8 @@ function KeepApp() {
       from={(engraving[1]?.replace(/^FROM\s+/i, "") || "Alex").trim()}
       year={(engraving[2] || "2026").trim()}
       subtitle={project.occasion}
+      greeting={recipientDesign?.greeting}
+      endingMessage={recipientDesign?.closing}
       media={frames.length ? frames.map((m) => ({ url: m.url, kind: m.kind, displayDurationSec: m.displayDurationSec ?? 7, focusX: m.focusX, focusY: m.focusY, zoom: m.zoom, motion: m.motion })) : undefined}
       readMedia={readOrderedFrames.length ? readOrderedFrames.map((m) => ({ url: m.url, kind: m.kind, displayDurationSec: m.displayDurationSec ?? 7, focusX: m.focusX, focusY: m.focusY, zoom: m.zoom, motion: m.motion })) : undefined}
       audioUrl={rec && !rec.demo ? rec.audioUrl : undefined}
@@ -1353,7 +1379,40 @@ function KeepApp() {
       onCreatorExit={() => { setCreatorPreviewMode(null); setHistory([]); setScreen("editor"); resetPageScroll(); }}
       onCreatorContinue={() => { setCreatorPreviewMode(null); setScreen("editor"); resetPageScroll(); }}
     />}
-    {screen === "card" && <>{top()}<div className="px-7 pb-10 pt-7">{title("The final touch", "Give it somewhere to live.", "Your card opens this Keep with a tap. No app or login required.")}<div className="card-object relative mx-auto aspect-[1.586] w-full max-w-none overflow-hidden rounded-lg border border-foreground/10 p-7 text-white"><span className="brand absolute left-7 top-7 text-sm text-white">keep</span><div className="absolute left-7 top-[42%] flex -translate-y-1/2 flex-col items-start gap-1 text-left text-[11px] tracking-[.2em] text-white"><strong className="font-normal">{engraving[0]}</strong>{engraving[1] && <span>{engraving[1]}</span>}{engraving[2] && <span>{engraving[2]}</span>}</div></div><div className="mt-9 space-y-4">{["To / Title", "From (optional)", "Date (optional)"].map((label, i) => <label key={label} className="block"><span className="eyebrow">{label}</span><input aria-label={`Card ${label}`} maxLength={22} value={engraving[i] ?? ""} onChange={(e) => updateEngraving(i, e.target.value)} className="mt-2 w-full border-0 border-b border-border bg-transparent pb-3 text-sm tracking-widest outline-none focus:border-accent" /></label>)}</div><div className="mt-10">{nextButton("Create My Keep", () => engraving[0]?.trim() && go("success"), !engraving[0]?.trim())}</div><p className="mt-3 text-center text-[11px] text-muted-foreground">Only To / Title is required. Physical cards are coming next.</p></div></>}
-    {screen === "success" && <div className="flex keep-min-screen flex-col justify-between px-7 pb-10 pt-10"><span className="brand">keep</span><div className="py-12"><div className="mb-10 flex size-13 items-center justify-center rounded-full border border-accent text-accent"><Check /></div>{title("", "Your Keep is ready.")}<button type="button" className="card-object relative mt-12 block aspect-[1.586] w-full overflow-hidden rounded-lg border border-foreground/10 p-7 text-left text-white" onClick={() => setCardBack(!cardBack)} aria-label={cardBack ? "View front of keepsake card" : "View back of keepsake card"}>{!cardBack ? <><span className="brand absolute left-7 top-7 text-lg text-white">keep</span><div className="absolute left-7 top-[42%] flex -translate-y-1/2 flex-col items-start gap-1 text-left text-[11px] tracking-[.2em] text-white"><span>{engraving[0]}</span>{engraving[1] && <span>{engraving[1]}</span>}{engraving[2] && <span>{engraving[2]}</span>}</div></> : <div className="absolute inset-x-0 bottom-6 flex flex-col items-center gap-2 px-7 text-center text-[11px] font-normal tracking-[.2em] text-white"><span>SOME THINGS ARE WORTH KEEPING.</span><Radio className="size-4 stroke-[1.5]" aria-hidden="true" /></div>}</button><Button variant="bare" className="mx-auto mt-3 flex h-auto items-center gap-2 px-3 py-2 text-xs text-muted-foreground" onClick={() => setCardBack(!cardBack)}>{cardBack ? "View front" : "View back"} <RotateCcw className="size-3.5" /></Button><p className="mt-2 text-xs text-muted-foreground">Card #000001 · {engraving[0]}{engraving[1] ? ` · ${engraving[1].toLowerCase()}` : ""}{engraving[2] ? ` · ${engraving[2]}` : ""}</p><p className="mt-3 text-xs leading-5 text-muted-foreground">Physical card ordering is coming next. No card has been ordered or shipped.</p></div><div className="space-y-3"><Button variant="keep" size="touch" className="w-full justify-between" asChild><Link to="/recipient" search={{ name: (name || engraving[0] || "Hanna").trim(), from: engraving[1]?.replace(/^FROM\\s+/i, "") || "Alex", year: engraving[2] || "2026" }}>Preview recipient experience <ArrowRight /></Link></Button><Button variant="quiet" size="touch" className="w-full" onClick={home}>Back to Keeps</Button></div></div>}
+    {screen === "card" && <>{top()}<div className="px-7 pb-10 pt-7">{title("The final touch", "Give it somewhere to live.", "Your card opens this Keep with a tap. No app or login required.")}<div className="card-object relative mx-auto aspect-[1.586] w-full max-w-none overflow-hidden rounded-lg border border-foreground/10 p-7 text-white"><span className="brand absolute left-7 top-7 text-sm text-white">keep</span><div className="absolute left-7 top-[42%] flex -translate-y-1/2 flex-col items-start gap-1 text-left text-[11px] tracking-[.2em] text-white"><strong className="font-normal">{engraving[0]}</strong>{engraving[1] && <span>{engraving[1]}</span>}{engraving[2] && <span>{engraving[2]}</span>}</div></div><div className="mt-9 space-y-4">{["To / Title", "From (optional)", "Date (optional)"].map((label, i) => <label key={label} className="block"><span className="eyebrow">{label}</span><input aria-label={`Card ${label}`} maxLength={22} value={engraving[i] ?? ""} onChange={(e) => updateEngraving(i, e.target.value)} className="mt-2 w-full border-0 border-b border-border bg-transparent pb-3 text-sm tracking-widest outline-none focus:border-accent" /></label>)}</div><div className="mt-10">{nextButton("Continue to gift experience", () => engraving[0]?.trim() && go("success"), !engraving[0]?.trim())}</div><p className="mt-3 text-center text-[11px] text-muted-foreground">Only To / Title is required. Physical cards are coming next.</p></div></>}
+    {screen === "success" && <div className="min-h-dvh px-7 pb-12 pt-9">
+      {top()}
+      <div className="pt-10">{title("","Make it theirs.","Customize the experience they see when they tap their card.")}</div>
+      <div className="space-y-6">
+        {([
+          ["greeting","Welcome message","Made just for you."],
+          ["note","Personal note","A memory worth keeping."],
+          ["closing","After the memory","Some things are worth keeping."],
+          ["from","From","Someone special"],
+          ["year","Year",String(new Date().getFullYear())],
+        ] as const).map(([key,label,placeholder])=><label key={key} className="block text-sm">
+          <span className="mb-2 block text-xs text-muted-foreground">{label}</span>
+          <input className="w-full rounded-lg border border-border bg-card p-3 text-base" value={(recipientDesign??defaultRecipientDesign(project))[key]} placeholder={placeholder} maxLength={key==="note"?240:100} onChange={e=>setRecipientDesign(o=>({...defaultRecipientDesign(project),...o,[key]:e.target.value}))}/>
+        </label>)}
+        <Button variant="quiet" size="touch" className="w-full" onClick={()=>{setCreatorPreviewMode("watch");setScreen("recipientPreview");resetPageScroll();}}>Preview their Keep <Play className="size-4"/></Button>
+        <Button variant="keep" size="touch" className="w-full" disabled={publishing} onClick={()=>void saveAndLink()}>{publishing?"Saving your Keep…":"Save Keep & link a card"} <ArrowRight/></Button>
+        <p className="text-xs leading-6 text-muted-foreground">Your original edit stays in your account. You can update this experience and the card will keep the same link.</p>
+      </div>
+    </div>}
+    {screen === "linkCard" && <div className="min-h-dvh px-7 pb-12 pt-9">{top()}
+      <div className="pt-10">{title("","Link your physical card.","Give this Keep a permanent home on your black NFC card.")}</div>
+      <div className="card-object mb-9 flex aspect-[1.586] items-center justify-center rounded-xl text-white"><Radio className="size-11"/></div>
+      {!linkedCode ? <div className="space-y-5">
+        <p className="text-sm leading-7 text-muted-foreground">Enter a unique card code (letters and numbers). Keep will create a permanent card link. Write that URL to your blank NFC card with an NFC-writing app such as NFC Tools on iPhone.</p>
+        <label className="block text-xs text-muted-foreground">Card code<input className="mt-2 w-full rounded-lg border border-border bg-card p-4 text-base uppercase tracking-widest" placeholder="E.G. KEEP-0001-A7" value={cardCodeInput} onChange={e=>setCardCodeInput(e.target.value.replace(/[^a-zA-Z0-9_-]/g,"").slice(0,70))}/></label>
+        <Button variant="keep" size="touch" className="w-full" disabled={publishing||cardCodeInput.trim().length<2} onClick={()=>void linkPhysicalCard()}>{publishing?"Linking…":"Link this card"}<ArrowRight/></Button>
+      </div> : <div className="space-y-5">
+        <div className="rounded-xl border border-accent/35 bg-accent/5 p-5"><p className="text-sm font-medium">Your card is linked</p><p className="mt-3 break-all text-xs leading-6">{cardUrl(linkedCode)}</p></div>
+        <Button variant="keep" size="touch" className="w-full" onClick={()=>{void navigator.clipboard.writeText(cardUrl(linkedCode)).then(()=>toast.success("Card URL copied")).catch(()=>toast.error("Copy the URL above."));}}>Copy NFC URL</Button>
+        <p className="text-sm leading-7 text-muted-foreground">Open NFC Tools → Write → Add a record → URL / URI. Paste the link, tap Write, then hold your iPhone against the card. Test it by tapping the physical card after writing.</p>
+        <a className="block rounded-xl border border-border px-5 py-4 text-center text-sm" href={cardUrl(linkedCode)} target="_blank" rel="noreferrer">Open the recipient experience <ArrowRight className="ml-1 inline size-4"/></a>
+        <Button variant="quiet" size="touch" className="w-full" onClick={home}>Back to Keeps</Button>
+      </div>}
+    </div>}
   </div>{primaryNav && <nav aria-label="Main navigation" className="nav-bottom fixed bottom-0 left-1/2 z-20 w-full max-w-[540px] -translate-x-1/2 flex h-[82px] border-t border-border bg-background/95 backdrop-blur-xl"><Button variant="bare" className={`h-16 flex-1 flex-col gap-1 text-[11px] ${screen === "home" ? "text-accent" : "text-muted-foreground"}`} onClick={home}><Images className="size-5" />Keeps</Button><Button variant="bare" className="h-16 flex-1 flex-col gap-1 text-[11px] text-muted-foreground" onClick={() => (project.active ? continueDraft() : begin())}><Plus className="size-5" />Create</Button><Button variant="bare" className={`h-16 flex-1 flex-col gap-1 text-[11px] ${screen === "you" ? "text-accent" : "text-muted-foreground"}`} onClick={() => go("you")}><span className="flex size-5 items-center justify-center rounded-full border text-[10px]">A</span>You</Button></nav>}</main>;
 }
