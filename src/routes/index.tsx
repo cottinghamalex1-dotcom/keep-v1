@@ -1137,7 +1137,7 @@ function KeepApp() {
       </div>
     </div></>}
     {screen === "memories" && <>{top()}<div className="px-7 pb-10 pt-9">
-      {title("YOUR MOMENTS", "Add photos & videos.", "As many or as few as you like. Even none is okay.")}
+      {title("YOUR MOMENTS", "Add photos & videos.", "Aim for 20–30 photos or videos for a richer story. More is wonderful, and fewer is completely fine.")}
       <div className="grid grid-cols-3 gap-1">
         {personalMedia.map((m, i) => <div key={m.id} className="relative aspect-square overflow-hidden bg-card"><MediaView item={m} thumb alt={m.name ?? "Your memory"} className="h-full w-full object-cover" /><button type="button" aria-label={"Remove memory " + (i+1)} onClick={() => removeMemory(i)} className="absolute right-1 top-1 rounded-full bg-black/70 p-2 text-white"><X className="size-4" /></button></div>)}
         <button type="button" onClick={() => addInput.current?.click()} disabled={busy} className="flex aspect-square flex-col items-center justify-center gap-2 border border-border text-xs text-muted-foreground"><Plus className="size-5" />{busy ? "Adding…" : "Add media"}</button>
@@ -1380,23 +1380,28 @@ function KeepApp() {
       onCreatorContinue={() => { setCreatorPreviewMode(null); setScreen("editor"); resetPageScroll(); }}
     />}
     {screen === "card" && <>{top()}<div className="px-7 pb-10 pt-7">{title("The final touch", "Give it somewhere to live.", "Your card opens this Keep with a tap. No app or login required.")}<div className="card-object relative mx-auto aspect-[1.586] w-full max-w-none overflow-hidden rounded-lg border border-foreground/10 p-7 text-white"><span className="brand absolute left-7 top-7 text-sm text-white">keep</span><div className="absolute left-7 top-[42%] flex -translate-y-1/2 flex-col items-start gap-1 text-left text-[11px] tracking-[.2em] text-white"><strong className="font-normal">{engraving[0]}</strong>{engraving[1] && <span>{engraving[1]}</span>}{engraving[2] && <span>{engraving[2]}</span>}</div></div><div className="mt-9 space-y-4">{["To / Title", "From (optional)", "Date (optional)"].map((label, i) => <label key={label} className="block"><span className="eyebrow">{label}</span><input aria-label={`Card ${label}`} maxLength={22} value={engraving[i] ?? ""} onChange={(e) => updateEngraving(i, e.target.value)} className="mt-2 w-full border-0 border-b border-border bg-transparent pb-3 text-sm tracking-widest outline-none focus:border-accent" /></label>)}</div><div className="mt-10">{nextButton("Continue to gift experience", () => engraving[0]?.trim() && go("success"), !engraving[0]?.trim())}</div><p className="mt-3 text-center text-[11px] text-muted-foreground">Only To / Title is required. Physical cards are coming next.</p></div></>}
-    {screen === "success" && <div className="min-h-dvh px-7 pb-12 pt-9">
+    {screen === "success" && <div className="min-h-dvh px-6 pb-12 pt-8">
       {top()}
-      <div className="pt-10">{title("","Make it theirs.","Customize the experience they see when they tap their card.")}</div>
-      <div className="space-y-6">
-        {([
-          ["greeting","Welcome message","Made just for you."],
-          ["note","Personal note","A memory worth keeping."],
-          ["closing","After the memory","Some things are worth keeping."],
-          ["from","From","Someone special"],
-          ["year","Year",String(new Date().getFullYear())],
-        ] as const).map(([key,label,placeholder])=><label key={key} className="block text-sm">
-          <span className="mb-2 block text-xs text-muted-foreground">{label}</span>
-          <input className="w-full rounded-lg border border-border bg-card p-3 text-base" value={(recipientDesign??defaultRecipientDesign(project))[key]} placeholder={placeholder} maxLength={key==="note"?240:100} onChange={e=>setRecipientDesign(o=>({...defaultRecipientDesign(project),...o,[key]:e.target.value}))}/>
-        </label>)}
-        <Button variant="quiet" size="touch" className="w-full" onClick={()=>{setCreatorPreviewMode("watch");setScreen("recipientPreview");resetPageScroll();}}>Preview their Keep <Play className="size-4"/></Button>
-        <Button variant="keep" size="touch" className="w-full" disabled={publishing} onClick={()=>void saveAndLink()}>{publishing?"Saving your Keep…":"Save Keep & link a card"} <ArrowRight/></Button>
-        <p className="text-xs leading-6 text-muted-foreground">Your original edit stays in your account. You can update this experience and the card will keep the same link.</p>
+      <div className="pb-7 pt-8">
+        <h1 className="display text-[clamp(34px,9vw,48px)] leading-tight">Make it theirs.</h1>
+        <p className="mt-3 text-sm leading-6 text-muted-foreground">Tap the name or message below to edit it. This is the first screen they'll see when they tap their card.</p>
+      </div>
+      <div className="relative mx-auto flex aspect-[9/15] max-h-[570px] w-full max-w-[370px] flex-col justify-between overflow-hidden rounded-[24px] border border-white/15 bg-[#171717] p-6 text-center shadow-[0_20px_70px_rgba(0,0,0,.35)]">
+        {shown[0]?.url ? (shown[0].kind === "video" ? <video src={shown[0].url} muted playsInline autoPlay loop className="absolute inset-0 h-full w-full object-cover opacity-35"/> : <img src={shown[0].url} alt="" className="absolute inset-0 h-full w-full object-cover opacity-35"/>) : null}
+        <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-black/20 to-black/75"/>
+        <span className="brand relative z-10 pt-2 text-white">keep</span>
+        <div className="relative z-10 space-y-4">
+          <p className="text-[10px] uppercase tracking-[.24em] text-white/75">A KEEP FOR</p>
+          <input aria-label="Recipient title" value={project.recipientName} maxLength={70} onChange={e=>patch({recipientName:e.target.value})} placeholder="Recipient's name" className="display w-full border-b border-dashed border-white/35 bg-transparent px-2 pb-2 text-center text-[clamp(34px,9vw,48px)] text-white outline-none placeholder:text-white/50 focus:border-white"/>
+          <textarea aria-label="Welcome message" value={(recipientDesign??defaultRecipientDesign(project)).greeting} maxLength={100} rows={2} onChange={e=>setRecipientDesign(o=>({...defaultRecipientDesign(project),...o,greeting:e.target.value}))} placeholder="A little message for them…" className="mx-auto block w-full resize-none border-b border-dashed border-white/35 bg-transparent px-2 py-1 text-center font-display text-[23px] leading-tight text-white outline-none placeholder:text-white/60 focus:border-white"/>
+          <p className="text-xs text-white/75">from {(recipientDesign??defaultRecipientDesign(project)).from} · {(recipientDesign??defaultRecipientDesign(project)).year}</p>
+        </div>
+        <div className="relative z-10 space-y-4 pb-2"><VolumeX className="mx-auto size-4 text-white/80"/><div className="rounded-lg bg-white px-4 py-4 text-center text-sm font-medium text-black">Experience your Keep <ArrowRight className="ml-2 inline size-4"/></div></div>
+      </div>
+      <p className="mx-auto mt-4 max-w-sm text-center text-xs leading-5 text-muted-foreground">Preview of the recipient's welcome screen. Their film, voice, and memories follow when they tap Experience your Keep.</p>
+      <div className="mx-auto mt-7 max-w-sm space-y-3">
+        <Button variant="keep" size="touch" className="w-full" disabled={publishing||!project.recipientName.trim()} onClick={()=>void saveAndLink()}>{publishing?"Saving your Keep…":"Save Keep & link a card"} <ArrowRight/></Button>
+        <Button variant="bare" size="touch" className="w-full text-muted-foreground" onClick={()=>{setCreatorPreviewMode(null);setScreen("recipientPreview");resetPageScroll();}}>See the full recipient experience <Play className="size-4"/></Button>
       </div>
     </div>}
     {screen === "linkCard" && <div className="min-h-dvh px-7 pb-12 pt-9">{top()}
