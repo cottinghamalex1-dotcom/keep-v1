@@ -75,6 +75,7 @@ export async function loadCloudDraft(session:KeepSession):Promise<KeepProject|nu
   const memories=[];
   for(const m of p.memories) {
     if(m.source==="sample") { memories.push({...m,url:memoryImages[m.sampleIndex??0]??""}); continue; }
+    if(m.source==="text") { memories.push(m); continue; }
     try { memories.push({...m,url:await downloadBlob(session,m.id)}); } catch { throw new Error("A saved photo or video could not be restored. Please try again."); }
   }
   const interviewAnswers=[];
