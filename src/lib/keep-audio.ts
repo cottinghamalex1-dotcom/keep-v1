@@ -68,10 +68,15 @@ function scheduleMusic(
   const g = musicGain.gain;
   g.cancelScheduledValues(start);
   g.setValueAtTime(0, start);
-  g.linearRampToValueAtTime(levels.intro, start + Math.min(fadeIn, Math.max(0.3, introSeconds)));
-  g.setValueAtTime(levels.intro, Math.max(start + fadeIn, voiceStart - 0.6));
-  g.linearRampToValueAtTime(under, voiceStart + 0.4);
-  g.setValueAtTime(under, Math.max(voiceStart + 0.5, voiceEnd - 1.2));
+  if (introSeconds >= fadeIn + 0.8) {
+    g.linearRampToValueAtTime(levels.intro, start + fadeIn);
+    g.setValueAtTime(levels.intro, voiceStart - 0.6);
+    g.linearRampToValueAtTime(under, voiceStart + 0.4);
+  } else {
+    // Short intro (editor): fade straight in underneath the voice.
+    g.linearRampToValueAtTime(under, start + fadeIn);
+  }
+  g.setValueAtTime(under, Math.max(start + fadeIn + 0.1, voiceStart + 0.5, voiceEnd - 1.2));
   g.linearRampToValueAtTime(levels.outro, voiceEnd + 0.6);
   g.setValueAtTime(levels.outro, voiceEnd + 0.7);
   g.linearRampToValueAtTime(0, voiceEnd + 0.7 + fadeOut);
