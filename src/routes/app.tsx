@@ -1,3 +1,4 @@
+import { ViewingLink } from "@/components/keep-publish-panel";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useCallback, useEffect, useState } from "react";
 import { ArrowRight, CreditCard, Gift, Heart, Home, LockKeyhole, LogOut, Plus, ShieldCheck, UserRound } from "lucide-react";
@@ -8,7 +9,7 @@ const endpoint = "https://lwkzhpwugtosbidxvdcr.supabase.co";
 const publicKey = "sb_publishable_K8_SWJByLhV78h7gY4NySw_4sgjEVTi";
 type Session = { access_token: string; refresh_token: string; expires_at?: number; user: { id: string; email?: string } };
 type Card = { id: string; card_code: string; recipient_label: string | null; status: string; creator_id: string | null; recipient_id: string | null; keep_id: string | null };
-type Keep = { id: string; recipient_name: string | null; status: string };
+type Keep = { id: string; recipient_name: string | null; status: string; recipient_token: string; published_at: string | null };
 const sessionKey = "keep-app-session";
 function readSession(): Session | null { try { const s = localStorage.getItem(sessionKey); return s ? JSON.parse(s) as Session : null; } catch { return null; } }
 function KeepDashboard() {
@@ -45,7 +46,7 @@ function KeepDashboard() {
         }
         const [cs, ks, ps, drafts] = await Promise.all([
           api("/rest/v1/keep_cards?select=id,card_code,recipient_label,status,creator_id,recipient_id,keep_id&order=created_at.desc", {}, current.access_token),
-          api("/rest/v1/keeps?select=id,recipient_name,status&order=created_at.desc", {}, current.access_token),
+          api("/rest/v1/keeps?select=id,recipient_name,status,recipient_token,published_at&order=created_at.desc", {}, current.access_token),
           api("/rest/v1/keep_profiles?select=display_name&user_id=eq." + encodeURIComponent(current.user.id), {}, current.access_token),
           api("/rest/v1/keep_drafts?select=project&owner_id=eq." + encodeURIComponent(current.user.id) + "&limit=1", {}, current.access_token)
         ]);
@@ -94,7 +95,7 @@ function KeepDashboard() {
       {tab === "home" && <div className="space-y-4">
         {cloudDraft && <Link to="/" className="flex items-center justify-between rounded-xl border border-border bg-[#C6B49A]/[.06] p-5"><span><strong className="block text-base">Continue your Keep</strong><small className="mt-1 block text-white/60">For {cloudDraft.recipientName || "someone special"} · Saved to your account</small></span><ArrowRight className="text-[#C6B49A]" /></Link>}
         <Link to="/" className="flex items-center justify-between rounded-xl bg-[#C6B49A] p-5 text-[#111111]"><span><strong className="block text-base">Create a Keep</strong><small>Your story starts here</small></span><Plus /></Link>
-        {keeps.length > 0 && <div className="rounded-xl border border-white/15 p-5"><h2 className="mb-3 text-sm font-medium">Your creations</h2>{keeps.map((keep) => <div key={keep.id} className="flex items-center justify-between border-t border-white/10 py-3 text-sm"><span>For {keep.recipient_name || "someone special"}</span><span className="text-xs text-white/50">{keep.status}</span></div>)}<p className="mt-2 text-xs text-white/40">Published Keeps are experienced through their physical cards.</p></div>}
+        {keeps.length > 0 && <div className="rounded-xl border border-white/15 p-5"><h2 className="mb-3 text-sm font-medium">Your creations</h2>{keeps.map((keep) => <div key={keep.id} className="space-y-3 border-t border-white/10 py-3 text-sm"><div className="flex items-center justify-between"><span>For {keep.recipient_name || "someone special"}</span><span className="text-xs text-white/50">{keep.status}</span></div>{keep.status === "ready" && keep.published_at && <ViewingLink token={keep.recipient_token} />}</div>)}<p className="mt-2 text-xs text-white/40">Copy a viewing link to write it onto your NFC card.</p></div>}
         <div className="grid grid-cols-2 gap-3"><button className={secondary} onClick={() => setTab("given")}><Gift className="mb-3 text-[#C6B49A]" />Given Keeps <span className="block pt-1 text-2xl">{cards.filter(c => c.creator_id === session.user.id).length}</span></button><button className={secondary} onClick={() => setTab("received")}><Heart className="mb-3 text-[#C6B49A]" />Received Keeps <span className="block pt-1 text-2xl">{cards.filter(c => c.recipient_id === session.user.id).length}</span></button></div>
         <div className="rounded-xl border border-border bg-[#C6B49A]/[.03] p-5"><CreditCard className="mb-3 text-[#C6B49A]" /><h2 className="font-display text-2xl">A memory you can hold.</h2><p className="mt-2 text-sm leading-6 text-white/55">One tap, and it all comes back.</p></div>
       </div>}
