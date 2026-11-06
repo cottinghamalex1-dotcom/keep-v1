@@ -624,6 +624,16 @@ function KeepApp() {
   const personalMedia = project.memories.filter((m) => m.source !== "text");
   const suggestedStyle = recommendedStyle(personalMedia.length, rec?.durationSec ?? 180);
   const chosenStyle = styleTouched ? (project.creationStyle ?? "memories") : suggestedStyle;
+  const createStory = () => {
+    const duration = rec?.durationSec ?? 180;
+    const media = chosenStyle === "memories" && personalMedia.length
+      ? spreadMemories(personalMedia, duration)
+      : arrangeWords(personalMedia, project.messageParagraphs, duration);
+    patch({ memories: media, creationStyle: chosenStyle });
+    setFrame(0);
+    setGeneration(0);
+    go("generating");
+  };
   const frames = project.memories;
   const shown = frames.length ? frames : sampleMemories();
   const selected = shown[frame % shown.length];
