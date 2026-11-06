@@ -63,7 +63,7 @@ button { -webkit-tap-highlight-color: transparent; }
 .page-enter { animation: page-in .38s ease both; }
 .eyebrow { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .21em; color: var(--accent); }
 .display { font-family: var(--font-display); font-weight: 400; letter-spacing: -.025em; line-height: .95; }
-.brand { font-size: 23px; font-weight: 400; letter-spacing: .12em; line-height: 1; }
+.brand { font-family: var(--font-display); font-size: 27px; font-weight: 500; letter-spacing: -.035em; line-height: 1; }
 .grain::after { content: ""; position: absolute; inset: 0; pointer-events: none; opacity: .1; background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.45'/%3E%3C/svg%3E"); }
 .photo-shade { background: linear-gradient(to bottom, oklch(0 0 0 / 36%), transparent 28%, transparent 53%, oklch(0 0 0 / 76%)); }
 .photo-bottom { background: linear-gradient(to top, oklch(0 0 0 / 85%), transparent); }
@@ -112,3 +112,25 @@ body { font-size: 14px; line-height: 1.55; -webkit-font-smoothing: antialiased; 
 .eyebrow { font-size: 10px; font-weight: 500; letter-spacing: .16em; }
 button, input, textarea, select { letter-spacing: -.005em; }
 button { transition: background-color .18s ease, border-color .18s ease, color .18s ease; }
+
+/* KEEP — editorial interface design system, shared by all screens */
+:root {
+ --keep-black: #111111;
+ --keep-surface: #202020;
+ --keep-elevated: #272625;
+ --keep-ivory: #F6F3ED;
+ --keep-stone: #A5A09A;
+ --keep-champagne: #C6B49A;
+ --keep-hairline: rgba(246,243,237,.14);
+}
+.app-shell { box-shadow: none; }
+.keep-page-heading { max-width: 490px; }
+.keep-page-heading h1 { text-wrap: balance; }
+.app-shell :is(h1,h2,h3) { font-weight: 400; }
+.app-shell :is(input,textarea) { color: var(--foreground); }
+.app-shell :is(input,textarea)::placeholder { color: #89847D; }
+.app-shell :is(button,a,input,textarea):focus-visible { outline: 1px solid var(--accent); outline-offset: 3px; }
+.app-shell .brand { text-transform: lowercase; }
+.app-shell :is(.rounded-2xl,.rounded-xl) { border-radius: 10px; }
+.app-shell .eyebrow { color: var(--muted-foreground); }
+@media (max-width: 420px) { .app-shell .display { letter-spacing: -.025em; } }
