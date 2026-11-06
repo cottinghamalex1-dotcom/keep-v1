@@ -620,6 +620,10 @@ function KeepApp() {
   };
 
   // ---- Memories ----
+  const [styleTouched, setStyleTouched] = useState(false);
+  const personalMedia = project.memories.filter((m) => m.source !== "text");
+  const suggestedStyle = recommendedStyle(personalMedia.length, rec?.durationSec ?? 180);
+  const chosenStyle = styleTouched ? (project.creationStyle ?? "memories") : suggestedStyle;
   const frames = project.memories;
   const shown = frames.length ? frames : sampleMemories();
   const selected = shown[frame % shown.length];
