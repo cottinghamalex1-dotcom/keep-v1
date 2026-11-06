@@ -1,4 +1,7 @@
+import type { AudioMix } from "./keep-project";
+
 export type MusicBalance = "Soft" | "Balanced" | "Full";
+type MixOptions = Partial<AudioMix>;
 
 type MusicConfig = {
   chords: number[][];
@@ -40,9 +43,10 @@ function scheduleMusic(
   balance: MusicBalance,
   voiceDuration: number,
   introSeconds = 3.2,
+  options: MixOptions = {},
 ): ScheduledMusic {
   const cfg = configs[mood] ?? configs["Warm + Nostalgic"]!;
-  const levels = balanceLevels[balance] ?? balanceLevels.Balanced!;
+  const levels = balanceLevels[balance] ?? balanceLevels["Balanced"]!;
   const musicGain = ctx.createGain();
   const filter = ctx.createBiquadFilter();
   filter.type = "lowpass";
@@ -52,18 +56,25 @@ function scheduleMusic(
   filter.connect(destination);
 
   const start = ctx.currentTime + 0.02;
-  const total = Math.max(60, introSeconds + voiceDuration + 3.6);
+  const total = Math.max(20, introSeconds + voiceDuration + 1.5 + (options.fadeOut ?? 3));
   const voiceEnd = start + introSeconds + Math.max(1, voiceDuration);
 
-  musicGain.gain.cancelScheduledValues(start);
-  musicGain.gain.setValueAtTime(0.0001, start);
-  musicGain.gain.exponentialRampToValueAtTime(levels.intro, start + 0.8);
-  musicGain.gain.setValueAtTime(levels.intro, start + Math.max(0.9, introSeconds - 0.65));
-  musicGain.gain.exponentialRampToValueAtTime(levels.under, start + introSeconds + 0.35);
-  musicGain.gain.setValueAtTime(levels.under, Math.max(start + introSeconds + 0.4, voiceEnd - 2.4));
-  musicGain.gain.exponentialRampToValueAtTime(levels.outro, voiceEnd + 0.55);
-  musicGain.gain.setValueAtTime(levels.outro, voiceEnd + 1.8);
-  musicGain.gain.exponentialRampToValueAtTime(0.0001, voiceEnd + 3.3);
+  // Fades are linear from true silence so the first second never "whooshes" in.
+  // Ducking lowers the bed while the voice speaks; without it the bed stays at intro level.
+  const fadeIn = Math.max(0.3, Math.min(8, options.fadeIn ?? 2.5));
+  const fadeOut = Math.max(0.5, Math.min(10, options.fadeOut ?? 3));
+  const under = options.ducking === false ? levels.intro * 0.75 : levels.under;
+  const voiceStart = start + introSeconds;
+  const g = musicGain.gain;
+  g.cancelScheduledValues(start);
+  g.setValueAtTime(0, start);
+  g.linearRampToValueAtTime(levels.intro, start + Math.min(fadeIn, Math.max(0.3, introSeconds)));
+  g.setValueAtTime(levels.intro, Math.max(start + fadeIn, voiceStart - 0.6));
+  g.linearRampToValueAtTime(under, voiceStart + 0.4);
+  g.setValueAtTime(under, Math.max(voiceStart + 0.5, voiceEnd - 1.2));
+  g.linearRampToValueAtTime(levels.outro, voiceEnd + 0.6);
+  g.setValueAtTime(levels.outro, voiceEnd + 0.7);
+  g.linearRampToValueAtTime(0, voiceEnd + 0.7 + fadeOut);
 
   // "Worth Keeping": original 60-second instrumental arrangement in C major / A minor.
   // Layered, individually enveloped piano notes, arpeggios, and gentle string swells
@@ -105,7 +116,7 @@ function scheduleMusic(
     const chord = progression[bar % progression.length]!;
     const barStart = start + bar * beat * 4;
     // Gentle bass notes and chord pads, deliberately restrained under speech.
-    note(chord[0]! - 12, barStart, beat * 3.85, 0.18, "strings");
+    note(chord[0]!, barStart, beat * 3.85, 0.07, "strings");
     for (let k = 1; k < 4; k++) note(chord[k]!, barStart + 0.08, beat * 3.7, 0.065, "strings");
     // Broken piano chords create movement and clear harmonic changes.
     const pattern = [0, 2, 1, 3, 1, 2, 3, 1];
@@ -134,7 +145,7 @@ function scheduleMusic(
   };
 }
 
-export function createKeepVoiceMix(audio: HTMLAudioElement, mood: string, balance: MusicBalance, voiceDuration: number, introSeconds = 3.2) {
+export function createKeepVoiceMix(audio: HTMLAudioElement, mood: string, balance: MusicBalance, voiceDuration: number, introSeconds = 3.2, initialOptions: MixOptions = {}) {
   const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
   if (!AudioCtx) return null;
 
@@ -158,7 +169,11 @@ export function createKeepVoiceMix(audio: HTMLAudioElement, mood: string, balanc
   compressor.release.value = 0.24;
 
   const voiceGain = ctx.createGain();
-  voiceGain.gain.value = 0.36;
+  voiceGain.gain.value = 0.6;
+  const voiceMute = ctx.createGain();
+  const musicMute = ctx.createGain();
+  voiceMute.gain.value = initialOptions.voiceMuted ? 0 : 1;
+  musicMute.gain.value = initialOptions.musicMuted ? 0 : 1;
   const musicLevel = ctx.createGain();
   musicLevel.gain.value = 1.5;
   const master = ctx.createGain();
@@ -168,11 +183,14 @@ export function createKeepVoiceMix(audio: HTMLAudioElement, mood: string, balanc
   highpass.connect(presence);
   presence.connect(compressor);
   compressor.connect(voiceGain);
-  voiceGain.connect(master);
+  voiceGain.connect(voiceMute);
+  voiceMute.connect(master);
   master.connect(ctx.destination);
 
-  musicLevel.connect(master);
-  let music = scheduleMusic(ctx, musicLevel, mood, balance, voiceDuration, introSeconds);
+  musicLevel.connect(musicMute);
+  musicMute.connect(master);
+  let options: MixOptions = { ...initialOptions };
+  let music = scheduleMusic(ctx, musicLevel, mood, balance, voiceDuration, introSeconds, options);
   let currentMood = mood;
   let currentBalance = balance;
 
@@ -184,7 +202,7 @@ export function createKeepVoiceMix(audio: HTMLAudioElement, mood: string, balanc
       const v = Math.max(0, Math.min(100, Number.isFinite(voice) ? voice : 60)) / 100;
       const m = Math.max(0, Math.min(100, Number.isFinite(backing) ? backing : 60)) / 100;
       const at = ctx.currentTime;
-      voiceGain.gain.setTargetAtTime(v * 0.6, at, 0.025);
+      voiceGain.gain.setTargetAtTime(v * 1.0, at, 0.025);
       musicLevel.gain.setTargetAtTime(m * 2.5, at, 0.025);
     },
     setMuted: (muted: boolean) => {
@@ -192,11 +210,17 @@ export function createKeepVoiceMix(audio: HTMLAudioElement, mood: string, balanc
       master.gain.cancelScheduledValues(at);
       master.gain.setTargetAtTime(muted ? 0.0001 : 0.92, at, 0.025);
     },
-    restartMusic: (nextMood = currentMood, nextBalance = currentBalance) => {
+    setTrackMutes: (voiceMuted: boolean, musicMuted: boolean) => {
+      const at = ctx.currentTime;
+      voiceMute.gain.setTargetAtTime(voiceMuted ? 0 : 1, at, 0.03);
+      musicMute.gain.setTargetAtTime(musicMuted ? 0 : 1, at, 0.03);
+    },
+    restartMusic: (nextMood = currentMood, nextBalance = currentBalance, nextOptions: MixOptions = options) => {
       currentMood = nextMood;
       currentBalance = nextBalance;
+      options = { ...nextOptions };
       music.stop();
-      music = scheduleMusic(ctx, musicLevel, currentMood, currentBalance, voiceDuration, introSeconds);
+      music = scheduleMusic(ctx, musicLevel, currentMood, currentBalance, voiceDuration, introSeconds, options);
     },
     stop: async () => {
       music.stop();
