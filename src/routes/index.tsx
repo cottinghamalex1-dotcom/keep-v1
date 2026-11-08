@@ -628,6 +628,17 @@ function KeepApp() {
   // ---- Memories ----
   const [styleTouched, setStyleTouched] = useState(false);
   const personalMedia = project.memories.filter((m) => m.source !== "text");
+  // Narration-first photo guidance: use the real voice recording when available,
+  // otherwise estimate speaking time from the current message (~140 words/minute).
+  const narrationWordCount = project.messageParagraphs.join(" ").trim().split(/\s+/).filter(Boolean).length;
+  const estimatedNarrationSec = narrationWordCount ? Math.max(1, Math.round(narrationWordCount / 140 * 60)) : 0;
+  const recordedNarrationSec = rec && !rec.demo && rec.durationSec > 0 ? rec.durationSec : 0;
+  const guidanceSeconds = recordedNarrationSec || estimatedNarrationSec;
+  const minRecommendedMoments = guidanceSeconds ? Math.ceil(guidanceSeconds / 5) : 0;
+  const maxRecommendedMoments = guidanceSeconds ? Math.ceil(guidanceSeconds / 3) : 0;
+  const idealRecommendedMoments = guidanceSeconds ? Math.round(guidanceSeconds / 4) : 0;
+  const narrationLengthText = guidanceSeconds ? (guidanceSeconds < 60 ? `${Math.round(guidanceSeconds)} seconds` : `${Math.floor(guidanceSeconds / 60)} min${Math.round(guidanceSeconds % 60) ? ` ${Math.round(guidanceSeconds % 60)} sec` : ""}`) : "";
+
   const suggestedStyle = recommendedStyle(personalMedia.length, rec?.durationSec ?? 180);
   const chosenStyle = styleTouched ? (project.creationStyle ?? "memories") : suggestedStyle;
   const createStory = () => {
@@ -1100,7 +1111,16 @@ function KeepApp() {
       </div>
     </div></>}
     {screen === "memories" && <>{top()}<div className="px-7 pb-10 pt-9">
-      {title("YOUR MOMENTS", "Add photos & videos.", "As many or as few as you like. Even none is okay.")}
+      {title("YOUR MOMENTS", "Add photos & videos.", "Choose the moments that bring your story to life.")}
+      <div className="keep-editorial-surface mb-7 px-5 py-5" aria-live="polite">
+        <div className="flex items-center justify-between gap-3"><p className="text-[11px] font-medium uppercase tracking-[.14em] text-[#C6B49A]">Suggested moments</p>{guidanceSeconds > 0 && <span className="text-[11px] text-muted-foreground">{narrationLengthText}</span>}</div>
+        {guidanceSeconds > 0 ? <>
+          <p className="mt-3 font-display text-[33px] leading-none text-foreground">{minRecommendedMoments}–{maxRecommendedMoments} <span className="text-[23px]">photos or videos</span></p>
+          <p className="mt-3 text-xs leading-6 text-muted-foreground">We suggest about one photo or video every 3–5 seconds of narration. {recordedNarrationSec ? "This is based on your recording." : "This is estimated from your message length."} Around {idealRecommendedMoments} is a great starting point.</p>
+          <p className="mt-3 text-xs text-[#C6B49A]">{personalMedia.length} added{personalMedia.length >= minRecommendedMoments && personalMedia.length <= maxRecommendedMoments ? " · In the suggested range" : personalMedia.length < minRecommendedMoments ? ` · ${minRecommendedMoments - personalMedia.length} more to reach the range` : " · More than suggested is okay"}</p>
+        </> : <p className="mt-3 text-sm leading-6 text-muted-foreground">Add a message or record your voice to see a personalized photo recommendation. Most stories work well with a new moment every 3–5 seconds.</p>}
+        <p className="mt-3 border-t border-border/50 pt-3 text-[11px] leading-5 text-muted-foreground">Just a guide — use as many or as few moments as you'd like. You can always add more later.</p>
+      </div>
       <div className="grid grid-cols-3 gap-1">
         {personalMedia.map((m, i) => <div key={m.id} className="relative aspect-square overflow-hidden bg-card"><MediaView item={m} thumb alt={m.name ?? "Your memory"} className="h-full w-full object-cover" /><button type="button" aria-label={"Remove memory " + (i+1)} onClick={() => removeMemory(i)} className="absolute right-1 top-1 rounded-full bg-black/70 p-2 text-white"><X className="size-4" /></button></div>)}
         <button type="button" onClick={() => addInput.current?.click()} disabled={busy} className="flex aspect-square flex-col items-center justify-center gap-2 border border-border text-xs text-muted-foreground"><Plus className="size-5" />{busy ? "Adding…" : "Add media"}</button>
