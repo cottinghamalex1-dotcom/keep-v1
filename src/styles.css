@@ -450,3 +450,37 @@ body { font-size: 16px; line-height: 1.6; -webkit-font-smoothing: antialiased; }
 }
 .keep-editorial-screen .keep-wordmark { color: #F7F5F2; }
 @media (max-width: 420px) { .keep-editorial-title { font-size: clamp(38px, 10.3vw, 44px); } }
+
+/* The approved Concept #1 wordmark is an actual vector traced from the selected artwork.
+   CSS masking gives one silhouette in black on ivory and ivory on black. */
+@supports ((mask-image: url("/brand/keep-wordmark.svg")) or (-webkit-mask-image: url("/brand/keep-wordmark.svg"))) {
+  .brand, .keep-wordmark, .app-shell .brand {
+    display: inline-block;
+    flex: 0 0 auto;
+    width: 88px;
+    height: 37px;
+    overflow: hidden;
+    color: var(--foreground);
+    background-color: currentColor;
+    -webkit-mask-image: url("/brand/keep-wordmark.svg");
+    mask-image: url("/brand/keep-wordmark.svg");
+    -webkit-mask-repeat: no-repeat;
+    mask-repeat: no-repeat;
+    -webkit-mask-position: center;
+    mask-position: center;
+    -webkit-mask-size: contain;
+    mask-size: contain;
+    font-size: 0 !important;
+    line-height: 0;
+    vertical-align: middle;
+  }
+  .card-object .brand,
+  .keep-editorial-screen .brand,
+  .keep-editorial-screen .keep-wordmark,
+  .cinematic-intro .brand,
+  .cinematic-ending .brand { color: #F7F5F2; }
+  .keep-studio .brand, .keep-studio .keep-wordmark { color: #0B0B0B; }
+}
+@media (max-width: 420px) {
+  .brand, .keep-wordmark, .app-shell .brand { width: 80px; height: 34px; }
+}
