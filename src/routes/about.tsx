@@ -19,7 +19,7 @@ function AboutKeep() {
         <p className="mb-5 text-[11px] uppercase tracking-[.24em] text-[#C6B49A]">Some things are worth keeping</p>
         <h1 className="keep-editorial-title !text-[clamp(46px,10vw,76px)]">Give them something they'll never forget.</h1>
         <p className="mt-8 max-w-xl text-base leading-8 text-white/65">The words you've always wanted to say. The photos that bring it all back. The voice they know by heart. Keep brings them together in a personal memory film, connected to a beautiful physical keepsake.</p>
-        <Link to="/?create=1" className="keep-premium-action mt-10 px-6 py-4">Create a Keep <ArrowRight className="size-4" /></Link>
+        <a href="/?create=1" className="keep-premium-action mt-10 px-6 py-4">Create a Keep <ArrowRight className="size-4" /></a>
       </section>
       <section className="border-t border-white/15 py-16">
         <p className="mb-5 text-xs uppercase tracking-[.2em] text-[#C6B49A]">Our mission</p>
@@ -45,7 +45,7 @@ function AboutKeep() {
         ].map(({n,title,description,Icon})=><div key={n} className="flex gap-5"><span className="pt-1 text-xs text-[#C6B49A]">{n}</span><div className="flex-1 border-b border-white/10 pb-7"><Icon className="mb-3 size-5 text-[#C6B49A]" /><h3 className="font-display text-2xl">{title}</h3><p className="mt-2 text-sm leading-7 text-white/60">{description}</p></div></div>)}</div>
         <p className="mt-6 text-xs leading-6 text-white/45">Physical card ordering and fulfillment availability may vary while Keep is in development.</p>
       </section>
-      <section className="border-t border-white/15 py-16 text-center"><Sparkles className="mx-auto mb-6 size-6 text-[#C6B49A]" /><h2 className="keep-editorial-title">Say what matters. Keep it forever.</h2><p className="mx-auto mt-5 max-w-sm text-sm leading-7 text-white/60">It doesn't have to be perfect. It just has to be yours.</p><Link to="/?create=1" className="keep-premium-action mt-9 px-7 py-4">Create a Keep <ArrowRight className="size-4" /></Link></section>
+      <section className="border-t border-white/15 py-16 text-center"><Sparkles className="mx-auto mb-6 size-6 text-[#C6B49A]" /><h2 className="keep-editorial-title">Say what matters. Keep it forever.</h2><p className="mx-auto mt-5 max-w-sm text-sm leading-7 text-white/60">It doesn't have to be perfect. It just has to be yours.</p><a href="/?create=1" className="keep-premium-action mt-9 px-7 py-4">Create a Keep <ArrowRight className="size-4" /></a></section>
     </div>
   </main>;
 }

@@ -2,7 +2,7 @@ import { KeepAccountButton } from "@/components/keep-account-button";
 import { KeepPublishPanel } from "@/components/keep-publish-panel";
 import { KeepTimeline } from "@/components/keep-timeline";
 import { arrangeWords, spreadMemories, recommendedStyle } from "@/lib/keep-story-layout";
-import { activeKeepSession, loadCloudDraft, saveCloudDraft, removeCloudDraft } from "@/lib/keep-cloud";
+import { activeKeepSession, loadEditableKeep, loadCloudDraft, saveCloudDraft, removeCloudDraft } from "@/lib/keep-cloud";
 import { CinematicMedia } from "@/components/cinematic-media";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useRef, useState, type ChangeEvent, type ReactNode } from "react";
@@ -136,6 +136,7 @@ function KeepApp() {
   const [aiError, setAiError] = useState<null | { kind: "start" | "transcribe" | "next" | "draft"; retry: () => void }>(null);
   const [generation, setGeneration] = useState(0);
   const [mode, setMode] = useState<Mode>("Memories");
+  const [resumeError, setResumeError] = useState("");
   const [editorPanel, setEditorPanel] = useState<Mode | null>(null);
   const [previewChooserOpen, setPreviewChooserOpen] = useState(false);
   const [creatorPreviewMode, setCreatorPreviewMode] = useState<KeepExperienceMode | null>(null);
@@ -192,12 +193,15 @@ function KeepApp() {
   useEffect(() => {
     let cancelled = false;
     const initialize = async () => {
+      const params = new URLSearchParams(window.location.search);
+      const editId = params.get("edit");
+      const resumeRequested = params.get("resume") === "1" || !!editId;
       const local = loadDraft();
       let next = local;
       try {
         const session = await activeKeepSession();
         if (session) {
-          const remote = await loadCloudDraft(session);
+          const remote = editId ? await loadEditableKeep(editId, session) : await loadCloudDraft(session);
           if (remote) next = remote;
           else if (local?.active) {
             // Never silently attach an unclaimed device draft to a different account.
@@ -220,20 +224,32 @@ function KeepApp() {
               });
             } else next = newProject();
           } else next = newProject();
+        } else if (resumeRequested) {
+          throw new Error("Please sign in to your Keep account to continue editing.");
         }
       } catch (error) {
+        if (resumeRequested) { if (!cancelled) setResumeError(error instanceof Error ? error.message : "Your Keep could not be restored. Please try again."); return; }
         toast.error(error instanceof Error ? error.message : "Cloud draft unavailable; showing this device's draft.");
       }
       if (cancelled) return;
+      const usingLocal = next === local;
       if (next) {
+        next = { ...next, publicationId: next.publicationId || crypto.randomUUID() };
+        if (usingLocal) next = { ...next, ...await hydrateDraftMedia(next) };
+        if (cancelled) return;
         setProject(next);
-        if (next === local) {
-          void hydrateDraftMedia(next).then(h => { if (!cancelled) setProject(cur => ({ ...cur, ...h })); });
-        }
       }
-      const createRequested = new URLSearchParams(window.location.search).get("create") === "1";
+      if (resumeRequested) {
+        if (!next?.active) { setResumeError("There isn't a saved draft to continue yet."); return; }
+        const stage = next.memories.length ? "editor" : resumeScreen(next.stage as Screen);
+        setHistory([]);
+        setScreen(creationScreens.includes(stage) ? stage : "recipient");
+        setHydrated(true);
+        return;
+      }
+      const createRequested = params.get("create") === "1";
       const canCreate = createRequested && (!next?.active || window.confirm("Start a new Keep? Your current draft will be replaced."));
-      if (canCreate) { setProject({ ...newProject(), active: true, stage: "recipient" }); window.history.replaceState(null, "", "/"); }
+      if (canCreate) { setProject({ ...newProject(), publicationId: crypto.randomUUID(), active: true, stage: "recipient" }); window.history.replaceState(null, "", "/"); }
       setHistory(canCreate ? ["home"] : []);
       if (!canCreate) { window.location.replace("/app"); return; }
       setScreen("recipient");
@@ -926,8 +942,10 @@ function KeepApp() {
   const accountLink = <KeepAccountButton />;
   const fileInputs = <><input ref={draftInput} type="file" accept=".docx,.pdf,.txt,.md,.rtf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/pdf,text/plain,text/markdown,application/rtf" className="sr-only" aria-label="Upload something you have already written" tabIndex={-1} onChange={(e) => void importDraft(e)} /><input ref={addInput} type="file" accept="image/*,video/*" multiple className="sr-only" aria-label="Choose photos and videos" tabIndex={-1} onChange={(e) => void addFiles(e)} /><input ref={replaceInput} type="file" accept="image/*,video/*" className="sr-only" aria-label="Choose a replacement photo or video" tabIndex={-1} onChange={(e) => void addFiles(e, frame % Math.max(1, shown.length))} /></>;
 
+  if (resumeError) return <main className="app-shell p-8"><h1 className="font-display text-3xl">Unable to open this Keep</h1><p role="alert" className="my-6 text-sm">{resumeError}</p><Button onClick={() => window.location.reload()}>Try again</Button><a href="/app" className="ml-5 underline">Back to your creations</a></main>;
+  if (!hydrated) return <main className="app-shell p-8"><p role="status">Opening your Keep…</p></main>;
   return <main className="app-shell">{fileInputs}<div key={screen} className="page-enter">
-    {screen === "you" && <>{top()}<div className="px-7 pt-8">{title("Your space", "Alex.", "The things worth keeping, all in one place.")}<div className="mt-12 border-t border-border">{[{ label: "What is KEEP?", Icon: Sparkles }, { label: "My cards", Icon: Radio }, { label: "Downloads & backups", Icon: Download }, { label: "Privacy", Icon: LockKeyhole }, { label: "Help", Icon: CircleHelp }].map(({ label, Icon }) => <Button key={label} variant="bare" className="flex h-17 w-full justify-between border-b border-border px-0 text-sm font-normal" onClick={() => (label === "What is KEEP?" ? go("onboarding") : setSetting(label))}><span className="flex items-center gap-4"><Icon className="size-4 text-accent" />{label}</span><ChevronRight className="size-4 text-muted-foreground" /></Button>)}{project.active && <Button variant="bare" className="flex h-17 w-full justify-between border-b border-border px-0 text-sm font-normal text-destructive" onClick={() => { if (!window.confirm("Delete your draft Keep? Recordings and photos added to it will be removed from this device.")) return; discard(project); setProject(newProject()); toast.success("Draft deleted"); }}><span className="flex items-center gap-4"><Trash2 className="size-4" />Delete draft Keep</span></Button>}</div><p className="mt-9 text-xs leading-6 text-muted-foreground">Your Keeps are private.</p></div>{setting && sheet(setting, () => setSetting(""), <><p className="mt-5 text-sm leading-7 text-muted-foreground">{setting === "Privacy" ? "Your Keeps are private by default. In this MVP, drafts, recordings and photos stay on this device only. Sharing a card gives its recipient access to that Keep — no account required." : setting === "My cards" ? "HANNA · from Alex · 2026 (sample). Physical card ordering is coming next." : setting === "Downloads & backups" ? "Your draft is saved on this device. Cloud backups and downloads aren't available yet." : "We're here when you need us. Support isn't connected in this preview yet."}</p><Button variant="quiet" className="mt-8 w-full" onClick={() => setSetting("")}>Done</Button></>)}</>}
+    {screen === "you" && <>{top()}<div className="px-7 pt-8">{title("Your space", "Alex.", "The things worth keeping, all in one place.")}<div className="mt-12 border-t border-border">{[{ label: "What is KEEP?", Icon: Sparkles }, { label: "My cards", Icon: Radio }, { label: "Downloads & backups", Icon: Download }, { label: "Privacy", Icon: LockKeyhole }, { label: "Help", Icon: CircleHelp }].map(({ label, Icon }) => <Button key={label} variant="bare" className="flex h-17 w-full justify-between border-b border-border px-0 text-sm font-normal" onClick={() => (label === "What is KEEP?" ? window.location.assign("/about") : setSetting(label))}><span className="flex items-center gap-4"><Icon className="size-4 text-accent" />{label}</span><ChevronRight className="size-4 text-muted-foreground" /></Button>)}{project.active && <Button variant="bare" className="flex h-17 w-full justify-between border-b border-border px-0 text-sm font-normal text-destructive" onClick={() => { if (!window.confirm("Delete your draft Keep? Recordings and photos added to it will be removed from this device.")) return; discard(project); setProject(newProject()); toast.success("Draft deleted"); }}><span className="flex items-center gap-4"><Trash2 className="size-4" />Delete draft Keep</span></Button>}</div><p className="mt-9 text-xs leading-6 text-muted-foreground">Your Keeps are private.</p></div>{setting && sheet(setting, () => setSetting(""), <><p className="mt-5 text-sm leading-7 text-muted-foreground">{setting === "Privacy" ? "Your Keeps are private by default. In this MVP, drafts, recordings and photos stay on this device only. Sharing a card gives its recipient access to that Keep — no account required." : setting === "My cards" ? "HANNA · from Alex · 2026 (sample). Physical card ordering is coming next." : setting === "Downloads & backups" ? "Your draft is saved on this device. Cloud backups and downloads aren't available yet." : "We're here when you need us. Support isn't connected in this preview yet."}</p><Button variant="quiet" className="mt-8 w-full" onClick={() => setSetting("")}>Done</Button></>)}</>}
     {screen === "detail" && <>{top("READY")}<div className="relative mx-4 h-[min(55dvh,520px)] overflow-hidden"><img src={memoryImages[0]} alt="Couple at the coast, illustrative prototype photograph" className="h-full w-full object-cover" /><div className="absolute inset-0 photo-bottom" /><div className="absolute bottom-8 left-6"><p className="eyebrow text-foreground">ANNIVERSARY · 2026</p><h1 className="display mt-3 text-5xl">HANNA</h1><p className="mt-3 text-sm">from Alex · 3:57</p></div></div><div className="space-y-3 px-6 pt-7">{nextButton("Play Keep", () => { setViewingDemo(true); go("preview"); })}<Button variant="quiet" size="touch" className="w-full" onClick={editDemoCopy}><Settings2 /> Edit a copy</Button><Button variant="bare" size="touch" className="w-full" asChild><Link to="/recipient" search={{ keep: "" }}><Radio /> View as recipient</Link></Button></div></>}
     {screen === "recipient" && <>{top("01 / 04")}<div className="px-7 pt-11">{title("Begin with someone", "Who is this Keep for?")}<div className="grid grid-cols-2 gap-3" role="group" aria-label="Who is this Keep for?">{relationships.map((r) => <Button key={r} type="button" aria-pressed={project.relationship === r} variant="quiet" className={`keep-choice-bubble ${project.relationship === r ? "keep-choice-bubble--selected" : ""}`} onClick={() => { patch({ relationship: r, ...(r === "Myself" ? { recipientName: "Myself" } : project.relationship === "Myself" ? { recipientName: "" } : {}) }); if (r !== "Someone else") setOtherRelationship(""); }}><span className="min-w-0 flex-1 text-left">{r}</span>{project.relationship === r && <span className="keep-choice-check"><Check className="!size-3.5" strokeWidth={2.7} /></span>}</Button>)}</div>{project.relationship === "Someone else" && <div className="mt-8 page-enter"><label htmlFor="other-relationship" className="eyebrow">WHO ARE THEY TO YOU?</label><input id="other-relationship" value={otherRelationship} onChange={(e) => setOtherRelationship(e.target.value.slice(0, 50))} placeholder="My coach" autoComplete="off" className="mt-3 w-full border-0 border-b border-border bg-transparent pb-4 font-display text-3xl outline-none focus:border-accent" /><p className="mt-3 text-xs text-muted-foreground"></p></div>}{project.relationship && project.relationship !== "Myself" && <div className="mt-9 page-enter"><label htmlFor="recipient-name" className="eyebrow">NAME(S)</label><input id="recipient-name" value={name} onChange={(e) => patch({ recipientName: e.target.value.slice(0, 60) })} placeholder="Gigi & Pops" autoComplete="off" className="mt-3 w-full border-0 border-b border-border bg-transparent pb-4 font-display text-3xl outline-none focus:border-accent" /><p className="mt-3 text-xs text-muted-foreground"></p></div>}<div className="mt-10">{nextButton("Continue", () => { if (project.relationship === "Someone else") patch({ relationship: otherRelationship.trim() }); go("occasion"); }, !project.relationship || (project.relationship !== "Myself" && !name.trim()) || (project.relationship === "Someone else" && !otherRelationship.trim()))}</div></div></>}
     {screen === "occasion" && <>{top("02 / 04")}<div className="px-7 pt-11">{title("Give it a moment", "What are you keeping?", "Choose an occasion or moment.")}<div className="grid grid-cols-2 gap-3" role="group" aria-label="Choose an occasion or moment">{occasions.map((o) => <Button key={o} type="button" aria-pressed={project.occasion === o} variant="quiet" className={`keep-choice-bubble ${project.occasion === o ? "keep-choice-bubble--selected" : ""}`} onClick={() => { patch({ occasion: o }); if (o !== "Other") setOtherOccasion(""); }}><span className="min-w-0 flex-1 text-left">{o}</span>{project.occasion === o && <span className="keep-choice-check"><Check className="!size-3.5" strokeWidth={2.7} /></span>}</Button>)}</div>{project.occasion === "Other" && <div className="mt-8 page-enter"><label className="eyebrow" htmlFor="other-occasion">TELL US WHAT IT'S FOR</label><input id="other-occasion" value={otherOccasion} onChange={(e) => setOtherOccasion(e.target.value.slice(0, 80))} placeholder="Our family Disney trip with Gigi & Pops" className="mt-3 w-full border-0 border-b border-border bg-transparent pb-4 font-display text-3xl outline-none focus:border-accent" /><p className="mt-3 text-xs text-muted-foreground"></p></div>}<div className="mt-12">{nextButton("Continue", () => { if (project.occasion === "Other") patch({ occasion: otherOccasion.trim() }); go("intent"); }, project.occasion === "Other" && !otherOccasion.trim())}</div></div></>}
