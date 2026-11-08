@@ -150,6 +150,44 @@ function scheduleMusic(
   };
 }
 
+const WORTH_KEEPING_MP3 = "/audio/worth-keeping.mp3";
+type MusicBed = { stop: () => void; play?: () => Promise<void>; pause?: () => void };
+function createMusicBed(ctx: AudioContext, destination: AudioNode, mood: string, balance: MusicBalance, voiceDuration: number, introSeconds: number, options: MixOptions): MusicBed {
+  if (mood !== "Worth Keeping") return scheduleMusic(ctx, destination, mood, balance, voiceDuration, introSeconds, options);
+  const audio = new Audio(WORTH_KEEPING_MP3);
+  audio.preload = "auto";
+  audio.loop = true;
+  const source = ctx.createMediaElementSource(audio);
+  const gain = ctx.createGain();
+  source.connect(gain);
+  gain.connect(destination);
+  const levels: Record<MusicBalance, number> = { Soft: 0.22, Balanced: 0.32, Full: 0.45 };
+  const level = levels[balance] ?? levels.Balanced;
+  const start = ctx.currentTime;
+  const fadeIn = Math.max(0.25, options.fadeIn ?? 2.5);
+  gain.gain.setValueAtTime(0, start);
+  gain.gain.linearRampToValueAtTime(level, start + fadeIn);
+  if (options.ducking !== false && voiceDuration > 0) {
+    const voiceStart = start + Math.max(0, introSeconds);
+    gain.gain.setValueAtTime(level, Math.max(start + fadeIn, voiceStart));
+    gain.gain.linearRampToValueAtTime(level * 0.52, Math.max(start + fadeIn, voiceStart) + 0.6);
+    const voiceEnd = voiceStart + voiceDuration;
+    gain.gain.setValueAtTime(level * 0.52, Math.max(start + fadeIn, voiceEnd - 0.6));
+    gain.gain.linearRampToValueAtTime(level, voiceEnd + 0.4);
+  }
+  return {
+    play: async () => { await audio.play(); },
+    pause: () => audio.pause(),
+    stop: () => {
+      audio.pause();
+      audio.removeAttribute("src");
+      audio.load();
+      source.disconnect();
+      gain.disconnect();
+    },
+  };
+}
+
 export function createKeepVoiceMix(audio: HTMLAudioElement, mood: string, balance: MusicBalance, voiceDuration: number, introSeconds = 3.2, initialOptions: MixOptions = {}) {
   const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
   if (!AudioCtx) return null;
@@ -195,14 +233,14 @@ export function createKeepVoiceMix(audio: HTMLAudioElement, mood: string, balanc
   musicLevel.connect(musicMute);
   musicMute.connect(master);
   let options: MixOptions = { ...initialOptions };
-  let music = scheduleMusic(ctx, musicLevel, mood, balance, voiceDuration, introSeconds, options);
+  let music = createMusicBed(ctx, musicLevel, mood, balance, voiceDuration, introSeconds, options);
   let currentMood = mood;
   let currentBalance = balance;
 
   return {
     context: ctx,
-    play: async () => { if (ctx.state !== "running") await ctx.resume(); },
-    pause: async () => { if (ctx.state === "running") await ctx.suspend(); },
+    play: async () => { if (ctx.state !== "running") await ctx.resume(); await music.play?.(); },
+    pause: async () => { music.pause?.(); if (ctx.state === "running") await ctx.suspend(); },
     setLevels: (voice: number, backing: number) => {
       const v = Math.max(0, Math.min(100, Number.isFinite(voice) ? voice : 60)) / 100;
       const m = Math.max(0, Math.min(100, Number.isFinite(backing) ? backing : 60)) / 100;
@@ -225,7 +263,8 @@ export function createKeepVoiceMix(audio: HTMLAudioElement, mood: string, balanc
       currentBalance = nextBalance;
       options = { ...nextOptions };
       music.stop();
-      music = scheduleMusic(ctx, musicLevel, currentMood, currentBalance, voiceDuration, introSeconds, options);
+      music = createMusicBed(ctx, musicLevel, currentMood, currentBalance, voiceDuration, introSeconds, options);
+      if (ctx.state === "running") void music.play?.().catch(() => undefined);
     },
     stop: async () => {
       music.stop();
@@ -236,9 +275,20 @@ export function createKeepVoiceMix(audio: HTMLAudioElement, mood: string, balanc
 }
 
 let activeSample: { context: AudioContext; music: ScheduledMusic; timer: number } | null = null;
+let activeFileSample: { audio: HTMLAudioElement; timer: number } | null = null;
 
 export async function playMusicSample(mood: string, seconds = 9) {
   stopMusicSample();
+  if (mood === "Worth Keeping") {
+    const audio = new Audio(WORTH_KEEPING_MP3);
+    audio.preload = "auto";
+    audio.volume = 0.65;
+    audio.addEventListener("ended", () => stopMusicSample(), { once: true });
+    await audio.play();
+    const timer = window.setTimeout(() => stopMusicSample(), seconds * 1000);
+    activeFileSample = { audio, timer };
+    return;
+  }
   const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
   if (!AudioCtx) throw new Error("Audio preview isn't supported in this browser.");
   const context: AudioContext = new AudioCtx();
@@ -252,6 +302,13 @@ export async function playMusicSample(mood: string, seconds = 9) {
 }
 
 export function stopMusicSample() {
+  if (activeFileSample) {
+    window.clearTimeout(activeFileSample.timer);
+    activeFileSample.audio.pause();
+    activeFileSample.audio.removeAttribute("src");
+    activeFileSample.audio.load();
+    activeFileSample = null;
+  }
   if (!activeSample) return;
   window.clearTimeout(activeSample.timer);
   activeSample.music.stop();
