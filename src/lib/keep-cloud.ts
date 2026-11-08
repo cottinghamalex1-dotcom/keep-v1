@@ -64,6 +64,10 @@ export async function saveCloudDraft(project:KeepProject,session:KeepSession):Pr
     if (!blob) throw new Error("A recording or photo is missing from this device. Sync was not completed.");
     await uploadBlob(session,id,blob);
   }
+  if (project.publicationId) {
+    // Omit status, published_project and recipient_token: autosave never republishes.
+    await request("/rest/v1/keeps?on_conflict=id", session, { method: "POST", headers: { "Content-Type": "application/json", Prefer: "resolution=merge-duplicates" }, body: JSON.stringify({ id: project.publicationId, owner_id: session.user.id, recipient_name: project.recipientName || "someone special", occasion: project.occasion, draft_project: safeProject(project), updated_at: new Date().toISOString() }) });
+  }
   const res=await request("/rest/v1/keep_drafts?on_conflict=owner_id",session,{method:"POST",headers:{"Content-Type":"application/json",Prefer:"resolution=merge-duplicates"},body:JSON.stringify({owner_id:session.user.id,project:safeProject(project),updated_at:new Date().toISOString()})});
   await res.text();
 }
@@ -71,7 +75,10 @@ export async function loadCloudDraft(session:KeepSession):Promise<KeepProject|nu
   const res=await request("/rest/v1/keep_drafts?select=project&owner_id=eq."+encodeURIComponent(session.user.id)+"&limit=1",session);
   const rows=await res.json() as {project:Partial<KeepProject>}[];
   if (!rows.length) return null;
-  const p:KeepProject={...newProject(),...rows[0]!.project};
+  return hydrateCloudProject(rows[0]!.project, session);
+}
+async function hydrateCloudProject(project: Partial<KeepProject>, session: KeepSession): Promise<KeepProject> {
+  const p:KeepProject={...newProject(),...project};
   const memories=[];
   for(const m of p.memories) {
     if(m.source==="sample") { memories.push({...m,url:memoryImages[m.sampleIndex??0]??""}); continue; }
@@ -91,4 +98,39 @@ export async function loadKeepDisplayName(session: KeepSession): Promise<string>
   const res = await request("/rest/v1/keep_profiles?select=display_name&user_id=eq." + encodeURIComponent(session.user.id) + "&limit=1", session);
   const rows = await res.json() as { display_name: string | null }[];
   return rows[0]?.display_name?.trim() || "";
+}
+
+/** Load exactly the selected creation using the owner's authenticated API access. */
+export async function loadEditableKeep(id: string, session: KeepSession): Promise<KeepProject> {
+  const owner = encodeURIComponent(session.user.id);
+  const response = await request("/rest/v1/keeps?select=id,recipient_token,published_at,draft_project,published_project&id=eq." + encodeURIComponent(id) + "&owner_id=eq." + owner + "&limit=1", session);
+  const rows = await response.json();
+  const keep = rows[0];
+  if (!keep) throw new Error("This Keep could not be found in your account.");
+  // Preserve work from the previous single-draft editor when it belongs to this Keep.
+  const latestResponse = await request("/rest/v1/keep_drafts?select=project&owner_id=eq." + owner + "&limit=1", session);
+  const latest = (await latestResponse.json())[0]?.project;
+  const draft = latest?.publicationId === id ? latest : keep.draft_project;
+  if (draft) return { ...await hydrateCloudProject(draft, session), active: true, publicationId: id, publicationToken: keep.published_at ? keep.recipient_token : undefined };
+  const published = keep.published_project;
+  if (!published?.memories?.length || !published.voicePath) throw new Error("This Keep has no saved editing project yet.");
+  const restore = async (path: string, blobId: string) => {
+    if (!path.startsWith(session.user.id + "/publications/" + id + "/")) throw new Error("A saved media path does not belong to this Keep.");
+    const file = await request("/storage/v1/object/authenticated/keep-media/" + path.split("/").map(encodeURIComponent).join("/"), session);
+    const blob = await file.blob();
+    await putBlob(blobId, blob);
+    return URL.createObjectURL(blob);
+  };
+  const memories: KeepProject["memories"] = [];
+  for (const memory of published.memories) {
+    // Unique local IDs prevent an older published copy replacing another draft's media.
+    const blobId = crypto.randomUUID();
+    const { storagePath, ...settings } = memory;
+    memories.push({ ...settings, id: blobId, source: "upload" as const, url: await restore(storagePath, blobId) });
+  }
+  const audioId = crypto.randomUUID();
+  const audioUrl = await restore(published.voicePath, audioId);
+  const { voicePath, voiceDuration, memories: oldMemories, ...settings } = published;
+  const idMap = new Map(oldMemories.map((m: {id: string}, i: number) => [m.id, memories[i]!.id]));
+  return { ...newProject(), ...settings, active: true, stage: "editor", publicationId: id, publicationToken: keep.recipient_token, memories, readMemoryOrder: (published.readMemoryOrder ?? []).map((oldId: string) => idMap.get(oldId)).filter(Boolean), finalVoiceRecording: { audioId, audioUrl, durationSec: voiceDuration ?? 0, demo: false } };
 }

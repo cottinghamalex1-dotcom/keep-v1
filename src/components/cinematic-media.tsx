@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 export type CinematicMoment = {
   url: string;
@@ -17,7 +17,7 @@ export function CinematicMedia({ item, playing = true, duration = 7, className =
   className?: string;
   imageClassName?: string;
 }) {
-  const [previous, setPrevious] = useState<CinematicMoment | null>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
   const [lastUrl, setLastUrl] = useState(item.url);
   const [failed, setFailed] = useState(false);
 
@@ -27,9 +27,15 @@ export function CinematicMedia({ item, playing = true, duration = 7, className =
   useEffect(() => {
     setFailed(false);
     if (item.url === lastUrl) return;
-    setPrevious(null);
     setLastUrl(item.url);
   }, [item.url, lastUrl]);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+    if (playing) void video.play().catch(() => {});
+    else video.pause();
+  }, [playing, item.url]);
 
   const render = (moment: CinematicMoment) => {
     const x = Math.max(0, Math.min(100, moment.focusX ?? 50));
@@ -47,7 +53,7 @@ export function CinematicMedia({ item, playing = true, duration = 7, className =
       ["--keep-to" as string]: `translateX(${pan}%) scale(${to})`,
     };
     return moment.kind === "video"
-      ? <video key={moment.url} src={moment.url} autoPlay={playing} muted loop playsInline preload="metadata" onError={() => setFailed(true)} className={`absolute inset-0 block h-full w-full object-cover ${imageClassName}`} style={imageStyle} />
+      ? <video ref={videoRef} key={moment.url} src={moment.url} autoPlay={playing} muted loop playsInline preload="metadata" onError={() => setFailed(true)} className={`absolute inset-0 block h-full w-full object-cover ${imageClassName}`} style={imageStyle} />
       : <img key={moment.url} src={moment.url} alt="Memory" onLoad={() => setFailed(false)} onError={() => setFailed(true)} className={`absolute inset-0 block h-full w-full object-cover ${imageClassName}`} style={imageStyle} />;
   };
 

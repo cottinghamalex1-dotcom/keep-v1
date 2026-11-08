@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { ArrowLeft, ArrowRight, CalendarDays, Check, ChevronDown, ExternalLink, Gift, Heart, ImageIcon, Link2, Plus, Trash2 } from "lucide-react";
+import { ArrowLeft, ArrowRight, CalendarDays, Check, ChevronDown, ExternalLink, Gift, Heart, ImageIcon, Link2, Plus, PenLine, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { KeepAccountButton } from "@/components/keep-account-button";
@@ -85,8 +85,8 @@ function MyKeeps() {
       <h1 className="keep-editorial-title mt-8">Your Keeps.</h1>
       <p className="keep-page-description mt-4">The words you've shared. The moments you've made. All in one place.</p>
     </div>
-    <div className="mt-9 flex items-center justify-between gap-4 border-b border-white/[.12] pb-5"><span className="text-xs uppercase tracking-[.17em] text-white/50">{keeps.length} {keeps.length===1?"creation":"creations"}</span><Link to="/?create=1" className="inline-flex items-center gap-2 text-xs text-[#C6B49A]"><Plus className="size-4"/> Create a Keep</Link></div>
-    {loading ? <p className="py-12 text-sm text-white/50" role="status">Gathering your Keeps…</p> : !session ? <div className="py-14"><p className="keep-section-title">Your Keeps are waiting.</p><Link to="/app" className="keep-premium-action mt-7 px-6 py-3">Sign in to view them <ArrowRight className="size-4"/></Link></div> : error ? <p role="alert" className="py-10 text-sm text-[#E8B9AA]">{error}</p> : keeps.length===0 ? <div className="py-16 text-center"><Heart className="mx-auto size-7 text-[#C6B49A]"/><h2 className="keep-section-title mt-5">Your first Keep starts here.</h2><p className="mt-4 text-sm text-white/50">Something meaningful is waiting to be made.</p><Link to="/?create=1" className="keep-premium-action mx-auto mt-8 px-6 py-3">Create a Keep <ArrowRight className="size-4"/></Link></div> :
+    <div className="mt-9 flex items-center justify-between gap-4 border-b border-white/[.12] pb-5"><span className="text-xs uppercase tracking-[.17em] text-white/50">{keeps.length} {keeps.length===1?"creation":"creations"}</span><a href="/?create=1" className="inline-flex items-center gap-2 text-xs text-[#C6B49A]"><Plus className="size-4"/> Create a Keep</a></div>
+    {loading ? <p className="py-12 text-sm text-white/50" role="status">Gathering your Keeps…</p> : !session ? <div className="py-14"><p className="keep-section-title">Your Keeps are waiting.</p><Link to="/app" className="keep-premium-action mt-7 px-6 py-3">Sign in to view them <ArrowRight className="size-4"/></Link></div> : error ? <p role="alert" className="py-10 text-sm text-[#E8B9AA]">{error}</p> : keeps.length===0 ? <div className="py-16 text-center"><Heart className="mx-auto size-7 text-[#C6B49A]"/><h2 className="keep-section-title mt-5">Your first Keep starts here.</h2><p className="mt-4 text-sm text-white/50">Something meaningful is waiting to be made.</p><a href="/?create=1" className="keep-premium-action mx-auto mt-8 px-6 py-3">Create a Keep <ArrowRight className="size-4"/></a></div> :
     <div className="mt-6 space-y-3">{keeps.map(keep=><article key={keep.id} className="keep-editorial-surface overflow-hidden">
       <button type="button" onClick={()=>setExpanded(expanded===keep.id?null:keep.id)} aria-expanded={expanded===keep.id} className="flex w-full items-center gap-4 p-4 text-left">
         <div className="relative flex h-24 w-[76px] shrink-0 items-center justify-center overflow-hidden rounded-lg border border-white/[.10] bg-[radial-gradient(ellipse_at_50%_90%,rgba(198,180,154,.22),transparent_66%),linear-gradient(145deg,#292520,#141414)]">
@@ -95,6 +95,7 @@ function MyKeeps() {
         <span className="min-w-0 flex-1"><span className="block truncate font-display text-[30px] leading-none">For {keep.recipient_name||"someone special"}</span><span className="mt-2 block truncate text-xs text-[#C6B49A]">{keep.occasion||"A personal Keep"}</span><span className="mt-3 flex items-center gap-1.5 text-[11px] text-white/45"><CalendarDays className="size-3"/>{fmt(keep.published_at||keep.created_at)}</span></span>
         <ChevronDown className={`size-4 shrink-0 text-[#C6B49A] transition-transform ${expanded===keep.id?"rotate-180":""}`}/>
       </button>
+      <a href={`/?edit=${encodeURIComponent(keep.id)}`} className="keep-premium-action mx-4 mb-4 flex items-center justify-center gap-2 px-4 py-3"><PenLine className="size-4"/>Continue Editing</a>
       {expanded===keep.id&&<div className="border-t border-white/[.12] px-5 pb-5 pt-5">
         <p className="mb-5 text-sm leading-6 text-white/60">{keep.published_project?.openingMessage?.trim() || keep.published_project?.messageParagraphs?.[0]?.slice(0,140) || "A memory made to be kept."}</p>
         {keep.published_at&&keep.status==="ready"?<div className="grid gap-2 sm:grid-cols-2">

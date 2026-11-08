@@ -2,7 +2,7 @@ import { KeepAccountButton } from "@/components/keep-account-button";
 import { KeepPublishPanel } from "@/components/keep-publish-panel";
 import { KeepTimeline } from "@/components/keep-timeline";
 import { arrangeWords, spreadMemories, recommendedStyle } from "@/lib/keep-story-layout";
-import { activeKeepSession, loadCloudDraft, saveCloudDraft, removeCloudDraft } from "@/lib/keep-cloud";
+import { activeKeepSession, loadEditableKeep, loadCloudDraft, saveCloudDraft, removeCloudDraft } from "@/lib/keep-cloud";
 import { CinematicMedia } from "@/components/cinematic-media";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useRef, useState, type ChangeEvent, type ReactNode } from "react";
@@ -136,6 +136,7 @@ function KeepApp() {
   const [aiError, setAiError] = useState<null | { kind: "start" | "transcribe" | "next" | "draft"; retry: () => void }>(null);
   const [generation, setGeneration] = useState(0);
   const [mode, setMode] = useState<Mode>("Memories");
+  const [resumeError, setResumeError] = useState("");
   const [editorPanel, setEditorPanel] = useState<Mode | null>(null);
   const [previewChooserOpen, setPreviewChooserOpen] = useState(false);
   const [creatorPreviewMode, setCreatorPreviewMode] = useState<KeepExperienceMode | null>(null);
@@ -192,12 +193,15 @@ function KeepApp() {
   useEffect(() => {
     let cancelled = false;
     const initialize = async () => {
+      const params = new URLSearchParams(window.location.search);
+      const editId = params.get("edit");
+      const resumeRequested = params.get("resume") === "1" || !!editId;
       const local = loadDraft();
       let next = local;
       try {
         const session = await activeKeepSession();
         if (session) {
-          const remote = await loadCloudDraft(session);
+          const remote = editId ? await loadEditableKeep(editId, session) : await loadCloudDraft(session);
           if (remote) next = remote;
           else if (local?.active) {
             // Never silently attach an unclaimed device draft to a different account.
@@ -220,20 +224,32 @@ function KeepApp() {
               });
             } else next = newProject();
           } else next = newProject();
+        } else if (resumeRequested) {
+          throw new Error("Please sign in to your Keep account to continue editing.");
         }
       } catch (error) {
+        if (resumeRequested) { if (!cancelled) setResumeError(error instanceof Error ? error.message : "Your Keep could not be restored. Please try again."); return; }
         toast.error(error instanceof Error ? error.message : "Cloud draft unavailable; showing this device's draft.");
       }
       if (cancelled) return;
+      const usingLocal = next === local;
       if (next) {
+        next = { ...next, publicationId: next.publicationId || crypto.randomUUID() };
+        if (usingLocal) next = { ...next, ...await hydrateDraftMedia(next) };
+        if (cancelled) return;
         setProject(next);
-        if (next === local) {
-          void hydrateDraftMedia(next).then(h => { if (!cancelled) setProject(cur => ({ ...cur, ...h })); });
-        }
       }
-      const createRequested = new URLSearchParams(window.location.search).get("create") === "1";
+      if (resumeRequested) {
+        if (!next?.active) { setResumeError("There isn't a saved draft to continue yet."); return; }
+        const stage = next.memories.length ? "editor" : resumeScreen(next.stage as Screen);
+        setHistory([]);
+        setScreen(creationScreens.includes(stage) ? stage : "recipient");
+        setHydrated(true);
+        return;
+      }
+      const createRequested = params.get("create") === "1";
       const canCreate = createRequested && (!next?.active || window.confirm("Start a new Keep? Your current draft will be replaced."));
-      if (canCreate) { setProject({ ...newProject(), active: true, stage: "recipient" }); window.history.replaceState(null, "", "/"); }
+      if (canCreate) { setProject({ ...newProject(), publicationId: crypto.randomUUID(), active: true, stage: "recipient" }); window.history.replaceState(null, "", "/"); }
       setHistory(canCreate ? ["home"] : []);
       if (!canCreate) { window.location.replace("/app"); return; }
       setScreen("recipient");
@@ -918,6 +934,7 @@ function KeepApp() {
   const nextButton = (label: string, action: () => void, disabled = false) => <Button variant="keep" size="touch" className="keep-premium-action w-full justify-between" onClick={action} disabled={disabled}>{label}<ArrowRight /></Button>;
   const wave = (count = 27, active = true) => <div className="flex h-12 items-center justify-center gap-[3px]" aria-hidden="true">{Array.from({ length: count }, (_, i) => <span key={i} className={`${active ? "wave-bar" : "opacity-40"} w-[2px] rounded-full bg-accent`} style={{ height: `${10 + ((i * 17) % 34)}px`, animationDelay: `${-(i % 7) * 0.13}s` }} />)}</div>;
   const note = (children: ReactNode) => <p className="text-center text-[11px] leading-5 text-muted-foreground">{children}</p>;
+  const editorToolPanel = (heading: string, onClose: () => void, children: ReactNode) => <section className="keep-studio-panel" aria-label={heading}><div className="flex items-center justify-between"><h2 className="font-display text-2xl">{heading}</h2><Button variant="bare" size="icon" aria-label={`Close ${heading}`} onClick={onClose}><X /></Button></div>{children}</section>;
   const sheet = (heading: string, onClose: () => void, children: ReactNode) => <div className={`keep-fixed-screen fixed left-0 right-0 top-0 z-40 flex items-end justify-center ${heading === "Moments" ? "pointer-events-none bg-transparent" : "bg-background/80"}`} onClick={heading === "Moments" ? undefined : onClose}><div className={`keep-sheet-panel w-full max-w-[540px] overflow-y-auto rounded-t-lg bg-card px-7 pb-[max(40px,env(safe-area-inset-bottom))] pt-6 ${heading === "Moments" ? "pointer-events-auto max-h-[43dvh] border-t border-border shadow-2xl" : ""}`} onClick={(e) => e.stopPropagation()}><div className="flex items-center justify-between"><h2 className="font-display text-[30px]">{heading}</h2><Button variant="bare" size="icon" aria-label="Close" onClick={onClose}><X /></Button></div>{children}</div></div>;
   const micUnavailable = recorder.supported === false || recorder.status === "denied" || recorder.status === "error";
   const micMessage = recorder.supported === false ? "This browser can't record audio here." : recorder.status === "denied" ? "Microphone access was blocked. You can allow it in your browser settings." : recorder.status === "error" ? "The microphone couldn't start." : "";
@@ -925,8 +942,10 @@ function KeepApp() {
   const accountLink = <KeepAccountButton />;
   const fileInputs = <><input ref={draftInput} type="file" accept=".docx,.pdf,.txt,.md,.rtf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/pdf,text/plain,text/markdown,application/rtf" className="sr-only" aria-label="Upload something you have already written" tabIndex={-1} onChange={(e) => void importDraft(e)} /><input ref={addInput} type="file" accept="image/*,video/*" multiple className="sr-only" aria-label="Choose photos and videos" tabIndex={-1} onChange={(e) => void addFiles(e)} /><input ref={replaceInput} type="file" accept="image/*,video/*" className="sr-only" aria-label="Choose a replacement photo or video" tabIndex={-1} onChange={(e) => void addFiles(e, frame % Math.max(1, shown.length))} /></>;
 
+  if (resumeError) return <main className="app-shell p-8"><h1 className="font-display text-3xl">Unable to open this Keep</h1><p role="alert" className="my-6 text-sm">{resumeError}</p><Button onClick={() => window.location.reload()}>Try again</Button><a href="/app" className="ml-5 underline">Back to your creations</a></main>;
+  if (!hydrated) return <main className="app-shell p-8"><p role="status">Opening your Keep…</p></main>;
   return <main className="app-shell">{fileInputs}<div key={screen} className="page-enter">
-    {screen === "you" && <>{top()}<div className="px-7 pt-8">{title("Your space", "Alex.", "The things worth keeping, all in one place.")}<div className="mt-12 border-t border-border">{[{ label: "What is KEEP?", Icon: Sparkles }, { label: "My cards", Icon: Radio }, { label: "Downloads & backups", Icon: Download }, { label: "Privacy", Icon: LockKeyhole }, { label: "Help", Icon: CircleHelp }].map(({ label, Icon }) => <Button key={label} variant="bare" className="flex h-17 w-full justify-between border-b border-border px-0 text-sm font-normal" onClick={() => (label === "What is KEEP?" ? go("onboarding") : setSetting(label))}><span className="flex items-center gap-4"><Icon className="size-4 text-accent" />{label}</span><ChevronRight className="size-4 text-muted-foreground" /></Button>)}{project.active && <Button variant="bare" className="flex h-17 w-full justify-between border-b border-border px-0 text-sm font-normal text-destructive" onClick={() => { if (!window.confirm("Delete your draft Keep? Recordings and photos added to it will be removed from this device.")) return; discard(project); setProject(newProject()); toast.success("Draft deleted"); }}><span className="flex items-center gap-4"><Trash2 className="size-4" />Delete draft Keep</span></Button>}</div><p className="mt-9 text-xs leading-6 text-muted-foreground">Your Keeps are private.</p></div>{setting && sheet(setting, () => setSetting(""), <><p className="mt-5 text-sm leading-7 text-muted-foreground">{setting === "Privacy" ? "Your Keeps are private by default. In this MVP, drafts, recordings and photos stay on this device only. Sharing a card gives its recipient access to that Keep — no account required." : setting === "My cards" ? "HANNA · from Alex · 2026 (sample). Physical card ordering is coming next." : setting === "Downloads & backups" ? "Your draft is saved on this device. Cloud backups and downloads aren't available yet." : "We're here when you need us. Support isn't connected in this preview yet."}</p><Button variant="quiet" className="mt-8 w-full" onClick={() => setSetting("")}>Done</Button></>)}</>}
+    {screen === "you" && <>{top()}<div className="px-7 pt-8">{title("Your space", "Alex.", "The things worth keeping, all in one place.")}<div className="mt-12 border-t border-border">{[{ label: "What is KEEP?", Icon: Sparkles }, { label: "My cards", Icon: Radio }, { label: "Downloads & backups", Icon: Download }, { label: "Privacy", Icon: LockKeyhole }, { label: "Help", Icon: CircleHelp }].map(({ label, Icon }) => <Button key={label} variant="bare" className="flex h-17 w-full justify-between border-b border-border px-0 text-sm font-normal" onClick={() => (label === "What is KEEP?" ? window.location.assign("/about") : setSetting(label))}><span className="flex items-center gap-4"><Icon className="size-4 text-accent" />{label}</span><ChevronRight className="size-4 text-muted-foreground" /></Button>)}{project.active && <Button variant="bare" className="flex h-17 w-full justify-between border-b border-border px-0 text-sm font-normal text-destructive" onClick={() => { if (!window.confirm("Delete your draft Keep? Recordings and photos added to it will be removed from this device.")) return; discard(project); setProject(newProject()); toast.success("Draft deleted"); }}><span className="flex items-center gap-4"><Trash2 className="size-4" />Delete draft Keep</span></Button>}</div><p className="mt-9 text-xs leading-6 text-muted-foreground">Your Keeps are private.</p></div>{setting && sheet(setting, () => setSetting(""), <><p className="mt-5 text-sm leading-7 text-muted-foreground">{setting === "Privacy" ? "Your Keeps are private by default. In this MVP, drafts, recordings and photos stay on this device only. Sharing a card gives its recipient access to that Keep — no account required." : setting === "My cards" ? "HANNA · from Alex · 2026 (sample). Physical card ordering is coming next." : setting === "Downloads & backups" ? "Your draft is saved on this device. Cloud backups and downloads aren't available yet." : "We're here when you need us. Support isn't connected in this preview yet."}</p><Button variant="quiet" className="mt-8 w-full" onClick={() => setSetting("")}>Done</Button></>)}</>}
     {screen === "detail" && <>{top("READY")}<div className="relative mx-4 h-[min(55dvh,520px)] overflow-hidden"><img src={memoryImages[0]} alt="Couple at the coast, illustrative prototype photograph" className="h-full w-full object-cover" /><div className="absolute inset-0 photo-bottom" /><div className="absolute bottom-8 left-6"><p className="eyebrow text-foreground">ANNIVERSARY · 2026</p><h1 className="display mt-3 text-5xl">HANNA</h1><p className="mt-3 text-sm">from Alex · 3:57</p></div></div><div className="space-y-3 px-6 pt-7">{nextButton("Play Keep", () => { setViewingDemo(true); go("preview"); })}<Button variant="quiet" size="touch" className="w-full" onClick={editDemoCopy}><Settings2 /> Edit a copy</Button><Button variant="bare" size="touch" className="w-full" asChild><Link to="/recipient" search={{ keep: "" }}><Radio /> View as recipient</Link></Button></div></>}
     {screen === "recipient" && <>{top("01 / 04")}<div className="px-7 pt-11">{title("Begin with someone", "Who is this Keep for?")}<div className="grid grid-cols-2 gap-3" role="group" aria-label="Who is this Keep for?">{relationships.map((r) => <Button key={r} type="button" aria-pressed={project.relationship === r} variant="quiet" className={`keep-choice-bubble ${project.relationship === r ? "keep-choice-bubble--selected" : ""}`} onClick={() => { patch({ relationship: r, ...(r === "Myself" ? { recipientName: "Myself" } : project.relationship === "Myself" ? { recipientName: "" } : {}) }); if (r !== "Someone else") setOtherRelationship(""); }}><span className="min-w-0 flex-1 text-left">{r}</span>{project.relationship === r && <span className="keep-choice-check"><Check className="!size-3.5" strokeWidth={2.7} /></span>}</Button>)}</div>{project.relationship === "Someone else" && <div className="mt-8 page-enter"><label htmlFor="other-relationship" className="eyebrow">WHO ARE THEY TO YOU?</label><input id="other-relationship" value={otherRelationship} onChange={(e) => setOtherRelationship(e.target.value.slice(0, 50))} placeholder="My coach" autoComplete="off" className="mt-3 w-full border-0 border-b border-border bg-transparent pb-4 font-display text-3xl outline-none focus:border-accent" /><p className="mt-3 text-xs text-muted-foreground"></p></div>}{project.relationship && project.relationship !== "Myself" && <div className="mt-9 page-enter"><label htmlFor="recipient-name" className="eyebrow">NAME(S)</label><input id="recipient-name" value={name} onChange={(e) => patch({ recipientName: e.target.value.slice(0, 60) })} placeholder="Gigi & Pops" autoComplete="off" className="mt-3 w-full border-0 border-b border-border bg-transparent pb-4 font-display text-3xl outline-none focus:border-accent" /><p className="mt-3 text-xs text-muted-foreground"></p></div>}<div className="mt-10">{nextButton("Continue", () => { if (project.relationship === "Someone else") patch({ relationship: otherRelationship.trim() }); go("occasion"); }, !project.relationship || (project.relationship !== "Myself" && !name.trim()) || (project.relationship === "Someone else" && !otherRelationship.trim()))}</div></div></>}
     {screen === "occasion" && <>{top("02 / 04")}<div className="px-7 pt-11">{title("Give it a moment", "What are you keeping?", "Choose an occasion or moment.")}<div className="grid grid-cols-2 gap-3" role="group" aria-label="Choose an occasion or moment">{occasions.map((o) => <Button key={o} type="button" aria-pressed={project.occasion === o} variant="quiet" className={`keep-choice-bubble ${project.occasion === o ? "keep-choice-bubble--selected" : ""}`} onClick={() => { patch({ occasion: o }); if (o !== "Other") setOtherOccasion(""); }}><span className="min-w-0 flex-1 text-left">{o}</span>{project.occasion === o && <span className="keep-choice-check"><Check className="!size-3.5" strokeWidth={2.7} /></span>}</Button>)}</div>{project.occasion === "Other" && <div className="mt-8 page-enter"><label className="eyebrow" htmlFor="other-occasion">TELL US WHAT IT'S FOR</label><input id="other-occasion" value={otherOccasion} onChange={(e) => setOtherOccasion(e.target.value.slice(0, 80))} placeholder="Our family Disney trip with Gigi & Pops" className="mt-3 w-full border-0 border-b border-border bg-transparent pb-4 font-display text-3xl outline-none focus:border-accent" /><p className="mt-3 text-xs text-muted-foreground"></p></div>}<div className="mt-12">{nextButton("Continue", () => { if (project.occasion === "Other") patch({ occasion: otherOccasion.trim() }); go("intent"); }, project.occasion === "Other" && !otherOccasion.trim())}</div></div></>}
@@ -1146,21 +1165,21 @@ function KeepApp() {
       <div className="mt-10">{nextButton("Create My Keep", createStory)}</div>
     </div></>}
     {screen === "generating" && <div className="flex keep-h-screen flex-col items-center justify-center px-8 text-center"><div className="relative mb-14 flex size-30 items-center justify-center"><div className="pulse-ring absolute inset-0 rounded-full border border-accent" /><Sparkles className="size-8 text-accent" /></div><h1 key={generation} className="display min-h-32 text-5xl page-enter">{["Listening to your story…", "Finding the moments that fit…", "Building your Keep…", "Almost there…"][generation]}</h1><p className="mt-8 text-xs text-muted-foreground">MVP preview · memories are arranged in the order you added them</p></div>}
-    {screen === "editor" && selected && <div className="relative flex min-h-[100dvh] w-full flex-col overflow-x-hidden bg-background pb-[max(16px,env(safe-area-inset-bottom))]">
+    {screen === "editor" && selected && <div className="keep-studio">
       <div className="flex items-center justify-between px-5 pt-[max(14px,env(safe-area-inset-top))]">
         <Button variant="bare" size="icon" aria-label="Back" onClick={back}><ArrowLeft /></Button>
         <div className="flex items-center gap-1">
           <Button variant="bare" size="icon" aria-label="Undo" disabled={!undoPast.current.length} onClick={() => stepHistory("undo")}><Undo2 className="size-4" /></Button>
           <Button variant="bare" size="icon" aria-label="Redo" disabled={!undoFuture.current.length} onClick={() => stepHistory("redo")}><Redo2 className="size-4" /></Button>
-          <Button variant="bare" size="sm" className="text-muted-foreground" onClick={() => { setViewingDemo(false); setPreviewChooserOpen(true); setReadArrangeOpen(false); }}><Play className="size-4" /> Preview</Button>
+          <Button variant="bare" size="sm" className="text-muted-foreground" onClick={() => { setViewingDemo(false); setPreviewChooserOpen(true); setReadArrangeOpen(false); }}><Play className="size-4" /> Review</Button>
           <Button variant="keep" size="sm" onClick={toCard}>Done <Check className="size-4" /></Button>
         </div>
       </div>
 
       {rec?.audioUrl && !rec.demo && <audio ref={editorAudioRef} src={rec.audioUrl} preload="metadata" onTimeUpdate={(e) => { const time = e.currentTarget.currentTime; setEditorTime(time); setFrame(editorSceneAt(time)); }} onEnded={() => { if (editorDuration <= (rec?.durationSec ?? 0) + 0.1) { setEditorPlaying(false); setEditorTime(editorDuration); } }} />}
-      <div className="relative flex w-full shrink-0 items-center justify-center gap-3 px-3 py-3">
-        <div className="flex min-w-0 items-center justify-center gap-2">
-          <div className="relative aspect-[9/16] h-[clamp(220px,38dvh,350px)] max-w-[calc(100vw-32px)] shrink-0 overflow-hidden rounded-[20px] border border-foreground/15 bg-card shadow-lg">
+      <div className="keep-studio-stage">
+        <div className="keep-studio-canvas-wrap">
+          <div className="keep-studio-canvas relative aspect-[9/16] overflow-hidden rounded-2xl bg-card shadow-lg">
             <CinematicMedia item={selected} playing={editorPlaying} duration={Math.max(5, selected.displayDurationSec ?? 7)} className="absolute inset-0" imageClassName={`editor-image-${styleSlug(project.visualStyle)}`} />
             <div className="absolute inset-0 photo-shade" />
             {editorPanel === "Memories" && <div className="absolute inset-x-0 top-0 bottom-14 z-20 cursor-grab touch-none active:cursor-grabbing" aria-label="Drag photo to reposition" onPointerDown={(e) => { e.currentTarget.setPointerCapture(e.pointerId); const r = e.currentTarget.getBoundingClientRect(); photoDrag.current = { x: e.clientX, y: e.clientY, focusX: selected.focusX ?? 50, focusY: selected.focusY ?? 50, width: r.width, height: r.height }; setEditorPlaying(false); }} onPointerMove={(e) => { const d = photoDrag.current; if (!d) return; updateSelectedMoment({ focusX: Math.max(0, Math.min(100, d.focusX - (e.clientX - d.x) / d.width * 100)), focusY: Math.max(0, Math.min(100, d.focusY - (e.clientY - d.y) / d.height * 100)) }); }} onPointerUp={() => { photoDrag.current = null; }} onPointerCancel={() => { photoDrag.current = null; }}><span className="absolute left-1/2 top-3 -translate-x-1/2 whitespace-nowrap rounded-full bg-black/65 px-3 py-1 text-[10px] text-white">Drag photo to reposition</span></div>}
@@ -1182,6 +1201,7 @@ function KeepApp() {
         </div>
       </div>
 
+      <div className="keep-studio-workspace" key={editorPanel ?? "timeline"}>
       {!rec?.demo && rec?.audioUrl && project.captionStyle !== "None" && !project.captionCues.length && <div className="border-t border-border/60 bg-card/70 px-5 py-3 text-xs"><div className="flex items-center justify-between gap-3"><span>{captionSyncing ? "Syncing captions to your recording…" : captionSyncError ? "Captions did not sync. Your recording is safe." : "Captions are not ready yet."}</span>{!captionSyncing && <Button variant="quiet" size="sm" onClick={() => void retryCaptionSync()}><RotateCcw className="size-3" /> Retry captions</Button>}</div></div>}
       {(editorPanel === "Music" || editorPanel === "Captions" || editorPanel === "Style") && <div className="border-t border-border/60 bg-card/55 px-5 py-3 backdrop-blur-md page-enter">
         {editorPanel === "Music" && <>
@@ -1224,7 +1244,7 @@ function KeepApp() {
             <div><label className="mb-1 block text-xs font-medium" htmlFor="caption-lines">Maximum display lines</label><select id="caption-lines" className="w-full rounded-md border border-border bg-background p-2 text-xs" value={project.captionLines ?? 2} onChange={(e) => patch({ captionLines: Number(e.target.value) })}><option value={1}>1 line</option><option value={2}>2 lines</option><option value={3}>3 lines</option></select></div>
             <div><p className="mb-1 text-xs font-medium">Position</p><div className="flex gap-2">{(["top","middle","bottom"] as const).map((pos) => <Button key={pos} size="sm" variant={(project.captionPosition ?? "bottom") === pos ? "selected" : "quiet"} className="flex-1 capitalize" onClick={() => patch({ captionPosition: pos })}>{pos}</Button>)}</div></div>
             <p className="text-xs font-medium">Edit individual caption segments</p>
-            <div className="max-h-52 space-y-2 overflow-y-auto">{project.captionCues.map((cue, i) => <div key={i} className="rounded-md border border-border/60 p-2"><div className="mb-1 flex items-center justify-between"><button type="button" className="text-[10px] underline" onClick={() => seekEditor(cue.start)}>{cue.start.toFixed(1)}s – {cue.end.toFixed(1)}s · Preview</button><span className="text-[10px] text-muted-foreground">#{i + 1}</span></div><textarea aria-label={`Caption segment ${i+1}`} rows={2} className="w-full resize-y rounded border border-border bg-background p-2 text-xs" value={cue.text} onChange={(e) => patch({ captionCues: project.captionCues.map((c, j) => j === i ? { ...c, text: e.target.value } : c) })} /><div className="mt-1 flex gap-2"><label className="flex-1 text-[10px]">Start (s)<input type="number" min={0} step={0.1} className="w-full rounded border border-border bg-background p-1" value={cue.start.toFixed(2)} onChange={(e) => patch({ captionCues: project.captionCues.map((c,j) => j === i ? { ...c, start: Math.max(0, Number(e.target.value)) } : c) })}/></label><label className="flex-1 text-[10px]">End (s)<input type="number" min={0} step={0.1} className="w-full rounded border border-border bg-background p-1" value={cue.end.toFixed(2)} onChange={(e) => patch({ captionCues: project.captionCues.map((c,j) => j === i ? { ...c, end: Math.max(0, Number(e.target.value)) } : c) })}/></label></div></div>)}</div>
+            <div className="max-h-52 space-y-2 overflow-y-auto">{project.captionCues.map((cue, i) => <div key={i} className="rounded-md border border-border/60 p-2"><div className="mb-1 flex items-center justify-between"><button type="button" className="text-[10px] underline" onClick={() => seekEditor(cue.start)}>{cue.start.toFixed(1)}s – {cue.end.toFixed(1)}s · Preview</button><span className="text-[10px] text-muted-foreground">#{i + 1}</span></div><textarea aria-label={`Caption segment ${i+1}`} onFocus={() => { setEditorPlaying(false); seekEditor(cue.start); }} rows={2} className="w-full resize-y rounded border border-border bg-background p-2 text-xs" value={cue.text} onChange={(e) => patch({ captionCues: project.captionCues.map((c, j) => j === i ? { ...c, text: e.target.value } : c) })} /><div className="mt-1 flex gap-2"><label className="flex-1 text-[10px]">Start (s)<input type="number" min={0} step={0.1} className="w-full rounded border border-border bg-background p-1" value={cue.start.toFixed(2)} onChange={(e) => patch({ captionCues: project.captionCues.map((c,j) => j === i ? { ...c, start: Math.max(0, Number(e.target.value)) } : c) })}/></label><label className="flex-1 text-[10px]">End (s)<input type="number" min={0} step={0.1} className="w-full rounded border border-border bg-background p-1" value={cue.end.toFixed(2)} onChange={(e) => patch({ captionCues: project.captionCues.map((c,j) => j === i ? { ...c, end: Math.max(0, Number(e.target.value)) } : c) })}/></label></div></div>)}</div>
             {!!project.captionWords?.length && <Button variant="quiet" size="sm" onClick={() => patch({ captionCues: groupTimedWords(project.captionWords ?? [], project.captionWordsPerCue ?? 5) })}>Restore automatic timing and text</Button>}
           </div>
         </>}
@@ -1234,7 +1254,7 @@ function KeepApp() {
         </>}
       </div>}
 
-      <KeepTimeline
+      {!editorPanel && <KeepTimeline
         media={shown}
         captions={project.captionCues}
         duration={editorDuration}
@@ -1257,11 +1277,11 @@ function KeepApp() {
         onPhotoSettings={()=>setEditorPanel("Memories")}
         onCaptionChange={(i,text)=>patch({captionCues:project.captionCues.map((c,j)=>j===i?{...c,text}:c)})}
         onCaptionTime={(i,start,end)=>patch({captionCues:project.captionCues.map((c,j)=>j===i?{...c,start:Math.max(0,Math.min(start,end-.1)),end:Math.min(editorDuration,Math.max(end,start+.1))}:c)})}
-      />
+      />}
 
-      {editorPanel === "Memories" && sheet("Moments", () => setEditorPanel(null), <div className="pb-2">
+      {editorPanel === "Memories" && editorToolPanel("Photos", () => setEditorPanel(null), <div className="pb-2">
         <p className="mt-2 text-xs leading-5 text-muted-foreground">Choose the moments that bring your words to life. Reorder, replace, or add anything you want.</p>
-        <div className="thin-scroll mt-5 flex gap-2 overflow-x-auto pb-2">{shown.map((m, i) => <div key={m.id} draggable onDragStart={() => { dragFrom.current = i; }} onDragOver={(e) => e.preventDefault()} onDrop={() => { if (dragFrom.current !== null) moveMemory(dragFrom.current, i); dragFrom.current = null; }} className="shrink-0"><Button variant="bare" className={`relative h-24 w-18 overflow-hidden rounded-lg !p-0 ${i === frame % shown.length ? "ring-2 ring-accent" : "opacity-65"}`} aria-label={`Select memory ${i + 1}`} onClick={() => setFrame(i)}><MediaView item={m} thumb alt={m.source === "sample" ? memoryLabels[i % memoryLabels.length] ?? "" : m.name ?? ""} className="h-full w-full object-cover" />{m.kind === "video" && <Play className="absolute bottom-1.5 left-1.5 size-3" fill="currentColor" />}</Button></div>)}</div>
+        <div className="thin-scroll mt-5 flex gap-2 overflow-x-auto pb-2">{shown.map((m, i) => <div key={m.id} draggable onDragStart={() => { dragFrom.current = i; }} onDragOver={(e) => e.preventDefault()} onDrop={() => { if (dragFrom.current !== null) moveMemory(dragFrom.current, i); dragFrom.current = null; }} className="shrink-0"><Button variant="bare" className={`relative h-24 w-18 overflow-hidden rounded-lg !p-0 ${i === frame % shown.length ? "ring-2 ring-accent" : "opacity-65"}`} aria-label={`Select memory ${i + 1}`} onClick={() => { setEditorPlaying(false); seekEditor(shown.slice(0, i).reduce((sum, m) => sum + Math.max(1, m.displayDurationSec ?? 4), 0)); }}><MediaView item={m} thumb alt={m.source === "sample" ? memoryLabels[i % memoryLabels.length] ?? "" : m.name ?? ""} className="h-full w-full object-cover" />{m.kind === "video" && <Play className="absolute bottom-1.5 left-1.5 size-3" fill="currentColor" />}</Button></div>)}</div>
         <div className="mt-5 grid grid-cols-2 gap-2">
           <Button variant="quiet" onClick={() => addInput.current?.click()}><Plus /> Add moments</Button>
           <Button variant="quiet" onClick={() => replaceInput.current?.click()}>Replace</Button>
@@ -1284,7 +1304,7 @@ function KeepApp() {
         </div>
       </div>)}
 
-      {editorPanel === "Voice" && sheet("Voice & words", () => setEditorPanel(null), <div className="pb-2">
+      {editorPanel === "Voice" && editorToolPanel("Voice & words", () => setEditorPanel(null), <div className="pb-2">
         <p className="mt-2 text-xs leading-5 text-muted-foreground">Remember something you want to add? You can change the words or record your voice again without losing the rest of your Keep.</p>
         <div className="mt-6 space-y-3">
           <button type="button" onClick={editWordsFromEditor} className="flex w-full items-center justify-between rounded-xl border border-border bg-background/45 p-5 text-left transition-colors hover:border-accent/45">
@@ -1313,6 +1333,11 @@ function KeepApp() {
           <p className="text-xs leading-5 text-muted-foreground">Your photos, order, music, captions, and visual style stay exactly as they are while you update the words or voice.</p>
         </div>
       </div>)}
+
+      </div>
+      <nav className="keep-studio-tools" aria-label="Editing tools">
+        {([{ panel: null, label: "Timeline", Icon: GripVertical }, { panel: "Memories", label: "Photos", Icon: Images }, { panel: "Captions", label: "Captions", Icon: MessageCircle }, { panel: "Music", label: "Music", Icon: Music2 }, { panel: "Voice", label: "Voice", Icon: Mic }, { panel: "Style", label: "Style", Icon: Sparkles }] as const).map(({ panel, label, Icon }) => <button key={label} type="button" aria-pressed={editorPanel === panel} onClick={() => { stopMusicSample(); setMusicSampling(""); setEditorPanel(panel); }}><Icon /><span>{label}</span></button>)}
+      </nav>
 
       {previewChooserOpen && sheet("Preview your Keep", () => { setPreviewChooserOpen(false); setReadArrangeOpen(false); }, <div className="pb-2">
         <p className="mt-2 text-xs leading-5 text-muted-foreground">Choose how you want to check it. Previewing is optional — you can come back and make changes anytime.</p>
