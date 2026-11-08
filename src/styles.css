@@ -300,3 +300,23 @@ button { transition: background-color .18s ease, border-color .18s ease, color .
   .keep-choice-bubble { padding: 12px 10px; font-size: 13px; }
   .keep-choice-check { width: 21px; height: 21px; }
 }
+
+/* A single viewport: tools scroll independently while the film stays in view. */
+.keep-studio { height: 100dvh; width: 100%; display: flex; flex-direction: column; overflow: hidden; background: #101012; }
+.keep-studio > div:first-child { flex-shrink: 0; padding-bottom: 8px; }
+.keep-studio-stage { flex: 0 0 44%; min-height: 0; display: flex; justify-content: center; padding: 8px 16px 14px; background: radial-gradient(ellipse at center, #242426, #101012 75%); }
+.keep-studio-canvas-wrap { height: 100%; min-height: 0; display: flex; justify-content: center; }
+.keep-studio-canvas { height: 100%; max-width: calc(100vw - 32px); }
+.keep-studio-workspace { flex: 1 1 0; min-height: 0; overflow-y: auto; overscroll-behavior: contain; border-top: 1px solid #ffffff12; background: #19191c; scrollbar-width: thin; }
+.keep-studio-panel { padding: 12px 20px 20px; }
+.keep-studio-workspace button { min-height: 36px; border-radius: 12px; }
+.keep-studio-workspace input:not([type=range]):not([type=checkbox]), .keep-studio-workspace textarea, .keep-studio-workspace select { font-size: 16px; }
+.keep-studio-workspace input[type=range] { accent-color: #e8e1d7; min-height: 28px; cursor: pointer; }
+.keep-studio-workspace button:focus-visible, .keep-studio-tools button:focus-visible { outline: 2px solid #e8e1d7; outline-offset: -2px; }
+.keep-studio-tools { flex-shrink: 0; display: grid; grid-template-columns: repeat(6, minmax(0,1fr)); gap: 3px; padding: 8px 8px max(10px, env(safe-area-inset-bottom)); border-top: 1px solid #ffffff12; background: #111113; }
+.keep-studio-tools button { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; min-height: 56px; border-radius: 14px; color: #a6a6ae; font-size: 10px; font-weight: 500; transition: background .15s, color .15s; }
+.keep-studio-tools button svg { width: 20px; height: 20px; stroke-width: 1.6; }
+.keep-studio-tools button[aria-pressed=true] { background: #e8e1d7; color: #151515; }
+.keep-studio-tools button:hover:not([aria-pressed=true]) { background: #ffffff0a; color: white; }
+@media (min-width: 768px) { .keep-studio-stage { flex-basis: 48%; } }
+@media (max-height: 500px) { .keep-studio-stage { flex-basis: 35%; } .keep-studio-tools button { min-height: 44px; gap: 3px; } }
