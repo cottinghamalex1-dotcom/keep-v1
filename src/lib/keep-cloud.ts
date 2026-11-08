@@ -5,7 +5,7 @@ import { memoryImages } from "@/components/keep-player";
 const endpoint = "https://lwkzhpwugtosbidxvdcr.supabase.co";
 const publicKey = "sb_publishable_K8_SWJByLhV78h7gY4NySw_4sgjEVTi";
 export const SESSION_KEY = "keep-app-session";
-export type KeepSession = { access_token: string; refresh_token: string; expires_at?: number; expires_in?: number; user: { id: string; email?: string } };
+export type KeepSession = { access_token: string; refresh_token: string; expires_at?: number; expires_in?: number; user: { id: string; email?: string; user_metadata?: { first_name?: string; given_name?: string; display_name?: string; full_name?: string; name?: string } } };
 export function readKeepSession(): KeepSession | null {
   try { const raw = localStorage.getItem(SESSION_KEY); return raw ? JSON.parse(raw) as KeepSession : null; } catch { return null; }
 }
@@ -85,4 +85,10 @@ export async function loadCloudDraft(session:KeepSession):Promise<KeepProject|nu
 }
 export async function removeCloudDraft(session:KeepSession):Promise<void> {
   await request("/rest/v1/keep_drafts?owner_id=eq."+encodeURIComponent(session.user.id),session,{method:"DELETE"});
+}
+
+export async function loadKeepDisplayName(session: KeepSession): Promise<string> {
+  const res = await request("/rest/v1/keep_profiles?select=display_name&user_id=eq." + encodeURIComponent(session.user.id) + "&limit=1", session);
+  const rows = await res.json() as { display_name: string | null }[];
+  return rows[0]?.display_name?.trim() || "";
 }
