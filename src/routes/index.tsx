@@ -16,7 +16,7 @@ import { useRecorder } from "@/hooks/use-recorder";
 import { deleteBlobs, getBlob, putBlob } from "@/lib/keep-media-store";
 import { createKeepVoiceMix, playMusicSample, stopMusicSample, type MusicBalance } from "@/lib/keep-audio";
 import { fetchDraft, fetchNextQuestion, fetchRevision, keepAiAvailable, transcribeAudio, transcribeTimedAudio, type TimedWord } from "@/lib/keep-ai";
-import { ONBOARD_KEY, fmt, hydrateDraftMedia, loadDraft, newId, newProject, projectBlobIds, projectObjectUrls, sampleMemories, saveDraft, stageLabels, defaultAudioMix, type AudioMix, type CaptionCue, type InterviewAnswer, type KeepProject, type MediaItem } from "@/lib/keep-project";
+import { fmt, hydrateDraftMedia, loadDraft, newId, newProject, projectBlobIds, projectObjectUrls, sampleMemories, saveDraft, stageLabels, defaultAudioMix, type AudioMix, type CaptionCue, type InterviewAnswer, type KeepProject, type MediaItem } from "@/lib/keep-project";
 
 export const Route = createFileRoute("/")({
   head: () => ({ meta: [
@@ -30,7 +30,7 @@ export const Route = createFileRoute("/")({
   component: KeepRoute,
 });
 
-type Screen = "onboarding" | "home" | "you" | "detail" | "recipient" | "occasion" | "intent" | "path" | "interview" | "summary" | "messageGenerating" | "write" | "message" | "recordPrep" | "record" | "recorded" | "memories" | "storyStyle" | "generating" | "editor" | "preview" | "recipientReveal" | "recipientPreview" | "giveReady" | "card" | "success";
+type Screen = "home" | "you" | "detail" | "recipient" | "occasion" | "intent" | "path" | "interview" | "summary" | "messageGenerating" | "write" | "message" | "recordPrep" | "record" | "recorded" | "memories" | "storyStyle" | "generating" | "editor" | "preview" | "recipientReveal" | "recipientPreview" | "giveReady" | "card" | "success";
 type Mode = "Memories" | "Music" | "Captions" | "Style" | "Voice";
 const creationScreens: Screen[] = ["recipient", "occasion", "intent", "path", "interview", "summary", "messageGenerating", "write", "message", "recordPrep", "record", "recorded", "memories", "storyStyle", "generating", "editor", "preview", "recipientPreview", "card", "success"];
 const resumeScreen = (s: Screen): Screen => (s === "messageGenerating" ? "summary" : s === "generating" ? "memories" : s === "preview" || s === "recipientPreview" ? "editor" : s);
@@ -235,7 +235,8 @@ function KeepApp() {
       const canCreate = createRequested && (!next?.active || window.confirm("Start a new Keep? Your current draft will be replaced."));
       if (canCreate) { setProject({ ...newProject(), active: true, stage: "recipient" }); window.history.replaceState(null, "", "/"); }
       setHistory(canCreate ? ["home"] : []);
-      setScreen(canCreate ? "recipient" : "home");
+      if (!canCreate) { window.location.replace("/app"); return; }
+      setScreen("recipient");
       setHydrated(true);
     };
     void initialize();
@@ -299,8 +300,8 @@ function KeepApp() {
 
   const resetPageScroll = () => window.requestAnimationFrame(() => window.scrollTo({ top: 0, left: 0, behavior: "auto" }));
   const go = (next: Screen) => { setHistory((h) => [...h, screen]); setScreen(next); resetPageScroll(); };
-  const back = () => { const last = history[history.length - 1]; setScreen(last ?? "home"); setHistory((h) => h.slice(0, -1)); resetPageScroll(); };
-  const home = () => { setHistory([]); setScreen("home"); setViewingDemo(false); resetPageScroll(); };
+  const back = () => { const last = history[history.length - 1]; if (!last || last === "home") { window.location.assign("/app"); return; } setScreen(last); setHistory((h) => h.slice(0, -1)); resetPageScroll(); };
+  const home = () => { window.location.assign("/app"); };
   const discard = (p: KeepProject) => { releaseUrls(projectObjectUrls(p)); void deleteBlobs(projectBlobIds(p)); };
   const startProject = (p: KeepProject, at: Screen) => {
     setReturnToEditorAfterRecording(false);
@@ -313,7 +314,7 @@ function KeepApp() {
   const begin = () => startProject(newProject(), "recipient");
   const editDemoCopy = () => startProject({ ...newProject(), recipientName: "Hanna", relationship: "Spouse", messageSource: "demo", messageParagraphs: initialMessage, memories: sampleMemories(), finalVoiceRecording: { durationSec: 237, demo: true }, cardEngraving: ["HANNA", "FROM ALEX", "2026"] }, "editor");
   const continueDraft = () => { setViewingDemo(false); setHistory(["home"]); setScreen((project.stage as Screen) || "recipient"); };
-  const dismissOnboarding = () => { try { localStorage.setItem(ONBOARD_KEY, "1"); } catch { /* ignore */ } };
+
 
   // ---- Interview ----
   const currentAnswer = project.interviewAnswers.find((a) => a.questionIndex === q);
@@ -914,20 +915,6 @@ function KeepApp() {
   const fileInputs = <><input ref={draftInput} type="file" accept=".docx,.pdf,.txt,.md,.rtf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/pdf,text/plain,text/markdown,application/rtf" className="sr-only" aria-label="Upload something you have already written" tabIndex={-1} onChange={(e) => void importDraft(e)} /><input ref={addInput} type="file" accept="image/*,video/*" multiple className="sr-only" aria-label="Choose photos and videos" tabIndex={-1} onChange={(e) => void addFiles(e)} /><input ref={replaceInput} type="file" accept="image/*,video/*" className="sr-only" aria-label="Choose a replacement photo or video" tabIndex={-1} onChange={(e) => void addFiles(e, frame % Math.max(1, shown.length))} /></>;
 
   return <main className="app-shell">{fileInputs}<div key={screen} className="page-enter">
-    {screen === "home" && <div className="flex keep-min-screen flex-col px-7 pb-[max(36px,env(safe-area-inset-bottom))] pt-[max(40px,env(safe-area-inset-top))]">
-      <header className="flex items-center justify-between"><span className="brand">keep</span>{accountLink}</header>
-      <section className="my-auto py-14">
-        <h1 className="display text-left leading-[1.06]"><span className="block text-[clamp(36px,9.3vw,64px)]">Say what matters.</span><span className="block text-[clamp(36px,9.3vw,64px)]">Keep it forever.</span></h1>
-        <p className="mt-6 max-w-sm text-sm leading-7 text-muted-foreground">Turn the words you want to say and the moments you treasure into a beautiful, lasting keepsake they can hold onto forever.</p>
-        <div className="mt-12 grid grid-cols-3 gap-3 border-t border-border/70 pt-8">{[{ l: "Your words", I: MessageCircle }, { l: "Your moments", I: Images }, { l: "Their Keep", I: Play }].map(({ l, I }, i) => <div key={l} className="flex flex-col items-start gap-3"><span className="text-[10px] tracking-[0.16em] text-muted-foreground/70">0{i + 1}</span><I strokeWidth={1.35} className="size-[19px] text-accent" /><p className="text-[11px] leading-4 text-foreground/85">{l}</p></div>)}</div>
-      </section>
-      <div className="space-y-3">
-        {nextButton("Create a Keep", begin)}
-        {project.active && <Button variant="quiet" size="touch" className="w-full" onClick={continueDraft}><Sparkles className="size-4" /> Continue your Keep</Button>}
-        <Button asChild variant="bare" size="touch" className="w-full text-muted-foreground"><Link to="/app">See my Keeps</Link></Button>
-        <Button asChild variant="bare" size="touch" className="w-full text-muted-foreground"><Link to="/about">What is Keep?</Link></Button>
-      </div>
-    </div>}
     {screen === "you" && <>{top()}<div className="px-7 pt-8">{title("Your space", "Alex.", "The things worth keeping, all in one place.")}<div className="mt-12 border-t border-border">{[{ label: "What is KEEP?", Icon: Sparkles }, { label: "My cards", Icon: Radio }, { label: "Downloads & backups", Icon: Download }, { label: "Privacy", Icon: LockKeyhole }, { label: "Help", Icon: CircleHelp }].map(({ label, Icon }) => <Button key={label} variant="bare" className="flex h-17 w-full justify-between border-b border-border px-0 text-sm font-normal" onClick={() => (label === "What is KEEP?" ? go("onboarding") : setSetting(label))}><span className="flex items-center gap-4"><Icon className="size-4 text-accent" />{label}</span><ChevronRight className="size-4 text-muted-foreground" /></Button>)}{project.active && <Button variant="bare" className="flex h-17 w-full justify-between border-b border-border px-0 text-sm font-normal text-destructive" onClick={() => { if (!window.confirm("Delete your draft Keep? Recordings and photos added to it will be removed from this device.")) return; discard(project); setProject(newProject()); toast.success("Draft deleted"); }}><span className="flex items-center gap-4"><Trash2 className="size-4" />Delete draft Keep</span></Button>}</div><p className="mt-9 text-xs leading-6 text-muted-foreground">Your Keeps are private.</p></div>{setting && sheet(setting, () => setSetting(""), <><p className="mt-5 text-sm leading-7 text-muted-foreground">{setting === "Privacy" ? "Your Keeps are private by default. In this MVP, drafts, recordings and photos stay on this device only. Sharing a card gives its recipient access to that Keep — no account required." : setting === "My cards" ? "HANNA · from Alex · 2026 (sample). Physical card ordering is coming next." : setting === "Downloads & backups" ? "Your draft is saved on this device. Cloud backups and downloads aren't available yet." : "We're here when you need us. Support isn't connected in this preview yet."}</p><Button variant="quiet" className="mt-8 w-full" onClick={() => setSetting("")}>Done</Button></>)}</>}
     {screen === "detail" && <>{top("READY")}<div className="relative mx-4 h-[min(55dvh,520px)] overflow-hidden"><img src={memoryImages[0]} alt="Couple at the coast, illustrative prototype photograph" className="h-full w-full object-cover" /><div className="absolute inset-0 photo-bottom" /><div className="absolute bottom-8 left-6"><p className="eyebrow text-foreground">ANNIVERSARY · 2026</p><h1 className="display mt-3 text-5xl">HANNA</h1><p className="mt-3 text-sm">from Alex · 3:57</p></div></div><div className="space-y-3 px-6 pt-7">{nextButton("Play Keep", () => { setViewingDemo(true); go("preview"); })}<Button variant="quiet" size="touch" className="w-full" onClick={editDemoCopy}><Settings2 /> Edit a copy</Button><Button variant="bare" size="touch" className="w-full" asChild><Link to="/recipient" search={{ keep: "" }}><Radio /> View as recipient</Link></Button></div></>}
     {screen === "recipient" && <>{top("01 / 04")}<div className="px-7 pt-12">{title("Begin with someone", "Who is this Keep for?")}<div className="grid grid-cols-2 gap-2">{relationships.map((r) => <Button key={r} variant={project.relationship === r ? "selected" : "quiet"} className="h-18 justify-between px-4 text-left font-normal" onClick={() => { patch({ relationship: r, ...(r === "Myself" ? { recipientName: "Myself" } : project.relationship === "Myself" ? { recipientName: "" } : {}) }); if (r !== "Someone else") setOtherRelationship(""); }}>{r}{project.relationship === r && <Check className="size-4 text-accent" />}</Button>)}</div>{project.relationship === "Someone else" && <div className="mt-8 page-enter"><label htmlFor="other-relationship" className="eyebrow">WHO ARE THEY TO YOU?</label><input id="other-relationship" value={otherRelationship} onChange={(e) => setOtherRelationship(e.target.value.slice(0, 50))} placeholder="My coach" autoComplete="off" className="mt-3 w-full border-0 border-b border-border bg-transparent pb-4 font-display text-3xl outline-none focus:border-accent" /><p className="mt-3 text-xs text-muted-foreground"></p></div>}{project.relationship && project.relationship !== "Myself" && <div className="mt-9 page-enter"><label htmlFor="recipient-name" className="eyebrow">NAME(S)</label><input id="recipient-name" value={name} onChange={(e) => patch({ recipientName: e.target.value.slice(0, 60) })} placeholder="Gigi & Pops" autoComplete="off" className="mt-3 w-full border-0 border-b border-border bg-transparent pb-4 font-display text-3xl outline-none focus:border-accent" /><p className="mt-3 text-xs text-muted-foreground"></p></div>}<div className="mt-10">{nextButton("Continue", () => { if (project.relationship === "Someone else") patch({ relationship: otherRelationship.trim() }); go("occasion"); }, !project.relationship || (project.relationship !== "Myself" && !name.trim()) || (project.relationship === "Someone else" && !otherRelationship.trim()))}</div></div></>}
