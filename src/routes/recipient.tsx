@@ -23,7 +23,7 @@ function Recipient() {
   const readMedia=project.readMemoryOrder.map(id=>project.memories.find(m=>m.id===id)).filter((m):m is PublishedProject['memories'][number]=>!!m);
   for(const m of project.memories) if(!readMedia.some(x=>x.id===m.id))readMedia.push(m);
   return <KeepRecipientExperience key={keep} name={project.recipientName} from={(project.cardEngraving[1]||'').replace(/^FROM\s+/i,'')} year={project.cardEngraving[2]||''}
-    subtitle={project.occasion} media={project.memories} readMedia={readMedia} audioUrl={project.voiceUrl} audioDuration={project.voiceDuration}
+    subtitle={project.occasion} openingMessage={project.openingMessage} media={project.memories} readMedia={readMedia} audioUrl={project.voiceUrl} audioDuration={project.voiceDuration}
     messageParagraphs={project.messageParagraphs} style={project.visualStyle} captions={project.captionStyle} lines={project.captionCues.map(c=>c.text)} captionCues={project.captionCues}
     musicMood={project.musicMood} voiceMusicBalance={project.voiceMusicBalance} voiceVolume={project.voiceVolume} musicVolume={project.musicVolume}
     captionPosition={project.captionPosition} captionLines={project.captionLines} audioMix={project.audioMix} persistVisit={false} />;
