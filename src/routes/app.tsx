@@ -1,7 +1,7 @@
 import { ViewingLink } from "@/components/keep-publish-panel";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useCallback, useEffect, useState } from "react";
-import { ArrowRight, CreditCard, Gift, Heart, Home, LockKeyhole, LogOut, Plus, ShieldCheck, UserRound } from "lucide-react";
+import { ArrowRight, CreditCard, Gift, Heart, Home, LockKeyhole, LogOut, Plus, ShieldCheck, UserRound, Menu, ChevronDown, BookOpen, CircleHelp } from "lucide-react";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/app")({ component: KeepDashboard });
@@ -21,6 +21,10 @@ function KeepDashboard() {
   const [register, setRegister] = useState(false);
   const [busy, setBusy] = useState(false);
   const [tab, setTab] = useState<"home" | "given" | "received" | "account">("home");
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [keepsOpen, setKeepsOpen] = useState(true);
+  useEffect(() => { const hash = window.location.hash.slice(1); if (["home","given","received","account"].includes(hash)) setTab(hash as "home" | "given" | "received" | "account"); }, []);
+  const navigate = (next: "home" | "given" | "received" | "account") => { setTab(next); setMenuOpen(false); window.history.replaceState(null, "", next === "home" ? "/app" : "/app#" + next); };
   const [cards, setCards] = useState<Card[]>([]);
   const [keeps, setKeeps] = useState<Keep[]>([]);
   const [cloudDraft, setCloudDraft] = useState<{recipientName?:string;stage?:string}|null>(null);
@@ -77,8 +81,8 @@ function KeepDashboard() {
   const button = "w-full rounded-xl bg-[#C6B49A] px-5 py-3.5 text-sm font-medium tracking-wide text-[#111111] disabled:opacity-50";
   const secondary = "rounded-xl border border-white/15 bg-white/5 px-4 py-3 text-sm";
   if (!ready) return <main className="min-h-dvh bg-[#111111]" />;
-  return <main className="min-h-dvh bg-[#111111] text-[#F6F3ED]"><div className="mx-auto min-h-dvh max-w-[540px] px-6 pb-28 pt-9">
-    <header className="mb-12 flex items-center justify-between border-b border-border/50 pb-6"><span className="font-display text-[28px] tracking-tight">keep</span></header>
+  return <main className="min-h-dvh bg-[#111111] text-[#F6F3ED]"><div className="mx-auto min-h-dvh max-w-[540px] px-6 pb-12 pt-9">
+    <header className="relative mb-12 flex items-center justify-between border-b border-border/50 pb-6"><button onClick={() => navigate("home")} aria-label="Home" className="font-display text-[28px] tracking-tight">keep</button><button onClick={() => setMenuOpen(!menuOpen)} aria-label="Open navigation menu" aria-expanded={menuOpen} className="flex size-11 items-center justify-center rounded-full border border-white/20"><Menu className="size-5" /></button>{menuOpen && <div className="absolute right-0 top-14 z-50 w-[min(310px,85vw)] rounded-2xl border border-white/15 bg-[#191919] p-4 shadow-2xl"><p className="mb-3 text-xs uppercase tracking-[.2em] text-[#C6B49A]">Menu</p><button onClick={() => navigate("home")} className="flex w-full items-center gap-3 py-3 text-left"><Home className="size-4 text-[#C6B49A]" />Home</button><button onClick={() => setKeepsOpen(!keepsOpen)} className="flex w-full items-center gap-3 py-3 text-left"><Gift className="size-4 text-[#C6B49A]" />My Keeps <ChevronDown className={`ml-auto size-4 transition-transform ${keepsOpen ? "rotate-180" : ""}`} /></button>{keepsOpen && <div className="space-y-1 pl-7 text-sm"><Link to="/" onClick={() => setMenuOpen(false)} className="block py-2">+ Create a new Keep</Link><button onClick={() => navigate("home")} className="block py-2 text-left">See all my Keeps</button><button onClick={() => navigate("given")} className="block py-2 text-left">Keeps given</button><button onClick={() => navigate("received")} className="block py-2 text-left">Keeps received</button></div>}<div className="my-3 border-t border-white/10" /><button onClick={() => navigate("account")} className="flex w-full items-center gap-3 py-3 text-left"><UserRound className="size-4 text-[#C6B49A]" />Account</button><Link to="/#what-is-keep" className="flex items-center gap-3 py-3"><BookOpen className="size-4 text-[#C6B49A]" />What is Keep?</Link><a href="mailto:support@keep.com" className="flex items-center gap-3 py-3"><CircleHelp className="size-4 text-[#C6B49A]" />Help &amp; Support</a></div>}</header>
     {!session ? <section className="mx-auto max-w-sm pt-12">
       <div className="mb-5 flex h-14 w-14 items-center justify-center rounded-xl border border-[#C6B49A]/30"><LockKeyhole className="text-[#C6B49A]" /></div>
       <h1 className="font-display text-[31px] leading-tight">{register ? "Make something meaningful." : "Welcome back"}</h1>
@@ -103,6 +107,5 @@ function KeepDashboard() {
       {tab === "account" && <div className="space-y-4 rounded-xl border border-white/15 p-5"><UserRound className="text-[#C6B49A]" /><p className="text-sm">{displayName || session.user.email}</p><p className="text-xs text-white/50">{session.user.email}</p><button className={secondary} onClick={signOut}><LogOut className="mr-2 inline size-4" />Sign out</button></div>}
     </>}
   </div>
-  {session && <nav className="fixed bottom-0 left-1/2 z-20 flex w-full max-w-[540px] -translate-x-1/2 justify-around border-t border-white/10 bg-[#171717]/95 px-2 pb-[max(16px,env(safe-area-inset-bottom))] pt-3 backdrop-blur">{([{ id: "home", label: "Home", Icon: Home }, { id: "given", label: "Given", Icon: Gift }, { id: "received", label: "Received", Icon: Heart }, { id: "account", label: "Account", Icon: UserRound }] as const).map(({ id, label, Icon }) => <button key={id} onClick={() => setTab(id)} className={`flex min-w-16 flex-col items-center gap-1 text-[11px] ${tab === id ? "text-[#C6B49A]" : "text-white/50"}`}><Icon className="size-5" />{label}</button>)}</nav>}
   </main>;
 }
