@@ -19,7 +19,7 @@ export function KeepAccountButton() {
       </div>}
       <div className="my-3 border-t border-white/10" />
       <a href="/app#account" className="flex items-center gap-3 py-3"><UserRound className="size-4 text-[#C6B49A]" />Account</a>
-      <a href="/#what-is-keep" className="flex items-center gap-3 py-3"><BookOpen className="size-4 text-[#C6B49A]" />What is Keep?</a>
+      <a href="/about" className="flex items-center gap-3 py-3"><BookOpen className="size-4 text-[#C6B49A]" />What is Keep?</a>
       <a href="mailto:support@keep.com" className="flex items-center gap-3 py-3"><CircleHelp className="size-4 text-[#C6B49A]" />Help &amp; Support</a>
     </div>}
   </div>;
