@@ -253,3 +253,50 @@ button { transition: background-color .18s ease, border-color .18s ease, color .
 @media (prefers-reduced-transparency: reduce) {
   .keep-horizon-hero::before { opacity: .35; }
 }
+
+/* Shared creator selection cards: unmistakable selection without losing KEEP's quiet style. */
+.keep-choice-bubble {
+  display: flex;
+  min-width: 0;
+  width: 100%;
+  min-height: 70px;
+  height: auto;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 14px 14px;
+  border: 1px solid rgba(246,243,237,.25);
+  border-radius: 15px;
+  background: rgba(246,243,237,.035);
+  color: #F6F3ED;
+  font-size: 14px;
+  line-height: 1.35;
+  font-weight: 400;
+  white-space: normal;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.02);
+  transition: background .18s ease, border-color .18s ease, box-shadow .18s ease;
+}
+.keep-choice-bubble:hover { border-color: rgba(198,180,154,.62); background: rgba(198,180,154,.07); }
+.keep-choice-bubble--selected,
+.keep-choice-bubble--selected:hover {
+  border: 2px solid #D8BE9D;
+  background: #332D25;
+  color: #FFF8EC;
+  box-shadow: inset 0 0 0 1px rgba(216,190,157,.11), 0 0 0 1px rgba(216,190,157,.14);
+}
+.keep-choice-check {
+  display: inline-flex;
+  flex: 0 0 auto;
+  width: 24px;
+  height: 24px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: #E8D3B6;
+  color: #17130F;
+}
+.keep-choice-bubble:focus-visible { outline: 2px solid #E8D3B6; outline-offset: 3px; }
+@media (max-width: 360px) {
+  .keep-choice-bubble { padding: 12px 10px; font-size: 13px; }
+  .keep-choice-check { width: 21px; height: 21px; }
+}
