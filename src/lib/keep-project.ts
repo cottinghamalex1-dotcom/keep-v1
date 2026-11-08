@@ -45,6 +45,8 @@ export type KeepProject = {
   active: boolean;
   stage: string;
   recipientName: string;
+  /** Short personalized note shown when the NFC card is opened, before playback. */
+  openingMessage?: string;
   relationship: string;
   occasion: string;
   intent: string;
@@ -87,7 +89,7 @@ export const sampleMemories = (): MediaItem[] =>
 
 export function newProject(): KeepProject {
   return {
-    active: false, stage: "recipient", recipientName: "", relationship: "", occasion: "Anniversary", intent: "", questionIndex: 0, interviewQuestion: "", interviewSummary: "",
+    active: false, stage: "recipient", recipientName: "", openingMessage: "Made just for you.", relationship: "", occasion: "Anniversary", intent: "", questionIndex: 0, interviewQuestion: "", interviewSummary: "",
     interviewAnswers: [], messageSource: null, writtenText: "", messageParagraphs: [], finalVoiceRecording: null, captionTranscript: "", captionCues: [], captionWords: [], captionWordsPerCue: 5, captionLines: 2, captionPosition: "bottom", creationStyle: "memories", memories: [], readMemoryOrder: [],
     musicMood: "Warm + Nostalgic", voiceMusicBalance: "Balanced", musicMix: 50, voiceVolume: 60, musicVolume: 60, audioMixVersion: 2, captionStyle: "Reel", visualStyle: "Natural", cardEngraving: ["", "FROM ALEX", "2026"],
   };

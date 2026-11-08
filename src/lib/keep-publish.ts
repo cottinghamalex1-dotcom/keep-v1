@@ -5,7 +5,7 @@ import type { KeepProject, MediaItem } from './keep-project';
 const endpoint = 'https://lwkzhpwugtosbidxvdcr.supabase.co';
 const publicKey = 'sb_publishable_K8_SWJByLhV78h7gY4NySw_4sgjEVTi';
 export const viewingLink = (token: string) => `https://keep-v1.vercel.app/recipient?keep=${encodeURIComponent(token)}`;
-export type PublishedProject = Pick<KeepProject, 'recipientName' | 'occasion' | 'messageParagraphs' | 'readMemoryOrder' | 'musicMood' | 'voiceMusicBalance' | 'voiceVolume' | 'musicVolume' | 'audioMix' | 'captionStyle' | 'captionPosition' | 'captionLines' | 'captionCues' | 'visualStyle' | 'cardEngraving'> & {
+export type PublishedProject = Pick<KeepProject, 'recipientName' | 'openingMessage' | 'occasion' | 'messageParagraphs' | 'readMemoryOrder' | 'musicMood' | 'voiceMusicBalance' | 'voiceVolume' | 'musicVolume' | 'audioMix' | 'captionStyle' | 'captionPosition' | 'captionLines' | 'captionCues' | 'visualStyle' | 'cardEngraving'> & {
   memories: MediaItem[]; voiceUrl?: string; voiceDuration: number;
 };
 export async function publicationRequest(body: unknown, session?: KeepSession | null) {
@@ -17,7 +17,7 @@ export async function publicationRequest(body: unknown, session?: KeepSession | 
   return data;
 }
 export function publicationSettings(p: KeepProject) {
-  return { recipientName: p.recipientName, occasion: p.occasion, messageParagraphs: p.messageParagraphs, readMemoryOrder: p.readMemoryOrder,
+  return { recipientName: p.recipientName, openingMessage: (p.openingMessage ?? 'Made just for you.').trim().slice(0, 160), occasion: p.occasion, messageParagraphs: p.messageParagraphs, readMemoryOrder: p.readMemoryOrder,
     musicMood: p.musicMood, voiceMusicBalance: p.voiceMusicBalance, voiceVolume: p.voiceVolume ?? 60, musicVolume: p.musicVolume ?? 60,
     audioMix: p.audioMix, captionStyle: p.captionStyle, captionPosition: p.captionPosition, captionLines: p.captionLines,
     captionCues: p.captionCues, visualStyle: p.visualStyle, cardEngraving: p.cardEngraving, voiceDuration: p.finalVoiceRecording?.durationSec ?? 0 };

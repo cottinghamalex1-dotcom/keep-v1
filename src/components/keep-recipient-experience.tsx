@@ -12,6 +12,7 @@ type Props = {
   from: string;
   year: string;
   subtitle?: string | undefined;
+  openingMessage?: string | undefined;
   media?: PlayerMedia[] | undefined;
   readMedia?: PlayerMedia[] | undefined;
   audioUrl?: string | undefined;
@@ -48,6 +49,7 @@ export function KeepRecipientExperience({
   from,
   year,
   subtitle,
+  openingMessage,
   media,
   readMedia,
   audioUrl,
@@ -130,7 +132,7 @@ export function KeepRecipientExperience({
     timer.current = null;
     if (audio.current) audio.current.pause();
     setListening(false);
-    if (creatorPreview && initialExperience && onCreatorExit) {
+    if (creatorPreview && onCreatorExit) {
       onCreatorExit();
       return;
     }
@@ -239,5 +241,5 @@ export function KeepRecipientExperience({
     </div></main>;
   }
 
-  return <main className="app-shell"><div className="relative flex keep-h-screen min-h-0 flex-col overflow-hidden">{items[0] ? (items[0].kind === "video" ? <video src={items[0].url} autoPlay muted loop playsInline className="absolute inset-0 h-full w-full object-cover opacity-35" /> : <img src={items[0].url} alt="A memory from this Keep" className="absolute inset-0 h-full w-full object-cover opacity-35" />) : <div className="absolute inset-0 bg-card" />}<div className="absolute inset-0 photo-shade" /><div className="relative z-10 flex h-full flex-col items-center justify-between px-7 pb-[max(45px,env(safe-area-inset-bottom))] pt-[max(38px,env(safe-area-inset-top))] text-center"><span className="brand">keep</span><div><p className="eyebrow mb-7 text-foreground">A KEEP FOR</p><h1 className="display text-[clamp(42px,11vw,58px)]">{name}</h1><p className="mt-7 font-display text-[27px]">Made just for you.</p><p className="mt-5 text-sm text-foreground/75">from {from} · {year}</p></div><div className="w-full"><Volume2 className="mx-auto mb-6 size-5 text-accent" /><Button variant="keep" size="touch" className="w-full justify-between" onClick={enter}>Experience your Keep <ArrowRight /></Button></div></div></div></main>;
+  return <main className="app-shell"><div className="relative flex keep-h-screen min-h-0 flex-col overflow-hidden">{items[0] ? (items[0].kind === "video" ? <video src={items[0].url} autoPlay muted loop playsInline className="absolute inset-0 h-full w-full object-cover opacity-35" /> : <img src={items[0].url} alt="A memory from this Keep" className="absolute inset-0 h-full w-full object-cover opacity-35" />) : <div className="absolute inset-0 bg-card" />}<div className="absolute inset-0 photo-shade" /><div className="relative z-10 flex h-full flex-col items-center justify-between px-7 pb-[max(45px,env(safe-area-inset-bottom))] pt-[max(38px,env(safe-area-inset-top))] text-center"><span className="brand">keep</span><div className="w-full max-w-sm"><p className="eyebrow mb-7 text-foreground">A KEEP FOR</p><h1 className="display break-words text-[clamp(42px,11vw,58px)]">{name}</h1>{(openingMessage ?? "Made just for you.").trim() && <p className="mx-auto mt-7 max-w-xs whitespace-pre-line break-words font-display text-[clamp(22px,6vw,27px)] leading-snug">{(openingMessage ?? "Made just for you.").trim()}</p>}<p className="mt-5 text-sm text-foreground/75">from {from}{year ? ` · ${year}` : ""}</p></div><div className="w-full">{creatorPreview && onCreatorExit && <Button variant="bare" size="sm" className="mx-auto mb-5 text-white/80" onClick={onCreatorExit}><ArrowLeft /> Back to editor</Button>}<Button variant="keep" size="touch" className="w-full justify-between" onClick={enter}>Open your Keep <ArrowRight /></Button></div></div></div></main>;
 }

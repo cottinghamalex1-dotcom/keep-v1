@@ -16,7 +16,7 @@ import { useRecorder } from "@/hooks/use-recorder";
 import { deleteBlobs, getBlob, putBlob } from "@/lib/keep-media-store";
 import { createKeepVoiceMix, playMusicSample, stopMusicSample, type MusicBalance } from "@/lib/keep-audio";
 import { fetchDraft, fetchNextQuestion, fetchRevision, keepAiAvailable, transcribeAudio, transcribeTimedAudio, type TimedWord } from "@/lib/keep-ai";
-import { ONBOARD_KEY, fmt, hydrateDraftMedia, loadDraft, newId, newProject, projectBlobIds, projectObjectUrls, sampleMemories, saveDraft, stageLabels, defaultAudioMix, type AudioMix, type CaptionCue, type InterviewAnswer, type KeepProject, type MediaItem } from "@/lib/keep-project";
+import { fmt, hydrateDraftMedia, loadDraft, newId, newProject, projectBlobIds, projectObjectUrls, sampleMemories, saveDraft, stageLabels, defaultAudioMix, type AudioMix, type CaptionCue, type InterviewAnswer, type KeepProject, type MediaItem } from "@/lib/keep-project";
 
 export const Route = createFileRoute("/")({
   head: () => ({ meta: [
@@ -30,7 +30,7 @@ export const Route = createFileRoute("/")({
   component: KeepRoute,
 });
 
-type Screen = "onboarding" | "home" | "you" | "detail" | "recipient" | "occasion" | "intent" | "path" | "interview" | "summary" | "messageGenerating" | "write" | "message" | "recordPrep" | "record" | "recorded" | "memories" | "storyStyle" | "generating" | "editor" | "preview" | "recipientReveal" | "recipientPreview" | "giveReady" | "card" | "success";
+type Screen = "home" | "you" | "detail" | "recipient" | "occasion" | "intent" | "path" | "interview" | "summary" | "messageGenerating" | "write" | "message" | "recordPrep" | "record" | "recorded" | "memories" | "storyStyle" | "generating" | "editor" | "preview" | "recipientReveal" | "recipientPreview" | "giveReady" | "card" | "success";
 type Mode = "Memories" | "Music" | "Captions" | "Style" | "Voice";
 const creationScreens: Screen[] = ["recipient", "occasion", "intent", "path", "interview", "summary", "messageGenerating", "write", "message", "recordPrep", "record", "recorded", "memories", "storyStyle", "generating", "editor", "preview", "recipientPreview", "card", "success"];
 const resumeScreen = (s: Screen): Screen => (s === "messageGenerating" ? "summary" : s === "generating" ? "memories" : s === "preview" || s === "recipientPreview" ? "editor" : s);
@@ -58,7 +58,7 @@ const initialMessage = [
   "Twenty years from now, I hope you know this: through every version of us, I'd choose this life with you again. Always.",
 ];
 const tracks = [
-  { name: "Worth Keeping", note: "Built-in 60-second instrumental · private demo", group: "For You" },
+  { name: "Worth Keeping", note: "Original 60-second KEEP demo · warm piano and strings", group: "For You" },
   { name: "Joyful", note: "Lighthearted and full of life", group: "For You" },
   { name: "Cinematic", note: "A story that stays with you", group: "For You" },
   { name: "Romantic", note: "Tender, close, timeless", group: "More feelings" },
@@ -231,8 +231,12 @@ function KeepApp() {
           void hydrateDraftMedia(next).then(h => { if (!cancelled) setProject(cur => ({ ...cur, ...h })); });
         }
       }
-      setHistory([]);
-      setScreen("onboarding");
+      const createRequested = new URLSearchParams(window.location.search).get("create") === "1";
+      const canCreate = createRequested && (!next?.active || window.confirm("Start a new Keep? Your current draft will be replaced."));
+      if (canCreate) { setProject({ ...newProject(), active: true, stage: "recipient" }); window.history.replaceState(null, "", "/"); }
+      setHistory(canCreate ? ["home"] : []);
+      if (!canCreate) { window.location.replace("/app"); return; }
+      setScreen("recipient");
       setHydrated(true);
     };
     void initialize();
@@ -296,8 +300,8 @@ function KeepApp() {
 
   const resetPageScroll = () => window.requestAnimationFrame(() => window.scrollTo({ top: 0, left: 0, behavior: "auto" }));
   const go = (next: Screen) => { setHistory((h) => [...h, screen]); setScreen(next); resetPageScroll(); };
-  const back = () => { const last = history[history.length - 1]; setScreen(last ?? "home"); setHistory((h) => h.slice(0, -1)); resetPageScroll(); };
-  const home = () => { setHistory([]); setScreen("home"); setViewingDemo(false); resetPageScroll(); };
+  const back = () => { const last = history[history.length - 1]; if (!last || last === "home") { window.location.assign("/app"); return; } setScreen(last); setHistory((h) => h.slice(0, -1)); resetPageScroll(); };
+  const home = () => { window.location.assign("/app"); };
   const discard = (p: KeepProject) => { releaseUrls(projectObjectUrls(p)); void deleteBlobs(projectBlobIds(p)); };
   const startProject = (p: KeepProject, at: Screen) => {
     setReturnToEditorAfterRecording(false);
@@ -310,7 +314,7 @@ function KeepApp() {
   const begin = () => startProject(newProject(), "recipient");
   const editDemoCopy = () => startProject({ ...newProject(), recipientName: "Hanna", relationship: "Spouse", messageSource: "demo", messageParagraphs: initialMessage, memories: sampleMemories(), finalVoiceRecording: { durationSec: 237, demo: true }, cardEngraving: ["HANNA", "FROM ALEX", "2026"] }, "editor");
   const continueDraft = () => { setViewingDemo(false); setHistory(["home"]); setScreen((project.stage as Screen) || "recipient"); };
-  const dismissOnboarding = () => { try { localStorage.setItem(ONBOARD_KEY, "1"); } catch { /* ignore */ } };
+
 
   // ---- Interview ----
   const currentAnswer = project.interviewAnswers.find((a) => a.questionIndex === q);
@@ -911,22 +915,6 @@ function KeepApp() {
   const fileInputs = <><input ref={draftInput} type="file" accept=".docx,.pdf,.txt,.md,.rtf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/pdf,text/plain,text/markdown,application/rtf" className="sr-only" aria-label="Upload something you have already written" tabIndex={-1} onChange={(e) => void importDraft(e)} /><input ref={addInput} type="file" accept="image/*,video/*" multiple className="sr-only" aria-label="Choose photos and videos" tabIndex={-1} onChange={(e) => void addFiles(e)} /><input ref={replaceInput} type="file" accept="image/*,video/*" className="sr-only" aria-label="Choose a replacement photo or video" tabIndex={-1} onChange={(e) => void addFiles(e, frame % Math.max(1, shown.length))} /></>;
 
   return <main className="app-shell">{fileInputs}<div key={screen} className="page-enter">
-    {screen === "onboarding" && <div className="flex keep-min-screen flex-col px-7 pb-[max(36px,env(safe-area-inset-bottom))] pt-[max(40px,env(safe-area-inset-top))]"><div className="flex items-center justify-between"><span className="brand">keep</span>{accountLink}</div><div className="mt-auto mb-auto py-14"><h1 className="display text-left leading-[1.06]"><span className="block text-[clamp(36px,9.3vw,64px)]">Say what matters.</span><span className="block text-[clamp(36px,9.3vw,64px)]">Keep it forever.</span></h1><p className="mt-6 max-w-sm text-sm leading-6 text-muted-foreground">Turn the words you want to say and the moments you treasure into a beautiful, lasting keepsake they can hold onto forever.</p><ol className="mt-12 grid grid-cols-3 gap-3 border-t border-border/70 pt-8">{[{ l: "Your words", I: MessageCircle }, { l: "Your moments", I: Images }, { l: "Their Keep", I: Play }].map(({ l, I }, i) => <li key={l} className="flex flex-col items-start gap-3"><span className="text-[10px] tracking-[0.16em] text-muted-foreground/70">0{i + 1}</span><I strokeWidth={1.35} className="size-[19px] text-accent" /><p className="text-[11px] leading-4 text-foreground/85">{l}</p></li>)}</ol></div><div className="mt-8 space-y-3">{nextButton("Create a Keep", () => { dismissOnboarding(); begin(); })}{project.active && <Button variant="quiet" size="touch" className="w-full" onClick={() => { dismissOnboarding(); continueDraft(); }}><Sparkles className="size-4" /> Continue your Keep</Button>}<Button asChild variant="bare" size="touch" className="w-full text-muted-foreground"><Link to="/app">See my Keeps</Link></Button></div></div>}
-    {screen === "home" && <>
-      <header className="flex items-center justify-between px-7 pb-8 pt-[max(40px,env(safe-area-inset-top))]">
-        <span className="brand">keep</span>
-        {accountLink}
-      </header>
-      <div className="px-7">
-        <div className="mb-8"><h1 className="display text-[clamp(39px,10vw,54px)]">Some things are worth keeping.</h1></div>
-        {nextButton("Create a Keep", begin)}
-        <div className="mt-12 mb-5 flex items-end justify-between"><h2 className="text-sm font-medium">Your current draft</h2><Link to="/app" className="text-xs text-muted-foreground underline underline-offset-4">All saved Keeps</Link></div>
-      </div>
-      {project.active ? <Button variant="bare" className="mx-4 mb-4 flex h-24 w-[calc(100%-2rem)] items-center gap-4 rounded-sm border border-accent/40 p-2 text-left" onClick={continueDraft} aria-label="Continue your Keep">
-        {project.memories[0] ? <MediaView item={project.memories[0]} thumb alt="First memory" className="h-full w-20 object-cover" /> : <span className="flex h-full w-20 items-center justify-center bg-card"><Sparkles className="text-accent" /></span>}
-        <span className="flex-1"><span className="eyebrow">Continue your Keep</span><strong className="mt-2 block text-sm font-medium">{name || "Untitled Keep"}{project.occasion ? ` · ${project.occasion}` : ""}</strong><small className="mt-1 block text-muted-foreground">{stageLabels[project.stage] ?? "In progress"}</small></span><ChevronRight className="mr-3 size-4 text-muted-foreground" />
-      </Button> : <div className="mx-7 rounded-md border border-border/60 px-5 py-10 text-center"><Images strokeWidth={1.25} className="mx-auto mb-4 size-6 text-accent/75" /><p className="text-sm text-foreground">Your story starts here.</p><p className="mt-2 text-xs text-muted-foreground">Create a Keep to start your draft.</p></div>}
-    </>}
     {screen === "you" && <>{top()}<div className="px-7 pt-8">{title("Your space", "Alex.", "The things worth keeping, all in one place.")}<div className="mt-12 border-t border-border">{[{ label: "What is KEEP?", Icon: Sparkles }, { label: "My cards", Icon: Radio }, { label: "Downloads & backups", Icon: Download }, { label: "Privacy", Icon: LockKeyhole }, { label: "Help", Icon: CircleHelp }].map(({ label, Icon }) => <Button key={label} variant="bare" className="flex h-17 w-full justify-between border-b border-border px-0 text-sm font-normal" onClick={() => (label === "What is KEEP?" ? go("onboarding") : setSetting(label))}><span className="flex items-center gap-4"><Icon className="size-4 text-accent" />{label}</span><ChevronRight className="size-4 text-muted-foreground" /></Button>)}{project.active && <Button variant="bare" className="flex h-17 w-full justify-between border-b border-border px-0 text-sm font-normal text-destructive" onClick={() => { if (!window.confirm("Delete your draft Keep? Recordings and photos added to it will be removed from this device.")) return; discard(project); setProject(newProject()); toast.success("Draft deleted"); }}><span className="flex items-center gap-4"><Trash2 className="size-4" />Delete draft Keep</span></Button>}</div><p className="mt-9 text-xs leading-6 text-muted-foreground">Your Keeps are private.</p></div>{setting && sheet(setting, () => setSetting(""), <><p className="mt-5 text-sm leading-7 text-muted-foreground">{setting === "Privacy" ? "Your Keeps are private by default. In this MVP, drafts, recordings and photos stay on this device only. Sharing a card gives its recipient access to that Keep — no account required." : setting === "My cards" ? "HANNA · from Alex · 2026 (sample). Physical card ordering is coming next." : setting === "Downloads & backups" ? "Your draft is saved on this device. Cloud backups and downloads aren't available yet." : "We're here when you need us. Support isn't connected in this preview yet."}</p><Button variant="quiet" className="mt-8 w-full" onClick={() => setSetting("")}>Done</Button></>)}</>}
     {screen === "detail" && <>{top("READY")}<div className="relative mx-4 h-[min(55dvh,520px)] overflow-hidden"><img src={memoryImages[0]} alt="Couple at the coast, illustrative prototype photograph" className="h-full w-full object-cover" /><div className="absolute inset-0 photo-bottom" /><div className="absolute bottom-8 left-6"><p className="eyebrow text-foreground">ANNIVERSARY · 2026</p><h1 className="display mt-3 text-5xl">HANNA</h1><p className="mt-3 text-sm">from Alex · 3:57</p></div></div><div className="space-y-3 px-6 pt-7">{nextButton("Play Keep", () => { setViewingDemo(true); go("preview"); })}<Button variant="quiet" size="touch" className="w-full" onClick={editDemoCopy}><Settings2 /> Edit a copy</Button><Button variant="bare" size="touch" className="w-full" asChild><Link to="/recipient" search={{ keep: "" }}><Radio /> View as recipient</Link></Button></div></>}
     {screen === "recipient" && <>{top("01 / 04")}<div className="px-7 pt-12">{title("Begin with someone", "Who is this Keep for?")}<div className="grid grid-cols-2 gap-2">{relationships.map((r) => <Button key={r} variant={project.relationship === r ? "selected" : "quiet"} className="h-18 justify-between px-4 text-left font-normal" onClick={() => { patch({ relationship: r, ...(r === "Myself" ? { recipientName: "Myself" } : project.relationship === "Myself" ? { recipientName: "" } : {}) }); if (r !== "Someone else") setOtherRelationship(""); }}>{r}{project.relationship === r && <Check className="size-4 text-accent" />}</Button>)}</div>{project.relationship === "Someone else" && <div className="mt-8 page-enter"><label htmlFor="other-relationship" className="eyebrow">WHO ARE THEY TO YOU?</label><input id="other-relationship" value={otherRelationship} onChange={(e) => setOtherRelationship(e.target.value.slice(0, 50))} placeholder="My coach" autoComplete="off" className="mt-3 w-full border-0 border-b border-border bg-transparent pb-4 font-display text-3xl outline-none focus:border-accent" /><p className="mt-3 text-xs text-muted-foreground"></p></div>}{project.relationship && project.relationship !== "Myself" && <div className="mt-9 page-enter"><label htmlFor="recipient-name" className="eyebrow">NAME(S)</label><input id="recipient-name" value={name} onChange={(e) => patch({ recipientName: e.target.value.slice(0, 60) })} placeholder="Gigi & Pops" autoComplete="off" className="mt-3 w-full border-0 border-b border-border bg-transparent pb-4 font-display text-3xl outline-none focus:border-accent" /><p className="mt-3 text-xs text-muted-foreground"></p></div>}<div className="mt-10">{nextButton("Continue", () => { if (project.relationship === "Someone else") patch({ relationship: otherRelationship.trim() }); go("occasion"); }, !project.relationship || (project.relationship !== "Myself" && !name.trim()) || (project.relationship === "Someone else" && !otherRelationship.trim()))}</div></div></>}
@@ -1335,6 +1323,7 @@ function KeepApp() {
       from={(engraving[1]?.replace(/^FROM\s+/i, "") || "Alex").trim()}
       year={(engraving[2] || "2026").trim()}
       subtitle={project.occasion}
+      openingMessage={project.openingMessage}
       media={frames.length ? frames.map((m) => ({ url: m.url, kind: m.kind, displayDurationSec: m.displayDurationSec ?? 7, focusX: m.focusX, focusY: m.focusY, zoom: m.zoom, motion: m.motion })) : undefined}
       readMedia={readOrderedFrames.length ? readOrderedFrames.map((m) => ({ url: m.url, kind: m.kind, displayDurationSec: m.displayDurationSec ?? 7, focusX: m.focusX, focusY: m.focusY, zoom: m.zoom, motion: m.motion })) : undefined}
       audioUrl={rec && !rec.demo ? rec.audioUrl : undefined}
@@ -1352,7 +1341,25 @@ function KeepApp() {
       onCreatorExit={() => { setCreatorPreviewMode(null); setHistory([]); setScreen("editor"); resetPageScroll(); }}
       onCreatorContinue={() => { setCreatorPreviewMode(null); setScreen("editor"); resetPageScroll(); }}
     />}
-    {screen === "card" && <>{top()}<div className="px-7 pb-10 pt-7">{title("The final touch", "Give it somewhere to live.", "Your card opens this Keep with a tap. No app or login required.")}<div className="card-object relative mx-auto aspect-[1.586] w-full max-w-none overflow-hidden rounded-lg border border-foreground/10 p-7 text-white"><span className="brand absolute left-7 top-7 text-sm text-white">keep</span><div className="absolute left-7 top-[42%] flex -translate-y-1/2 flex-col items-start gap-1 text-left text-[11px] tracking-[.2em] text-white"><strong className="font-normal">{engraving[0]}</strong>{engraving[1] && <span>{engraving[1]}</span>}{engraving[2] && <span>{engraving[2]}</span>}</div></div><div className="mt-9 space-y-4">{["To / Title", "From (optional)", "Date (optional)"].map((label, i) => <label key={label} className="block"><span className="eyebrow">{label}</span><input aria-label={`Card ${label}`} maxLength={22} value={engraving[i] ?? ""} onChange={(e) => updateEngraving(i, e.target.value)} className="mt-2 w-full border-0 border-b border-border bg-transparent pb-3 text-sm tracking-widest outline-none focus:border-accent" /></label>)}</div><div className="mt-10">{engraving[0]?.trim() && <KeepPublishPanel project={project} onChange={patch} onPublished={() => go("success")} />}</div><p className="mt-3 text-center text-[11px] text-muted-foreground">Only To / Title is required. Use your own NFC card with the viewing link.</p></div></>}
+    {screen === "recipientReveal" && <KeepRecipientExperience
+      name={(name || engraving[0] || "You").trim()}
+      from={(engraving[1]?.replace(/^FROM\s+/i, "") || "").trim()}
+      year={(engraving[2] || "").trim()}
+      openingMessage={project.openingMessage}
+      subtitle={project.occasion}
+      media={frames.length ? frames.map((m) => ({ url: m.url, kind: m.kind, displayDurationSec: m.displayDurationSec ?? 7, focusX: m.focusX, focusY: m.focusY, zoom: m.zoom, motion: m.motion })) : undefined}
+      readMedia={readOrderedFrames.length ? readOrderedFrames.map((m) => ({ url: m.url, kind: m.kind })) : undefined}
+      audioUrl={rec && !rec.demo ? rec.audioUrl : undefined}
+      audioDuration={rec?.durationSec}
+      messageParagraphs={project.messageParagraphs}
+      style={project.visualStyle} captions={project.captionStyle} lines={captionLines} captionCues={project.captionCues}
+      musicMood={project.musicMood} voiceMusicBalance={project.voiceMusicBalance} voiceVolume={project.voiceVolume} musicVolume={project.musicVolume}
+      captionPosition={project.captionPosition} captionLines={project.captionLines} audioMix={mix}
+      persistVisit={false} creatorPreview
+      onCreatorExit={() => { setScreen("card"); resetPageScroll(); }}
+      onCreatorContinue={() => { setScreen("card"); resetPageScroll(); }}
+    />}
+    {screen === "card" && <>{top()}<div className="px-7 pb-10 pt-7">{title("The final touch", "Give it somewhere to live.", "Your card opens this Keep with a tap. No app or login required.")}<div className="card-object relative mx-auto aspect-[1.586] w-full max-w-none overflow-hidden rounded-lg border border-foreground/10 p-7 text-white"><span className="brand absolute left-7 top-7 text-sm text-white">keep</span><div className="absolute left-7 top-[42%] flex -translate-y-1/2 flex-col items-start gap-1 text-left text-[11px] tracking-[.2em] text-white"><strong className="font-normal">{engraving[0]}</strong>{engraving[1] && <span>{engraving[1]}</span>}{engraving[2] && <span>{engraving[2]}</span>}</div></div><div className="mt-9 space-y-4">{["To / Title", "From (optional)", "Date (optional)"].map((label, i) => <label key={label} className="block"><span className="eyebrow">{label}</span><input aria-label={`Card ${label}`} maxLength={22} value={engraving[i] ?? ""} onChange={(e) => updateEngraving(i, e.target.value)} className="mt-2 w-full border-0 border-b border-border bg-transparent pb-3 text-sm tracking-widest outline-none focus:border-accent" /></label>)}</div><div className="mt-9 space-y-3 border-t border-border pt-7"><h2 className="font-display text-2xl">Your opening message</h2><p className="text-xs leading-5 text-muted-foreground">The first words they'll see when they tap your card. Keep it short and personal.</p><label className="block"><span className="sr-only">Opening message</span><textarea aria-label="Opening message" maxLength={160} rows={3} placeholder="Made just for you." value={project.openingMessage ?? "Made just for you."} onChange={(e) => patch({ openingMessage: e.target.value })} className="mt-2 w-full resize-none rounded-xl border border-border bg-background p-4 font-display text-lg outline-none focus:border-accent" /></label><div className="flex items-center justify-between"><span className="text-[11px] text-muted-foreground">{(project.openingMessage ?? "Made just for you.").length}/160</span><Button variant="quiet" size="sm" onClick={() => { go("recipientReveal"); }}>Preview card opening <ArrowRight className="size-4" /></Button></div></div><div className="mt-10">{engraving[0]?.trim() && <KeepPublishPanel project={project} onChange={patch} onPublished={() => go("success")} />}</div><p className="mt-3 text-center text-[11px] text-muted-foreground">Only To / Title is required. Use your own NFC card with the viewing link.</p></div></>}
     {screen === "success" && <div className="flex keep-min-screen flex-col justify-between px-7 pb-10 pt-10"><span className="brand">keep</span><div className="py-12"><div className="mb-10 flex size-13 items-center justify-center rounded-full border border-accent text-accent"><Check /></div>{title("", "Your Keep is ready.")}<button type="button" className="card-object relative mt-12 block aspect-[1.586] w-full overflow-hidden rounded-lg border border-foreground/10 p-7 text-left text-white" onClick={() => setCardBack(!cardBack)} aria-label={cardBack ? "View front of keepsake card" : "View back of keepsake card"}>{!cardBack ? <><span className="brand absolute left-7 top-7 text-lg text-white">keep</span><div className="absolute left-7 top-[42%] flex -translate-y-1/2 flex-col items-start gap-1 text-left text-[11px] tracking-[.2em] text-white"><span>{engraving[0]}</span>{engraving[1] && <span>{engraving[1]}</span>}{engraving[2] && <span>{engraving[2]}</span>}</div></> : <div className="absolute inset-x-0 bottom-6 flex flex-col items-center gap-2 px-7 text-center text-[11px] font-normal tracking-[.2em] text-white"><span>SOME THINGS ARE WORTH KEEPING.</span><Radio className="size-4 stroke-[1.5]" aria-hidden="true" /></div>}</button><Button variant="bare" className="mx-auto mt-3 flex h-auto items-center gap-2 px-3 py-2 text-xs text-muted-foreground" onClick={() => setCardBack(!cardBack)}>{cardBack ? "View front" : "View back"} <RotateCcw className="size-3.5" /></Button><p className="mt-2 text-xs text-muted-foreground">{engraving[0]}{engraving[1] ? ` · ${engraving[1].toLowerCase()}` : ""}{engraving[2] ? ` · ${engraving[2]}` : ""}</p><p className="mt-3 text-xs leading-5 text-muted-foreground">Physical card ordering is coming next. No card has been ordered or shipped.</p></div><div className="space-y-3"><KeepPublishPanel project={project} onChange={patch} /><Button variant="quiet" size="touch" className="w-full" onClick={() => go("editor")}>Back to editor</Button><Button asChild variant="quiet" size="touch" className="w-full"><Link to="/app">Back to Keeps</Link></Button></div></div>}
   </div></main>;
 }
