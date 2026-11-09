@@ -30,7 +30,7 @@ Approved direction: Concept #1, light editorial luxury.
 - Default app, account, creation, "What is Keep?", saved creations: **light** backgrounds with dark text.
 - Primary buttons: black with ivory text. Secondary cards: warm ivory/cream.
 - Selection: clear dark border and soft sand fill.
-- Creation editor: light tool chrome; photo/video preview stays dark for contrast.
+- Creation editor: a dedicated dark cinematic workspace, including top bar, timeline, editing panels, and bottom tools; photo/video preview stays dark. The rest of the creation experience is warm ivory.
 - Recipient playback and physical black NFC card remain dark; reverse the brand mask to ivory.
 - No decorative gold gradients, saturated accent colors, or all-caps logotypes.
 
