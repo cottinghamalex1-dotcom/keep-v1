@@ -23,9 +23,9 @@ import { fmt, hydrateDraftMedia, loadDraft, newId, newProject, projectBlobIds, p
 
 export const Route = createFileRoute("/")({
   head: () => ({ meta: [
-    { title: "KEEP — Say what matters. Keep it forever." },
+    { title: "Keep — Say what matters. Keep it forever." },
     { name: "description", content: "Create a personal memory-film from your words, your voice, and the moments worth keeping." },
-    { property: "og:title", content: "KEEP — Say what matters. Keep it forever." },
+    { property: "og:title", content: "Keep — Say what matters. Keep it forever." },
     { property: "og:description", content: "Create a personal memory-film from your words, your voice, and the moments worth keeping." },
     { property: "og:type", content: "website" },
     { name: "twitter:card", content: "summary_large_image" },
