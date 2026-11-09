@@ -71,23 +71,33 @@ export async function saveCloudDraft(project:KeepProject,session:KeepSession):Pr
   const res=await request("/rest/v1/keep_drafts?on_conflict=owner_id",session,{method:"POST",headers:{"Content-Type":"application/json",Prefer:"resolution=merge-duplicates"},body:JSON.stringify({owner_id:session.user.id,project:safeProject(project),updated_at:new Date().toISOString()})});
   await res.text();
 }
-export async function loadCloudDraft(session:KeepSession):Promise<KeepProject|null> {
+export async function loadCloudDraft(session:KeepSession,onProgress?: (progress: KeepRestoreProgress) => void):Promise<KeepProject|null> {
   const res=await request("/rest/v1/keep_drafts?select=project&owner_id=eq."+encodeURIComponent(session.user.id)+"&limit=1",session);
   const rows=await res.json() as {project:Partial<KeepProject>}[];
   if (!rows.length) return null;
-  return hydrateCloudProject(rows[0]!.project, session);
+  return hydrateCloudProject(rows[0]!.project, session, onProgress);
 }
-async function hydrateCloudProject(project: Partial<KeepProject>, session: KeepSession): Promise<KeepProject> {
+export type KeepRestoreProgress = { completed: number; total: number; kind: "media" };
+async function hydrateCloudProject(project: Partial<KeepProject>, session: KeepSession, onProgress?: (progress: KeepRestoreProgress) => void): Promise<KeepProject> {
   const p:KeepProject={...newProject(),...project};
+  const total = p.memories.filter(m=>m.source==="upload").length + p.interviewAnswers.filter(a=>a.audioId).length + (p.finalVoiceRecording?.audioId ? 1 : 0);
+  let completed = 0;
+  onProgress?.({completed,total,kind:"media"});
+  const markRestored = () => { completed += 1; onProgress?.({completed,total,kind:"media"}); };
   const memories=[];
   for(const m of p.memories) {
     if(m.source==="sample") { memories.push({...m,url:memoryImages[m.sampleIndex??0]??""}); continue; }
     if(m.source==="text") { memories.push(m); continue; }
-    try { memories.push({...m,url:await downloadBlob(session,m.id)}); } catch { throw new Error("A saved photo or video could not be restored. Please try again."); }
+    try { memories.push({...m,url:await downloadBlob(session,m.id)}); markRestored(); } catch { throw new Error("A saved photo or video could not be restored. Please try again."); }
   }
   const interviewAnswers=[];
-  for(const a of p.interviewAnswers) interviewAnswers.push({...a,audioUrl:a.audioId ? await downloadBlob(session,a.audioId):undefined});
+  for(const a of p.interviewAnswers) {
+    const audioUrl = a.audioId ? await downloadBlob(session,a.audioId) : undefined;
+    interviewAnswers.push({...a,audioUrl});
+    if(a.audioId) markRestored();
+  }
   const finalVoiceRecording=p.finalVoiceRecording?.audioId ? {...p.finalVoiceRecording,audioUrl:await downloadBlob(session,p.finalVoiceRecording.audioId)}:p.finalVoiceRecording;
+  if(p.finalVoiceRecording?.audioId) markRestored();
   return {...p,memories,interviewAnswers,finalVoiceRecording};
 }
 export async function removeCloudDraft(session:KeepSession):Promise<void> {
@@ -101,7 +111,7 @@ export async function loadKeepDisplayName(session: KeepSession): Promise<string>
 }
 
 /** Load exactly the selected creation using the owner's authenticated API access. */
-export async function loadEditableKeep(id: string, session: KeepSession): Promise<KeepProject> {
+export async function loadEditableKeep(id: string, session: KeepSession, onProgress?: (progress: KeepRestoreProgress) => void): Promise<KeepProject> {
   const owner = encodeURIComponent(session.user.id);
   const response = await request("/rest/v1/keeps?select=id,recipient_token,published_at,draft_project,published_project&id=eq." + encodeURIComponent(id) + "&owner_id=eq." + owner + "&limit=1", session);
   const rows = await response.json();
@@ -111,7 +121,7 @@ export async function loadEditableKeep(id: string, session: KeepSession): Promis
   const latestResponse = await request("/rest/v1/keep_drafts?select=project&owner_id=eq." + owner + "&limit=1", session);
   const latest = (await latestResponse.json())[0]?.project;
   const draft = latest?.publicationId === id ? latest : keep.draft_project;
-  if (draft) return { ...await hydrateCloudProject(draft, session), active: true, publicationId: id, publicationToken: keep.published_at ? keep.recipient_token : undefined };
+  if (draft) return { ...await hydrateCloudProject(draft, session, onProgress), active: true, publicationId: id, publicationToken: keep.published_at ? keep.recipient_token : undefined };
   const published = keep.published_project;
   if (!published?.memories?.length || !published.voicePath) throw new Error("This Keep has no saved editing project yet.");
   const restore = async (path: string, blobId: string) => {
@@ -122,14 +132,21 @@ export async function loadEditableKeep(id: string, session: KeepSession): Promis
     return URL.createObjectURL(blob);
   };
   const memories: KeepProject["memories"] = [];
+  const total = published.memories.length + 1;
+  let completed = 0;
+  onProgress?.({completed,total,kind:"media"});
   for (const memory of published.memories) {
     // Unique local IDs prevent an older published copy replacing another draft's media.
     const blobId = crypto.randomUUID();
     const { storagePath, ...settings } = memory;
     memories.push({ ...settings, id: blobId, source: "upload" as const, url: await restore(storagePath, blobId) });
+    completed += 1;
+    onProgress?.({completed,total,kind:"media"});
   }
   const audioId = crypto.randomUUID();
   const audioUrl = await restore(published.voicePath, audioId);
+  completed += 1;
+  onProgress?.({completed,total,kind:"media"});
   const { voicePath, voiceDuration, memories: oldMemories, ...settings } = published;
   const idMap = new Map(oldMemories.map((m: {id: string}, i: number) => [m.id, memories[i]!.id]));
   return { ...newProject(), ...settings, active: true, stage: "editor", publicationId: id, publicationToken: keep.recipient_token, memories, readMemoryOrder: (published.readMemoryOrder ?? []).map((oldId: string) => idMap.get(oldId)).filter(Boolean), finalVoiceRecording: { audioId, audioUrl, durationSec: voiceDuration ?? 0, demo: false } };
