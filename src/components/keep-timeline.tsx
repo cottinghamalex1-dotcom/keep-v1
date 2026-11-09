@@ -30,7 +30,6 @@ const clamp = (n: number, min: number, max: number) => Math.min(max, Math.max(mi
 const format = (n: number) => `${Math.floor(n / 60)}:${String(Math.floor(n % 60)).padStart(2,"0")}`;
 export function KeepTimeline({ media, captions, duration, time, selectedIndex, voicePresent, musicMood, onSeek, onSelect, onMove, onDuration, onCaption, onAdd, onVoice, onMusic, onSplit, onDuplicate, onDelete, onReplace, onPhotoSettings, onCaptionChange, onCaptionTime }: Props) {
   const scroller = useRef<HTMLDivElement>(null);
-  const [selectedCaption,setSelectedCaption] = useState<number|null>(null);
   const [zoom,setZoom] = useState(1);
   const [draggingPlayhead,setDraggingPlayhead] = useState(false);
   const drag = useRef<{index:number;x:number;width:number;duration:number}|null>(null);
@@ -46,7 +45,6 @@ export function KeepTimeline({ media, captions, duration, time, selectedIndex, v
     const rect = e.currentTarget.getBoundingClientRect();
     onSeek(clamp((e.clientX - rect.left) / rect.width,0,1) * safeDuration);
   };
-  const activeCaption = selectedCaption===null ? null : captions[selectedCaption];
   const clipStart = media.slice(0,selectedIndex).reduce((sum,m)=>sum+Math.max(1,m.displayDurationSec??7),0)/total*safeDuration;
   const clipEnd = clipStart + Math.max(1,media[selectedIndex]?.displayDurationSec??7)/total*safeDuration;
   const splitAt = clamp((time-clipStart)/(clipEnd-clipStart)*Math.max(1,media[selectedIndex]?.displayDurationSec??7),1,Math.max(1,media[selectedIndex]?.displayDurationSec??7)-1);
@@ -96,7 +94,7 @@ export function KeepTimeline({ media, captions, duration, time, selectedIndex, v
               const start = elapsed; elapsed += segment;
               return <div key={m.id} data-clip-index={i} className={`group relative h-full shrink-0 overflow-hidden rounded-md border ${reorderTarget===i?"ring-2 ring-white":i===selectedIndex?"border-[#e5c69b] ring-1 ring-[#e5c69b]":"border-white/20"}`} style={{width:`calc(${segment}% - 2px)`}}>
                 <div role="button" tabIndex={0} aria-label={`Drag to reorder moment ${i+1}`} className="absolute bottom-0 left-0 top-5 z-10 flex w-5 touch-none items-center justify-center bg-black/60 text-white" onPointerDown={e=>{e.stopPropagation();e.currentTarget.setPointerCapture(e.pointerId);reorder.current={index:i,startX:e.clientX,startY:e.clientY};setReorderTarget(i);}} onPointerMove={e=>{if(!reorder.current)return;const row=e.currentTarget.parentElement?.parentElement;const clips=Array.from(row?.querySelectorAll<HTMLElement>("[data-clip-index]")??[]);const hit=clips.find(el=>{const r=el.getBoundingClientRect();return e.clientX>=r.left&&e.clientX<=r.right;});if(hit)setReorderTarget(Number(hit.dataset["clipIndex"]));}} onPointerUp={e=>{e.stopPropagation();const from=reorder.current?.index;const to=reorderTarget;reorder.current=null;setReorderTarget(null);if(from!==undefined&&to!==null&&from!==to)onMove(from,to);}} onPointerCancel={()=>{reorder.current=null;setReorderTarget(null);}} onKeyDown={e=>{if(e.key==="ArrowLeft"||e.key==="ArrowRight"){e.preventDefault();onMove(i,i+(e.key==="ArrowRight"?1:-1));}}}><GripVertical className="size-4"/></div>
-                <button type="button" aria-label={`Edit photo ${i+1}`} className="relative h-full w-full" onClick={()=>{onSelect(i);onSeek(start/100*safeDuration);setSelectedCaption(null);}}>
+                <button type="button" aria-label={`Edit photo ${i+1}`} className="relative h-full w-full" onClick={()=>{onSelect(i);onSeek(start/100*safeDuration);}}>
                   {m.kind==="video"?<video src={m.url} muted playsInline preload="metadata" className="h-full w-full object-cover"/>:<img src={m.url} alt="" className="h-full w-full object-cover"/>}
                   <span className="absolute bottom-1 left-1 rounded bg-black/65 px-1 text-[9px]">{Math.round(m.displayDurationSec ?? 7)}s</span>
                 </button>
@@ -108,7 +106,7 @@ export function KeepTimeline({ media, captions, duration, time, selectedIndex, v
             <button type="button" onClick={onAdd} className="flex h-full min-w-10 items-center justify-center rounded border border-dashed border-white/30 text-white/60"><Plus className="size-4"/></button>
           </div>
           <div className="relative mt-1 h-8 rounded bg-[#59467a]/20" onPointerDown={seekFromPointer}>
-            {captions.map((cue,i)=><button key={i} type="button" onClick={e=>{e.stopPropagation();setSelectedCaption(i);onSeek(cue.start);}} title={cue.text} className="absolute top-0 h-8 overflow-hidden rounded border border-[#b39ad5]/50 bg-[#59467a]/80 px-1 text-left text-[9px] leading-8 text-white" style={{left:`${clamp(cue.start/safeDuration*100,0,100)}%`,width:`${clamp((cue.end-cue.start)/safeDuration*100,.8,100)}%`}}>{cue.text}</button>)}
+            {captions.map((cue,i)=><button key={i} type="button" onClick={e=>{e.stopPropagation();onCaption(i);}} title={cue.text} className="absolute top-0 h-8 overflow-hidden rounded border border-[#b39ad5]/50 bg-[#59467a]/80 px-1 text-left text-[9px] leading-8 text-white" style={{left:`${clamp(cue.start/safeDuration*100,0,100)}%`,width:`${clamp((cue.end-cue.start)/safeDuration*100,.8,100)}%`}}>{cue.text}</button>)}
             {!captions.length&&<span className="flex h-full items-center gap-2 px-2 text-[10px] text-white/40"><Captions className="size-3"/> Add timed captions</span>}
           </div>
           <button type="button" onClick={onVoice} className="relative mt-1 flex h-8 w-full items-center overflow-hidden rounded bg-[#397c70]/60 px-2 text-left text-[10px]"><Mic2 className="mr-2 size-3"/>{voicePresent?"Your voice · narration":"Record your voice"}<span className="ml-auto flex h-4 items-end gap-[3px] opacity-40">{Array.from({length:45},(_,i)=><span key={i} className="w-[2px] bg-white" style={{height:`${4+(i*13%11)}px`}}/>)}</span></button>
@@ -117,12 +115,7 @@ export function KeepTimeline({ media, captions, duration, time, selectedIndex, v
         </div>
       </div>
     </div>
-    {activeCaption ? <div className="mt-3 space-y-2 rounded-xl border border-[#b39ad5]/50 bg-[#59467a]/15 p-3">
-      <div className="flex items-center justify-between"><strong className="text-xs">Caption {selectedCaption!+1}</strong><button type="button" onClick={()=>setSelectedCaption(null)} className="text-xs text-white/60">Done</button></div>
-      <textarea aria-label="Edit caption text" rows={2} value={activeCaption.text} onChange={e=>onCaptionChange(selectedCaption!,e.target.value)} className="w-full rounded-lg border border-white/20 bg-black/30 p-2 text-sm"/>
-      <div className="grid grid-cols-2 gap-3">{(["start","end"] as const).map(field=><label key={field} className="text-[11px] capitalize text-white/60">{field} (seconds)<input type="number" step=".1" min="0" max={safeDuration} value={Number(activeCaption[field].toFixed(1))} onChange={e=>onCaptionTime(selectedCaption!,field==="start"?Number(e.target.value):activeCaption.start,field==="end"?Number(e.target.value):activeCaption.end)} className="mt-1 w-full rounded-lg border border-white/20 bg-black/30 p-2 text-white"/></label>)}</div>
-      <button type="button" onClick={()=>onCaption(selectedCaption!)} className="text-xs text-[#e5c69b]">Open caption styles and timing</button>
-    </div> : <div className="mt-3 space-y-2 rounded-xl border border-white/15 bg-white/[.04] p-3">
+    <div className="mt-3 space-y-2 rounded-xl border border-white/15 bg-white/[.04] p-3">
       <div className="flex items-center justify-between"><strong className="text-xs">Moment {selectedIndex+1} of {media.length}</strong><span className="text-[10px] text-white/50">Drag the left grip to reorder</span></div>
       <div className="grid grid-cols-5 gap-1">
         {[
@@ -134,7 +127,7 @@ export function KeepTimeline({ media, captions, duration, time, selectedIndex, v
         ].map(action=><button key={action.label} type="button" disabled={action.disabled} onClick={action.fn} className="flex min-h-14 flex-col items-center justify-center gap-1 rounded-lg bg-white/10 px-1 text-[10px] disabled:opacity-30"><action.icon className="size-4"/>{action.label}</button>)}
       </div>
       <div className="flex items-center gap-2"><button type="button" onClick={()=>onMove(selectedIndex,selectedIndex-1)} disabled={selectedIndex===0} className="flex flex-1 items-center justify-center gap-1 rounded-lg border border-white/15 py-2 text-xs disabled:opacity-30"><ChevronLeft className="size-4"/> Earlier</button><button type="button" onClick={()=>onMove(selectedIndex,selectedIndex+1)} disabled={selectedIndex>=media.length-1} className="flex flex-1 items-center justify-center gap-1 rounded-lg border border-white/15 py-2 text-xs disabled:opacity-30">Later <ChevronRight className="size-4"/></button></div>
-    </div>}
+    </div>
     <div className="mt-2 flex items-center gap-2 text-[10px] text-white/45"><Play className="size-3"/> Edits save to your Keep draft.</div>
   </section>;
 }
