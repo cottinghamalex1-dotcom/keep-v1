@@ -1,4 +1,5 @@
 import { viewingLink } from "@/lib/keep-publish";
+import { clearDraft, loadDraft } from "@/lib/keep-project";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useCallback, useEffect, useState } from "react";
 import { ArrowRight, CreditCard, Gift, Heart, Home, LockKeyhole, LogOut, Plus, ShieldCheck, UserRound, Menu, ChevronDown, BookOpen, CircleHelp, ExternalLink, Link2, Check, PenLine, Image as ImageIcon, Trash2 } from "lucide-react";
@@ -25,18 +26,48 @@ function KeepDashboard() {
   const [expandedKeep, setExpandedKeep] = useState<string | null>(null);
   const [copiedKeep, setCopiedKeep] = useState<string | null>(null);
   const [deletingKeep, setDeletingKeep] = useState<string | null>(null);
+  const [deletingDraft, setDeletingDraft] = useState(false);
   const [keepsOpen, setKeepsOpen] = useState(true);
+  const clearMatchingLocalDraft = (publicationId?: string) => {
+    // Do not delete a different Keep's local edits.
+    const local = loadDraft();
+    if (local && (publicationId ? local.publicationId === publicationId : !local.publicationId)) clearDraft();
+  };
+  const removeStandaloneDraft = async () => {
+    if (!session || deletingDraft || !cloudDraft?.active || keeps.some(k => k.id === cloudDraft.publicationId)) return;
+    if (!window.confirm(`Delete your unfinished Keep for ${cloudDraft.recipientName || "someone special"}? This draft cannot be recovered.`)) return;
+    setDeletingDraft(true);
+    try {
+      const response = await api("/rest/v1/keep_drafts?owner_id=eq." + encodeURIComponent(session.user.id) + "&select=project", {}, session.access_token);
+      if (!Array.isArray(response) || !response[0]?.project || response[0].project.publicationId !== cloudDraft.publicationId) throw new Error("Your draft changed. Refresh before deleting.");
+      await api("/rest/v1/keep_drafts?owner_id=eq." + encodeURIComponent(session.user.id), { method: "DELETE" }, session.access_token);
+      clearMatchingLocalDraft(cloudDraft.publicationId);
+      setCloudDraft(null);
+      toast.success("Draft deleted");
+    } catch (e) { toast.error(e instanceof Error ? e.message : "Could not delete this draft"); }
+    finally { setDeletingDraft(false); }
+  };
   const removeKeep = async (keep: Keep) => {
     if (!session || deletingKeep) return;
+    const isDraft = keep.status !== "ready" && !keep.published_at;
+    if (!isDraft) { toast.error("Only unfinished drafts can be deleted here."); return; }
     if (cards.some(c => c.keep_id === keep.id)) { toast.error("This Keep is linked to a physical card. Unlink the card before deleting it."); return; }
-    if (!window.confirm(`Delete the Keep for ${keep.recipient_name || "someone special"}? This cannot be undone. Its existing viewing link will stop working.`)) return;
+    if (!window.confirm(`Delete the unfinished Keep for ${keep.recipient_name || "someone special"}? This can't be undone.`)) return;
     setDeletingKeep(keep.id);
     try {
       const deleted = await api("/rest/v1/keeps?id=eq." + encodeURIComponent(keep.id) + "&owner_id=eq." + encodeURIComponent(session.user.id) + "&select=id", { method: "DELETE", headers: { Prefer: "return=representation" } }, session.access_token);
       if (!Array.isArray(deleted) || !deleted.some((item: {id:string}) => item.id === keep.id)) throw new Error("Deletion was not confirmed. Nothing was removed.");
+      // Clear the single-draft pointer only if it refers to the deleted Keep.
+      if (cloudDraft?.publicationId === keep.id) {
+        try {
+          await api("/rest/v1/keep_drafts?owner_id=eq." + encodeURIComponent(session.user.id), { method: "DELETE" }, session.access_token);
+          setCloudDraft(null);
+        } catch { toast.error("Draft removed, but your recent-draft shortcut may still appear until refreshed."); }
+      }
+      clearMatchingLocalDraft(keep.id);
       setKeeps(prev => prev.filter(k => k.id !== keep.id));
       if (expandedKeep === keep.id) setExpandedKeep(null);
-      toast.success("Keep deleted");
+      toast.success("Draft deleted");
     } catch(e) { toast.error(e instanceof Error ? e.message : "Could not delete this Keep"); }
     finally { setDeletingKeep(null); }
   };
@@ -116,7 +147,7 @@ function KeepDashboard() {
       {tab === "home" && <div className="space-y-4">
 
         <a href="/?create=1" className="keep-premium-action w-full p-5"><span><strong className="block text-base">Create a Keep</strong><small>Your story starts here</small></span><Plus /></a>
-        {(keeps.length > 0 || cloudDraft?.active) && <section className="keep-editorial-surface p-5"><div className="mb-5 flex items-center justify-between gap-4"><h2 className="text-sm font-medium tracking-wide">Your creations</h2><Link to="/my-keeps" className="text-xs text-[#6A5849]">View all <ArrowRight className="ml-1 inline size-3" /></Link></div><div className="space-y-3">{cloudDraft?.active && !keeps.some(k => k.id === cloudDraft.publicationId) && <div className="rounded-xl border border-border/80 p-4"><p className="font-display text-2xl">For {cloudDraft.recipientName || "someone special"}</p><p className="mt-2 text-xs text-muted-foreground">Draft</p><a href="/?resume=1" className="keep-premium-action mt-4 flex items-center justify-center gap-2 px-4 py-3"><PenLine className="size-4" />Continue Editing</a></div>}{keeps.map((keep) => <div key={keep.id} className="overflow-hidden rounded-xl border border-border/80 bg-card"><button type="button" aria-expanded={expandedKeep === keep.id} onClick={() => setExpandedKeep(expandedKeep === keep.id ? null : keep.id)} className="flex min-h-18 w-full items-center gap-3 px-4 py-4 text-left"><span className="flex size-10 shrink-0 items-center justify-center rounded-full border border-[#B8A999]/25 text-[#6A5849]"><Gift className="size-4" /></span><span className="min-w-0 flex-1 font-display text-[25px] leading-tight">For {keep.recipient_name || "someone special"}</span><span className="text-[10px] capitalize tracking-wide text-[#6A5849]">{keep.status}</span><ChevronDown className={`size-4 shrink-0 text-foreground/75 transition-transform ${expandedKeep === keep.id ? "rotate-180" : ""}`} /></button><a href={`/?edit=${encodeURIComponent(keep.id)}`} className="keep-premium-action mx-4 mb-4 flex items-center justify-center gap-2 px-4 py-3"><PenLine className="size-4" />Continue Editing</a>{expandedKeep === keep.id && <div className="border-t border-border/80 px-4 pb-4 pt-4">{keep.status === "ready" && keep.published_at ? <><div className="flex flex-col gap-2 sm:flex-row"><button type="button" className="keep-premium-action min-h-11 flex-1 justify-center px-4 py-3" onClick={async () => {try {await navigator.clipboard.writeText(viewingLink(keep.recipient_token));setCopiedKeep(keep.id);} catch {toast.error("Copy unavailable. Open your Keep and copy its address.");}}}>{copiedKeep === keep.id ? <Check className="size-4" /> : <Link2 className="size-4" />}{copiedKeep === keep.id ? "Link copied" : "Copy viewing link"}</button><a href={viewingLink(keep.recipient_token)} target="_blank" rel="noreferrer" className="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl border border-border/80 px-4 py-3 text-sm"><ExternalLink className="size-4" />Open Keep</a></div><p className="mt-4 text-[11px] leading-5 text-muted-foreground">Your link stays the same when you update this Keep. Use it to link your NFC card.</p><button type="button" disabled={deletingKeep === keep.id} onClick={() => void removeKeep(keep)} className="mt-4 flex items-center gap-2 py-2 text-xs text-[#80584D] hover:text-red-700"><Trash2 className="size-3.5" />{deletingKeep === keep.id ? "Deleting..." : "Delete this Keep"}</button></> : <p className="text-xs text-muted-foreground">This Keep isn't ready to share yet.</p>}</div>}</div>)}</div></section>}
+        {(keeps.length > 0 || cloudDraft?.active) && <section className="keep-editorial-surface p-5"><div className="mb-5 flex items-center justify-between gap-4"><h2 className="text-sm font-medium tracking-wide">Your creations</h2><Link to="/my-keeps" className="text-xs text-[#6A5849]">View all <ArrowRight className="ml-1 inline size-3" /></Link></div><div className="space-y-3">{cloudDraft?.active && !keeps.some(k => k.id === cloudDraft.publicationId) && <div className="rounded-xl border border-border/80 p-4"><p className="font-display text-2xl">For {cloudDraft.recipientName || "someone special"}</p><p className="mt-2 text-xs text-muted-foreground">Draft</p><a href="/?resume=1" className="keep-premium-action mt-4 flex items-center justify-center gap-2 px-4 py-3"><PenLine className="size-4" />Continue Editing</a><button type="button" disabled={deletingDraft} onClick={() => void removeStandaloneDraft()} className="mt-4 inline-flex items-center gap-2 py-2 text-xs text-red-700 disabled:opacity-50"><Trash2 className="size-3.5" />{deletingDraft ? "Deleting…" : "Delete Draft"}</button></div>}{keeps.map((keep) => <div key={keep.id} className="overflow-hidden rounded-xl border border-border/80 bg-card"><button type="button" aria-expanded={expandedKeep === keep.id} onClick={() => setExpandedKeep(expandedKeep === keep.id ? null : keep.id)} className="flex min-h-18 w-full items-center gap-3 px-4 py-4 text-left"><span className="flex size-10 shrink-0 items-center justify-center rounded-full border border-[#B8A999]/25 text-[#6A5849]"><Gift className="size-4" /></span><span className="min-w-0 flex-1 font-display text-[25px] leading-tight">For {keep.recipient_name || "someone special"}</span><span className="text-[10px] capitalize tracking-wide text-[#6A5849]">{keep.status}</span><ChevronDown className={`size-4 shrink-0 text-foreground/75 transition-transform ${expandedKeep === keep.id ? "rotate-180" : ""}`} /></button><a href={`/?edit=${encodeURIComponent(keep.id)}`} className="keep-premium-action mx-4 mb-4 flex items-center justify-center gap-2 px-4 py-3"><PenLine className="size-4" />Continue Editing</a>{expandedKeep === keep.id && <div className="border-t border-border/80 px-4 pb-4 pt-4">{keep.status === "ready" && keep.published_at ? <><div className="flex flex-col gap-2 sm:flex-row"><button type="button" className="keep-premium-action min-h-11 flex-1 justify-center px-4 py-3" onClick={async () => {try {await navigator.clipboard.writeText(viewingLink(keep.recipient_token));setCopiedKeep(keep.id);} catch {toast.error("Copy unavailable. Open your Keep and copy its address.");}}}>{copiedKeep === keep.id ? <Check className="size-4" /> : <Link2 className="size-4" />}{copiedKeep === keep.id ? "Link copied" : "Copy viewing link"}</button><a href={viewingLink(keep.recipient_token)} target="_blank" rel="noreferrer" className="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl border border-border/80 px-4 py-3 text-sm"><ExternalLink className="size-4" />Open Keep</a></div><p className="mt-4 text-[11px] leading-5 text-muted-foreground">Your link stays the same when you update this Keep. Use it to link your NFC card.</p><button type="button" disabled={deletingKeep === keep.id} onClick={() => void removeKeep(keep)} className="mt-4 flex items-center gap-2 py-2 text-xs text-[#80584D] hover:text-red-700"><Trash2 className="size-3.5" />{deletingKeep === keep.id ? "Deleting..." : "Delete this Keep"}</button></> : <><p className="text-xs text-muted-foreground">This Keep isn't ready to share yet.</p><button type="button" disabled={deletingKeep === keep.id} onClick={() => void removeKeep(keep)} className="mt-4 inline-flex items-center gap-2 py-2 text-xs text-red-700 disabled:opacity-50"><Trash2 className="size-3.5" />{deletingKeep === keep.id ? "Deleting…" : "Delete Draft"}</button></>}</div>}</div>)}</div></section>}
         <div className="grid grid-cols-2 gap-3"><button className={secondary} onClick={() => setTab("given")}><Gift className="mb-3 text-[#6A5849]" />Given Keeps <span className="block pt-1 text-2xl">{cards.filter(c => c.creator_id === session.user.id).length}</span></button><button className={secondary} onClick={() => setTab("received")}><Heart className="mb-3 text-[#6A5849]" />Received Keeps <span className="block pt-1 text-2xl">{cards.filter(c => c.recipient_id === session.user.id).length}</span></button></div>
         <a href="/?create=1" className="keep-editorial-surface flex items-center justify-between px-5 py-4 text-foreground"><span><strong className="block text-sm font-medium">Create another Keep</strong><small className="mt-1 block text-xs text-muted-foreground">Start a new story</small></span><Plus className="size-5 text-[#6A5849]" /></a>
       </div>}
