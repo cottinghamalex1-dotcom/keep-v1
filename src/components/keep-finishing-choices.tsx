@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ArrowRight, Check, ChevronDown, Music2, Pause, Play, Sparkles } from "lucide-react";
+import { ArrowRight, Check, ChevronDown, Pause, Play, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { MediaItem, VoiceTone } from "@/lib/keep-project";
 
@@ -12,7 +12,7 @@ type Props = {
   voiceTone: VoiceTone;
   tracks: Track[];
   looks: Look[];
-  previewMedia?: MediaItem;
+  previewMedia?: MediaItem | undefined;
   musicSampling: string;
   hasVoice: boolean;
   onCaption: (value: string) => void;
