@@ -3,6 +3,7 @@ import { KeepOpeningScreen } from "@/components/keep-opening-screen";
 import type { KeepRestoreProgress } from "@/lib/keep-cloud";
 import { KeepPublishPanel } from "@/components/keep-publish-panel";
 import { KeepTimeline } from "@/components/keep-timeline";
+import { KeepCaptionEditor } from "@/components/keep-caption-editor";
 import { arrangeWords, spreadMemories, recommendedStyle } from "@/lib/keep-story-layout";
 import { activeKeepSession, loadEditableKeep, loadCloudDraft, saveCloudDraft, removeCloudDraft } from "@/lib/keep-cloud";
 import { CinematicMedia } from "@/components/cinematic-media";
@@ -1203,11 +1204,11 @@ function KeepApp() {
               </p>
             </div>}
 
-            <div className="absolute bottom-3 left-3 right-3 flex items-center gap-2 rounded-xl bg-black/45 px-2 py-1 backdrop-blur">
-              <Button variant="bare" size="icon" className="size-8 bg-black/25 backdrop-blur" aria-label={editorPlaying ? "Pause preview" : "Play preview"} onClick={() => { if (editorTime >= editorDuration - 0.1) seekEditor(0); setEditorPlaying(!editorPlaying); }}>{editorPlaying ? <Pause className="size-3.5" fill="currentColor" /> : <Play className="size-3.5" fill="currentColor" />}</Button>
-              <input type="range" min={0} max={editorDuration} step={0.1} value={Math.min(editorTime, editorDuration)} aria-label="Seek Keep playback" onChange={(e) => seekEditor(Number(e.target.value))} className="h-5 min-w-0 flex-1 accent-white" />
-              <span className="text-[9px] tabular-nums">{fmt(editorTime)} / {fmt(editorDuration)}</span>
-            </div>
+            <button type="button" aria-label={editorPlaying ? "Pause video preview" : "Play video preview"} aria-pressed={editorPlaying}
+              onClick={() => { if (editorTime >= editorDuration - .1) seekEditor(0); setEditorPlaying(!editorPlaying); }}
+              className={`keep-video-play absolute left-1/2 top-1/2 z-30 flex size-17 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border border-white/25 bg-black/55 text-white shadow-xl backdrop-blur-sm transition-opacity duration-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white ${editorPlaying ? "opacity-0 hover:opacity-100 focus-visible:opacity-100" : "opacity-100"}`}>
+              {editorPlaying ? <Pause className="size-7" fill="currentColor" /> : <Play className="ml-1 size-8" fill="currentColor" />}
+            </button>
           </div>
 
 
@@ -1248,19 +1249,28 @@ function KeepApp() {
               <div className="flex items-center justify-between text-[10px] text-muted-foreground"><span>Adjust each independently while your Keep plays.</span><button type="button" className="underline" onClick={() => patch({ voiceVolume: 60, musicVolume: 60 })}>Reset levels</button></div>
             </div>
         </>}
-        {editorPanel === "Captions" && <>
-          {!rec?.demo && rec?.audioUrl && <div className="mb-3 rounded-lg border border-border bg-background/50 p-3 text-xs"><div className="flex items-center justify-between gap-3"><span>{captionSyncing ? "Syncing captions to your voice…" : project.captionCues.length ? `${project.captionCues.length} caption segments ready` : captionSyncError ? "Captions could not be synchronized." : "Captions have not been generated yet."}</span>{!captionSyncing && !project.captionCues.length && <Button variant="quiet" size="sm" onClick={() => void retryCaptionSync()}><RotateCcw className="size-3.5" /> Retry sync</Button>}</div>{!captionSyncing && !project.captionCues.length && <p className="mt-2 text-[10px] text-muted-foreground">Your voice recording is saved. Retrying captions will not erase it.</p>}</div>}
-          <div className="mb-3 flex items-center justify-between"><div><p className="font-display text-2xl">Captions</p><p className="mt-1 text-[10px] text-muted-foreground">{project.captionCues.length ? "Synced to your voice." : "Choose how your words appear."}</p></div><Button variant="bare" size="icon" aria-label="Close captions" onClick={() => setEditorPanel(null)}><X className="size-4" /></Button></div>
-          <div className="thin-scroll flex gap-2 overflow-x-auto pb-1">{captionOptions.map((c) => <Button key={c} variant={project.captionStyle === c ? "selected" : "quiet"} className="h-16 min-w-28 shrink-0 flex-col whitespace-normal px-3" onClick={() => patch({ captionStyle: c })}><span className={c === "Film" ? "font-display text-lg" : "text-xs"}>{c}</span><small className="text-[8px] font-normal text-muted-foreground">{c === "None" ? "No words" : c === "Reel" ? "Bold" : c === "Film" ? "Elegant" : c === "Story" ? "Emotional" : c === "Minimal" ? "Quiet" : "Simple"}</small></Button>)}</div>
-          <div className="mt-4 space-y-3 rounded-lg border border-border bg-background/50 p-3">
-            <div><label className="mb-1 block text-xs font-medium" htmlFor="caption-words">Words per caption: {project.captionWordsPerCue ?? 5}</label><input id="caption-words" type="range" min="1" max="18" value={project.captionWordsPerCue ?? 5} className="w-full" onChange={(e) => { const count = Number(e.target.value); patch({ captionWordsPerCue: count, ...(project.captionWords?.length ? { captionCues: groupTimedWords(project.captionWords, count) } : {}) }); }} /><p className="text-[10px] text-muted-foreground">Choose one word at a time or longer phrases. Timing follows each spoken word.</p></div>
-            <div><label className="mb-1 block text-xs font-medium" htmlFor="caption-lines">Maximum display lines</label><select id="caption-lines" className="w-full rounded-md border border-border bg-background p-2 text-xs" value={project.captionLines ?? 2} onChange={(e) => patch({ captionLines: Number(e.target.value) })}><option value={1}>1 line</option><option value={2}>2 lines</option><option value={3}>3 lines</option></select></div>
-            <div><p className="mb-1 text-xs font-medium">Position</p><div className="flex gap-2">{(["top","middle","bottom"] as const).map((pos) => <Button key={pos} size="sm" variant={(project.captionPosition ?? "bottom") === pos ? "selected" : "quiet"} className="flex-1 capitalize" onClick={() => patch({ captionPosition: pos })}>{pos}</Button>)}</div></div>
-            <p className="text-xs font-medium">Edit individual caption segments</p>
-            <div className="max-h-52 space-y-2 overflow-y-auto">{project.captionCues.map((cue, i) => <div key={i} className="rounded-md border border-border/60 p-2"><div className="mb-1 flex items-center justify-between"><button type="button" className="text-[10px] underline" onClick={() => seekEditor(cue.start)}>{cue.start.toFixed(1)}s – {cue.end.toFixed(1)}s · Preview</button><span className="text-[10px] text-muted-foreground">#{i + 1}</span></div><textarea aria-label={`Caption segment ${i+1}`} onFocus={() => { setEditorPlaying(false); seekEditor(cue.start); }} rows={2} className="w-full resize-y rounded border border-border bg-background p-2 text-xs" value={cue.text} onChange={(e) => patch({ captionCues: project.captionCues.map((c, j) => j === i ? { ...c, text: e.target.value } : c) })} /><div className="mt-1 flex gap-2"><label className="flex-1 text-[10px]">Start (s)<input type="number" min={0} step={0.1} className="w-full rounded border border-border bg-background p-1" value={cue.start.toFixed(2)} onChange={(e) => patch({ captionCues: project.captionCues.map((c,j) => j === i ? { ...c, start: Math.max(0, Number(e.target.value)) } : c) })}/></label><label className="flex-1 text-[10px]">End (s)<input type="number" min={0} step={0.1} className="w-full rounded border border-border bg-background p-1" value={cue.end.toFixed(2)} onChange={(e) => patch({ captionCues: project.captionCues.map((c,j) => j === i ? { ...c, end: Math.max(0, Number(e.target.value)) } : c) })}/></label></div></div>)}</div>
-            {!!project.captionWords?.length && <Button variant="quiet" size="sm" onClick={() => patch({ captionCues: groupTimedWords(project.captionWords ?? [], project.captionWordsPerCue ?? 5) })}>Restore automatic timing and text</Button>}
-          </div>
-        </>}
+        {editorPanel === "Captions" && <KeepCaptionEditor
+          cues={project.captionCues}
+          time={editorTime}
+          style={project.captionStyle}
+          position={project.captionPosition ?? "bottom"}
+          maxLines={project.captionLines ?? 2}
+          wordsPerCue={project.captionWordsPerCue ?? 5}
+          syncing={captionSyncing}
+          syncError={captionSyncError}
+          hasVoice={!!rec?.audioUrl && !rec.demo}
+          canRestore={!!project.captionWords?.length}
+          onClose={() => setEditorPanel(null)}
+          onSeek={(seconds) => { setEditorPlaying(false); seekEditor(seconds); }}
+          onChangeCaption={(i,text) => patch({captionCues:project.captionCues.map((c,j)=>j===i?{...c,text}:c)})}
+          onChangeCaptionTime={(i,startTime,endTime) => patch({captionCues:project.captionCues.map((c,j)=>j===i?{...c,start:Math.max(0,Math.min(startTime,endTime-.1)),end:Math.min(editorDuration,Math.max(endTime,startTime+.1))}:c)})}
+          onChangeStyle={(style) => patch({captionStyle:style})}
+          onChangePosition={(position) => patch({captionPosition:position})}
+          onChangeLines={(lines) => patch({captionLines:lines})}
+          onRegroup={(wordsPerCue) => patch({captionWordsPerCue:wordsPerCue,...(project.captionWords?.length ? {captionCues:groupTimedWords(project.captionWords,wordsPerCue)}:{})})}
+          onRestore={() => patch({captionCues:groupTimedWords(project.captionWords ?? [],project.captionWordsPerCue ?? 5)})}
+          onRetrySync={() => void retryCaptionSync()}
+        />}
         {editorPanel === "Style" && <>
           <div className="mb-3 flex items-center justify-between"><div><p className="font-display text-2xl">Style</p><p className="mt-1 text-[10px] text-muted-foreground">Tap a look and see it above instantly.</p></div><Button variant="bare" size="icon" aria-label="Close style" onClick={() => setEditorPanel(null)}><X className="size-4" /></Button></div>
           <div className="thin-scroll flex gap-2 overflow-x-auto pb-1">{styles.map((style) => <button key={style.name} type="button" onClick={() => patch({ visualStyle: style.name })} className={`w-24 shrink-0 overflow-hidden rounded-lg border text-left ${project.visualStyle === style.name ? "border-accent ring-1 ring-accent" : "border-border"}`}><div className="relative h-14 overflow-hidden"><MediaView item={selected} thumb alt={style.name} className={`h-full w-full object-cover editor-image-${styleSlug(style.name)}`} /></div><div className="p-2"><p className="text-[10px] font-medium">{style.name}</p></div></button>)}</div>
