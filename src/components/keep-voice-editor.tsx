@@ -24,7 +24,7 @@ const presets: { key:VoiceTone; title:string; description:string }[] = [
   {key:"clear",title:"Clear",description:"Brighter, clearer speech"},
   {key:"warm",title:"Warm",description:"A softer, fuller sound"},
 ];
-const time = (seconds: number) => `${Math.floor(seconds / 60)}:${String(Math.round(seconds) % 60).padStart(2,"0")}`;
+const time = (seconds: number) => { const total = Math.max(0, Math.round(seconds)); return `${Math.floor(total / 60)}:${String(total % 60).padStart(2,"0")}`; };
 
 export function KeepVoiceEditor({ hasVoice, duration, playing, tone, voiceVolume, musicVolume, mix,
   onClose, onEditWords, onRerecord, onPlayPreview, onTone, onVolume, onMix }: Props) {
