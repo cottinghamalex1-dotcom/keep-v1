@@ -38,8 +38,10 @@ export function KeepTimeline({ media, captions, duration, time, selectedIndex, v
   const [reorderTarget,setReorderTarget] = useState<number|null>(null);
   const total = media.reduce((sum, m) => sum + Math.max(1,m.displayDurationSec ?? 7),0) || 1;
   const safeDuration = Math.max(1,duration);
-  const scale = Math.max(2.1, Math.min(12, 550 / safeDuration));
-  const timelineWidth = Math.max(340, safeDuration * scale * zoom);
+  // Editorial editing scale: a two-second clip should be ~88px wide on mobile,
+  // rather than squeezing every clip into a ~550px overview.
+  const pixelsPerSecond = 44 * zoom;
+  const timelineWidth = Math.max(340, safeDuration * pixelsPerSecond);
   const seekFromPointer = (e: PointerEvent<HTMLDivElement>) => {
     const rect = e.currentTarget.getBoundingClientRect();
     onSeek(clamp((e.clientX - rect.left) / rect.width,0,1) * safeDuration);
@@ -55,8 +57,8 @@ export function KeepTimeline({ media, captions, duration, time, selectedIndex, v
       <span className="rounded-md bg-white/10 px-2 py-1 font-mono text-[11px] tabular-nums">{format(time)} / {format(safeDuration)}</span>
     </div>
     <div className="mb-2 flex items-center gap-2 overflow-x-auto pb-1 text-[11px]">
-      <button type="button" onClick={()=>setZoom(z=>clamp(z-.5,.75,4))} className="rounded-lg border border-white/20 px-3 py-2">−</button><ZoomIn className="size-3 shrink-0 text-white/50"/><span className="shrink-0 text-white/60">{Math.round(zoom*100)}%</span><button type="button" onClick={()=>setZoom(z=>clamp(z+.5,.75,4))} className="rounded-lg border border-white/20 px-3 py-2">+</button>
-      <span className="ml-auto shrink-0 text-white/50">Swipe to scroll · drag grips to reorder</span>
+      <button type="button" onClick={()=>setZoom(z=>clamp(z-.25,.5,2.5))} className="rounded-lg border border-white/20 px-3 py-2">−</button><ZoomIn className="size-3 shrink-0 text-white/50"/><span className="shrink-0 text-white/60">{Math.round(zoom*100)}%</span><button type="button" onClick={()=>setZoom(z=>clamp(z+.25,.5,2.5))} className="rounded-lg border border-white/20 px-3 py-2">+</button>
+      <span className="ml-auto shrink-0 text-white/50">Swipe timeline to explore · drag grips to reorder</span>
     </div>
     <div className="flex gap-2">
       <div className="flex w-14 shrink-0 flex-col gap-1 pt-6 text-[10px] text-white/70">
@@ -68,7 +70,7 @@ export function KeepTimeline({ media, captions, duration, time, selectedIndex, v
       <div ref={scroller} className="thin-scroll min-w-0 flex-1 overflow-x-auto pb-2">
         <div className="relative select-none" style={{width:timelineWidth}}>
           <div className="relative mb-1 h-5 border-b border-white/15 text-[9px] text-white/45" onPointerDown={e=>{e.currentTarget.setPointerCapture(e.pointerId);setDraggingPlayhead(true);seekFromPointer(e);}} onPointerMove={e=>{if(draggingPlayhead)seekFromPointer(e);}} onPointerUp={()=>setDraggingPlayhead(false)} onPointerCancel={()=>setDraggingPlayhead(false)}>
-            {Array.from({length:Math.ceil(safeDuration/10)+1},(_,i)=><span key={i} className="absolute top-0 -translate-x-1/2" style={{left:`${i*10/safeDuration*100}%`}}>{format(i*10)}</span>)}
+            {Array.from({length:Math.ceil(safeDuration/5)+1},(_,i)=><span key={i} className="absolute top-0 -translate-x-1/2" style={{left:`${i*5/safeDuration*100}%`}}>{format(i*5)}</span>)}
           </div>
           <div className="relative flex h-[66px] gap-[2px]">
             {media.map((m,i)=>{
