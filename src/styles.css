@@ -400,40 +400,88 @@ body { font-size: 16px; line-height: 1.6; -webkit-font-smoothing: antialiased; }
 .card-object .brand { color: #F7F5F2; }
 .card-object { border-color: rgba(255,255,255,.1); }
 
-/* A light workspace around the cinematic black video frame. */
+/* Dark editing suite: intentionally distinct from the warm ivory creation flow.
+   Keep every part of the studio chrome dark: header, preview surround, panels,
+   timeline, and bottom editing tools. Scoped to the editor only. */
 .keep-studio {
-  --background: #F7F5F2;
-  --foreground: #0B0B0B;
-  --card: #FFFDFC;
-  --card-foreground: #0B0B0B;
-  --popover: #FFFDFC;
-  --popover-foreground: #0B0B0B;
-  --primary: #0B0B0B;
-  --primary-foreground: #F7F5F2;
-  --secondary: #E6DED3;
-  --secondary-foreground: #0B0B0B;
-  --muted: #F0EBE5;
-  --muted-foreground: #57534D;
-  --border: #D8D0C7;
-  --input: #D8D0C7;
-  --accent: #6A5849;
-  --accent-foreground: #FFFFFF;
-  color-scheme: light;
-  background: #F7F5F2;
-  color: #0B0B0B;
+  --background: #111113;
+  --foreground: #F7F5F2;
+  --card: #222225;
+  --card-foreground: #F7F5F2;
+  --popover: #252528;
+  --popover-foreground: #F7F5F2;
+  --primary: #E8E1D7;
+  --primary-foreground: #111113;
+  --secondary: #29282A;
+  --secondary-foreground: #F7F5F2;
+  --muted: #282729;
+  --muted-foreground: #B4B0AB;
+  --border: #464346;
+  --input: #343236;
+  --accent: #D2BA99;
+  --accent-foreground: #111113;
+  color-scheme: dark;
+  background: #111113;
+  color: #F7F5F2;
 }
-.keep-studio .brand, .keep-studio .keep-wordmark { color: #0B0B0B; }
-.keep-studio-stage { background: #161616; }
+.app-shell:has(.keep-studio),
+body:has(.keep-studio) {
+  background: #111113;
+}
+.keep-studio > div:first-child {
+  background: #111113;
+  border-bottom: 1px solid #333134;
+}
+.keep-studio .brand,
+.keep-studio .keep-wordmark { color: #F7F5F2; }
+.keep-studio-stage {
+  background: radial-gradient(ellipse at center, #252426 0%, #161619 72%, #111113 100%);
+}
 .keep-studio-canvas { background: #101010; color: #FFFFFF; }
 .keep-studio-canvas button { color: #FFFFFF; }
 .keep-studio-canvas input[type="range"] { accent-color: #FFFFFF; }
-.keep-studio-workspace { background: #FFFCF8; border-top: 1px solid #D8D0C7; }
-.keep-studio-workspace input[type="range"] { accent-color: #6A5849; }
-.keep-studio-workspace button:focus-visible, .keep-studio-tools button:focus-visible { outline-color: #6A5849; }
-.keep-studio-tools { background: #F7F5F2; border-top: 1px solid #D8D0C7; }
-.keep-studio-tools button { color: #57534D; }
-.keep-studio-tools button[aria-pressed=true] { background: #0B0B0B; color: #F7F5F2; }
-.keep-studio-tools button:hover:not([aria-pressed=true]) { background: #E6DED3; color: #0B0B0B; }
+.keep-studio-workspace {
+  background: #19191C;
+  border-top: 1px solid #393639;
+  color: #F7F5F2;
+}
+.keep-studio-workspace input[type="range"] { accent-color: #D2BA99; }
+.keep-studio-workspace :is(input,textarea,select) {
+  background-color: #242326;
+  border-color: #575157;
+  color: #F7F5F2;
+}
+.keep-studio-workspace :is(input,textarea)::placeholder { color: #AAA5A1; }
+.keep-studio .keep-editorial-surface {
+  background: #232225;
+  border-color: #464346;
+}
+.keep-studio .keep-premium-field {
+  background: #242326;
+  color: #F7F5F2;
+  border-color: #575157;
+}
+.keep-studio .keep-premium-action { background: #E8E1D7; color: #111113; }
+.keep-studio .keep-premium-action:hover { background: #F7F5F2; }
+.keep-studio .keep-soft-link { color: #D2BA99; }
+.keep-studio-tools {
+  background: #111113;
+  border-top: 1px solid #3A373A;
+}
+.keep-studio-tools button { color: #B8B3B4; }
+.keep-studio-tools button[aria-pressed=true] {
+  background: #E8E1D7;
+  color: #171618;
+}
+.keep-studio-tools button:hover:not([aria-pressed=true]) {
+  background: #2A292D;
+  color: #F7F5F2;
+}
+.keep-studio-workspace button:focus-visible,
+.keep-studio-tools button:focus-visible {
+  outline: 2px solid #D2BA99;
+  outline-offset: -2px;
+}
 /* The actual film playback is intentionally dark for photographs and captions. */
 .keep-editorial-screen {
   --background: #111111;
@@ -479,7 +527,7 @@ body { font-size: 16px; line-height: 1.6; -webkit-font-smoothing: antialiased; }
   .keep-editorial-screen .keep-wordmark,
   .cinematic-intro .brand,
   .cinematic-ending .brand { color: #F7F5F2; }
-  .keep-studio .brand, .keep-studio .keep-wordmark { color: #0B0B0B; }
+  .keep-studio .brand, .keep-studio .keep-wordmark { color: #F7F5F2; }
 }
 @media (max-width: 420px) {
   .brand, .keep-wordmark, .app-shell .brand { width: 80px; height: 34px; }
