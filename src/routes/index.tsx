@@ -835,6 +835,18 @@ function KeepApp() {
     setEditorTime(next);
     setFrame(editorSceneAt(next));
   };
+  const previewCurrentTransition = () => {
+    const index = frame % Math.max(1, shown.length);
+    if (index >= shown.length - 1) {
+      toast.info("The last photo has no next transition.");
+      return;
+    }
+    const boundary = shown.slice(0, index + 1)
+      .reduce((sum, moment) => sum + Math.max(1, moment.displayDurationSec ?? 7), 0);
+    setEditorPlaying(false);
+    seekEditor(Math.max(0, boundary - 0.9));
+    window.requestAnimationFrame(() => setEditorPlaying(true));
+  };
   // The editor and recipient player use the same voice-processing and music-mixing engine.
   // Keep one AudioContext per editor audio element; changing moods updates its backing track.
   useEffect(() => {
@@ -1272,6 +1284,8 @@ function KeepApp() {
           compareOriginal={compareOriginalStyle}
           onLook={(name) => patch({visualStyle:name})}
           onTransition={(transition) => updateSelectedMoment({transition})}
+          hasNextMoment={frame % Math.max(1,shown.length) < shown.length - 1}
+          onPreviewTransition={previewCurrentTransition}
           onCompare={setCompareOriginalStyle}
           onClose={() => { setCompareOriginalStyle(false); setEditorPanel(null); }}
         />}
@@ -1317,7 +1331,7 @@ function KeepApp() {
           <p className="text-xs">Touch and drag the photo above to reposition it. Changes appear instantly.</p>
           <label className="block text-xs">Zoom: {Math.round((selected?.zoom ?? 1.08) * 100)}%<input type="range" min="100" max="140" step="1" value={Math.round((selected?.zoom ?? 1.08) * 100)} className="mt-1 w-full" onChange={(e) => patch({ memories: shown.map((m,i) => i === frame % shown.length ? { ...m, zoom: Number(e.target.value) / 100 } : m) })} /></label>
           <div><p className="mb-2 text-xs">Motion direction</p><div className="grid grid-cols-4 gap-1">{(["in","out","left","right"] as const).map((direction) => <Button key={direction} size="sm" variant={(selected?.motion ?? "in") === direction ? "selected" : "quiet"} className="capitalize px-1 text-[10px]" onClick={() => patch({ memories: shown.map((m,i) => i === frame % shown.length ? { ...m, motion: direction } : m) })}>{direction}</Button>)}</div></div>
-          <div><p className="mb-2 text-xs">Transition · tap to preview</p><div className="grid grid-cols-3 gap-1">{(["fade","dissolve","cut"] as const).map((transition) => <Button key={transition} size="sm" variant={(selected?.transition ?? "fade") === transition ? "selected" : "quiet"} className="capitalize text-[11px]" onClick={() => { updateSelectedMoment({ transition }); setEditorPlaying(true); }}>{transition === "cut" ? "Instant" : transition === "dissolve" ? "Dissolve" : "Fade"}</Button>)}</div></div>
+          <div><p className="mb-2 text-xs">Transition into next photo</p><div className="grid grid-cols-3 gap-1">{(["fade","dissolve","cut"] as const).map((transition) => <Button key={transition} size="sm" variant={(selected?.transition ?? "fade") === transition ? "selected" : "quiet"} className="capitalize text-[11px]" onClick={() => { updateSelectedMoment({ transition }); previewCurrentTransition(); }}>{transition === "cut" ? "Instant" : transition === "dissolve" ? "Dissolve" : "Fade"}</Button>)}</div></div>
           <label className="block text-xs">Moment duration: {selected?.displayDurationSec ?? 7}s<input type="range" min="4" max="15" step="1" value={selected?.displayDurationSec ?? 7} className="mt-1 w-full" onChange={(e) => patch({ memories: shown.map((m,i) => i === frame % shown.length ? { ...m, displayDurationSec: Number(e.target.value) } : m) })} /></label>
           <Button variant="quiet" size="sm" onClick={() => patch({ memories: shown.map((m,i) => i === frame % shown.length ? { ...m, focusX: 50, focusY: 50, zoom: 1.08, motion: "in" } : m) })}>Reset framing</Button>
         </div>
