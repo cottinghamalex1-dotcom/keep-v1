@@ -4,6 +4,8 @@ import type { KeepRestoreProgress } from "@/lib/keep-cloud";
 import { KeepPublishPanel } from "@/components/keep-publish-panel";
 import { KeepTimeline } from "@/components/keep-timeline";
 import { KeepCaptionEditor } from "@/components/keep-caption-editor";
+import { KeepMusicEditor } from "@/components/keep-music-editor";
+import { KeepVoiceEditor } from "@/components/keep-voice-editor";
 import { arrangeWords, spreadMemories, recommendedStyle } from "@/lib/keep-story-layout";
 import { activeKeepSession, loadEditableKeep, loadCloudDraft, saveCloudDraft, removeCloudDraft } from "@/lib/keep-cloud";
 import { CinematicMedia } from "@/components/cinematic-media";
@@ -61,7 +63,7 @@ const initialMessage = [
   "Twenty years from now, I hope you know this: through every version of us, I'd choose this life with you again. Always.",
 ];
 const tracks = [
-  { name: "Worth Keeping", note: "Original 60-second KEEP demo · warm piano and strings", group: "For You" },
+  { name: "Worth Keeping", note: "Signature instrumental · warm piano and strings", group: "For You" },
   { name: "Joyful", note: "Lighthearted and full of life", group: "For You" },
   { name: "Cinematic", note: "A story that stays with you", group: "For You" },
   { name: "Romantic", note: "Tender, close, timeless", group: "More feelings" },
@@ -858,6 +860,7 @@ function KeepApp() {
   }, [screen, project.musicMood, project.voiceMusicBalance, mix.fadeIn, mix.fadeOut, mix.ducking]);
   useEffect(() => { editorMixRef.current?.setTrackMutes(mix.voiceMuted, mix.musicMuted); }, [screen, mix.voiceMuted, mix.musicMuted]);
   useEffect(() => { editorMixRef.current?.setLevels(project.voiceVolume ?? 60, project.musicVolume ?? 60); }, [screen, project.voiceVolume, project.musicVolume]);
+  useEffect(() => { editorMixRef.current?.setVoiceTone(mix.voiceTone ?? "natural"); }, [screen, mix.voiceTone]);
 
   useEffect(() => {
     if (screen !== "editor") { undoLast.current = null; return; }
@@ -1217,38 +1220,25 @@ function KeepApp() {
 
       <div className="keep-studio-workspace" key={editorPanel ?? "timeline"}>
       {!rec?.demo && rec?.audioUrl && project.captionStyle !== "None" && !project.captionCues.length && <div className="border-t border-border/60 bg-card/70 px-5 py-3 text-xs"><div className="flex items-center justify-between gap-3"><span>{captionSyncing ? "Syncing captions to your recording…" : captionSyncError ? "Captions did not sync. Your recording is safe." : "Captions are not ready yet."}</span>{!captionSyncing && <Button variant="quiet" size="sm" onClick={() => void retryCaptionSync()}><RotateCcw className="size-3" /> Retry captions</Button>}</div></div>}
-      {(editorPanel === "Music" || editorPanel === "Captions" || editorPanel === "Style") && <div className={`border-t border-border/60 bg-card/55 backdrop-blur-md page-enter ${editorPanel === "Captions" ? "" : "px-5 py-3"}`}>
-        {editorPanel === "Music" && <>
-          <div className="mb-3 flex items-center justify-between"><div><p className="font-display text-2xl">Music</p><p className="mt-1 text-[10px] text-muted-foreground">Hear each mood, then play your Keep to hear it under your voice.</p></div><Button variant="bare" size="icon" aria-label="Close music" onClick={() => { stopMusicSample(); setMusicSampling(""); setEditorPanel(null); }}><X className="size-4" /></Button></div>
-          <div className="thin-scroll flex gap-2 overflow-x-auto pb-2">
-            {tracks.map((track) => <div key={track.name} className={`w-44 shrink-0 rounded-xl border p-3 ${project.musicMood === track.name ? "border-accent/70 bg-accent/[0.04]" : "border-border bg-background/35"}`}>
-              <div className="min-h-14"><p className="text-xs font-medium">{track.name}</p><p className="mt-1 text-[9px] leading-4 text-muted-foreground">{track.note}</p></div>
-              <div className="mt-3 flex gap-1.5"><Button variant="quiet" size="sm" className="flex-1 px-2 text-[10px]" onClick={() => void toggleMusicSample(track.name)}>{musicSampling === track.name ? <Square className="size-3" fill="currentColor" /> : <Play className="size-3" fill="currentColor" />}{musicSampling === track.name ? "Stop" : "Sample"}</Button><Button variant={project.musicMood === track.name ? "selected" : "bare"} size="sm" className="flex-1 px-2 text-[10px]" onClick={() => patch({ musicMood: track.name })}>{project.musicMood === track.name ? <Check className="size-3" /> : null}{project.musicMood === track.name ? "Selected" : "Use"}</Button></div>
-            </div>)}
-          </div>
-          <p className="mt-2 text-[10px] leading-4 text-muted-foreground">Worth Keeping is an original 60-second instrumental arrangement generated in your browser, not a studio-recorded audio file. Press play in the editor to hear the selected music with your actual voice.</p>
-          <div className="mt-2 flex items-center gap-2"><span className="mr-1 text-[9px] tracking-widest text-muted-foreground">MIX</span><span className="text-[10px] text-muted-foreground">Voice / Music</span></div><div className="mt-3 space-y-4 rounded-lg border border-border bg-background/60 p-3">
-              <div>
-                <div className="mb-2 flex items-center justify-between text-xs"><label htmlFor="keep-voice-volume" className="font-medium">Voice volume</label><span>{project.voiceVolume ?? 60}%</span></div>
-                <input id="keep-voice-volume" type="range" min="0" max="100" step="1" value={project.voiceVolume ?? 60} onChange={(e) => patch({ voiceVolume: Number(e.target.value) })} className="w-full accent-current" />
-              </div>
-              <div>
-                <div className="mb-2 flex items-center justify-between text-xs"><label htmlFor="keep-music-volume" className="font-medium">Music volume</label><span>{project.musicVolume ?? 60}%</span></div>
-                <input id="keep-music-volume" type="range" min="0" max="100" step="1" value={project.musicVolume ?? 60} onChange={(e) => patch({ musicVolume: Number(e.target.value) })} className="w-full accent-current" />
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                <Button size="sm" variant={mix.voiceMuted ? "selected" : "quiet"} aria-pressed={mix.voiceMuted} onClick={() => patchMix({ voiceMuted: !mix.voiceMuted })}>{mix.voiceMuted ? <VolumeX className="size-3.5" /> : <Mic className="size-3.5" />}{mix.voiceMuted ? "Voice muted" : "Mute voice"}</Button>
-                <Button size="sm" variant={mix.musicMuted ? "selected" : "quiet"} aria-pressed={mix.musicMuted} onClick={() => patchMix({ musicMuted: !mix.musicMuted })}>{mix.musicMuted ? <VolumeX className="size-3.5" /> : <Music2 className="size-3.5" />}{mix.musicMuted ? "Music muted" : "Mute music"}</Button>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <label className="text-xs">Music fade in: {mix.fadeIn.toFixed(1)}s<input type="range" min="0.5" max="6" step="0.5" value={mix.fadeIn} onChange={(e) => patchMix({ fadeIn: Number(e.target.value) })} className="mt-1 w-full" /></label>
-                <label className="text-xs">Music fade out: {mix.fadeOut.toFixed(1)}s<input type="range" min="1" max="8" step="0.5" value={mix.fadeOut} onChange={(e) => patchMix({ fadeOut: Number(e.target.value) })} className="mt-1 w-full" /></label>
-              </div>
-              <label className="flex items-center justify-between gap-3 text-xs"><span><span className="block font-medium">Lower music while you speak</span><span className="text-[10px] text-muted-foreground">Music rises again at the end.</span></span><input type="checkbox" checked={mix.ducking} onChange={(e) => patchMix({ ducking: e.target.checked })} className="size-4 accent-current" /></label>
-              <p className="text-[10px] text-muted-foreground">Fade and ducking changes restart the music bed from the beginning of the preview.</p>
-              <div className="flex items-center justify-between text-[10px] text-muted-foreground"><span>Adjust each independently while your Keep plays.</span><button type="button" className="underline" onClick={() => patch({ voiceVolume: 60, musicVolume: 60 })}>Reset levels</button></div>
-            </div>
-        </>}
+      {(editorPanel === "Music" || editorPanel === "Captions" || editorPanel === "Style") && <div className={`border-t border-border/60 bg-card/55 backdrop-blur-md page-enter ${editorPanel === "Captions" || editorPanel === "Music" ? "" : "px-5 py-3"}`}>
+        {editorPanel === "Music" && <KeepMusicEditor
+          tracks={tracks}
+          selected={project.musicMood}
+          sampling={musicSampling}
+          voiceVolume={project.voiceVolume ?? 60}
+          musicVolume={project.musicVolume ?? 60}
+          mix={mix}
+          onClose={() => { stopMusicSample(); setMusicSampling(""); setEditorPanel(null); }}
+          onSample={(track) => { void toggleMusicSample(track); }}
+          onSelect={(track) => { stopMusicSample(); setMusicSampling(""); patch({musicMood:track}); }}
+          onSetVolume={(kind,value) => patch(kind === "voice" ? {voiceVolume:value} : {musicVolume:value})}
+          onSetMix={patchMix}
+          onHearWithVoice={() => {
+            stopMusicSample(); setMusicSampling("");
+            if(editorTime >= editorDuration - .1) seekEditor(0);
+            setEditorPlaying(true);
+          }}
+        />}
         {editorPanel === "Captions" && <KeepCaptionEditor
           cues={project.captionCues}
           time={editorTime}
@@ -1327,35 +1317,22 @@ function KeepApp() {
         </div>
       </div>)}
 
-      {editorPanel === "Voice" && editorToolPanel("Voice & words", () => setEditorPanel(null), <div className="pb-2">
-        <p className="mt-2 text-xs leading-5 text-muted-foreground">Remember something you want to add? You can change the words or record your voice again without losing the rest of your Keep.</p>
-        <div className="mt-6 space-y-3">
-          <button type="button" onClick={editWordsFromEditor} className="flex w-full items-center justify-between rounded-xl border border-border bg-background/45 p-5 text-left transition-colors hover:border-accent/45">
-            <span className="flex items-center gap-4">
-              <span className="flex size-11 shrink-0 items-center justify-center rounded-full border border-accent/25 bg-accent/[0.05] text-accent"><MessageCircle className="size-5" /></span>
-              <span>
-                <strong className="block font-display text-2xl font-normal">Edit my words</strong>
-                <small className="mt-1 block max-w-[250px] text-[11px] leading-5 text-muted-foreground">Add a memory, change a line, or use Ask Keep again. Then record the updated message.</small>
-              </span>
-            </span>
-            <ArrowRight className="size-4 shrink-0 text-accent" />
-          </button>
-
-          <button type="button" onClick={rerecordFromEditor} className="flex w-full items-center justify-between rounded-xl border border-border bg-background/45 p-5 text-left transition-colors hover:border-accent/45">
-            <span className="flex items-center gap-4">
-              <span className="flex size-11 shrink-0 items-center justify-center rounded-full border border-accent/25 bg-accent/[0.05] text-accent"><Mic className="size-5" /></span>
-              <span>
-                <strong className="block font-display text-2xl font-normal">Re-record my voice</strong>
-                <small className="mt-1 block max-w-[250px] text-[11px] leading-5 text-muted-foreground">Keep your current words and record them again with the teleprompter.</small>
-              </span>
-            </span>
-            <ArrowRight className="size-4 shrink-0 text-accent" />
-          </button>
-        </div>
-        <div className="mt-6 rounded-lg border border-accent/15 bg-accent/[0.03] p-4">
-          <p className="text-xs leading-5 text-muted-foreground">Your photos, order, music, captions, and visual style stay exactly as they are while you update the words or voice.</p>
-        </div>
-      </div>)}
+      {editorPanel === "Voice" && <KeepVoiceEditor
+        hasVoice={!!rec?.audioUrl && !rec.demo}
+        duration={rec?.durationSec}
+        playing={editorPlaying}
+        tone={mix.voiceTone ?? "natural"}
+        voiceVolume={project.voiceVolume ?? 60}
+        musicVolume={project.musicVolume ?? 60}
+        mix={mix}
+        onClose={() => setEditorPanel(null)}
+        onEditWords={editWordsFromEditor}
+        onRerecord={rerecordFromEditor}
+        onPlayPreview={() => { if(editorTime >= editorDuration - .1) seekEditor(0); setEditorPlaying(v=>!v); }}
+        onTone={(tone) => patchMix({voiceTone:tone})}
+        onVolume={(kind,value) => patch(kind === "voice" ? {voiceVolume:value} : {musicVolume:value})}
+        onMix={patchMix}
+      />}
 
       </div>
       <nav className="keep-studio-tools" aria-label="Editing tools">
