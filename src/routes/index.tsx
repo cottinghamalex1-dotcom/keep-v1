@@ -64,6 +64,7 @@ const initialMessage = [
 ];
 const tracks = [
   { name: "Worth Keeping", note: "Signature instrumental · warm piano and strings", group: "For You" },
+  { name: "Warm + Nostalgic", note: "Gentle, familiar warmth", group: "For You" },
   { name: "Joyful", note: "Lighthearted and full of life", group: "For You" },
   { name: "Cinematic", note: "A story that stays with you", group: "For You" },
   { name: "Romantic", note: "Tender, close, timeless", group: "More feelings" },
