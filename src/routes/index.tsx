@@ -1,4 +1,6 @@
 import { KeepAccountButton } from "@/components/keep-account-button";
+import { KeepOpeningScreen } from "@/components/keep-opening-screen";
+import type { KeepRestoreProgress } from "@/lib/keep-cloud";
 import { KeepPublishPanel } from "@/components/keep-publish-panel";
 import { KeepTimeline } from "@/components/keep-timeline";
 import { arrangeWords, spreadMemories, recommendedStyle } from "@/lib/keep-story-layout";
@@ -122,6 +124,8 @@ function KeepApp() {
   const [history, setHistory] = useState<Screen[]>([]);
   const [project, setProject] = useState<KeepProject>(newProject);
   const [hydrated, setHydrated] = useState(false);
+  const [openingPhase, setOpeningPhase] = useState<"session" | "draft" | "media" | "finishing">("session");
+  const [openingProgress, setOpeningProgress] = useState<KeepRestoreProgress | null>(null);
   const [cloudSyncAllowed, setCloudSyncAllowed] = useState(true);
   const [viewingDemo, setViewingDemo] = useState(false);
   const [activeParagraph, setActiveParagraph] = useState(0);
@@ -199,9 +203,17 @@ function KeepApp() {
       const local = loadDraft();
       let next = local;
       try {
+        setOpeningPhase("session");
         const session = await activeKeepSession();
+        if (cancelled) return;
         if (session) {
-          const remote = editId ? await loadEditableKeep(editId, session) : await loadCloudDraft(session);
+          setOpeningPhase("draft");
+          const onRestore = (progress: KeepRestoreProgress) => {
+            if (cancelled) return;
+            setOpeningPhase("media");
+            setOpeningProgress(progress);
+          };
+          const remote = editId ? await loadEditableKeep(editId, session, onRestore) : await loadCloudDraft(session, onRestore);
           if (remote) next = remote;
           else if (local?.active) {
             // Never silently attach an unclaimed device draft to a different account.
@@ -232,6 +244,7 @@ function KeepApp() {
         toast.error(error instanceof Error ? error.message : "Cloud draft unavailable; showing this device's draft.");
       }
       if (cancelled) return;
+      setOpeningPhase("finishing");
       const usingLocal = next === local;
       if (next) {
         next = { ...next, publicationId: next.publicationId || crypto.randomUUID() };
@@ -942,8 +955,8 @@ function KeepApp() {
   const accountLink = <KeepAccountButton />;
   const fileInputs = <><input ref={draftInput} type="file" accept=".docx,.pdf,.txt,.md,.rtf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/pdf,text/plain,text/markdown,application/rtf" className="sr-only" aria-label="Upload something you have already written" tabIndex={-1} onChange={(e) => void importDraft(e)} /><input ref={addInput} type="file" accept="image/*,video/*" multiple className="sr-only" aria-label="Choose photos and videos" tabIndex={-1} onChange={(e) => void addFiles(e)} /><input ref={replaceInput} type="file" accept="image/*,video/*" className="sr-only" aria-label="Choose a replacement photo or video" tabIndex={-1} onChange={(e) => void addFiles(e, frame % Math.max(1, shown.length))} /></>;
 
-  if (resumeError) return <main className="app-shell p-8"><h1 className="font-display text-3xl">Unable to open this Keep</h1><p role="alert" className="my-6 text-sm">{resumeError}</p><Button onClick={() => window.location.reload()}>Try again</Button><a href="/app" className="ml-5 underline">Back to your creations</a></main>;
-  if (!hydrated) return <main className="app-shell p-8"><p role="status">Opening your Keep…</p></main>;
+  if (resumeError) return <main className="app-shell flex min-h-dvh flex-col px-8 py-10"><a href="/app" className="keep-wordmark" aria-label="Keep home">Keep</a><div className="my-auto max-w-sm"><h1 className="font-display text-[38px] leading-tight">We couldn't open your Keep.</h1><p role="alert" className="mt-5 text-sm leading-7 text-muted-foreground">{resumeError}</p><div className="mt-9 flex flex-col gap-3"><Button variant="keep" size="touch" onClick={() => window.location.reload()}>Try again</Button><a href="/app" className="rounded-xl border border-border px-5 py-3 text-center text-sm">Back to your creations</a></div></div></main>;
+  if (!hydrated) return <KeepOpeningScreen phase={openingPhase} progress={openingProgress} onBack={() => window.location.assign("/app")} />;
   return <main className="app-shell">{fileInputs}<div key={screen} className="page-enter">
     {screen === "you" && <>{top()}<div className="px-7 pt-8">{title("Your space", "Alex.", "The things worth keeping, all in one place.")}<div className="mt-12 border-t border-border">{[{ label: "What is Keep?", Icon: Sparkles }, { label: "My cards", Icon: Radio }, { label: "Downloads & backups", Icon: Download }, { label: "Privacy", Icon: LockKeyhole }, { label: "Help", Icon: CircleHelp }].map(({ label, Icon }) => <Button key={label} variant="bare" className="flex h-17 w-full justify-between border-b border-border px-0 text-sm font-normal" onClick={() => (label === "What is KEEP?" ? window.location.assign("/about") : setSetting(label))}><span className="flex items-center gap-4"><Icon className="size-4 text-accent" />{label}</span><ChevronRight className="size-4 text-muted-foreground" /></Button>)}{project.active && <Button variant="bare" className="flex h-17 w-full justify-between border-b border-border px-0 text-sm font-normal text-destructive" onClick={() => { if (!window.confirm("Delete your draft Keep? Recordings and photos added to it will be removed from this device.")) return; discard(project); setProject(newProject()); toast.success("Draft deleted"); }}><span className="flex items-center gap-4"><Trash2 className="size-4" />Delete draft Keep</span></Button>}</div><p className="mt-9 text-xs leading-6 text-muted-foreground">Your Keeps are private.</p></div>{setting && sheet(setting, () => setSetting(""), <><p className="mt-5 text-sm leading-7 text-muted-foreground">{setting === "Privacy" ? "Your Keeps are private by default. In this MVP, drafts, recordings and photos stay on this device only. Sharing a card gives its recipient access to that Keep — no account required." : setting === "My cards" ? "HANNA · from Alex · 2026 (sample). Physical card ordering is coming next." : setting === "Downloads & backups" ? "Your draft is saved on this device. Cloud backups and downloads aren't available yet." : "We're here when you need us. Support isn't connected in this preview yet."}</p><Button variant="quiet" className="mt-8 w-full" onClick={() => setSetting("")}>Done</Button></>)}</>}
     {screen === "detail" && <>{top("READY")}<div className="relative mx-4 h-[min(55dvh,520px)] overflow-hidden"><img src={memoryImages[0]} alt="Couple at the coast, illustrative prototype photograph" className="h-full w-full object-cover" /><div className="absolute inset-0 photo-bottom" /><div className="absolute bottom-8 left-6"><p className="eyebrow text-foreground">ANNIVERSARY · 2026</p><h1 className="display mt-3 text-5xl">HANNA</h1><p className="mt-3 text-sm">from Alex · 3:57</p></div></div><div className="space-y-3 px-6 pt-7">{nextButton("Play Keep", () => { setViewingDemo(true); go("preview"); })}<Button variant="quiet" size="touch" className="w-full" onClick={editDemoCopy}><Settings2 /> Edit a copy</Button><Button variant="bare" size="touch" className="w-full" asChild><Link to="/recipient" search={{ keep: "" }}><Radio /> View as recipient</Link></Button></div></>}
