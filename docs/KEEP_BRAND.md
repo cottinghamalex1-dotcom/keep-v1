@@ -1,12 +1,14 @@
-# Keep — approved brand identity v1.1
+# Keep — approved brand identity v1.2
 
 Approved direction: Concept #1, light editorial luxury.
 
 ## Primary brand assets
-- `public/brand/keep-wordmark.svg`: actual Concept #1 wordmark silhouette traced from the approved image. Use this shared asset, not typed "keep" or an improvised font logo.
-- `public/brand/keep-monogram.svg`: matching approved K monogram.
+- `public/brand/keep-wordmark.svg`: **the single approved Keep wordmark**, vector-traced from the original clean brand mockup that shows the large white serif Keep over the family-at-sunset scene (selected November 8, 2026). Do not approximate the logo with a font or the earlier placeholder SVG.
+- `public/brand/keep-wordmark-ivory.svg`: identical letterforms in warm ivory (`#F7F5F2`) for black metal cards, packaging and film overlays.
+- `public/brand/keep-monogram.svg`: matching approved K, derived directly from the same master wordmark.
 - `public/favicon.svg`: the K monogram reversed on black.
-- In app UI, `.brand` and `.keep-wordmark` use the SVG as a CSS mask so the same shape is black on light surfaces and ivory on black physical cards/film screens. The accessible text content must remain `Keep`.
+- All existing `.brand` and `.keep-wordmark` UI instances use this master SVG as a CSS mask, ensuring identical letterforms on light and dark surfaces. The accessible text must remain `Keep`. Any new brand lockup must use these assets too. Neither Playfair Display nor any other styled text is a substitute for the Keep logo.
+- These assets are artwork traced from an approved raster mockup, not an identified licensed typeface file. Before large-format manufacturing, inspect and refine curves as needed.
 
 ## Brand palette
 - Keep Black: `#0B0B0B` — logo, primary text, primary actions, NFC card.
