@@ -88,6 +88,7 @@ export function KeepPlayer({ name, from, year, onExit, onFinish, recipient = fal
   useEffect(() => { mix.current?.setMuted(muted); }, [muted]);
   useEffect(() => { mix.current?.setLevels(voiceVolume, musicVolume); }, [voiceVolume, musicVolume]);
   useEffect(() => { mix.current?.setTrackMutes(!!audioMix?.voiceMuted, !!audioMix?.musicMuted); }, [audioMix?.voiceMuted, audioMix?.musicMuted]);
+  useEffect(() => { mix.current?.setVoiceTone(audioMix?.voiceTone ?? "natural"); }, [audioMix?.voiceTone]);
 
   const replay = () => { if (endingTimer.current) window.clearTimeout(endingTimer.current); endingTimer.current = null; setScene(-1); setEnded(false); setPlaying(true); setProgress(0); setAudioTime(0); if (audio.current) audio.current.currentTime = 0; mix.current?.restartMusic(musicMood, (["Soft", "Balanced", "Full"].includes(voiceMusicBalance) ? voiceMusicBalance : "Balanced") as MusicBalance); };
   const item = scene >= 0 ? items[scene % items.length] : undefined;
