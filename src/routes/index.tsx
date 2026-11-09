@@ -8,6 +8,7 @@ import { KeepMusicEditor } from "@/components/keep-music-editor";
 import { KeepVoiceEditor } from "@/components/keep-voice-editor";
 import { KeepStyleEditor } from "@/components/keep-style-editor";
 import { KeepFinishingChoices } from "@/components/keep-finishing-choices";
+import { KeepAskAIModal, KeepWordChanges } from "@/components/keep-ask-ai-modal";
 import { arrangeWords, spreadMemories, recommendedStyle } from "@/lib/keep-story-layout";
 import { activeKeepSession, loadEditableKeep, loadCloudDraft, saveCloudDraft, removeCloudDraft } from "@/lib/keep-cloud";
 import { CinematicMedia } from "@/components/cinematic-media";
@@ -136,6 +137,8 @@ function KeepApp() {
   const [viewingDemo, setViewingDemo] = useState(false);
   const [activeParagraph, setActiveParagraph] = useState(0);
   const [askOpen, setAskOpen] = useState(false);
+  const [appliedAiOriginal, setAppliedAiOriginal] = useState<{ before: string[]; changedIndexes: number[] } | null>(null);
+  const [editingAiParagraph, setEditingAiParagraph] = useState<number | null>(null);
   const [askPrompt, setAskPrompt] = useState("");
   const [askBusy, setAskBusy] = useState(false);
   const [askError, setAskError] = useState("");
@@ -419,7 +422,7 @@ function KeepApp() {
     setAskError("");
     setAskSuggestion(null);
     setAskLastInstruction("");
-    setAskLastScope("section");
+    setAskLastScope("message");
     setAskOpen(true);
   };
 
@@ -443,8 +446,12 @@ function KeepApp() {
 
   const applyAskSuggestion = () => {
     if (!askSuggestion) return;
+    const changedIndexes = askSuggestion.paragraphs.map((p, i) => p !== project.messageParagraphs[i] ? i : -1).filter((i) => i >= 0);
+    if (!changedIndexes.length) { toast.info("No changes were made to your message."); return; }
+    setAppliedAiOriginal({ before: [...project.messageParagraphs], changedIndexes });
+    setEditingAiParagraph(null);
     patch({ messageParagraphs: askSuggestion.paragraphs });
-    if (askSuggestion.changedIndexes.length) setActiveParagraph(askSuggestion.changedIndexes[0] ?? activeParagraph);
+    setActiveParagraph(changedIndexes[0] ?? activeParagraph);
     setAskOpen(false);
     setAskSuggestion(null);
     setAskError("");
@@ -1033,55 +1040,56 @@ function KeepApp() {
       </div>
     </div>}
     {screen === "write" && <>{top("04 / 04")}<div className="px-7 pb-12 pt-9">{title("In your own words", "Bring us what you want to say.", "Speak it, type it, or upload something you've already written.")}<div className="mb-5 grid grid-cols-3 gap-2"><Button variant={writeInputMode === "speak" ? "selected" : "quiet"} className="h-20 flex-col px-2" onClick={() => { setWriteInputMode("speak"); toggleDictation("write"); }}>{dictating && writeInputMode === "speak" ? <Square fill="currentColor" /> : <Mic />}{dictating && writeInputMode === "speak" ? "Stop" : "Speak"}</Button><Button variant={writeInputMode === "type" ? "selected" : "quiet"} className="h-20 flex-col px-2" onClick={() => { setWriteInputMode("type"); if (dictationRef.current && dictating) dictationRef.current.stop(); window.setTimeout(() => document.querySelector<HTMLTextAreaElement>('textarea[aria-label="Your message"]')?.focus(), 0); }}><MessageCircle />Type</Button><Button variant={writeInputMode === "upload" ? "selected" : "quiet"} className="h-20 flex-col px-2" disabled={busy} onClick={() => draftInput.current?.click()}><FileUp />{busy ? "Reading…" : "Upload"}</Button></div>{dictating && writeInputMode === "speak" && <div className="mb-4 rounded-sm border border-accent/40 p-4 text-center page-enter"><div className="mb-2 flex items-center justify-center gap-2 text-sm text-accent"><span className="size-2 animate-pulse rounded-full bg-accent" />Listening</div><p className="text-xs leading-5 text-muted-foreground">Speak naturally. Your words will appear below as you talk. Tap Stop when you're finished.</p></div>}{uploadedDraftName && writeInputMode === "upload" && <div className="mb-4 flex items-center justify-between rounded-sm border border-border px-4 py-3 page-enter"><span className="min-w-0"><span className="eyebrow block">IMPORTED</span><span className="mt-1 block truncate text-xs text-muted-foreground">{uploadedDraftName}</span></span><Button variant="bare" size="sm" className="shrink-0 text-muted-foreground" onClick={() => draftInput.current?.click()}>Replace</Button></div>}<textarea aria-label="Your message" value={project.writtenText} onChange={(e) => { setWriteInputMode("type"); patch({ writtenText: e.target.value }); }} placeholder="Start here…" rows={12} className="min-h-[320px] w-full resize-y rounded-sm border border-border bg-transparent p-4 font-display text-[22px] leading-[1.35] outline-none focus:border-accent" /><div className="mt-3 flex items-center justify-between"><Button variant="bare" size="sm" className="text-muted-foreground" onClick={() => { patch({ writtenText: "" }); setUploadedDraftName(""); setWriteInputMode("type"); }}>Clear</Button><span className="text-[10px] tracking-wide text-muted-foreground">DOCX · PDF · TXT · MD · RTF</span></div><div className="mt-8">{nextButton("Continue", () => { const paras = project.writtenText.split(/\n\s*\n/).map((p) => p.trim()).filter(Boolean); patch({ messageParagraphs: paras, messageSource: "own" }); setActiveParagraph(0); go("message"); }, !project.writtenText.trim())}</div></div></>}
-    {screen === "message" && <>{top("04 / 04")}<div className="px-7 pb-32 pt-9">{title(project.messageSource === "own" ? "In your own words" : project.messageSource === "ai" ? "Shaped from your story" : "Demo generation", project.messageSource === "own" ? "Your message." : "Your message is ready.", "Tap any paragraph to make it yours.")}<div className="space-y-1">{project.messageParagraphs.map((p, i) => <textarea key={i} aria-label={`Message paragraph ${i + 1}`} rows={Math.max(3, Math.ceil(p.length / 44))} value={p} onFocus={() => setActiveParagraph(i)} onChange={(e) => patch({ messageParagraphs: project.messageParagraphs.map((item, j) => (j === i ? e.target.value : item)) })} className={`w-full resize-none rounded-sm border bg-transparent p-3 font-display text-[23px] leading-[1.3] outline-none transition-colors ${activeParagraph === i ? "border-accent/50" : "border-transparent"}`} />)}</div><Button variant="bare" size="sm" className="mt-2 text-muted-foreground" onClick={() => { patch({ messageParagraphs: [...project.messageParagraphs, ""] }); setActiveParagraph(project.messageParagraphs.length); }}><Plus /> Add paragraph</Button><Button variant="quiet" size="touch" className="mt-5 w-full" onClick={openAskKeep}><Sparkles /> Ask Keep</Button><div className="mt-3">{nextButton("Record Your Keep", () => { patch({ messageParagraphs: project.messageParagraphs.filter((p) => p.trim()) }); go("recordPrep"); }, !project.messageParagraphs.some((p) => p.trim()))}</div></div>
-      {askOpen && sheet("Ask Keep", () => { if (!askBusy) { setAskOpen(false); setAskSuggestion(null); setAskError(""); } }, askSuggestion ? <>
-        <div className="mt-3 flex items-center justify-between text-[10px] tracking-widest text-muted-foreground"><span>{askLastScope === "message" ? "WHOLE MESSAGE" : `SECTION ${activeParagraph + 1} OF ${project.messageParagraphs.length}`}</span><span>KEEP SUGGESTS</span></div>
-        <div className="mt-4 rounded-sm border border-accent/30 bg-accent/[0.03] p-5">
-          <div className="space-y-4">{(askSuggestion.changedIndexes.length ? askSuggestion.changedIndexes : [activeParagraph]).map((i) => askSuggestion.paragraphs[i] ? <div key={i}><p className="mb-2 text-[10px] tracking-widest text-accent">SECTION {i + 1}</p><p className="font-display text-[21px] leading-[1.42]">{askSuggestion.paragraphs[i]}</p></div> : null)}</div>
-          {askSuggestion.note && <p className="mt-5 border-t border-border pt-4 text-xs leading-6 text-muted-foreground">{askSuggestion.note}</p>}
+    {screen === "message" && <>{top()}
+      <div className="mx-auto max-w-[650px] px-7 pb-32 pt-9">
+        {title("", project.messageSource === "own" ? "Your message." : "Your message is ready.", "These are your words. Make them yours, or let Keep help you shape them.")}
+        {appliedAiOriginal && appliedAiOriginal.changedIndexes.length > 0 && <div className="mb-5 flex items-start gap-3 rounded-xl border border-[#C9B092] bg-[#F3E9DB] px-4 py-3">
+          <span className="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full bg-[#44382B] text-white"><Check className="size-3.5" /></span>
+          <p className="text-[12px] leading-5 text-[#554639]"><strong className="font-semibold">Keep AI updated your message.</strong> The revised wording is highlighted below. Tap any highlighted paragraph to edit it yourself.</p>
+        </div>}
+        <div className="space-y-3">
+          {project.messageParagraphs.map((p, i) => {
+            const highlighted = !!appliedAiOriginal?.changedIndexes.includes(i) && editingAiParagraph !== i && appliedAiOriginal.before[i] !== p;
+            return <div key={i} className={`rounded-xl border ${highlighted ? "border-[#BDA080] bg-[#FAF3E8]" : "border-[#E4DDD4] bg-white/40"}`}>
+              {highlighted ? <button type="button" aria-label={`Edit updated paragraph ${i + 1}`} className="w-full p-4 text-left" onClick={() => { setActiveParagraph(i); setEditingAiParagraph(i); }}>
+                <div className="mb-3 flex items-center justify-between gap-2 text-[11px] font-semibold text-[#6A5849]"><span>PARAGRAPH {i+1} · KEEP AI EDITED</span><span className="flex items-center gap-1 font-medium"><Settings2 className="size-3.5"/> Edit</span></div>
+                <p className="whitespace-pre-wrap font-display text-[22px] leading-[1.42] text-[#211C18]"><KeepWordChanges before={appliedAiOriginal!.before[i] ?? ""} after={p}/></p>
+              </button> : <textarea aria-label={`Message paragraph ${i + 1}`} rows={Math.max(3,Math.ceil(p.length / 44))}
+                value={p} onFocus={() => setActiveParagraph(i)} onChange={(event) => {
+                  patch({ messageParagraphs: project.messageParagraphs.map((item,j) => i === j ? event.target.value : item) });
+                  if (appliedAiOriginal?.changedIndexes.includes(i)) setAppliedAiOriginal((old) => old ? { ...old, changedIndexes: old.changedIndexes.filter((j) => j !== i) } : null);
+                }}
+                className="w-full resize-y bg-transparent p-4 font-display text-[22px] leading-[1.42] text-foreground outline-none focus:ring-1 focus:ring-[#9D856D]" />}
+            </div>;
+          })}
         </div>
-        <div className="mt-6 space-y-2">
-          <Button variant="keep" size="touch" className="w-full justify-between" onClick={applyAskSuggestion}>Use this version<Check /></Button>
-          <Button variant="quiet" size="touch" className="w-full" disabled={askBusy} onClick={() => void askKeep(askLastInstruction, askLastScope)}><RotateCcw /> Try another version</Button>
-          <Button variant="bare" size="touch" className="w-full text-muted-foreground" onClick={() => { setAskOpen(false); setAskSuggestion(null); }}>Keep my original</Button>
-        </div>
-      </> : <>
-        <p className="mt-2 text-xs leading-6 text-muted-foreground">Start with the whole message, or choose one section to fine-tune.</p>
-
-        <div className="mt-6">
-          <p className="eyebrow mb-2">WHOLE MESSAGE</p>
-          {[
-            ["Make this longer", "Build out the message using more of what you shared."],
-            ["Make it more personal", "Bring more of your specific memories and language into it."],
-            ["Make it more emotional", "Deepen what you mean without making it feel overdone."],
-            ["Make it flow better", "Improve the structure and transitions from beginning to end."],
-            ["Strengthen the ending", "Help the final part land with more meaning and connection."],
-          ].map(([prompt, note]) => <Button key={prompt} variant="bare" disabled={askBusy} className="flex h-auto min-h-16 w-full items-center justify-between border-t border-border px-0 py-3 text-left font-normal whitespace-normal" onClick={() => void askKeep(prompt ?? "", "message")}><span className="pr-4"><span className="block">{prompt}</span><span className="mt-1 block text-xs leading-5 text-muted-foreground">{note}</span></span><ArrowRight className="size-4 shrink-0 text-accent" /></Button>)}
-
-          <div className="mt-5 border-t border-border pt-5">
-            <label htmlFor="ask-keep-whole-custom" className="eyebrow">TELL KEEP WHAT YOU WANT</label>
-            <p className="mt-2 text-xs leading-5 text-muted-foreground">Describe how you want KEEP to reshape the entire message.</p>
-            <textarea id="ask-keep-whole-custom" value={askPrompt} onChange={(e) => setAskPrompt(e.target.value.slice(0, 500))} placeholder="Make this warmer and more conversational. Spend more time on what this relationship has meant to me…" rows={4} className="mt-3 min-h-28 w-full resize-none rounded-sm border border-border bg-transparent p-4 text-sm leading-6 outline-none focus:border-accent" />
-            <Button variant="keep" size="touch" className="mt-3 w-full justify-between" disabled={askBusy || !askPrompt.trim()} onClick={() => void askKeep(askPrompt, "message")}>Ask Keep<Sparkles /></Button>
-          </div>
-        </div>
-
-        <div className="mt-8 border-t border-border pt-7">
-          <p className="eyebrow mb-3">EDIT ONE SECTION</p>
-          <p className="mb-4 text-xs leading-5 text-muted-foreground">Select the exact paragraph you want KEEP to refine.</p>
-          <div className="flex flex-wrap gap-2">{project.messageParagraphs.map((p, i) => <button key={i} type="button" disabled={askBusy} onClick={() => { setActiveParagraph(i); setAskError(""); setAskSuggestion(null); }} className={`flex size-10 items-center justify-center rounded-full border text-xs transition-colors ${activeParagraph === i ? "border-accent bg-accent text-accent-foreground" : "border-border text-muted-foreground hover:border-accent/50 hover:text-foreground"}`} aria-label={`Select section ${i + 1}`}>{i + 1}</button>)}</div>
-          <div className="mt-4 rounded-sm border border-border bg-background/40 p-4">
-            <div className="mb-3 flex items-center justify-between"><span className="eyebrow">SECTION {activeParagraph + 1}</span><span className="text-[10px] text-muted-foreground">{activeParagraph + 1} / {project.messageParagraphs.length}</span></div>
-            <p className="max-h-36 overflow-y-auto font-display text-[19px] leading-[1.45] text-foreground/90">{project.messageParagraphs[activeParagraph] || "This section is empty."}</p>
-          </div>
-          <div className="mt-5">
-            {["Make this sound more like me", "Deepen this section", "Shorten this section", "Bring in a memory"].map((prompt) => <Button key={prompt} variant="bare" disabled={askBusy} className="flex min-h-14 w-full justify-between border-t border-border px-0 py-3 text-left font-normal whitespace-normal" onClick={() => void askKeep(prompt, "section")}><span>{prompt}</span><ArrowRight className="size-4 shrink-0 text-accent" /></Button>)}
-          </div>
-        </div>
-
-        {askError && <div className="mt-5 border-l border-accent pl-4" role="alert"><p className="text-sm leading-6 text-foreground/85">{askError}</p>{askLastInstruction && <Button variant="bare" size="sm" className="mt-1 px-0 text-accent" disabled={askBusy} onClick={() => void askKeep(askLastInstruction, askLastScope)}><RotateCcw /> Try again</Button>}</div>}
-      </>)}
-      {askBusy && <div className="keep-fixed-screen fixed left-0 right-0 top-0 z-[70] flex items-center justify-center bg-background/55 px-8 backdrop-blur-[2px]" role="status" aria-live="polite"><div className="w-full max-w-[300px] rounded-lg border border-accent/25 bg-card px-6 py-7 text-center shadow-2xl page-enter"><div className="mx-auto mb-4 flex size-11 items-center justify-center rounded-full border border-accent/25 bg-accent/[0.05]"><Sparkles className="size-5 animate-pulse text-accent" /></div><p className="font-display text-2xl">KEEP is working on it.</p><p className="mt-2 text-xs leading-5 text-muted-foreground">{askLastScope === "message" ? "Reading your full story and reshaping the message…" : `Refining Section ${activeParagraph + 1} in the context of your whole story…`}</p><div className="mt-5">{wave(15, true)}</div></div></div>}
+        <Button variant="bare" size="sm" className="mt-4 text-[#786B5D]" onClick={() => { patch({ messageParagraphs: [...project.messageParagraphs, ""] }); setActiveParagraph(project.messageParagraphs.length); }}>
+          <Plus className="size-4"/> Add paragraph
+        </Button>
+        <button type="button" onClick={openAskKeep} className="group mt-8 flex min-h-[82px] w-full items-center gap-4 rounded-2xl border border-[#C5B6A1] bg-[#28231F] px-5 text-left text-[#FAF8F5] shadow-[0_10px_26px_rgba(38,31,25,.13)] transition-transform active:scale-[.99]">
+          <span className="flex size-12 shrink-0 items-center justify-center rounded-full border border-[#C9B69C]/40 bg-[#C9B69C]/15"><Sparkles className="size-6 text-[#E7D4B7]" strokeWidth={1.6}/></span>
+          <span className="flex min-w-0 flex-1 flex-col gap-1"><strong className="text-[15px] font-medium">Ask Keep AI</strong><small className="text-[11px] leading-4 text-[#C8BCAD]">Make your message more personal, emotional or polished</small></span>
+          <ArrowRight className="size-5 shrink-0 text-[#D9C6AA] transition-transform group-hover:translate-x-1"/>
+        </button>
+        <div className="mt-5">{nextButton("Record Your Keep", () => {
+          patch({ messageParagraphs: project.messageParagraphs.filter((p) => p.trim()) });
+          setAppliedAiOriginal(null);
+          go("recordPrep");
+        }, !project.messageParagraphs.some((p) => p.trim()))}</div>
+      </div>
+      {askOpen && <KeepAskAIModal
+        paragraphs={project.messageParagraphs}
+        activeParagraph={activeParagraph}
+        onParagraph={setActiveParagraph}
+        busy={askBusy}
+        error={askError}
+        suggestion={askSuggestion}
+        instruction={askLastInstruction}
+        scope={askLastScope}
+        onAction={(instruction, scope) => { void askKeep(instruction, scope); }}
+        onApply={applyAskSuggestion}
+        onDismiss={() => { if (askBusy) return; setAskOpen(false); setAskSuggestion(null); setAskError(""); }}
+      />}
     </>}
     {screen === "recordPrep" && <div className="fixed inset-0 z-[80] flex items-center justify-center overflow-y-auto bg-[#111113]/65 px-4 pb-[max(16px,env(safe-area-inset-bottom))] pt-[max(16px,env(safe-area-inset-top))] backdrop-blur-[5px]">
       <section role="dialog" aria-modal="true" aria-labelledby="record-tips-title" aria-describedby="record-tips-intro" className="flex max-h-[calc(100dvh-32px)] w-full max-w-[440px] flex-col overflow-hidden rounded-[22px] border border-[#E6DED3] bg-[#F7F5F2] text-[#0B0B0B] shadow-[0_24px_80px_rgba(0,0,0,.35)]">
