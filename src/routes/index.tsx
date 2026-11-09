@@ -7,6 +7,7 @@ import { KeepCaptionEditor } from "@/components/keep-caption-editor";
 import { KeepMusicEditor } from "@/components/keep-music-editor";
 import { KeepVoiceEditor } from "@/components/keep-voice-editor";
 import { KeepStyleEditor } from "@/components/keep-style-editor";
+import { KeepFinishingChoices } from "@/components/keep-finishing-choices";
 import { arrangeWords, spreadMemories, recommendedStyle } from "@/lib/keep-story-layout";
 import { activeKeepSession, loadEditableKeep, loadCloudDraft, saveCloudDraft, removeCloudDraft } from "@/lib/keep-cloud";
 import { CinematicMedia } from "@/components/cinematic-media";
@@ -147,6 +148,7 @@ function KeepApp() {
   const [mode, setMode] = useState<Mode>("Memories");
   const [resumeError, setResumeError] = useState("");
   const [editorPanel, setEditorPanel] = useState<Mode | null>(null);
+  const [editorExpanded, setEditorExpanded] = useState(false);
   const [compareOriginalStyle, setCompareOriginalStyle] = useState(false);
   const [previewChooserOpen, setPreviewChooserOpen] = useState(false);
   const [creatorPreviewMode, setCreatorPreviewMode] = useState<KeepExperienceMode | null>(null);
@@ -322,7 +324,7 @@ function KeepApp() {
     if (screen === "editor" && returnToEditorAfterRecording) setReturnToEditorAfterRecording(false);
   }, [screen, returnToEditorAfterRecording]);
   useEffect(() => {
-    if (screen === "editor") return;
+    if (screen === "editor" || screen === "storyStyle") return;
     stopMusicSample();
     setMusicSampling("");
     if (musicSampleTimer.current) window.clearTimeout(musicSampleTimer.current);
@@ -683,6 +685,10 @@ function KeepApp() {
       : arrangeWords(personalMedia, project.messageParagraphs, duration);
     patch({ memories: media, creationStyle: chosenStyle });
     setFrame(0);
+    setEditorTime(0);
+    setEditorPlaying(false);
+    setEditorPanel(null);
+    setEditorExpanded(false);
     setGeneration(0);
     go("generating");
   };
@@ -811,7 +817,19 @@ function KeepApp() {
     }
   };
 
-  useEffect(() => { if (screen !== "generating") return; if (generation >= 3) { const t = window.setTimeout(() => go("editor"), 650); return () => window.clearTimeout(t); } const t = window.setTimeout(() => setGeneration((n) => n + 1), 1250); return () => window.clearTimeout(t); }, [screen, generation]);
+  useEffect(() => {
+    if (screen !== "generating") return;
+    if (generation >= 3) {
+      const t = window.setTimeout(() => {
+        // The previous step remains finishing preferences, not the transient build screen.
+        setScreen("editor");
+        resetPageScroll();
+      }, 650);
+      return () => window.clearTimeout(t);
+    }
+    const t = window.setTimeout(() => setGeneration((n) => n + 1), 1250);
+    return () => window.clearTimeout(t);
+  }, [screen, generation]);
   const captionLines = project.messageParagraphs.map((p) => (p.split(/(?<=[.!?])\s/)[0] ?? p).trim()).filter(Boolean).slice(0, 8);
   // The recorded voice is the editor's master clock. Photo timing and captions follow it.
   const editorDuration = Math.max(rec?.durationSec ?? 0, shown.reduce((sum, item) => sum + Math.max(1, item.displayDurationSec ?? 7), 0), 1);
@@ -1180,24 +1198,25 @@ function KeepApp() {
       <div className="mt-10">{nextButton("Continue", () => { setStyleTouched(false); go("storyStyle"); })}</div>
       <Button variant="bare" size="touch" className="mt-3 w-full text-muted-foreground" onClick={() => { setStyleTouched(false); go("storyStyle"); }}>Continue without more photos</Button>
     </div></>}
-    {screen === "storyStyle" && <>{top()}<div className="px-7 pb-10 pt-9">
-      {title("YOUR STORY", "How should it come to life?", "Both include your voice, music, captions and personal moments.")}
-      <div className="space-y-3">
-        <button type="button" onClick={() => { setStyleTouched(true); patch({ creationStyle: "memories" }); }} className={`w-full rounded-lg border p-5 text-left ${chosenStyle === "memories" ? "border-accent bg-accent/5" : "border-border"}`}>
-          <span className="flex items-center justify-between text-sm">Memories First {chosenStyle === "memories" && <Check className="size-4 text-accent" />}</span>
-          <span className="mt-2 block text-xs leading-5 text-muted-foreground">Let your photos and videos tell the story from beginning to end.</span>
-          {suggestedStyle === "memories" && <span className="mt-3 block text-[10px] uppercase tracking-widest text-accent">Recommended</span>}
-        </button>
-        <button type="button" onClick={() => { setStyleTouched(true); patch({ creationStyle: "words" }); }} className={`w-full rounded-lg border p-5 text-left ${chosenStyle === "words" ? "border-accent bg-accent/5" : "border-border"}`}>
-          <span className="flex items-center justify-between text-sm">Words First {chosenStyle === "words" && <Check className="size-4 text-accent" />}</span>
-          <span className="mt-2 block text-xs leading-5 text-muted-foreground">Your voice and meaningful words lead, with your photos at special moments.</span>
-          {suggestedStyle === "words" && <span className="mt-3 block text-[10px] uppercase tracking-widest text-accent">Recommended for your media</span>}
-        </button>
-      </div>
-      <div className="mt-10">{nextButton("Create My Keep", createStory)}</div>
-    </div></>}
-    {screen === "generating" && <div className="flex keep-h-screen flex-col items-center justify-center px-8 text-center"><div className="relative mb-14 flex size-30 items-center justify-center"><div className="pulse-ring absolute inset-0 rounded-full border border-accent" /><Sparkles className="size-8 text-accent" /></div><h1 key={generation} className="display min-h-32 text-5xl page-enter">{["Listening to your story…", "Finding the moments that fit…", "Building your Keep…", "Almost there…"][generation]}</h1><p className="mt-8 text-xs text-muted-foreground">MVP preview · memories are arranged in the order you added them</p></div>}
-    {screen === "editor" && selected && <div className="keep-studio">
+    {screen === "storyStyle" && <>{top()}<KeepFinishingChoices
+      captionStyle={project.captionStyle}
+      musicMood={project.musicMood}
+      visualStyle={project.visualStyle}
+      voiceTone={mix.voiceTone ?? "natural"}
+      tracks={tracks}
+      looks={styles}
+      previewMedia={personalMedia.find((moment) => !!moment.url)}
+      musicSampling={musicSampling}
+      hasVoice={!!rec?.audioUrl && !rec.demo}
+      onCaption={(captionStyle) => patch({ captionStyle })}
+      onMusic={(musicMood) => patch({ musicMood })}
+      onSample={(track) => { void toggleMusicSample(track); }}
+      onStyle={(visualStyle) => patch({ visualStyle })}
+      onVoice={(voiceTone) => patchMix({ voiceTone })}
+      onCreate={createStory}
+    /></>}
+    {screen === "generating" && <div className="flex keep-h-screen flex-col items-center justify-center px-8 text-center"><div className="relative mb-14 flex size-30 items-center justify-center"><div className="pulse-ring absolute inset-0 rounded-full border border-accent" /><Sparkles className="size-8 text-accent" /></div><h1 key={generation} className="display min-h-32 text-5xl page-enter">{["Gathering your moments…", "Bringing your voice and music together…", "Building your Keep…", "Your film is almost ready…"][generation]}</h1><p className="mt-8 max-w-xs text-xs leading-6 text-muted-foreground">Your selections are coming together into one personal film.</p></div>}
+    {screen === "editor" && selected && <div className={`keep-studio ${editorExpanded ? "keep-studio--expanded" : "keep-studio--immersive"}`}>
       <div className="flex items-center justify-between px-5 pt-[max(14px,env(safe-area-inset-top))]">
         <Button variant="bare" size="icon" aria-label="Back" onClick={back}><ArrowLeft /></Button>
         <div className="flex items-center gap-1">
@@ -1227,11 +1246,39 @@ function KeepApp() {
               className={`keep-video-play absolute left-1/2 ${editorPanel === "Captions" && project.captionPosition === "middle" ? "top-[26%]" : "top-1/2"} z-30 flex size-17 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border border-white/25 bg-black/55 text-white shadow-xl backdrop-blur-sm transition-opacity duration-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white ${editorPlaying ? "opacity-0 hover:opacity-100 focus-visible:opacity-100" : "opacity-100"}`}>
               {editorPlaying ? <Pause className="size-7" fill="currentColor" /> : <Play className="ml-1 size-8" fill="currentColor" />}
             </button>}
+            <button type="button" aria-label={editorExpanded ? "Hide editing tools" : "Open editing tools"} aria-expanded={editorExpanded}
+              onClick={() => { setEditorPlaying(false); setEditorExpanded((value) => !value); setEditorPanel(null); }}
+              className="keep-studio-edit-toggle absolute bottom-2 left-1/2 z-40 flex -translate-x-1/2 flex-col items-center gap-0.5 rounded-xl bg-black/45 px-5 py-2 text-white backdrop-blur-sm">
+              <ChevronRight className={`size-5 transition-transform ${editorExpanded ? "rotate-90" : "-rotate-90"}`} strokeWidth={3} />
+              <span className="text-[11px] font-semibold">{editorExpanded ? "Close editor" : "Edit"}</span>
+            </button>
           </div>
-
-
         </div>
       </div>
+
+      {!editorExpanded && <section className="keep-studio-quick-timeline" aria-label="Scrub through your Keep">
+        <div className="mb-2 flex items-center justify-between gap-3">
+          <button type="button" aria-label={editorPlaying ? "Pause Keep" : "Play Keep"}
+            onClick={() => { if (editorTime >= editorDuration - .1) seekEditor(0); setEditorPlaying((playing) => !playing); }}
+            className="flex size-9 items-center justify-center rounded-full bg-white text-[#111113]">
+            {editorPlaying ? <Pause className="size-4" fill="currentColor" /> : <Play className="ml-0.5 size-4" fill="currentColor" />}
+          </button>
+          <span className="text-[11px] text-white/65">Drag the filmstrip to explore</span>
+          <span className="font-mono text-[11px] tabular-nums text-white/80">{fmt(editorTime)} / {fmt(editorDuration)}</span>
+        </div>
+        <div className="keep-studio-quick-frames relative h-11 overflow-hidden rounded-lg border border-white/15 bg-[#252428]">
+          <div className="flex h-full w-full">
+            {shown.filter((_, index) => index % Math.max(1, Math.ceil(shown.length / 10)) === 0).slice(0, 10).map((moment) =>
+              <div key={moment.id} className="h-full min-w-0 flex-1 border-r border-[#111113] last:border-r-0">
+                <MediaView item={moment} thumb alt="" className="h-full w-full object-cover" />
+              </div>)}
+          </div>
+          <div className="pointer-events-none absolute bottom-0 top-0 z-10 w-[2px] bg-white shadow-[0_0_7px_#000]" style={{ left: `${Math.min(100, editorTime / Math.max(1, editorDuration) * 100)}%` }} />
+          <input aria-label="Scrub Keep timeline" type="range" min={0} max={Math.max(1, editorDuration)} step={0.1} value={Math.min(editorDuration, editorTime)}
+            onChange={(event) => { setEditorPlaying(false); seekEditor(Number(event.target.value)); }}
+            className="absolute inset-0 z-20 h-full w-full cursor-ew-resize opacity-0" />
+        </div>
+      </section>}
 
       <div className="keep-studio-workspace" key={editorPanel ?? "timeline"}>
       {!rec?.demo && rec?.audioUrl && project.captionStyle !== "None" && !project.captionCues.length && <div className="border-t border-border/60 bg-card/70 px-5 py-3 text-xs"><div className="flex items-center justify-between gap-3"><span>{captionSyncing ? "Syncing captions to your recording…" : captionSyncError ? "Captions did not sync. Your recording is safe." : "Captions are not ready yet."}</span>{!captionSyncing && <Button variant="quiet" size="sm" onClick={() => void retryCaptionSync()}><RotateCcw className="size-3" /> Retry captions</Button>}</div></div>}

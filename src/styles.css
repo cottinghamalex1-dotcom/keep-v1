@@ -547,3 +547,56 @@ body:has(.keep-studio) {
 @media (prefers-reduced-motion: reduce) {
   .keep-opening-indeterminate { animation: none; width: 35%; }
 }
+
+
+/* Guided finishing selections: same tactile bubble language as the recipient step. */
+.keep-finish-section { border-top: 1px solid #DCD5CB; padding-top: 23px; margin-top: 27px; }
+.keep-finish-choice { padding: 12px; }
+.keep-finish-choice .text-muted-foreground,
+.keep-finish-music .text-muted-foreground { color: #766E66; }
+.keep-finish-music { align-items: stretch; justify-content: space-between; }
+.keep-finish-music button:focus-visible,
+.keep-finish-style:focus-visible,
+.keep-finish-choice:focus-visible { outline: 2px solid #6A5849; outline-offset: 2px; }
+.keep-finish-style img,
+.keep-finish-style video { transition: filter .22s ease-out; }
+
+/* Watch-first editor: keep the film large until the viewer explicitly opens tools. */
+.keep-studio--immersive .keep-studio-stage {
+  flex: 1 1 0;
+  min-height: 0;
+  padding: 4px 8px 8px;
+  align-items: center;
+}
+.keep-studio--immersive .keep-studio-canvas-wrap {
+  height: 100%;
+  width: 100%;
+  align-items: center;
+}
+.keep-studio--immersive .keep-studio-canvas {
+  height: 100%;
+  width: auto;
+  max-height: 100%;
+  max-width: calc(100vw - 16px);
+  aspect-ratio: 9 / 16;
+  border-radius: 12px;
+}
+.keep-studio--immersive .keep-studio-workspace,
+.keep-studio--immersive .keep-studio-tools { display: none; }
+.keep-studio--expanded .keep-studio-stage { flex: 0 0 44%; }
+.keep-studio--expanded .keep-studio-workspace { flex: 1 1 0; }
+.keep-studio--expanded .keep-studio-canvas { border-radius: 12px; }
+.keep-studio-edit-toggle { touch-action: manipulation; }
+.keep-studio-edit-toggle:focus-visible { outline: 2px solid #FFF; outline-offset: 2px; }
+.keep-studio-quick-timeline {
+  flex: 0 0 auto;
+  padding: 10px 14px max(12px,env(safe-area-inset-bottom));
+  background: #111113;
+  border-top: 1px solid #333134;
+  color: #fff;
+}
+.keep-studio-quick-frames:focus-within { outline: 2px solid #D2BA99; outline-offset: 3px; }
+@media (max-height: 550px) {
+  .keep-studio--immersive .keep-studio-stage { padding: 2px 6px; }
+  .keep-studio-quick-timeline { padding-top: 5px; padding-bottom: 6px; }
+}
