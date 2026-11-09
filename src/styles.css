@@ -484,3 +484,14 @@ body { font-size: 16px; line-height: 1.6; -webkit-font-smoothing: antialiased; }
 @media (max-width: 420px) {
   .brand, .keep-wordmark, .app-shell .brand { width: 80px; height: 34px; }
 }
+
+/* Keep opening experience: indeterminate while connecting, real percentage while restoring media. */
+.keep-opening-screen { background: #F7F5F2; color: #0B0B0B; }
+.keep-opening-indeterminate { width: 32%; animation: keep-opening-scan 1.75s ease-in-out infinite; }
+@keyframes keep-opening-scan {
+  0% { transform: translateX(-105%); }
+  100% { transform: translateX(320%); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .keep-opening-indeterminate { animation: none; width: 35%; }
+}
