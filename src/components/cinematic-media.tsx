@@ -30,6 +30,7 @@ export function CinematicMedia({ item, playing = true, duration = 7, className =
   const [front, setFront] = useState<Scene>(() => ({ item, duration, imageClassName }));
   const [outgoing, setOutgoing] = useState<Scene | null>(null);
   const [ready, setReady] = useState(false);
+  const [revealed, setRevealed] = useState(true);
   const [failed, setFailed] = useState(false);
   const lastUrl = useRef(item.url);
   const fadeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -45,6 +46,7 @@ export function CinematicMedia({ item, playing = true, duration = 7, className =
       setOutgoing(front);
       setFront(next);
       setReady(false);
+      setRevealed(false);
       setFailed(false);
       lastUrl.current = item.url;
     } else if (front.item !== item || front.duration !== duration || front.imageClassName !== imageClassName) {
@@ -52,15 +54,30 @@ export function CinematicMedia({ item, playing = true, duration = 7, className =
     }
   }, [item, duration, imageClassName]);
 
+  // Two paint frames ensure cached images also crossfade rather than jump.
   useEffect(() => {
     if (!ready || !outgoing) return;
+    if (fadeMs === 0) {
+      setRevealed(true);
+      return;
+    }
+    let first = 0;
+    let second = 0;
+    first = requestAnimationFrame(() => {
+      second = requestAnimationFrame(() => setRevealed(true));
+    });
+    return () => { cancelAnimationFrame(first); cancelAnimationFrame(second); };
+  }, [ready, outgoing?.item.url, fadeMs]);
+
+  useEffect(() => {
+    if (!revealed || !outgoing) return;
     if (fadeTimer.current) clearTimeout(fadeTimer.current);
     fadeTimer.current = setTimeout(() => {
       setOutgoing(null);
       fadeTimer.current = null;
     }, fadeMs + 65);
     return () => { if (fadeTimer.current) clearTimeout(fadeTimer.current); };
-  }, [ready, outgoing?.item.url, fadeMs]);
+  }, [revealed, outgoing?.item.url, fadeMs]);
 
   useEffect(() => () => { if (fadeTimer.current) clearTimeout(fadeTimer.current); }, []);
 
@@ -108,7 +125,7 @@ export function CinematicMedia({ item, playing = true, duration = 7, className =
   };
 
   // There is always a frame behind the incoming one during loading and fading.
-  const showIncoming = !outgoing || ready;
+  const showIncoming = !outgoing || revealed;
   return <div className={`isolate overflow-hidden bg-[#171719] ${className}`}>
     <style>{`@keyframes keep-cinematic-move {from {transform:var(--keep-from)} to {transform:var(--keep-to)}} @media (prefers-reduced-motion:reduce) {[style*="keep-cinematic-move"] {animation:none!important}}`}</style>
     {outgoing?.item.url && <div className="absolute inset-0">{mediaElement(outgoing, false)}</div>}
