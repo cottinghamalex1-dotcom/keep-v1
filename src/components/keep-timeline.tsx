@@ -60,6 +60,24 @@ export function KeepTimeline({ media, captions, duration, time, selectedIndex, v
       <button type="button" onClick={()=>setZoom(z=>clamp(z-.25,.5,2.5))} className="rounded-lg border border-white/20 px-3 py-2">−</button><ZoomIn className="size-3 shrink-0 text-white/50"/><span className="shrink-0 text-white/60">{Math.round(zoom*100)}%</span><button type="button" onClick={()=>setZoom(z=>clamp(z+.25,.5,2.5))} className="rounded-lg border border-white/20 px-3 py-2">+</button>
       <span className="ml-auto shrink-0 text-white/50">Swipe timeline to explore · drag grips to reorder</span>
     </div>
+    {media[selectedIndex] && <div className="mb-3 flex items-center gap-3 rounded-xl border border-[#D2BA99]/35 bg-[#242326] p-3" aria-label="Selected clip duration">
+      <div className="size-14 shrink-0 overflow-hidden rounded-lg border border-white/20 bg-black/50">
+        {media[selectedIndex]!.kind === "video"
+          ? <video src={media[selectedIndex]!.url} muted playsInline preload="metadata" className="h-full w-full object-cover" />
+          : <img src={media[selectedIndex]!.url} alt={`Selected photo ${selectedIndex + 1}`} className="h-full w-full object-cover" />}
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="mb-2 flex items-center justify-between gap-3">
+          <span className="text-xs font-medium text-white">Moment {selectedIndex + 1} · Duration</span>
+          <output className="shrink-0 text-sm font-semibold tabular-nums text-[#E8D1B2]">{(media[selectedIndex]!.displayDurationSec ?? 7).toFixed(1)}s</output>
+        </div>
+        <input aria-label={`Duration for selected photo ${selectedIndex + 1}`} type="range" min={2} max={20} step={.5}
+          value={media[selectedIndex]!.displayDurationSec ?? 7}
+          onChange={(e) => onDuration(selectedIndex, Number(e.target.value))}
+          className="keep-timeline-duration h-7 w-full cursor-pointer accent-[#E8D1B2]" />
+        <div className="mt-0.5 flex justify-between text-[10px] text-white/45"><span>Shorter</span><span>Longer</span></div>
+      </div>
+    </div>}
     <div className="flex gap-2">
       <div className="flex w-14 shrink-0 flex-col gap-1 pt-6 text-[10px] text-white/70">
         <button type="button" onClick={onPhotoSettings} className="flex h-[66px] items-center text-left font-medium text-[#e5c69b]">Moments ›</button>
@@ -115,7 +133,6 @@ export function KeepTimeline({ media, captions, duration, time, selectedIndex, v
           {label:"Delete",icon:Trash2,fn:()=>onDelete(selectedIndex),disabled:media.length<=1},
         ].map(action=><button key={action.label} type="button" disabled={action.disabled} onClick={action.fn} className="flex min-h-14 flex-col items-center justify-center gap-1 rounded-lg bg-white/10 px-1 text-[10px] disabled:opacity-30"><action.icon className="size-4"/>{action.label}</button>)}
       </div>
-      <div className="flex items-center gap-2"><span className="text-[11px] text-white/60">Duration</span><input aria-label="Selected photo duration" type="range" min={2} max={20} step={.5} value={media[selectedIndex]?.displayDurationSec??7} onChange={e=>onDuration(selectedIndex,Number(e.target.value))} className="min-w-0 flex-1 accent-[#e5c69b]"/><span className="w-9 text-right font-mono text-xs">{(media[selectedIndex]?.displayDurationSec??7).toFixed(1)}s</span></div>
       <div className="flex items-center gap-2"><button type="button" onClick={()=>onMove(selectedIndex,selectedIndex-1)} disabled={selectedIndex===0} className="flex flex-1 items-center justify-center gap-1 rounded-lg border border-white/15 py-2 text-xs disabled:opacity-30"><ChevronLeft className="size-4"/> Earlier</button><button type="button" onClick={()=>onMove(selectedIndex,selectedIndex+1)} disabled={selectedIndex>=media.length-1} className="flex flex-1 items-center justify-center gap-1 rounded-lg border border-white/15 py-2 text-xs disabled:opacity-30">Later <ChevronRight className="size-4"/></button></div>
     </div>}
     <div className="mt-2 flex items-center gap-2 text-[10px] text-white/45"><Play className="size-3"/> Edits save to your Keep draft.</div>
