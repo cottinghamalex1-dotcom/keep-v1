@@ -76,7 +76,7 @@ export function KeepAskAIModal({ paragraphs, activeParagraph, onParagraph, busy,
     : [];
   const actions = selectedScope === "message" ? fullMessageActions : paragraphActions;
   return <div className="fixed inset-0 z-[80] flex items-center justify-center bg-[#111113]/65 px-3 py-[max(12px,env(safe-area-inset-top))] backdrop-blur-[5px]" onMouseDown={(event) => { if (event.target === event.currentTarget && !busy) onDismiss(); }}>
-    <section role="dialog" aria-modal="true" aria-label="Ask Keep AI" aria-describedby="keep-ai-description" className="flex max-h-[min(850px,calc(100dvh-24px))] w-full max-w-[510px] flex-col overflow-hidden rounded-[22px] border border-[#E2DAD0] bg-[#F7F5F2] text-[#161412] shadow-[0_28px_90px_rgba(0,0,0,.32)]">
+    <section role="dialog" aria-modal="true" aria-label="Ask Keep AI" aria-describedby="keep-ai-description" className="relative flex max-h-[min(850px,calc(100dvh-24px))] w-full max-w-[510px] flex-col overflow-hidden rounded-[22px] border border-[#E2DAD0] bg-[#F7F5F2] text-[#161412] shadow-[0_28px_90px_rgba(0,0,0,.32)]">
       <header className="flex shrink-0 items-start justify-between gap-4 border-b border-[#E1DAD0] px-6 pb-5 pt-6 sm:px-8">
         <div>
           <div className="mb-4 flex size-10 items-center justify-center rounded-full border border-[#D8C5AC] bg-[#EAE1D7]"><Sparkles className="size-5 text-[#6A5849]" strokeWidth={1.7}/></div>
