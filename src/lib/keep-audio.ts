@@ -1,4 +1,4 @@
-import type { AudioMix } from "./keep-project";
+import type { AudioMix, VoiceTone } from "./keep-project";
 
 export type MusicBalance = "Soft" | "Balanced" | "Full";
 type MixOptions = Partial<AudioMix>;
@@ -204,6 +204,22 @@ export function createKeepVoiceMix(audio: HTMLAudioElement, mood: string, balanc
   presence.Q.value = 0.75;
   presence.gain.value = 2.2;
 
+  // Gentle, real-time EQ options. This is tonal shaping, not AI denoising.
+  const warmth = ctx.createBiquadFilter();
+  warmth.type = "lowshelf";
+  warmth.frequency.value = 240;
+  warmth.gain.value = 0;
+
+  const applyVoiceTone = (tone: VoiceTone = "natural") => {
+    const next = tone === "clear" ? { bassCut: 115, clarity: 4.4, warmth: -0.8 }
+      : tone === "warm" ? { bassCut: 64, clarity: 1.2, warmth: 2.2 }
+      : { bassCut: 78, clarity: 2.2, warmth: 0 };
+    const at = ctx.currentTime;
+    highpass.frequency.setTargetAtTime(next.bassCut, at, 0.04);
+    presence.gain.setTargetAtTime(next.clarity, at, 0.04);
+    warmth.gain.setTargetAtTime(next.warmth, at, 0.04);
+  };
+
   const compressor = ctx.createDynamicsCompressor();
   compressor.threshold.value = -25;
   compressor.knee.value = 18;
@@ -224,8 +240,10 @@ export function createKeepVoiceMix(audio: HTMLAudioElement, mood: string, balanc
 
   source.connect(highpass);
   highpass.connect(presence);
-  presence.connect(compressor);
+  presence.connect(warmth);
+  warmth.connect(compressor);
   compressor.connect(voiceGain);
+  applyVoiceTone(initialOptions.voiceTone ?? "natural");
   voiceGain.connect(voiceMute);
   voiceMute.connect(master);
   master.connect(ctx.destination);
@@ -248,6 +266,7 @@ export function createKeepVoiceMix(audio: HTMLAudioElement, mood: string, balanc
       voiceGain.gain.setTargetAtTime(v * 1.0, at, 0.025);
       musicLevel.gain.setTargetAtTime(m * 2.5, at, 0.025);
     },
+    setVoiceTone: (tone: VoiceTone) => applyVoiceTone(tone),
     setMuted: (muted: boolean) => {
       const at = ctx.currentTime;
       master.gain.cancelScheduledValues(at);

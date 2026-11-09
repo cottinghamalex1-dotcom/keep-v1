@@ -19,8 +19,9 @@ export type MediaItem = {
 };
 
 /** Per-track audio settings. Optional on KeepProject so older saved drafts load unchanged. */
-export type AudioMix = { voiceMuted: boolean; musicMuted: boolean; fadeIn: number; fadeOut: number; ducking: boolean };
-export const defaultAudioMix: AudioMix = { voiceMuted: false, musicMuted: false, fadeIn: 2.5, fadeOut: 3, ducking: true };
+export type VoiceTone = "natural" | "clear" | "warm";
+export type AudioMix = { voiceMuted: boolean; musicMuted: boolean; fadeIn: number; fadeOut: number; ducking: boolean; voiceTone?: VoiceTone };
+export const defaultAudioMix: AudioMix = { voiceMuted: false, musicMuted: false, fadeIn: 2.5, fadeOut: 3, ducking: true, voiceTone: "natural" };
 
 /** One interview answer. A future transcription/AI service consumes the audio blob
  *  (looked up by audioId) plus all prior answers as conversation context. */

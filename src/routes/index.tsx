@@ -1,6 +1,12 @@
 import { KeepAccountButton } from "@/components/keep-account-button";
+import { KeepOpeningScreen } from "@/components/keep-opening-screen";
+import type { KeepRestoreProgress } from "@/lib/keep-cloud";
 import { KeepPublishPanel } from "@/components/keep-publish-panel";
 import { KeepTimeline } from "@/components/keep-timeline";
+import { KeepCaptionEditor } from "@/components/keep-caption-editor";
+import { KeepMusicEditor } from "@/components/keep-music-editor";
+import { KeepVoiceEditor } from "@/components/keep-voice-editor";
+import { KeepStyleEditor } from "@/components/keep-style-editor";
 import { arrangeWords, spreadMemories, recommendedStyle } from "@/lib/keep-story-layout";
 import { activeKeepSession, loadEditableKeep, loadCloudDraft, saveCloudDraft, removeCloudDraft } from "@/lib/keep-cloud";
 import { CinematicMedia } from "@/components/cinematic-media";
@@ -20,9 +26,9 @@ import { fmt, hydrateDraftMedia, loadDraft, newId, newProject, projectBlobIds, p
 
 export const Route = createFileRoute("/")({
   head: () => ({ meta: [
-    { title: "KEEP — Say what matters. Keep it forever." },
+    { title: "Keep — Say what matters. Keep it forever." },
     { name: "description", content: "Create a personal memory-film from your words, your voice, and the moments worth keeping." },
-    { property: "og:title", content: "KEEP — Say what matters. Keep it forever." },
+    { property: "og:title", content: "Keep — Say what matters. Keep it forever." },
     { property: "og:description", content: "Create a personal memory-film from your words, your voice, and the moments worth keeping." },
     { property: "og:type", content: "website" },
     { name: "twitter:card", content: "summary_large_image" },
@@ -58,7 +64,8 @@ const initialMessage = [
   "Twenty years from now, I hope you know this: through every version of us, I'd choose this life with you again. Always.",
 ];
 const tracks = [
-  { name: "Worth Keeping", note: "Original 60-second KEEP demo · warm piano and strings", group: "For You" },
+  { name: "Worth Keeping", note: "Signature instrumental · warm piano and strings", group: "For You" },
+  { name: "Warm + Nostalgic", note: "Gentle, familiar warmth", group: "For You" },
   { name: "Joyful", note: "Lighthearted and full of life", group: "For You" },
   { name: "Cinematic", note: "A story that stays with you", group: "For You" },
   { name: "Romantic", note: "Tender, close, timeless", group: "More feelings" },
@@ -122,6 +129,8 @@ function KeepApp() {
   const [history, setHistory] = useState<Screen[]>([]);
   const [project, setProject] = useState<KeepProject>(newProject);
   const [hydrated, setHydrated] = useState(false);
+  const [openingPhase, setOpeningPhase] = useState<"session" | "draft" | "media" | "finishing">("session");
+  const [openingProgress, setOpeningProgress] = useState<KeepRestoreProgress | null>(null);
   const [cloudSyncAllowed, setCloudSyncAllowed] = useState(true);
   const [viewingDemo, setViewingDemo] = useState(false);
   const [activeParagraph, setActiveParagraph] = useState(0);
@@ -138,6 +147,7 @@ function KeepApp() {
   const [mode, setMode] = useState<Mode>("Memories");
   const [resumeError, setResumeError] = useState("");
   const [editorPanel, setEditorPanel] = useState<Mode | null>(null);
+  const [compareOriginalStyle, setCompareOriginalStyle] = useState(false);
   const [previewChooserOpen, setPreviewChooserOpen] = useState(false);
   const [creatorPreviewMode, setCreatorPreviewMode] = useState<KeepExperienceMode | null>(null);
   const [readArrangeOpen, setReadArrangeOpen] = useState(false);
@@ -199,9 +209,17 @@ function KeepApp() {
       const local = loadDraft();
       let next = local;
       try {
+        setOpeningPhase("session");
         const session = await activeKeepSession();
+        if (cancelled) return;
         if (session) {
-          const remote = editId ? await loadEditableKeep(editId, session) : await loadCloudDraft(session);
+          setOpeningPhase("draft");
+          const onRestore = (progress: KeepRestoreProgress) => {
+            if (cancelled) return;
+            setOpeningPhase("media");
+            setOpeningProgress(progress);
+          };
+          const remote = editId ? await loadEditableKeep(editId, session, onRestore) : await loadCloudDraft(session, onRestore);
           if (remote) next = remote;
           else if (local?.active) {
             // Never silently attach an unclaimed device draft to a different account.
@@ -232,6 +250,7 @@ function KeepApp() {
         toast.error(error instanceof Error ? error.message : "Cloud draft unavailable; showing this device's draft.");
       }
       if (cancelled) return;
+      setOpeningPhase("finishing");
       const usingLocal = next === local;
       if (next) {
         next = { ...next, publicationId: next.publicationId || crypto.randomUUID() };
@@ -816,6 +835,18 @@ function KeepApp() {
     setEditorTime(next);
     setFrame(editorSceneAt(next));
   };
+  const previewCurrentTransition = () => {
+    const index = frame % Math.max(1, shown.length);
+    if (index >= shown.length - 1) {
+      toast.info("The last photo has no next transition.");
+      return;
+    }
+    const boundary = shown.slice(0, index + 1)
+      .reduce((sum, moment) => sum + Math.max(1, moment.displayDurationSec ?? 7), 0);
+    setEditorPlaying(false);
+    seekEditor(Math.max(0, boundary - 0.9));
+    window.requestAnimationFrame(() => setEditorPlaying(true));
+  };
   // The editor and recipient player use the same voice-processing and music-mixing engine.
   // Keep one AudioContext per editor audio element; changing moods updates its backing track.
   useEffect(() => {
@@ -844,6 +875,7 @@ function KeepApp() {
   }, [screen, project.musicMood, project.voiceMusicBalance, mix.fadeIn, mix.fadeOut, mix.ducking]);
   useEffect(() => { editorMixRef.current?.setTrackMutes(mix.voiceMuted, mix.musicMuted); }, [screen, mix.voiceMuted, mix.musicMuted]);
   useEffect(() => { editorMixRef.current?.setLevels(project.voiceVolume ?? 60, project.musicVolume ?? 60); }, [screen, project.voiceVolume, project.musicVolume]);
+  useEffect(() => { editorMixRef.current?.setVoiceTone(mix.voiceTone ?? "natural"); }, [screen, mix.voiceTone]);
 
   useEffect(() => {
     if (screen !== "editor") { undoLast.current = null; return; }
@@ -930,7 +962,7 @@ function KeepApp() {
   const totalSec = rec?.durationSec ?? 237;
 
   const title = (eyebrow: string, heading: string, sub?: string) => <div className="mb-10 keep-page-heading"><h1 className="keep-editorial-title">{heading}</h1>{sub && <p className="keep-page-description mt-5">{sub}</p>}</div>;
-  const top = (_label?: string) => <header className="sticky top-0 z-30 flex h-[calc(4.25rem+env(safe-area-inset-top))] w-full min-w-0 items-center justify-between border-b border-border/50 bg-background/95 px-6 pt-[env(safe-area-inset-top)] backdrop-blur-sm"><Button variant="bare" size="icon" aria-label="Go back" onClick={back}><ArrowLeft /></Button><span className="keep-wordmark !text-[26px]">keep</span>{accountLink}</header>;
+  const top = (_label?: string) => <header className="sticky top-0 z-30 flex h-[calc(4.25rem+env(safe-area-inset-top))] w-full min-w-0 items-center justify-between border-b border-border/50 bg-background/95 px-6 pt-[env(safe-area-inset-top)] backdrop-blur-sm"><Button variant="bare" size="icon" aria-label="Go back" onClick={back}><ArrowLeft /></Button><span className="keep-wordmark !text-[26px]">Keep</span>{accountLink}</header>;
   const nextButton = (label: string, action: () => void, disabled = false) => <Button variant="keep" size="touch" className="keep-premium-action w-full justify-between" onClick={action} disabled={disabled}>{label}<ArrowRight /></Button>;
   const wave = (count = 27, active = true) => <div className="flex h-12 items-center justify-center gap-[3px]" aria-hidden="true">{Array.from({ length: count }, (_, i) => <span key={i} className={`${active ? "wave-bar" : "opacity-40"} w-[2px] rounded-full bg-accent`} style={{ height: `${10 + ((i * 17) % 34)}px`, animationDelay: `${-(i % 7) * 0.13}s` }} />)}</div>;
   const note = (children: ReactNode) => <p className="text-center text-[11px] leading-5 text-muted-foreground">{children}</p>;
@@ -942,10 +974,10 @@ function KeepApp() {
   const accountLink = <KeepAccountButton />;
   const fileInputs = <><input ref={draftInput} type="file" accept=".docx,.pdf,.txt,.md,.rtf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/pdf,text/plain,text/markdown,application/rtf" className="sr-only" aria-label="Upload something you have already written" tabIndex={-1} onChange={(e) => void importDraft(e)} /><input ref={addInput} type="file" accept="image/*,video/*" multiple className="sr-only" aria-label="Choose photos and videos" tabIndex={-1} onChange={(e) => void addFiles(e)} /><input ref={replaceInput} type="file" accept="image/*,video/*" className="sr-only" aria-label="Choose a replacement photo or video" tabIndex={-1} onChange={(e) => void addFiles(e, frame % Math.max(1, shown.length))} /></>;
 
-  if (resumeError) return <main className="app-shell p-8"><h1 className="font-display text-3xl">Unable to open this Keep</h1><p role="alert" className="my-6 text-sm">{resumeError}</p><Button onClick={() => window.location.reload()}>Try again</Button><a href="/app" className="ml-5 underline">Back to your creations</a></main>;
-  if (!hydrated) return <main className="app-shell p-8"><p role="status">Opening your Keep…</p></main>;
+  if (resumeError) return <main className="app-shell flex min-h-dvh flex-col px-8 py-10"><a href="/app" className="keep-wordmark" aria-label="Keep home">Keep</a><div className="my-auto max-w-sm"><h1 className="font-display text-[38px] leading-tight">We couldn't open your Keep.</h1><p role="alert" className="mt-5 text-sm leading-7 text-muted-foreground">{resumeError}</p><div className="mt-9 flex flex-col gap-3"><Button variant="keep" size="touch" onClick={() => window.location.reload()}>Try again</Button><a href="/app" className="rounded-xl border border-border px-5 py-3 text-center text-sm">Back to your creations</a></div></div></main>;
+  if (!hydrated) return <KeepOpeningScreen phase={openingPhase} progress={openingProgress} onBack={() => window.location.assign("/app")} />;
   return <main className="app-shell">{fileInputs}<div key={screen} className="page-enter">
-    {screen === "you" && <>{top()}<div className="px-7 pt-8">{title("Your space", "Alex.", "The things worth keeping, all in one place.")}<div className="mt-12 border-t border-border">{[{ label: "What is KEEP?", Icon: Sparkles }, { label: "My cards", Icon: Radio }, { label: "Downloads & backups", Icon: Download }, { label: "Privacy", Icon: LockKeyhole }, { label: "Help", Icon: CircleHelp }].map(({ label, Icon }) => <Button key={label} variant="bare" className="flex h-17 w-full justify-between border-b border-border px-0 text-sm font-normal" onClick={() => (label === "What is KEEP?" ? window.location.assign("/about") : setSetting(label))}><span className="flex items-center gap-4"><Icon className="size-4 text-accent" />{label}</span><ChevronRight className="size-4 text-muted-foreground" /></Button>)}{project.active && <Button variant="bare" className="flex h-17 w-full justify-between border-b border-border px-0 text-sm font-normal text-destructive" onClick={() => { if (!window.confirm("Delete your draft Keep? Recordings and photos added to it will be removed from this device.")) return; discard(project); setProject(newProject()); toast.success("Draft deleted"); }}><span className="flex items-center gap-4"><Trash2 className="size-4" />Delete draft Keep</span></Button>}</div><p className="mt-9 text-xs leading-6 text-muted-foreground">Your Keeps are private.</p></div>{setting && sheet(setting, () => setSetting(""), <><p className="mt-5 text-sm leading-7 text-muted-foreground">{setting === "Privacy" ? "Your Keeps are private by default. In this MVP, drafts, recordings and photos stay on this device only. Sharing a card gives its recipient access to that Keep — no account required." : setting === "My cards" ? "HANNA · from Alex · 2026 (sample). Physical card ordering is coming next." : setting === "Downloads & backups" ? "Your draft is saved on this device. Cloud backups and downloads aren't available yet." : "We're here when you need us. Support isn't connected in this preview yet."}</p><Button variant="quiet" className="mt-8 w-full" onClick={() => setSetting("")}>Done</Button></>)}</>}
+    {screen === "you" && <>{top()}<div className="px-7 pt-8">{title("Your space", "Alex.", "The things worth keeping, all in one place.")}<div className="mt-12 border-t border-border">{[{ label: "What is Keep?", Icon: Sparkles }, { label: "My cards", Icon: Radio }, { label: "Downloads & backups", Icon: Download }, { label: "Privacy", Icon: LockKeyhole }, { label: "Help", Icon: CircleHelp }].map(({ label, Icon }) => <Button key={label} variant="bare" className="flex h-17 w-full justify-between border-b border-border px-0 text-sm font-normal" onClick={() => (label === "What is KEEP?" ? window.location.assign("/about") : setSetting(label))}><span className="flex items-center gap-4"><Icon className="size-4 text-accent" />{label}</span><ChevronRight className="size-4 text-muted-foreground" /></Button>)}{project.active && <Button variant="bare" className="flex h-17 w-full justify-between border-b border-border px-0 text-sm font-normal text-destructive" onClick={() => { if (!window.confirm("Delete your draft Keep? Recordings and photos added to it will be removed from this device.")) return; discard(project); setProject(newProject()); toast.success("Draft deleted"); }}><span className="flex items-center gap-4"><Trash2 className="size-4" />Delete draft Keep</span></Button>}</div><p className="mt-9 text-xs leading-6 text-muted-foreground">Your Keeps are private.</p></div>{setting && sheet(setting, () => setSetting(""), <><p className="mt-5 text-sm leading-7 text-muted-foreground">{setting === "Privacy" ? "Your Keeps are private by default. In this MVP, drafts, recordings and photos stay on this device only. Sharing a card gives its recipient access to that Keep — no account required." : setting === "My cards" ? "HANNA · from Alex · 2026 (sample). Physical card ordering is coming next." : setting === "Downloads & backups" ? "Your draft is saved on this device. Cloud backups and downloads aren't available yet." : "We're here when you need us. Support isn't connected in this preview yet."}</p><Button variant="quiet" className="mt-8 w-full" onClick={() => setSetting("")}>Done</Button></>)}</>}
     {screen === "detail" && <>{top("READY")}<div className="relative mx-4 h-[min(55dvh,520px)] overflow-hidden"><img src={memoryImages[0]} alt="Couple at the coast, illustrative prototype photograph" className="h-full w-full object-cover" /><div className="absolute inset-0 photo-bottom" /><div className="absolute bottom-8 left-6"><p className="eyebrow text-foreground">ANNIVERSARY · 2026</p><h1 className="display mt-3 text-5xl">HANNA</h1><p className="mt-3 text-sm">from Alex · 3:57</p></div></div><div className="space-y-3 px-6 pt-7">{nextButton("Play Keep", () => { setViewingDemo(true); go("preview"); })}<Button variant="quiet" size="touch" className="w-full" onClick={editDemoCopy}><Settings2 /> Edit a copy</Button><Button variant="bare" size="touch" className="w-full" asChild><Link to="/recipient" search={{ keep: "" }}><Radio /> View as recipient</Link></Button></div></>}
     {screen === "recipient" && <>{top("01 / 04")}<div className="px-7 pt-11">{title("Begin with someone", "Who is this Keep for?")}<div className="grid grid-cols-2 gap-3" role="group" aria-label="Who is this Keep for?">{relationships.map((r) => <Button key={r} type="button" aria-pressed={project.relationship === r} variant="quiet" className={`keep-choice-bubble ${project.relationship === r ? "keep-choice-bubble--selected" : ""}`} onClick={() => { patch({ relationship: r, ...(r === "Myself" ? { recipientName: "Myself" } : project.relationship === "Myself" ? { recipientName: "" } : {}) }); if (r !== "Someone else") setOtherRelationship(""); }}><span className="min-w-0 flex-1 text-left">{r}</span>{project.relationship === r && <span className="keep-choice-check"><Check className="!size-3.5" strokeWidth={2.7} /></span>}</Button>)}</div>{project.relationship === "Someone else" && <div className="mt-8 page-enter"><label htmlFor="other-relationship" className="eyebrow">WHO ARE THEY TO YOU?</label><input id="other-relationship" value={otherRelationship} onChange={(e) => setOtherRelationship(e.target.value.slice(0, 50))} placeholder="My coach" autoComplete="off" className="mt-3 w-full border-0 border-b border-border bg-transparent pb-4 font-display text-3xl outline-none focus:border-accent" /><p className="mt-3 text-xs text-muted-foreground"></p></div>}{project.relationship && project.relationship !== "Myself" && <div className="mt-9 page-enter"><label htmlFor="recipient-name" className="eyebrow">NAME(S)</label><input id="recipient-name" value={name} onChange={(e) => patch({ recipientName: e.target.value.slice(0, 60) })} placeholder="Gigi & Pops" autoComplete="off" className="mt-3 w-full border-0 border-b border-border bg-transparent pb-4 font-display text-3xl outline-none focus:border-accent" /><p className="mt-3 text-xs text-muted-foreground"></p></div>}<div className="mt-10">{nextButton("Continue", () => { if (project.relationship === "Someone else") patch({ relationship: otherRelationship.trim() }); go("occasion"); }, !project.relationship || (project.relationship !== "Myself" && !name.trim()) || (project.relationship === "Someone else" && !otherRelationship.trim()))}</div></div></>}
     {screen === "occasion" && <>{top("02 / 04")}<div className="px-7 pt-11">{title("Give it a moment", "What are you keeping?", "Choose an occasion or moment.")}<div className="grid grid-cols-2 gap-3" role="group" aria-label="Choose an occasion or moment">{occasions.map((o) => <Button key={o} type="button" aria-pressed={project.occasion === o} variant="quiet" className={`keep-choice-bubble ${project.occasion === o ? "keep-choice-bubble--selected" : ""}`} onClick={() => { patch({ occasion: o }); if (o !== "Other") setOtherOccasion(""); }}><span className="min-w-0 flex-1 text-left">{o}</span>{project.occasion === o && <span className="keep-choice-check"><Check className="!size-3.5" strokeWidth={2.7} /></span>}</Button>)}</div>{project.occasion === "Other" && <div className="mt-8 page-enter"><label className="eyebrow" htmlFor="other-occasion">TELL US WHAT IT'S FOR</label><input id="other-occasion" value={otherOccasion} onChange={(e) => setOtherOccasion(e.target.value.slice(0, 80))} placeholder="Our family Disney trip with Gigi & Pops" className="mt-3 w-full border-0 border-b border-border bg-transparent pb-4 font-display text-3xl outline-none focus:border-accent" /><p className="mt-3 text-xs text-muted-foreground"></p></div>}<div className="mt-12">{nextButton("Continue", () => { if (project.occasion === "Other") patch({ occasion: otherOccasion.trim() }); go("intent"); }, project.occasion === "Other" && !otherOccasion.trim())}</div></div></>}
@@ -971,7 +1003,7 @@ function KeepApp() {
     {screen === "summary" && <>{top()}<div className="flex keep-min-screen-minus-100 flex-col px-7 pb-10 pt-12"><div className="flex-1">{title("Your story", "I think we have it.")}<p className="max-w-md font-display text-[22px] leading-[1.55] text-foreground/88 page-enter sm:text-[24px]">{project.interviewSummary || "You've shared what matters. Let's put it into words."}</p></div><div className="mt-16 space-y-3">{nextButton("Create My Message", createAiMessage, !aiReady)}<Button variant="quiet" size="touch" className="w-full" onClick={() => go("write")}>Write it myself</Button></div></div></>}
     {screen === "messageGenerating" && <div className="relative flex keep-min-screen flex-col overflow-hidden px-7 pb-[max(40px,env(safe-area-inset-bottom))] pt-[max(36px,env(safe-area-inset-top))]">
       <div className="pointer-events-none absolute inset-x-[-25%] top-[20%] h-72 rounded-full bg-accent/[0.06] blur-3xl" />
-      <span className="brand relative z-10">keep</span>
+      <span className="brand relative z-10">Keep</span>
       <div className="relative z-10 flex flex-1 flex-col items-center justify-center text-center">
         <div className="mb-10 flex size-20 items-center justify-center rounded-full border border-accent/25 bg-accent/[0.04]"><Sparkles className="size-7 animate-pulse text-accent" /></div>
         <h1 className="display max-w-sm text-[clamp(48px,13vw,68px)] leading-[0.98]">Putting your words together.</h1>
@@ -983,8 +1015,8 @@ function KeepApp() {
       </div>
     </div>}
     {screen === "write" && <>{top("04 / 04")}<div className="px-7 pb-12 pt-9">{title("In your own words", "Bring us what you want to say.", "Speak it, type it, or upload something you've already written.")}<div className="mb-5 grid grid-cols-3 gap-2"><Button variant={writeInputMode === "speak" ? "selected" : "quiet"} className="h-20 flex-col px-2" onClick={() => { setWriteInputMode("speak"); toggleDictation("write"); }}>{dictating && writeInputMode === "speak" ? <Square fill="currentColor" /> : <Mic />}{dictating && writeInputMode === "speak" ? "Stop" : "Speak"}</Button><Button variant={writeInputMode === "type" ? "selected" : "quiet"} className="h-20 flex-col px-2" onClick={() => { setWriteInputMode("type"); if (dictationRef.current && dictating) dictationRef.current.stop(); window.setTimeout(() => document.querySelector<HTMLTextAreaElement>('textarea[aria-label="Your message"]')?.focus(), 0); }}><MessageCircle />Type</Button><Button variant={writeInputMode === "upload" ? "selected" : "quiet"} className="h-20 flex-col px-2" disabled={busy} onClick={() => draftInput.current?.click()}><FileUp />{busy ? "Reading…" : "Upload"}</Button></div>{dictating && writeInputMode === "speak" && <div className="mb-4 rounded-sm border border-accent/40 p-4 text-center page-enter"><div className="mb-2 flex items-center justify-center gap-2 text-sm text-accent"><span className="size-2 animate-pulse rounded-full bg-accent" />Listening</div><p className="text-xs leading-5 text-muted-foreground">Speak naturally. Your words will appear below as you talk. Tap Stop when you're finished.</p></div>}{uploadedDraftName && writeInputMode === "upload" && <div className="mb-4 flex items-center justify-between rounded-sm border border-border px-4 py-3 page-enter"><span className="min-w-0"><span className="eyebrow block">IMPORTED</span><span className="mt-1 block truncate text-xs text-muted-foreground">{uploadedDraftName}</span></span><Button variant="bare" size="sm" className="shrink-0 text-muted-foreground" onClick={() => draftInput.current?.click()}>Replace</Button></div>}<textarea aria-label="Your message" value={project.writtenText} onChange={(e) => { setWriteInputMode("type"); patch({ writtenText: e.target.value }); }} placeholder="Start here…" rows={12} className="min-h-[320px] w-full resize-y rounded-sm border border-border bg-transparent p-4 font-display text-[22px] leading-[1.35] outline-none focus:border-accent" /><div className="mt-3 flex items-center justify-between"><Button variant="bare" size="sm" className="text-muted-foreground" onClick={() => { patch({ writtenText: "" }); setUploadedDraftName(""); setWriteInputMode("type"); }}>Clear</Button><span className="text-[10px] tracking-wide text-muted-foreground">DOCX · PDF · TXT · MD · RTF</span></div><div className="mt-8">{nextButton("Continue", () => { const paras = project.writtenText.split(/\n\s*\n/).map((p) => p.trim()).filter(Boolean); patch({ messageParagraphs: paras, messageSource: "own" }); setActiveParagraph(0); go("message"); }, !project.writtenText.trim())}</div></div></>}
-    {screen === "message" && <>{top("04 / 04")}<div className="px-7 pb-32 pt-9">{title(project.messageSource === "own" ? "In your own words" : project.messageSource === "ai" ? "Shaped from your story" : "Demo generation", project.messageSource === "own" ? "Your message." : "Your message is ready.", "Tap any paragraph to make it yours.")}<div className="space-y-1">{project.messageParagraphs.map((p, i) => <textarea key={i} aria-label={`Message paragraph ${i + 1}`} rows={Math.max(3, Math.ceil(p.length / 44))} value={p} onFocus={() => setActiveParagraph(i)} onChange={(e) => patch({ messageParagraphs: project.messageParagraphs.map((item, j) => (j === i ? e.target.value : item)) })} className={`w-full resize-none rounded-sm border bg-transparent p-3 font-display text-[23px] leading-[1.3] outline-none transition-colors ${activeParagraph === i ? "border-accent/50" : "border-transparent"}`} />)}</div><Button variant="bare" size="sm" className="mt-2 text-muted-foreground" onClick={() => { patch({ messageParagraphs: [...project.messageParagraphs, ""] }); setActiveParagraph(project.messageParagraphs.length); }}><Plus /> Add paragraph</Button><Button variant="quiet" size="touch" className="mt-5 w-full" onClick={openAskKeep}><Sparkles /> Ask KEEP</Button><div className="mt-3">{nextButton("Record Your Keep", () => { patch({ messageParagraphs: project.messageParagraphs.filter((p) => p.trim()) }); go("recordPrep"); }, !project.messageParagraphs.some((p) => p.trim()))}</div></div>
-      {askOpen && sheet("Ask KEEP", () => { if (!askBusy) { setAskOpen(false); setAskSuggestion(null); setAskError(""); } }, askSuggestion ? <>
+    {screen === "message" && <>{top("04 / 04")}<div className="px-7 pb-32 pt-9">{title(project.messageSource === "own" ? "In your own words" : project.messageSource === "ai" ? "Shaped from your story" : "Demo generation", project.messageSource === "own" ? "Your message." : "Your message is ready.", "Tap any paragraph to make it yours.")}<div className="space-y-1">{project.messageParagraphs.map((p, i) => <textarea key={i} aria-label={`Message paragraph ${i + 1}`} rows={Math.max(3, Math.ceil(p.length / 44))} value={p} onFocus={() => setActiveParagraph(i)} onChange={(e) => patch({ messageParagraphs: project.messageParagraphs.map((item, j) => (j === i ? e.target.value : item)) })} className={`w-full resize-none rounded-sm border bg-transparent p-3 font-display text-[23px] leading-[1.3] outline-none transition-colors ${activeParagraph === i ? "border-accent/50" : "border-transparent"}`} />)}</div><Button variant="bare" size="sm" className="mt-2 text-muted-foreground" onClick={() => { patch({ messageParagraphs: [...project.messageParagraphs, ""] }); setActiveParagraph(project.messageParagraphs.length); }}><Plus /> Add paragraph</Button><Button variant="quiet" size="touch" className="mt-5 w-full" onClick={openAskKeep}><Sparkles /> Ask Keep</Button><div className="mt-3">{nextButton("Record Your Keep", () => { patch({ messageParagraphs: project.messageParagraphs.filter((p) => p.trim()) }); go("recordPrep"); }, !project.messageParagraphs.some((p) => p.trim()))}</div></div>
+      {askOpen && sheet("Ask Keep", () => { if (!askBusy) { setAskOpen(false); setAskSuggestion(null); setAskError(""); } }, askSuggestion ? <>
         <div className="mt-3 flex items-center justify-between text-[10px] tracking-widest text-muted-foreground"><span>{askLastScope === "message" ? "WHOLE MESSAGE" : `SECTION ${activeParagraph + 1} OF ${project.messageParagraphs.length}`}</span><span>KEEP SUGGESTS</span></div>
         <div className="mt-4 rounded-sm border border-accent/30 bg-accent/[0.03] p-5">
           <div className="space-y-4">{(askSuggestion.changedIndexes.length ? askSuggestion.changedIndexes : [activeParagraph]).map((i) => askSuggestion.paragraphs[i] ? <div key={i}><p className="mb-2 text-[10px] tracking-widest text-accent">SECTION {i + 1}</p><p className="font-display text-[21px] leading-[1.42]">{askSuggestion.paragraphs[i]}</p></div> : null)}</div>
@@ -1012,7 +1044,7 @@ function KeepApp() {
             <label htmlFor="ask-keep-whole-custom" className="eyebrow">TELL KEEP WHAT YOU WANT</label>
             <p className="mt-2 text-xs leading-5 text-muted-foreground">Describe how you want KEEP to reshape the entire message.</p>
             <textarea id="ask-keep-whole-custom" value={askPrompt} onChange={(e) => setAskPrompt(e.target.value.slice(0, 500))} placeholder="Make this warmer and more conversational. Spend more time on what this relationship has meant to me…" rows={4} className="mt-3 min-h-28 w-full resize-none rounded-sm border border-border bg-transparent p-4 text-sm leading-6 outline-none focus:border-accent" />
-            <Button variant="keep" size="touch" className="mt-3 w-full justify-between" disabled={askBusy || !askPrompt.trim()} onClick={() => void askKeep(askPrompt, "message")}>Ask KEEP<Sparkles /></Button>
+            <Button variant="keep" size="touch" className="mt-3 w-full justify-between" disabled={askBusy || !askPrompt.trim()} onClick={() => void askKeep(askPrompt, "message")}>Ask Keep<Sparkles /></Button>
           </div>
         </div>
 
@@ -1132,11 +1164,11 @@ function KeepApp() {
     {screen === "memories" && <>{top()}<div className="px-7 pb-10 pt-9">
       {title("YOUR MOMENTS", "Add photos & videos.", "Choose the moments that bring your story to life.")}
       <div className="keep-editorial-surface mb-7 px-5 py-5" aria-live="polite">
-        <div className="flex items-center justify-between gap-3"><p className="text-[11px] font-medium uppercase tracking-[.14em] text-[#C6B49A]">Suggested moments</p>{guidanceSeconds > 0 && <span className="text-[11px] text-muted-foreground">{narrationLengthText}</span>}</div>
+        <div className="flex items-center justify-between gap-3"><p className="text-[11px] font-medium uppercase tracking-[.14em] text-[#6A5849]">Suggested moments</p>{guidanceSeconds > 0 && <span className="text-[11px] text-muted-foreground">{narrationLengthText}</span>}</div>
         {guidanceSeconds > 0 ? <>
           <p className="mt-3 font-display text-[33px] leading-none text-foreground">{minRecommendedMoments}–{maxRecommendedMoments} <span className="text-[23px]">photos or videos</span></p>
           <p className="mt-3 text-xs leading-6 text-muted-foreground">We suggest about one photo or video every 3–5 seconds of narration. {recordedNarrationSec ? "This is based on your recording." : "This is estimated from your message length."} Around {idealRecommendedMoments} is a great starting point.</p>
-          <p className="mt-3 text-xs text-[#C6B49A]">{personalMedia.length} added{personalMedia.length >= minRecommendedMoments && personalMedia.length <= maxRecommendedMoments ? " · In the suggested range" : personalMedia.length < minRecommendedMoments ? ` · ${minRecommendedMoments - personalMedia.length} more to reach the range` : " · More than suggested is okay"}</p>
+          <p className="mt-3 text-xs text-[#6A5849]">{personalMedia.length} added{personalMedia.length >= minRecommendedMoments && personalMedia.length <= maxRecommendedMoments ? " · In the suggested range" : personalMedia.length < minRecommendedMoments ? ` · ${minRecommendedMoments - personalMedia.length} more to reach the range` : " · More than suggested is okay"}</p>
         </> : <p className="mt-3 text-sm leading-6 text-muted-foreground">Add a message or record your voice to see a personalized photo recommendation. Most stories work well with a new moment every 3–5 seconds.</p>}
         <p className="mt-3 border-t border-border/50 pt-3 text-[11px] leading-5 text-muted-foreground">Just a guide — use as many or as few moments as you'd like. You can always add more later.</p>
       </div>
@@ -1180,7 +1212,7 @@ function KeepApp() {
       <div className="keep-studio-stage">
         <div className="keep-studio-canvas-wrap">
           <div className="keep-studio-canvas relative aspect-[9/16] overflow-hidden rounded-2xl bg-card shadow-lg">
-            <CinematicMedia item={selected} playing={editorPlaying} duration={Math.max(5, selected.displayDurationSec ?? 7)} className="absolute inset-0" imageClassName={`editor-image-${styleSlug(project.visualStyle)}`} />
+            <CinematicMedia item={selected} playing={editorPlaying} duration={Math.max(5, selected.displayDurationSec ?? 7)} className="absolute inset-0" imageClassName={`editor-image-${styleSlug(compareOriginalStyle && editorPanel === "Style" ? "Natural" : project.visualStyle)}`} />
             <div className="absolute inset-0 photo-shade" />
             {editorPanel === "Memories" && <div className="absolute inset-x-0 top-0 bottom-14 z-20 cursor-grab touch-none active:cursor-grabbing" aria-label="Drag photo to reposition" onPointerDown={(e) => { e.currentTarget.setPointerCapture(e.pointerId); const r = e.currentTarget.getBoundingClientRect(); photoDrag.current = { x: e.clientX, y: e.clientY, focusX: selected.focusX ?? 50, focusY: selected.focusY ?? 50, width: r.width, height: r.height }; setEditorPlaying(false); }} onPointerMove={(e) => { const d = photoDrag.current; if (!d) return; updateSelectedMoment({ focusX: Math.max(0, Math.min(100, d.focusX - (e.clientX - d.x) / d.width * 100)), focusY: Math.max(0, Math.min(100, d.focusY - (e.clientY - d.y) / d.height * 100)) }); }} onPointerUp={() => { photoDrag.current = null; }} onPointerCancel={() => { photoDrag.current = null; }}><span className="absolute left-1/2 top-3 -translate-x-1/2 whitespace-nowrap rounded-full bg-black/65 px-3 py-1 text-[10px] text-white">Drag photo to reposition</span></div>}
 
@@ -1190,11 +1222,11 @@ function KeepApp() {
               </p>
             </div>}
 
-            <div className="absolute bottom-3 left-3 right-3 flex items-center gap-2 rounded-xl bg-black/45 px-2 py-1 backdrop-blur">
-              <Button variant="bare" size="icon" className="size-8 bg-black/25 backdrop-blur" aria-label={editorPlaying ? "Pause preview" : "Play preview"} onClick={() => { if (editorTime >= editorDuration - 0.1) seekEditor(0); setEditorPlaying(!editorPlaying); }}>{editorPlaying ? <Pause className="size-3.5" fill="currentColor" /> : <Play className="size-3.5" fill="currentColor" />}</Button>
-              <input type="range" min={0} max={editorDuration} step={0.1} value={Math.min(editorTime, editorDuration)} aria-label="Seek Keep playback" onChange={(e) => seekEditor(Number(e.target.value))} className="h-5 min-w-0 flex-1 accent-white" />
-              <span className="text-[9px] tabular-nums">{fmt(editorTime)} / {fmt(editorDuration)}</span>
-            </div>
+            {editorPanel !== "Memories" && <button type="button" aria-label={editorPlaying ? "Pause video preview" : "Play video preview"} aria-pressed={editorPlaying}
+              onClick={() => { if (editorTime >= editorDuration - .1) seekEditor(0); setEditorPlaying(!editorPlaying); }}
+              className={`keep-video-play absolute left-1/2 ${editorPanel === "Captions" && project.captionPosition === "middle" ? "top-[26%]" : "top-1/2"} z-30 flex size-17 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border border-white/25 bg-black/55 text-white shadow-xl backdrop-blur-sm transition-opacity duration-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white ${editorPlaying ? "opacity-0 hover:opacity-100 focus-visible:opacity-100" : "opacity-100"}`}>
+              {editorPlaying ? <Pause className="size-7" fill="currentColor" /> : <Play className="ml-1 size-8" fill="currentColor" />}
+            </button>}
           </div>
 
 
@@ -1203,55 +1235,60 @@ function KeepApp() {
 
       <div className="keep-studio-workspace" key={editorPanel ?? "timeline"}>
       {!rec?.demo && rec?.audioUrl && project.captionStyle !== "None" && !project.captionCues.length && <div className="border-t border-border/60 bg-card/70 px-5 py-3 text-xs"><div className="flex items-center justify-between gap-3"><span>{captionSyncing ? "Syncing captions to your recording…" : captionSyncError ? "Captions did not sync. Your recording is safe." : "Captions are not ready yet."}</span>{!captionSyncing && <Button variant="quiet" size="sm" onClick={() => void retryCaptionSync()}><RotateCcw className="size-3" /> Retry captions</Button>}</div></div>}
-      {(editorPanel === "Music" || editorPanel === "Captions" || editorPanel === "Style") && <div className="border-t border-border/60 bg-card/55 px-5 py-3 backdrop-blur-md page-enter">
-        {editorPanel === "Music" && <>
-          <div className="mb-3 flex items-center justify-between"><div><p className="font-display text-2xl">Music</p><p className="mt-1 text-[10px] text-muted-foreground">Hear each mood, then play your Keep to hear it under your voice.</p></div><Button variant="bare" size="icon" aria-label="Close music" onClick={() => { stopMusicSample(); setMusicSampling(""); setEditorPanel(null); }}><X className="size-4" /></Button></div>
-          <div className="thin-scroll flex gap-2 overflow-x-auto pb-2">
-            {tracks.map((track) => <div key={track.name} className={`w-44 shrink-0 rounded-xl border p-3 ${project.musicMood === track.name ? "border-accent/70 bg-accent/[0.04]" : "border-border bg-background/35"}`}>
-              <div className="min-h-14"><p className="text-xs font-medium">{track.name}</p><p className="mt-1 text-[9px] leading-4 text-muted-foreground">{track.note}</p></div>
-              <div className="mt-3 flex gap-1.5"><Button variant="quiet" size="sm" className="flex-1 px-2 text-[10px]" onClick={() => void toggleMusicSample(track.name)}>{musicSampling === track.name ? <Square className="size-3" fill="currentColor" /> : <Play className="size-3" fill="currentColor" />}{musicSampling === track.name ? "Stop" : "Sample"}</Button><Button variant={project.musicMood === track.name ? "selected" : "bare"} size="sm" className="flex-1 px-2 text-[10px]" onClick={() => patch({ musicMood: track.name })}>{project.musicMood === track.name ? <Check className="size-3" /> : null}{project.musicMood === track.name ? "Selected" : "Use"}</Button></div>
-            </div>)}
-          </div>
-          <p className="mt-2 text-[10px] leading-4 text-muted-foreground">Worth Keeping is an original 60-second instrumental arrangement generated in your browser, not a studio-recorded audio file. Press play in the editor to hear the selected music with your actual voice.</p>
-          <div className="mt-2 flex items-center gap-2"><span className="mr-1 text-[9px] tracking-widest text-muted-foreground">MIX</span><span className="text-[10px] text-muted-foreground">Voice / Music</span></div><div className="mt-3 space-y-4 rounded-lg border border-border bg-background/60 p-3">
-              <div>
-                <div className="mb-2 flex items-center justify-between text-xs"><label htmlFor="keep-voice-volume" className="font-medium">Voice volume</label><span>{project.voiceVolume ?? 60}%</span></div>
-                <input id="keep-voice-volume" type="range" min="0" max="100" step="1" value={project.voiceVolume ?? 60} onChange={(e) => patch({ voiceVolume: Number(e.target.value) })} className="w-full accent-current" />
-              </div>
-              <div>
-                <div className="mb-2 flex items-center justify-between text-xs"><label htmlFor="keep-music-volume" className="font-medium">Music volume</label><span>{project.musicVolume ?? 60}%</span></div>
-                <input id="keep-music-volume" type="range" min="0" max="100" step="1" value={project.musicVolume ?? 60} onChange={(e) => patch({ musicVolume: Number(e.target.value) })} className="w-full accent-current" />
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                <Button size="sm" variant={mix.voiceMuted ? "selected" : "quiet"} aria-pressed={mix.voiceMuted} onClick={() => patchMix({ voiceMuted: !mix.voiceMuted })}>{mix.voiceMuted ? <VolumeX className="size-3.5" /> : <Mic className="size-3.5" />}{mix.voiceMuted ? "Voice muted" : "Mute voice"}</Button>
-                <Button size="sm" variant={mix.musicMuted ? "selected" : "quiet"} aria-pressed={mix.musicMuted} onClick={() => patchMix({ musicMuted: !mix.musicMuted })}>{mix.musicMuted ? <VolumeX className="size-3.5" /> : <Music2 className="size-3.5" />}{mix.musicMuted ? "Music muted" : "Mute music"}</Button>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <label className="text-xs">Music fade in: {mix.fadeIn.toFixed(1)}s<input type="range" min="0.5" max="6" step="0.5" value={mix.fadeIn} onChange={(e) => patchMix({ fadeIn: Number(e.target.value) })} className="mt-1 w-full" /></label>
-                <label className="text-xs">Music fade out: {mix.fadeOut.toFixed(1)}s<input type="range" min="1" max="8" step="0.5" value={mix.fadeOut} onChange={(e) => patchMix({ fadeOut: Number(e.target.value) })} className="mt-1 w-full" /></label>
-              </div>
-              <label className="flex items-center justify-between gap-3 text-xs"><span><span className="block font-medium">Lower music while you speak</span><span className="text-[10px] text-muted-foreground">Music rises again at the end.</span></span><input type="checkbox" checked={mix.ducking} onChange={(e) => patchMix({ ducking: e.target.checked })} className="size-4 accent-current" /></label>
-              <p className="text-[10px] text-muted-foreground">Fade and ducking changes restart the music bed from the beginning of the preview.</p>
-              <div className="flex items-center justify-between text-[10px] text-muted-foreground"><span>Adjust each independently while your Keep plays.</span><button type="button" className="underline" onClick={() => patch({ voiceVolume: 60, musicVolume: 60 })}>Reset levels</button></div>
-            </div>
-        </>}
-        {editorPanel === "Captions" && <>
-          {!rec?.demo && rec?.audioUrl && <div className="mb-3 rounded-lg border border-border bg-background/50 p-3 text-xs"><div className="flex items-center justify-between gap-3"><span>{captionSyncing ? "Syncing captions to your voice…" : project.captionCues.length ? `${project.captionCues.length} caption segments ready` : captionSyncError ? "Captions could not be synchronized." : "Captions have not been generated yet."}</span>{!captionSyncing && !project.captionCues.length && <Button variant="quiet" size="sm" onClick={() => void retryCaptionSync()}><RotateCcw className="size-3.5" /> Retry sync</Button>}</div>{!captionSyncing && !project.captionCues.length && <p className="mt-2 text-[10px] text-muted-foreground">Your voice recording is saved. Retrying captions will not erase it.</p>}</div>}
-          <div className="mb-3 flex items-center justify-between"><div><p className="font-display text-2xl">Captions</p><p className="mt-1 text-[10px] text-muted-foreground">{project.captionCues.length ? "Synced to your voice." : "Choose how your words appear."}</p></div><Button variant="bare" size="icon" aria-label="Close captions" onClick={() => setEditorPanel(null)}><X className="size-4" /></Button></div>
-          <div className="thin-scroll flex gap-2 overflow-x-auto pb-1">{captionOptions.map((c) => <Button key={c} variant={project.captionStyle === c ? "selected" : "quiet"} className="h-16 min-w-28 shrink-0 flex-col whitespace-normal px-3" onClick={() => patch({ captionStyle: c })}><span className={c === "Film" ? "font-display text-lg" : "text-xs"}>{c}</span><small className="text-[8px] font-normal text-muted-foreground">{c === "None" ? "No words" : c === "Reel" ? "Bold" : c === "Film" ? "Elegant" : c === "Story" ? "Emotional" : c === "Minimal" ? "Quiet" : "Simple"}</small></Button>)}</div>
-          <div className="mt-4 space-y-3 rounded-lg border border-border bg-background/50 p-3">
-            <div><label className="mb-1 block text-xs font-medium" htmlFor="caption-words">Words per caption: {project.captionWordsPerCue ?? 5}</label><input id="caption-words" type="range" min="1" max="18" value={project.captionWordsPerCue ?? 5} className="w-full" onChange={(e) => { const count = Number(e.target.value); patch({ captionWordsPerCue: count, ...(project.captionWords?.length ? { captionCues: groupTimedWords(project.captionWords, count) } : {}) }); }} /><p className="text-[10px] text-muted-foreground">Choose one word at a time or longer phrases. Timing follows each spoken word.</p></div>
-            <div><label className="mb-1 block text-xs font-medium" htmlFor="caption-lines">Maximum display lines</label><select id="caption-lines" className="w-full rounded-md border border-border bg-background p-2 text-xs" value={project.captionLines ?? 2} onChange={(e) => patch({ captionLines: Number(e.target.value) })}><option value={1}>1 line</option><option value={2}>2 lines</option><option value={3}>3 lines</option></select></div>
-            <div><p className="mb-1 text-xs font-medium">Position</p><div className="flex gap-2">{(["top","middle","bottom"] as const).map((pos) => <Button key={pos} size="sm" variant={(project.captionPosition ?? "bottom") === pos ? "selected" : "quiet"} className="flex-1 capitalize" onClick={() => patch({ captionPosition: pos })}>{pos}</Button>)}</div></div>
-            <p className="text-xs font-medium">Edit individual caption segments</p>
-            <div className="max-h-52 space-y-2 overflow-y-auto">{project.captionCues.map((cue, i) => <div key={i} className="rounded-md border border-border/60 p-2"><div className="mb-1 flex items-center justify-between"><button type="button" className="text-[10px] underline" onClick={() => seekEditor(cue.start)}>{cue.start.toFixed(1)}s – {cue.end.toFixed(1)}s · Preview</button><span className="text-[10px] text-muted-foreground">#{i + 1}</span></div><textarea aria-label={`Caption segment ${i+1}`} onFocus={() => { setEditorPlaying(false); seekEditor(cue.start); }} rows={2} className="w-full resize-y rounded border border-border bg-background p-2 text-xs" value={cue.text} onChange={(e) => patch({ captionCues: project.captionCues.map((c, j) => j === i ? { ...c, text: e.target.value } : c) })} /><div className="mt-1 flex gap-2"><label className="flex-1 text-[10px]">Start (s)<input type="number" min={0} step={0.1} className="w-full rounded border border-border bg-background p-1" value={cue.start.toFixed(2)} onChange={(e) => patch({ captionCues: project.captionCues.map((c,j) => j === i ? { ...c, start: Math.max(0, Number(e.target.value)) } : c) })}/></label><label className="flex-1 text-[10px]">End (s)<input type="number" min={0} step={0.1} className="w-full rounded border border-border bg-background p-1" value={cue.end.toFixed(2)} onChange={(e) => patch({ captionCues: project.captionCues.map((c,j) => j === i ? { ...c, end: Math.max(0, Number(e.target.value)) } : c) })}/></label></div></div>)}</div>
-            {!!project.captionWords?.length && <Button variant="quiet" size="sm" onClick={() => patch({ captionCues: groupTimedWords(project.captionWords ?? [], project.captionWordsPerCue ?? 5) })}>Restore automatic timing and text</Button>}
-          </div>
-        </>}
-        {editorPanel === "Style" && <>
-          <div className="mb-3 flex items-center justify-between"><div><p className="font-display text-2xl">Style</p><p className="mt-1 text-[10px] text-muted-foreground">Tap a look and see it above instantly.</p></div><Button variant="bare" size="icon" aria-label="Close style" onClick={() => setEditorPanel(null)}><X className="size-4" /></Button></div>
-          <div className="thin-scroll flex gap-2 overflow-x-auto pb-1">{styles.map((style) => <button key={style.name} type="button" onClick={() => patch({ visualStyle: style.name })} className={`w-24 shrink-0 overflow-hidden rounded-lg border text-left ${project.visualStyle === style.name ? "border-accent ring-1 ring-accent" : "border-border"}`}><div className="relative h-14 overflow-hidden"><MediaView item={selected} thumb alt={style.name} className={`h-full w-full object-cover editor-image-${styleSlug(style.name)}`} /></div><div className="p-2"><p className="text-[10px] font-medium">{style.name}</p></div></button>)}</div>
-        </>}
+      {(editorPanel === "Music" || editorPanel === "Captions" || editorPanel === "Style") && <div className={`border-t border-border/60 bg-card/55 backdrop-blur-md page-enter ${editorPanel === "Captions" || editorPanel === "Music" || editorPanel === "Style" ? "" : "px-5 py-3"}`}>
+        {editorPanel === "Music" && <KeepMusicEditor
+          tracks={tracks}
+          selected={project.musicMood}
+          sampling={musicSampling}
+          voiceVolume={project.voiceVolume ?? 60}
+          musicVolume={project.musicVolume ?? 60}
+          mix={mix}
+          onClose={() => { stopMusicSample(); setMusicSampling(""); setEditorPanel(null); }}
+          onSample={(track) => { void toggleMusicSample(track); }}
+          onSelect={(track) => { stopMusicSample(); setMusicSampling(""); patch({musicMood:track}); }}
+          onSetVolume={(kind,value) => patch(kind === "voice" ? {voiceVolume:value} : {musicVolume:value})}
+          onSetMix={patchMix}
+          onHearWithVoice={() => {
+            stopMusicSample(); setMusicSampling("");
+            if(editorTime >= editorDuration - .1) seekEditor(0);
+            setEditorPlaying(true);
+          }}
+        />}
+        {editorPanel === "Captions" && <KeepCaptionEditor
+          cues={project.captionCues}
+          time={editorTime}
+          style={project.captionStyle}
+          position={project.captionPosition ?? "bottom"}
+          maxLines={project.captionLines ?? 2}
+          wordsPerCue={project.captionWordsPerCue ?? 5}
+          syncing={captionSyncing}
+          syncError={captionSyncError}
+          hasVoice={!!rec?.audioUrl && !rec.demo}
+          canRestore={!!project.captionWords?.length}
+          onClose={() => setEditorPanel(null)}
+          onSeek={(seconds) => { setEditorPlaying(false); seekEditor(seconds); }}
+          onChangeCaption={(i,text) => patch({captionCues:project.captionCues.map((c,j)=>j===i?{...c,text}:c)})}
+          onChangeCaptionTime={(i,startTime,endTime) => patch({captionCues:project.captionCues.map((c,j)=>j===i?{...c,start:Math.max(0,Math.min(startTime,endTime-.1)),end:Math.min(editorDuration,Math.max(endTime,startTime+.1))}:c)})}
+          onChangeStyle={(style) => patch({captionStyle:style})}
+          onChangePosition={(position) => patch({captionPosition:position})}
+          onChangeLines={(lines) => patch({captionLines:lines})}
+          onRegroup={(wordsPerCue) => patch({captionWordsPerCue:wordsPerCue,...(project.captionWords?.length ? {captionCues:groupTimedWords(project.captionWords,wordsPerCue)}:{})})}
+          onRestore={() => patch({captionCues:groupTimedWords(project.captionWords ?? [],project.captionWordsPerCue ?? 5)})}
+          onRetrySync={() => void retryCaptionSync()}
+        />}
+        {editorPanel === "Style" && <KeepStyleEditor
+          looks={styles}
+          currentLook={project.visualStyle}
+          moment={selected}
+          currentTransition={selected.transition ?? "dissolve"}
+          compareOriginal={compareOriginalStyle}
+          onLook={(name) => patch({visualStyle:name})}
+          onTransition={(transition) => updateSelectedMoment({transition})}
+          hasNextMoment={frame % Math.max(1,shown.length) < shown.length - 1}
+          onPreviewTransition={previewCurrentTransition}
+          onCompare={setCompareOriginalStyle}
+          onClose={() => { setCompareOriginalStyle(false); setEditorPanel(null); }}
+        />}
       </div>}
 
       {!editorPanel && <KeepTimeline
@@ -1266,7 +1303,7 @@ function KeepApp() {
         onSelect={(i) => { setEditorPlaying(false); setFrame(i); }}
         onMove={moveMemory}
         onDuration={(i,seconds) => patch({ memories: shown.map((m,j)=>j===i?{...m,displayDurationSec:seconds}:m) })}
-        onCaption={(i) => { setEditorPanel("Captions"); seekEditor(project.captionCues[i]?.start??0); }}
+        onCaption={(i) => { setEditorPlaying(false); setEditorPanel("Captions"); seekEditor(project.captionCues[i]?.start??0); }}
         onAdd={() => addInput.current?.click()}
         onVoice={() => setEditorPanel("Voice")}
         onMusic={() => setEditorPanel("Music")}
@@ -1294,7 +1331,7 @@ function KeepApp() {
           <p className="text-xs">Touch and drag the photo above to reposition it. Changes appear instantly.</p>
           <label className="block text-xs">Zoom: {Math.round((selected?.zoom ?? 1.08) * 100)}%<input type="range" min="100" max="140" step="1" value={Math.round((selected?.zoom ?? 1.08) * 100)} className="mt-1 w-full" onChange={(e) => patch({ memories: shown.map((m,i) => i === frame % shown.length ? { ...m, zoom: Number(e.target.value) / 100 } : m) })} /></label>
           <div><p className="mb-2 text-xs">Motion direction</p><div className="grid grid-cols-4 gap-1">{(["in","out","left","right"] as const).map((direction) => <Button key={direction} size="sm" variant={(selected?.motion ?? "in") === direction ? "selected" : "quiet"} className="capitalize px-1 text-[10px]" onClick={() => patch({ memories: shown.map((m,i) => i === frame % shown.length ? { ...m, motion: direction } : m) })}>{direction}</Button>)}</div></div>
-          <div><p className="mb-2 text-xs">Transition · tap to preview</p><div className="grid grid-cols-3 gap-1">{(["fade","dissolve","cut"] as const).map((transition) => <Button key={transition} size="sm" variant={(selected?.transition ?? "fade") === transition ? "selected" : "quiet"} className="capitalize text-[11px]" onClick={() => { updateSelectedMoment({ transition }); setEditorPlaying(true); }}>{transition === "cut" ? "Instant" : transition === "dissolve" ? "Dissolve" : "Fade"}</Button>)}</div></div>
+          <div><p className="mb-2 text-xs">Transition into next photo</p><div className="grid grid-cols-3 gap-1">{(["fade","dissolve","cut"] as const).map((transition) => <Button key={transition} size="sm" variant={(selected?.transition ?? "fade") === transition ? "selected" : "quiet"} className="capitalize text-[11px]" onClick={() => { updateSelectedMoment({ transition }); previewCurrentTransition(); }}>{transition === "cut" ? "Instant" : transition === "dissolve" ? "Dissolve" : "Fade"}</Button>)}</div></div>
           <label className="block text-xs">Moment duration: {selected?.displayDurationSec ?? 7}s<input type="range" min="4" max="15" step="1" value={selected?.displayDurationSec ?? 7} className="mt-1 w-full" onChange={(e) => patch({ memories: shown.map((m,i) => i === frame % shown.length ? { ...m, displayDurationSec: Number(e.target.value) } : m) })} /></label>
           <Button variant="quiet" size="sm" onClick={() => patch({ memories: shown.map((m,i) => i === frame % shown.length ? { ...m, focusX: 50, focusY: 50, zoom: 1.08, motion: "in" } : m) })}>Reset framing</Button>
         </div>
@@ -1304,39 +1341,26 @@ function KeepApp() {
         </div>
       </div>)}
 
-      {editorPanel === "Voice" && editorToolPanel("Voice & words", () => setEditorPanel(null), <div className="pb-2">
-        <p className="mt-2 text-xs leading-5 text-muted-foreground">Remember something you want to add? You can change the words or record your voice again without losing the rest of your Keep.</p>
-        <div className="mt-6 space-y-3">
-          <button type="button" onClick={editWordsFromEditor} className="flex w-full items-center justify-between rounded-xl border border-border bg-background/45 p-5 text-left transition-colors hover:border-accent/45">
-            <span className="flex items-center gap-4">
-              <span className="flex size-11 shrink-0 items-center justify-center rounded-full border border-accent/25 bg-accent/[0.05] text-accent"><MessageCircle className="size-5" /></span>
-              <span>
-                <strong className="block font-display text-2xl font-normal">Edit my words</strong>
-                <small className="mt-1 block max-w-[250px] text-[11px] leading-5 text-muted-foreground">Add a memory, change a line, or use Ask KEEP again. Then record the updated message.</small>
-              </span>
-            </span>
-            <ArrowRight className="size-4 shrink-0 text-accent" />
-          </button>
-
-          <button type="button" onClick={rerecordFromEditor} className="flex w-full items-center justify-between rounded-xl border border-border bg-background/45 p-5 text-left transition-colors hover:border-accent/45">
-            <span className="flex items-center gap-4">
-              <span className="flex size-11 shrink-0 items-center justify-center rounded-full border border-accent/25 bg-accent/[0.05] text-accent"><Mic className="size-5" /></span>
-              <span>
-                <strong className="block font-display text-2xl font-normal">Re-record my voice</strong>
-                <small className="mt-1 block max-w-[250px] text-[11px] leading-5 text-muted-foreground">Keep your current words and record them again with the teleprompter.</small>
-              </span>
-            </span>
-            <ArrowRight className="size-4 shrink-0 text-accent" />
-          </button>
-        </div>
-        <div className="mt-6 rounded-lg border border-accent/15 bg-accent/[0.03] p-4">
-          <p className="text-xs leading-5 text-muted-foreground">Your photos, order, music, captions, and visual style stay exactly as they are while you update the words or voice.</p>
-        </div>
-      </div>)}
+      {editorPanel === "Voice" && <KeepVoiceEditor
+        hasVoice={!!rec?.audioUrl && !rec.demo}
+        duration={rec?.durationSec}
+        playing={editorPlaying}
+        tone={mix.voiceTone ?? "natural"}
+        voiceVolume={project.voiceVolume ?? 60}
+        musicVolume={project.musicVolume ?? 60}
+        mix={mix}
+        onClose={() => setEditorPanel(null)}
+        onEditWords={editWordsFromEditor}
+        onRerecord={rerecordFromEditor}
+        onPlayPreview={() => { if(editorTime >= editorDuration - .1) seekEditor(0); setEditorPlaying(v=>!v); }}
+        onTone={(tone) => patchMix({voiceTone:tone})}
+        onVolume={(kind,value) => patch(kind === "voice" ? {voiceVolume:value} : {musicVolume:value})}
+        onMix={patchMix}
+      />}
 
       </div>
       <nav className="keep-studio-tools" aria-label="Editing tools">
-        {([{ panel: null, label: "Timeline", Icon: GripVertical }, { panel: "Memories", label: "Photos", Icon: Images }, { panel: "Captions", label: "Captions", Icon: MessageCircle }, { panel: "Music", label: "Music", Icon: Music2 }, { panel: "Voice", label: "Voice", Icon: Mic }, { panel: "Style", label: "Style", Icon: Sparkles }] as const).map(({ panel, label, Icon }) => <button key={label} type="button" aria-pressed={editorPanel === panel} onClick={() => { stopMusicSample(); setMusicSampling(""); setEditorPanel(panel); }}><Icon /><span>{label}</span></button>)}
+        {([{ panel: null, label: "Timeline", Icon: GripVertical }, { panel: "Memories", label: "Photos", Icon: Images }, { panel: "Captions", label: "Captions", Icon: MessageCircle }, { panel: "Music", label: "Music", Icon: Music2 }, { panel: "Voice", label: "Voice", Icon: Mic }, { panel: "Style", label: "Style", Icon: Sparkles }] as const).map(({ panel, label, Icon }) => <button key={label} type="button" aria-pressed={editorPanel === panel} onClick={() => { stopMusicSample(); setMusicSampling(""); setCompareOriginalStyle(false); setEditorPanel(panel); }}><Icon /><span>{label}</span></button>)}
       </nav>
 
       {previewChooserOpen && sheet("Preview your Keep", () => { setPreviewChooserOpen(false); setReadArrangeOpen(false); }, <div className="pb-2">
@@ -1362,15 +1386,15 @@ function KeepApp() {
     </div>}
     {screen === "preview" && (viewingDemo
       ? <KeepPlayer name="HANNA" from="Alex" year="2026" onExit={back} onFinish={home} />
-      : <KeepPlayer name={(name || "Your Keep").toUpperCase()} from="Alex" year="2026" subtitle={project.occasion} onExit={back} onFinish={() => { setScreen("editor"); resetPageScroll(); }} style={project.visualStyle} captions={project.captionStyle} media={frames.length ? frames.map((m) => ({ url: m.url, kind: m.kind, displayDurationSec: m.displayDurationSec ?? 7, focusX: m.focusX, focusY: m.focusY, zoom: m.zoom, motion: m.motion })) : undefined} audioUrl={rec && !rec.demo ? rec.audioUrl : undefined} audioDuration={rec?.durationSec} lines={captionLines} captionCues={project.captionCues} musicMood={project.musicMood} voiceMusicBalance={project.voiceMusicBalance} voiceVolume={project.voiceVolume} musicVolume={project.musicVolume} captionPosition={project.captionPosition} captionLines={project.captionLines} audioMix={mix} />)}
+      : <KeepPlayer name={(name || "Your Keep").toUpperCase()} from="Alex" year="2026" subtitle={project.occasion} onExit={back} onFinish={() => { setScreen("editor"); resetPageScroll(); }} style={project.visualStyle} captions={project.captionStyle} media={frames.length ? frames.map((m) => ({ url: m.url, kind: m.kind, displayDurationSec: m.displayDurationSec ?? 7, focusX: m.focusX, focusY: m.focusY, zoom: m.zoom, motion: m.motion, transition: m.transition })) : undefined} audioUrl={rec && !rec.demo ? rec.audioUrl : undefined} audioDuration={rec?.durationSec} lines={captionLines} captionCues={project.captionCues} musicMood={project.musicMood} voiceMusicBalance={project.voiceMusicBalance} voiceVolume={project.voiceVolume} musicVolume={project.musicVolume} captionPosition={project.captionPosition} captionLines={project.captionLines} audioMix={mix} />)}
     {screen === "recipientPreview" && <KeepRecipientExperience
       name={(name || engraving[0] || "You").trim()}
       from={(engraving[1]?.replace(/^FROM\s+/i, "") || "Alex").trim()}
       year={(engraving[2] || "2026").trim()}
       subtitle={project.occasion}
       openingMessage={project.openingMessage}
-      media={frames.length ? frames.map((m) => ({ url: m.url, kind: m.kind, displayDurationSec: m.displayDurationSec ?? 7, focusX: m.focusX, focusY: m.focusY, zoom: m.zoom, motion: m.motion })) : undefined}
-      readMedia={readOrderedFrames.length ? readOrderedFrames.map((m) => ({ url: m.url, kind: m.kind, displayDurationSec: m.displayDurationSec ?? 7, focusX: m.focusX, focusY: m.focusY, zoom: m.zoom, motion: m.motion })) : undefined}
+      media={frames.length ? frames.map((m) => ({ url: m.url, kind: m.kind, displayDurationSec: m.displayDurationSec ?? 7, focusX: m.focusX, focusY: m.focusY, zoom: m.zoom, motion: m.motion, transition: m.transition })) : undefined}
+      readMedia={readOrderedFrames.length ? readOrderedFrames.map((m) => ({ url: m.url, kind: m.kind, displayDurationSec: m.displayDurationSec ?? 7, focusX: m.focusX, focusY: m.focusY, zoom: m.zoom, motion: m.motion, transition: m.transition })) : undefined}
       audioUrl={rec && !rec.demo ? rec.audioUrl : undefined}
       audioDuration={rec?.durationSec}
       messageParagraphs={project.messageParagraphs.length ? project.messageParagraphs : initialMessage.map((p) => withName(p, name))}
@@ -1392,7 +1416,7 @@ function KeepApp() {
       year={(engraving[2] || "").trim()}
       openingMessage={project.openingMessage}
       subtitle={project.occasion}
-      media={frames.length ? frames.map((m) => ({ url: m.url, kind: m.kind, displayDurationSec: m.displayDurationSec ?? 7, focusX: m.focusX, focusY: m.focusY, zoom: m.zoom, motion: m.motion })) : undefined}
+      media={frames.length ? frames.map((m) => ({ url: m.url, kind: m.kind, displayDurationSec: m.displayDurationSec ?? 7, focusX: m.focusX, focusY: m.focusY, zoom: m.zoom, motion: m.motion, transition: m.transition })) : undefined}
       readMedia={readOrderedFrames.length ? readOrderedFrames.map((m) => ({ url: m.url, kind: m.kind })) : undefined}
       audioUrl={rec && !rec.demo ? rec.audioUrl : undefined}
       audioDuration={rec?.durationSec}
@@ -1404,7 +1428,7 @@ function KeepApp() {
       onCreatorExit={() => { setScreen("card"); resetPageScroll(); }}
       onCreatorContinue={() => { setScreen("card"); resetPageScroll(); }}
     />}
-    {screen === "card" && <>{top()}<div className="px-7 pb-10 pt-7">{title("The final touch", "Give it somewhere to live.", "Your card opens this Keep with a tap. No app or login required.")}<div className="card-object relative mx-auto aspect-[1.586] w-full max-w-none overflow-hidden rounded-lg border border-foreground/10 p-7 text-white"><span className="brand absolute left-7 top-7 text-sm text-white">keep</span><div className="absolute left-7 top-[42%] flex -translate-y-1/2 flex-col items-start gap-1 text-left text-[11px] tracking-[.2em] text-white"><strong className="font-normal">{engraving[0]}</strong>{engraving[1] && <span>{engraving[1]}</span>}{engraving[2] && <span>{engraving[2]}</span>}</div></div><div className="mt-9 space-y-4">{["To / Title", "From (optional)", "Date (optional)"].map((label, i) => <label key={label} className="block"><span className="eyebrow">{label}</span><input aria-label={`Card ${label}`} maxLength={22} value={engraving[i] ?? ""} onChange={(e) => updateEngraving(i, e.target.value)} className="mt-2 w-full border-0 border-b border-border bg-transparent pb-3 text-sm tracking-widest outline-none focus:border-accent" /></label>)}</div><div className="mt-9 space-y-3 border-t border-border pt-7"><h2 className="font-display text-2xl">Your opening message</h2><p className="text-xs leading-5 text-muted-foreground">The first words they'll see when they tap your card. Keep it short and personal.</p><label className="block"><span className="sr-only">Opening message</span><textarea aria-label="Opening message" maxLength={160} rows={3} placeholder="Made just for you." value={project.openingMessage ?? "Made just for you."} onChange={(e) => patch({ openingMessage: e.target.value })} className="mt-2 w-full resize-none rounded-xl border border-border bg-background p-4 font-display text-lg outline-none focus:border-accent" /></label><div className="flex items-center justify-between"><span className="text-[11px] text-muted-foreground">{(project.openingMessage ?? "Made just for you.").length}/160</span><Button variant="quiet" size="sm" onClick={() => { go("recipientReveal"); }}>Preview card opening <ArrowRight className="size-4" /></Button></div></div><div className="mt-10">{engraving[0]?.trim() && <KeepPublishPanel project={project} onChange={patch} onPublished={() => go("success")} />}</div><p className="mt-3 text-center text-[11px] text-muted-foreground">Only To / Title is required. Use your own NFC card with the viewing link.</p></div></>}
-    {screen === "success" && <div className="flex keep-min-screen flex-col justify-between px-7 pb-10 pt-10"><span className="brand">keep</span><div className="py-12"><div className="mb-10 flex size-13 items-center justify-center rounded-full border border-accent text-accent"><Check /></div>{title("", "Your Keep is ready.")}<button type="button" className="card-object relative mt-12 block aspect-[1.586] w-full overflow-hidden rounded-lg border border-foreground/10 p-7 text-left text-white" onClick={() => setCardBack(!cardBack)} aria-label={cardBack ? "View front of keepsake card" : "View back of keepsake card"}>{!cardBack ? <><span className="brand absolute left-7 top-7 text-lg text-white">keep</span><div className="absolute left-7 top-[42%] flex -translate-y-1/2 flex-col items-start gap-1 text-left text-[11px] tracking-[.2em] text-white"><span>{engraving[0]}</span>{engraving[1] && <span>{engraving[1]}</span>}{engraving[2] && <span>{engraving[2]}</span>}</div></> : <div className="absolute inset-x-0 bottom-6 flex flex-col items-center gap-2 px-7 text-center text-[11px] font-normal tracking-[.2em] text-white"><span>SOME THINGS ARE WORTH KEEPING.</span><Radio className="size-4 stroke-[1.5]" aria-hidden="true" /></div>}</button><Button variant="bare" className="mx-auto mt-3 flex h-auto items-center gap-2 px-3 py-2 text-xs text-muted-foreground" onClick={() => setCardBack(!cardBack)}>{cardBack ? "View front" : "View back"} <RotateCcw className="size-3.5" /></Button><p className="mt-2 text-xs text-muted-foreground">{engraving[0]}{engraving[1] ? ` · ${engraving[1].toLowerCase()}` : ""}{engraving[2] ? ` · ${engraving[2]}` : ""}</p><p className="mt-3 text-xs leading-5 text-muted-foreground">Physical card ordering is coming next. No card has been ordered or shipped.</p></div><div className="space-y-3"><KeepPublishPanel project={project} onChange={patch} /><Button variant="quiet" size="touch" className="w-full" onClick={() => go("editor")}>Back to editor</Button><Button asChild variant="quiet" size="touch" className="w-full"><Link to="/app">Back to Keeps</Link></Button></div></div>}
+    {screen === "card" && <>{top()}<div className="px-7 pb-10 pt-7">{title("The final touch", "Give it somewhere to live.", "Your card opens this Keep with a tap. No app or login required.")}<div className="card-object relative mx-auto aspect-[1.586] w-full max-w-none overflow-hidden rounded-lg border border-foreground/10 p-7 text-white"><span className="brand absolute left-7 top-7 text-sm text-white">Keep</span><div className="absolute left-7 top-[42%] flex -translate-y-1/2 flex-col items-start gap-1 text-left text-[11px] tracking-[.2em] text-white"><strong className="font-normal">{engraving[0]}</strong>{engraving[1] && <span>{engraving[1]}</span>}{engraving[2] && <span>{engraving[2]}</span>}</div></div><div className="mt-9 space-y-4">{["To / Title", "From (optional)", "Date (optional)"].map((label, i) => <label key={label} className="block"><span className="eyebrow">{label}</span><input aria-label={`Card ${label}`} maxLength={22} value={engraving[i] ?? ""} onChange={(e) => updateEngraving(i, e.target.value)} className="mt-2 w-full border-0 border-b border-border bg-transparent pb-3 text-sm tracking-widest outline-none focus:border-accent" /></label>)}</div><div className="mt-9 space-y-3 border-t border-border pt-7"><h2 className="font-display text-2xl">Your opening message</h2><p className="text-xs leading-5 text-muted-foreground">The first words they'll see when they tap your card. Keep it short and personal.</p><label className="block"><span className="sr-only">Opening message</span><textarea aria-label="Opening message" maxLength={160} rows={3} placeholder="Made just for you." value={project.openingMessage ?? "Made just for you."} onChange={(e) => patch({ openingMessage: e.target.value })} className="mt-2 w-full resize-none rounded-xl border border-border bg-background p-4 font-display text-lg outline-none focus:border-accent" /></label><div className="flex items-center justify-between"><span className="text-[11px] text-muted-foreground">{(project.openingMessage ?? "Made just for you.").length}/160</span><Button variant="quiet" size="sm" onClick={() => { go("recipientReveal"); }}>Preview card opening <ArrowRight className="size-4" /></Button></div></div><div className="mt-10">{engraving[0]?.trim() && <KeepPublishPanel project={project} onChange={patch} onPublished={() => go("success")} />}</div><p className="mt-3 text-center text-[11px] text-muted-foreground">Only To / Title is required. Use your own NFC card with the viewing link.</p></div></>}
+    {screen === "success" && <div className="flex keep-min-screen flex-col justify-between px-7 pb-10 pt-10"><span className="brand">Keep</span><div className="py-12"><div className="mb-10 flex size-13 items-center justify-center rounded-full border border-accent text-accent"><Check /></div>{title("", "Your Keep is ready.")}<button type="button" className="card-object relative mt-12 block aspect-[1.586] w-full overflow-hidden rounded-lg border border-foreground/10 p-7 text-left text-white" onClick={() => setCardBack(!cardBack)} aria-label={cardBack ? "View front of keepsake card" : "View back of keepsake card"}>{!cardBack ? <><span className="brand absolute left-7 top-7 text-lg text-white">Keep</span><div className="absolute left-7 top-[42%] flex -translate-y-1/2 flex-col items-start gap-1 text-left text-[11px] tracking-[.2em] text-white"><span>{engraving[0]}</span>{engraving[1] && <span>{engraving[1]}</span>}{engraving[2] && <span>{engraving[2]}</span>}</div></> : <div className="absolute inset-x-0 bottom-6 flex flex-col items-center gap-2 px-7 text-center text-[11px] font-normal tracking-[.2em] text-white"><span>SOME THINGS ARE WORTH KEEPING.</span><Radio className="size-4 stroke-[1.5]" aria-hidden="true" /></div>}</button><Button variant="bare" className="mx-auto mt-3 flex h-auto items-center gap-2 px-3 py-2 text-xs text-muted-foreground" onClick={() => setCardBack(!cardBack)}>{cardBack ? "View front" : "View back"} <RotateCcw className="size-3.5" /></Button><p className="mt-2 text-xs text-muted-foreground">{engraving[0]}{engraving[1] ? ` · ${engraving[1].toLowerCase()}` : ""}{engraving[2] ? ` · ${engraving[2]}` : ""}</p><p className="mt-3 text-xs leading-5 text-muted-foreground">Physical card ordering is coming next. No card has been ordered or shipped.</p></div><div className="space-y-3"><KeepPublishPanel project={project} onChange={patch} /><Button variant="quiet" size="touch" className="w-full" onClick={() => go("editor")}>Back to editor</Button><Button asChild variant="quiet" size="touch" className="w-full"><Link to="/app">Back to Keeps</Link></Button></div></div>}
   </div></main>;
 }

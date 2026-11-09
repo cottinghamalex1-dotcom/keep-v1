@@ -22,7 +22,7 @@
   --color-ring: var(--ring);
   --color-destructive: var(--destructive);
   --font-sans: "DM Sans", sans-serif;
-  --font-display: "Cormorant Garamond", Georgia, serif;
+  --font-display: "Playfair Display", Georgia, serif;
 }
 
 :root {
@@ -78,14 +78,18 @@ button { -webkit-tap-highlight-color: transparent; }
 .voice-progress::-moz-range-thumb { width: 14px; height: 14px; border-radius: 999px; border: 1px solid color-mix(in oklch, var(--accent) 70%, white 10%); background: var(--accent); box-shadow: 0 0 18px oklch(.76 .055 78 / 35%); }
 .safe-bottom { padding-bottom: max(20px, env(safe-area-inset-bottom)); }
 .nav-bottom { padding-bottom: max(10px, env(safe-area-inset-bottom)); }
+/* Distinct, real-time color treatments shared by thumbnail, editor and full playback.
+   Keep filters on the media element, not on the captions or player controls. */
 .editor-image-natural { filter: none; }
-.editor-image-warm { filter: sepia(.16) saturate(.88) contrast(.96) brightness(1.02); }
-.editor-image-film { filter: sepia(.12) contrast(1.14) saturate(.74) brightness(.96); }
-.editor-image-modern { filter: contrast(1.1) saturate(1.08); }
-.editor-image-black-white { filter: grayscale(1) contrast(1.08) brightness(.98); }
-.editor-image-vintage { filter: sepia(.36) saturate(.72) contrast(.92) brightness(.96); }
-.editor-image-soft { filter: contrast(.86) saturate(.9) brightness(1.08); }
-.editor-image-dreamy { filter: contrast(.9) saturate(1.08) brightness(1.06); }
+.editor-image-warm { filter: sepia(.24) saturate(1.22) contrast(1.06) brightness(1.025); }
+.editor-image-film { filter: sepia(.20) saturate(.72) contrast(1.23) brightness(.93); }
+.editor-image-modern { filter: contrast(1.16) saturate(1.32) brightness(1.035); }
+.editor-image-black-white { filter: grayscale(1) contrast(1.22) brightness(1.03); }
+.editor-image-vintage { filter: sepia(.58) saturate(.76) contrast(.90) brightness(1.045); }
+.editor-image-soft { filter: saturate(.78) contrast(.83) brightness(1.13); }
+.editor-image-dreamy { filter: sepia(.05) saturate(1.15) contrast(.85) brightness(1.13) hue-rotate(-8deg); }
+.keep-style-editor img, .keep-style-editor video { transition: filter .25s ease-out; }
+.keep-studio-canvas img, .keep-studio-canvas video { backface-visibility: hidden; }
 .memory-scene { animation: memory-reveal .85s ease-out both; }
 .caption-enter { animation: caption-in .32s ease-out both; }
 .cinematic-intro,
@@ -130,7 +134,7 @@ button { transition: background-color .18s ease, border-color .18s ease, color .
 .app-shell :is(input,textarea) { color: var(--foreground); }
 .app-shell :is(input,textarea)::placeholder { color: #89847D; }
 .app-shell :is(button,a,input,textarea):focus-visible { outline: 1px solid var(--accent); outline-offset: 3px; }
-.app-shell .brand { text-transform: lowercase; }
+.app-shell .brand { text-transform: none; }
 .app-shell :is(.rounded-2xl,.rounded-xl) { border-radius: 10px; }
 .app-shell .eyebrow { color: var(--muted-foreground); }
 @media (max-width: 420px) { .app-shell .display { letter-spacing: -.025em; } }
@@ -320,3 +324,226 @@ button { transition: background-color .18s ease, border-color .18s ease, color .
 .keep-studio-tools button:hover:not([aria-pressed=true]) { background: #ffffff0a; color: white; }
 @media (min-width: 768px) { .keep-studio-stage { flex-basis: 48%; } }
 @media (max-height: 500px) { .keep-studio-stage { flex-basis: 35%; } .keep-studio-tools button { min-height: 44px; gap: 3px; } }
+
+
+/* KEEP BRAND IDENTITY v1.1 — approved light editorial direction.
+   Black metal cards and video frames remain dark; surrounding UI is warm ivory. */
+:root {
+  color-scheme: light;
+  --background: #F7F5F2;
+  --foreground: #0B0B0B;
+  --card: #FFFDFC;
+  --card-foreground: #0B0B0B;
+  --popover: #FFFDFC;
+  --popover-foreground: #0B0B0B;
+  --primary: #0B0B0B;
+  --primary-foreground: #F7F5F2;
+  --secondary: #E6DED3;
+  --secondary-foreground: #0B0B0B;
+  --muted: #F0EBE5;
+  --muted-foreground: #57534D;
+  --accent: #6A5849; /* Accessible taupe ink for small text and UI icons */
+  --accent-foreground: #FFFFFF;
+  --border: #D8D0C7;
+  --input: #D8D0C7;
+  --ring: #8C7561;
+  --keep-black: #0B0B0B;
+  --keep-surface: #F7F5F2;
+  --keep-elevated: #FFFDFC;
+  --keep-ivory: #F7F5F2;
+  --keep-stone: #4A4A45;
+  --keep-champagne: #B8A999;
+  --keep-taupe: #B8A999;
+  --keep-hairline: rgba(11,11,11,.14);
+  --keep-quiet-surface: #F0EBE5;
+  --keep-elevation: #FFFDFC;
+}
+body { font-size: 16px; line-height: 1.6; -webkit-font-smoothing: antialiased; }
+.brand, .keep-wordmark, .app-shell .brand {
+  font-family: "Playfair Display", Georgia, serif;
+  font-weight: 500;
+  font-size: 29px;
+  letter-spacing: -.045em;
+  line-height: 1.13;
+  color: var(--foreground);
+  text-transform: none;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.display, .keep-editorial-title, .keep-section-title, .keep-reading {
+  font-family: "Playfair Display", Georgia, serif;
+  font-weight: 400;
+}
+.display { line-height: 1.12; letter-spacing: -.035em; }
+.keep-editorial-title { font-size: clamp(38px, 10vw, 44px); line-height: 1.12; letter-spacing: -.035em; }
+.keep-section-title { font-size: clamp(28px, 7.5vw, 36px); line-height: 1.15; letter-spacing: -.025em; }
+.keep-reading { color: var(--foreground); line-height: 1.55; }
+.keep-page-description { color: var(--muted-foreground); font-size: 15px; line-height: 1.7; }
+.keep-editorial-surface { background: #FFFDFC; border-color: var(--keep-hairline); }
+.keep-premium-field { background: #FFFDFC; color: #0B0B0B; border-color: var(--border); }
+.keep-premium-field:focus { border-color: #8C7561; }
+.keep-premium-action { background: #0B0B0B; color: #F7F5F2; border-radius: 10px; }
+.keep-premium-action:hover { background: #34312E; }
+.keep-soft-link { color: #6A5849; }
+.keep-editorial-divider { border-color: var(--keep-hairline); }
+.keep-choice-bubble { border-color: #CFC5BA; background: #FFFDFC; color: #0B0B0B; }
+.keep-choice-bubble:hover { border-color: #8C7561; background: #F0EBE5; }
+.keep-choice-bubble--selected, .keep-choice-bubble--selected:hover {
+  border: 2px solid #4A3B2B;
+  background: #E6DED3;
+  color: #0B0B0B;
+  box-shadow: 0 0 0 1px rgba(74,59,43,.12);
+}
+.keep-choice-check { background: #0B0B0B; color: #F7F5F2; }
+.keep-choice-bubble:focus-visible { outline-color: #4A3B2B; }
+.app-shell :is(input,textarea)::placeholder { color: #746E67; }
+.app-shell :is(.rounded-2xl,.rounded-xl) { border-radius: 12px; }
+.app-shell .eyebrow { color: var(--muted-foreground); letter-spacing: .1em; }
+.keep-horizon-hero::before { opacity: .32; }
+.keep-horizon-hero::after { opacity: .25; }
+.card-object .brand { color: #F7F5F2; }
+.card-object { border-color: rgba(255,255,255,.1); }
+
+/* Dark editing suite: intentionally distinct from the warm ivory creation flow.
+   Keep every part of the studio chrome dark: header, preview surround, panels,
+   timeline, and bottom editing tools. Scoped to the editor only. */
+.keep-studio {
+  --background: #111113;
+  --foreground: #F7F5F2;
+  --card: #222225;
+  --card-foreground: #F7F5F2;
+  --popover: #252528;
+  --popover-foreground: #F7F5F2;
+  --primary: #E8E1D7;
+  --primary-foreground: #111113;
+  --secondary: #29282A;
+  --secondary-foreground: #F7F5F2;
+  --muted: #282729;
+  --muted-foreground: #B4B0AB;
+  --border: #464346;
+  --input: #343236;
+  --accent: #D2BA99;
+  --accent-foreground: #111113;
+  color-scheme: dark;
+  background: #111113;
+  color: #F7F5F2;
+}
+.app-shell:has(.keep-studio),
+body:has(.keep-studio) {
+  background: #111113;
+}
+.keep-studio > div:first-child {
+  background: #111113;
+  border-bottom: 1px solid #333134;
+}
+.keep-studio .brand,
+.keep-studio .keep-wordmark { color: #F7F5F2; }
+.keep-studio-stage {
+  background: radial-gradient(ellipse at center, #252426 0%, #161619 72%, #111113 100%);
+}
+.keep-studio-canvas { background: #101010; color: #FFFFFF; }
+.keep-studio-canvas button { color: #FFFFFF; }
+.keep-studio-canvas input[type="range"] { accent-color: #FFFFFF; }
+.keep-studio-workspace {
+  background: #19191C;
+  border-top: 1px solid #393639;
+  color: #F7F5F2;
+}
+.keep-studio-workspace input[type="range"] { accent-color: #D2BA99; }
+.keep-studio-workspace :is(input:not([type=range]):not([type=checkbox]):not([type=radio]),textarea,select) {
+  background-color: #242326;
+  border-color: #575157;
+  color: #F7F5F2;
+}
+.keep-studio-workspace :is(input,textarea)::placeholder { color: #AAA5A1; }
+.keep-studio .keep-editorial-surface {
+  background: #232225;
+  border-color: #464346;
+}
+.keep-studio .keep-premium-field {
+  background: #242326;
+  color: #F7F5F2;
+  border-color: #575157;
+}
+.keep-studio .keep-premium-action { background: #E8E1D7; color: #111113; }
+.keep-studio .keep-premium-action:hover { background: #F7F5F2; }
+.keep-studio .keep-soft-link { color: #D2BA99; }
+.keep-studio-tools {
+  background: #111113;
+  border-top: 1px solid #3A373A;
+}
+.keep-studio-tools button { color: #B8B3B4; }
+.keep-studio-tools button[aria-pressed=true] {
+  background: #E8E1D7;
+  color: #171618;
+}
+.keep-studio-tools button:hover:not([aria-pressed=true]) {
+  background: #2A292D;
+  color: #F7F5F2;
+}
+.keep-studio-workspace button:focus-visible,
+.keep-studio-tools button:focus-visible {
+  outline: 2px solid #D2BA99;
+  outline-offset: -2px;
+}
+/* The actual film playback is intentionally dark for photographs and captions. */
+.keep-editorial-screen {
+  --background: #111111;
+  --foreground: #F7F5F2;
+  --card: #202020;
+  --card-foreground: #F7F5F2;
+  --primary: #E8E1D7;
+  --primary-foreground: #111111;
+  --muted-foreground: #A5A09A;
+  --border: #41403D;
+  background: #111111;
+  color: #F7F5F2;
+  color-scheme: dark;
+}
+.keep-editorial-screen .keep-wordmark { color: #F7F5F2; }
+@media (max-width: 420px) { .keep-editorial-title { font-size: clamp(38px, 10.3vw, 44px); } }
+
+/* The approved Concept #1 wordmark is an actual vector traced from the selected artwork.
+   CSS masking gives one silhouette in black on ivory and ivory on black. */
+@supports ((mask-image: url("/brand/keep-wordmark.svg")) or (-webkit-mask-image: url("/brand/keep-wordmark.svg"))) {
+  .brand, .keep-wordmark, .app-shell .brand {
+    display: inline-block;
+    flex: 0 0 auto;
+    width: 88px;
+    height: 37px;
+    overflow: hidden;
+    color: var(--foreground);
+    background-color: currentColor;
+    -webkit-mask-image: url("/brand/keep-wordmark.svg");
+    mask-image: url("/brand/keep-wordmark.svg");
+    -webkit-mask-repeat: no-repeat;
+    mask-repeat: no-repeat;
+    -webkit-mask-position: center;
+    mask-position: center;
+    -webkit-mask-size: contain;
+    mask-size: contain;
+    font-size: 0 !important;
+    line-height: 0;
+    vertical-align: middle;
+  }
+  .card-object .brand,
+  .keep-editorial-screen .brand,
+  .keep-editorial-screen .keep-wordmark,
+  .cinematic-intro .brand,
+  .cinematic-ending .brand { color: #F7F5F2; }
+  .keep-studio .brand, .keep-studio .keep-wordmark { color: #F7F5F2; }
+}
+@media (max-width: 420px) {
+  .brand, .keep-wordmark, .app-shell .brand { width: 80px; height: 34px; }
+}
+
+/* Keep opening experience: indeterminate while connecting, real percentage while restoring media. */
+.keep-opening-screen { background: #F7F5F2; color: #0B0B0B; }
+.keep-opening-indeterminate { width: 32%; animation: keep-opening-scan 1.75s ease-in-out infinite; }
+@keyframes keep-opening-scan {
+  0% { transform: translateX(-105%); }
+  100% { transform: translateX(320%); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .keep-opening-indeterminate { animation: none; width: 35%; }
+}
