@@ -821,7 +821,7 @@ function KeepApp() {
     if (screen !== "generating") return;
     if (generation >= 3) {
       const t = window.setTimeout(() => {
-        setHistory((h) => [...h.filter((stage) => stage !== "generating"), "storyStyle"]);
+        // The previous step remains finishing preferences, not the transient build screen.
         setScreen("editor");
         resetPageScroll();
       }, 650);
