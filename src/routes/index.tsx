@@ -1083,27 +1083,31 @@ function KeepApp() {
       </>)}
       {askBusy && <div className="keep-fixed-screen fixed left-0 right-0 top-0 z-[70] flex items-center justify-center bg-background/55 px-8 backdrop-blur-[2px]" role="status" aria-live="polite"><div className="w-full max-w-[300px] rounded-lg border border-accent/25 bg-card px-6 py-7 text-center shadow-2xl page-enter"><div className="mx-auto mb-4 flex size-11 items-center justify-center rounded-full border border-accent/25 bg-accent/[0.05]"><Sparkles className="size-5 animate-pulse text-accent" /></div><p className="font-display text-2xl">KEEP is working on it.</p><p className="mt-2 text-xs leading-5 text-muted-foreground">{askLastScope === "message" ? "Reading your full story and reshaping the message…" : `Refining Section ${activeParagraph + 1} in the context of your whole story…`}</p><div className="mt-5">{wave(15, true)}</div></div></div>}
     </>}
-    {screen === "recordPrep" && <div className="flex keep-min-screen flex-col px-7 pb-[max(36px,env(safe-area-inset-bottom))]">
-      {top()}
-      <div className="flex flex-1 flex-col justify-center py-8">
-        <h1 className="display text-[clamp(48px,13vw,68px)]">Before you record.</h1>
-        <p className="mt-5 whitespace-nowrap text-[11px] leading-5 text-muted-foreground">This doesn't need to sound perfect. It needs to sound like you.</p>
-        <div className="mt-10">
-          <p className="eyebrow mb-5">A FEW SUGGESTIONS</p>
-          <ul className="space-y-5 pl-5 text-left">
-            <li className="list-disc pl-2 marker:text-accent"><strong className="block text-sm font-medium">Find a quiet room.</strong><p className="mt-1 text-xs leading-5 text-muted-foreground">Give your voice a little space from background noise.</p></li>
-            <li className="list-disc pl-2 marker:text-accent"><strong className="block text-sm font-medium">Silence notifications.</strong><p className="mt-1 text-xs leading-5 text-muted-foreground">Keep your phone reasonably close (about 6–12 inches away) and let this moment have your attention.</p></li>
-            <li className="list-disc pl-2 marker:text-accent"><strong className="block text-sm font-medium">Speak naturally.</strong><p className="mt-1 text-xs leading-5 text-muted-foreground">A little slower than normal is great. Pauses are welcome.</p></li>
-            <li className="list-disc pl-2 marker:text-accent"><strong className="block text-sm font-medium">Mistakes are okay.</strong><p className="mt-1 text-xs leading-5 text-muted-foreground">Pause, restart a sentence, laugh, get emotional. It doesn't have to be polished.</p></li>
-          </ul>
+    {screen === "recordPrep" && <div className="fixed inset-0 z-[80] flex items-center justify-center overflow-y-auto bg-[#111113]/65 px-4 pb-[max(16px,env(safe-area-inset-bottom))] pt-[max(16px,env(safe-area-inset-top))] backdrop-blur-[5px]">
+      <section role="dialog" aria-modal="true" aria-labelledby="record-tips-title" aria-describedby="record-tips-intro" className="flex max-h-[calc(100dvh-32px)] w-full max-w-[440px] flex-col overflow-hidden rounded-[22px] border border-[#E6DED3] bg-[#F7F5F2] text-[#0B0B0B] shadow-[0_24px_80px_rgba(0,0,0,.35)]">
+        <div className="min-h-0 overflow-y-auto px-7 pt-7 sm:px-9 sm:pt-9">
+          <div className="mb-6 flex size-11 items-center justify-center rounded-full border border-[#D8C5AC] bg-[#EAE1D7]"><Mic className="size-5 text-[#6A5849]" strokeWidth={1.65} /></div>
+          <h2 id="record-tips-title" className="font-display text-[clamp(35px,9vw,44px)] leading-[1.04] tracking-[-.035em]">Before you record.</h2>
+          <p id="record-tips-intro" className="mt-4 max-w-[34ch] text-[14px] leading-6 text-[#746E67]">It doesn't need to sound perfect. It just needs to sound like you.</p>
+          <div className="mt-7 divide-y divide-[#DDD5CB] border-y border-[#DDD5CB]">
+            {([
+              ["Find a quiet space", "Silence notifications and keep your phone about 6–12 inches away."],
+              ["Speak to them", "Imagine they're right there with you. Read naturally, not like a performance."],
+              ["Take your time", "Go a little slower. Pauses are welcome."],
+              ["Keep the real moments", "A laugh, a stumble, or a little emotion makes it yours."],
+            ] as const).map(([heading, explanation], i) => <div key={heading} className="flex gap-4 py-3.5">
+              <span className="pt-0.5 font-display text-[21px] leading-none text-[#A98D72]">{String(i + 1).padStart(2, "0")}</span>
+              <div className="min-w-0"><h3 className="text-[14px] font-medium leading-5">{heading}</h3><p className="mt-1 text-[12px] leading-[1.55] text-[#746E67]">{explanation}</p></div>
+            </div>)}
+          </div>
         </div>
-        <ul className="mt-5 space-y-5 pl-5 text-left">
-          <li className="list-disc pl-2 marker:text-accent"><strong className="block text-sm font-medium">Don't perform.</strong><p className="mt-1 text-xs leading-5 text-muted-foreground">Talk directly to them. Picture them listening.</p></li>
-        </ul>
-      </div>
-      <div>{nextButton("I'm ready", () => go("record"))}</div>
+        <div className="shrink-0 bg-[#F7F5F2] px-7 pb-7 pt-5 sm:px-9 sm:pb-9">
+          <Button autoFocus variant="keep" size="touch" className="keep-premium-action w-full justify-between" onClick={() => { setScreen("record"); resetPageScroll(); }}>I'm ready <ArrowRight className="size-5" /></Button>
+          <p className="mt-3 text-center text-[11px] leading-5 text-[#746E67]">Recording begins only when you tap Start Recording.</p>
+        </div>
+      </section>
     </div>}
-    {screen === "record" && <div className="relative grid keep-h-screen min-h-0 grid-rows-[auto_auto_minmax(0,1fr)_auto] overflow-hidden px-7 pb-[max(18px,env(safe-area-inset-bottom))]">{top()}<div className="px-1 pb-3 pt-1 text-center"><h1 className="display text-[clamp(38px,10.5vw,50px)] leading-[0.98]">Now say it in your own voice.</h1><p className="mt-3 text-xs leading-5 text-muted-foreground">These are your words. They should sound like you.</p></div><div className="script-fade min-h-0 overflow-hidden py-2"><div className="space-y-8 pt-8 text-center transition-transform duration-300 ease-linear" style={{ transform: `translateY(-${scroll}px)` }}>{project.messageParagraphs.map((p, i) => <p key={i} className={`font-display text-3xl leading-[1.35] ${isRecording || rehearsing ? "text-foreground" : i === 0 ? "text-foreground" : "text-muted-foreground"}`}>{p}</p>)}</div></div><div className="border-t border-border/60 bg-background/95 pt-3 text-center backdrop-blur-sm">
+    {(screen === "record" || screen === "recordPrep") && <div inert={screen === "recordPrep"} aria-hidden={screen === "recordPrep"} className="relative grid keep-h-screen min-h-0 grid-rows-[auto_auto_minmax(0,1fr)_auto] overflow-hidden px-7 pb-[max(18px,env(safe-area-inset-bottom))]">{top()}<div className="px-1 pb-3 pt-1 text-center"><h1 className="display text-[clamp(38px,10.5vw,50px)] leading-[0.98]">Now say it in your own voice.</h1><p className="mt-3 text-xs leading-5 text-muted-foreground">These are your words. They should sound like you.</p></div><div className="script-fade min-h-0 overflow-hidden py-2"><div className="space-y-8 pt-8 text-center transition-transform duration-300 ease-linear" style={{ transform: `translateY(-${scroll}px)` }}>{project.messageParagraphs.map((p, i) => <p key={i} className={`font-display text-3xl leading-[1.35] ${isRecording || rehearsing ? "text-foreground" : i === 0 ? "text-foreground" : "text-muted-foreground"}`}>{p}</p>)}</div></div><div className="border-t border-border/60 bg-background/95 pt-3 text-center backdrop-blur-sm">
       <div className="mb-2 flex items-center gap-2">
         <Button variant="quiet" size="sm" className="flex-1" disabled={teleprompterSpeed <= 0.2} onClick={() => setTeleprompterSpeed((v) => Math.max(0.2, Math.round((v - 0.2) * 10) / 10))}>Slower</Button>
         <div className="min-w-[96px] text-center"><span className="block text-[10px] tracking-widest text-muted-foreground">TELEPROMPTER</span><span className="mt-1 block text-sm tabular-nums text-foreground">{teleprompterSpeed.toFixed(1)}×</span></div>
