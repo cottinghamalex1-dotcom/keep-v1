@@ -32,15 +32,8 @@ export function KeepOpeningScreen({ phase, progress, onBack }: Props) {
     <main className="app-shell keep-opening-screen">
       <header className="flex items-center justify-between px-7 pt-[max(35px,env(safe-area-inset-top))]">
         <a href="/app" aria-label="Back to your creations" className="keep-wordmark">Keep</a>
-        <span className="text-[11px] font-medium tracking-[.12em] text-muted-foreground uppercase">Your creation</span>
       </header>
       <div className="mx-auto flex min-h-[calc(100dvh-115px)] max-w-md flex-col justify-center px-8 pb-16">
-        <div className="mb-11 flex size-16 items-center justify-center rounded-full border border-border bg-card" aria-hidden="true">
-          <svg viewBox="0 0 32 32" className="size-7 text-[#6A5849]" fill="none" stroke="currentColor" strokeWidth="1.15" strokeLinecap="round" strokeLinejoin="round">
-            <rect x="6" y="6" width="20" height="20" rx="2"/>
-            <path d="m9 21 5-6 4 4 3-3 3 4"/><circle cx="20.5" cy="11.5" r="1.3" />
-          </svg>
-        </div>
         <h1 className="font-display text-[clamp(37px,9.5vw,49px)] font-normal leading-[1.13] tracking-[-.035em] text-foreground">
           Getting your Keep ready.
         </h1>
