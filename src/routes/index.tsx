@@ -1217,7 +1217,7 @@ function KeepApp() {
 
       <div className="keep-studio-workspace" key={editorPanel ?? "timeline"}>
       {!rec?.demo && rec?.audioUrl && project.captionStyle !== "None" && !project.captionCues.length && <div className="border-t border-border/60 bg-card/70 px-5 py-3 text-xs"><div className="flex items-center justify-between gap-3"><span>{captionSyncing ? "Syncing captions to your recording…" : captionSyncError ? "Captions did not sync. Your recording is safe." : "Captions are not ready yet."}</span>{!captionSyncing && <Button variant="quiet" size="sm" onClick={() => void retryCaptionSync()}><RotateCcw className="size-3" /> Retry captions</Button>}</div></div>}
-      {(editorPanel === "Music" || editorPanel === "Captions" || editorPanel === "Style") && <div className="border-t border-border/60 bg-card/55 px-5 py-3 backdrop-blur-md page-enter">
+      {(editorPanel === "Music" || editorPanel === "Captions" || editorPanel === "Style") && <div className={`border-t border-border/60 bg-card/55 backdrop-blur-md page-enter ${editorPanel === "Captions" ? "" : "px-5 py-3"}`}>
         {editorPanel === "Music" && <>
           <div className="mb-3 flex items-center justify-between"><div><p className="font-display text-2xl">Music</p><p className="mt-1 text-[10px] text-muted-foreground">Hear each mood, then play your Keep to hear it under your voice.</p></div><Button variant="bare" size="icon" aria-label="Close music" onClick={() => { stopMusicSample(); setMusicSampling(""); setEditorPanel(null); }}><X className="size-4" /></Button></div>
           <div className="thin-scroll flex gap-2 overflow-x-auto pb-2">
@@ -1289,7 +1289,7 @@ function KeepApp() {
         onSelect={(i) => { setEditorPlaying(false); setFrame(i); }}
         onMove={moveMemory}
         onDuration={(i,seconds) => patch({ memories: shown.map((m,j)=>j===i?{...m,displayDurationSec:seconds}:m) })}
-        onCaption={(i) => { setEditorPanel("Captions"); seekEditor(project.captionCues[i]?.start??0); }}
+        onCaption={(i) => { setEditorPlaying(false); setEditorPanel("Captions"); seekEditor(project.captionCues[i]?.start??0); }}
         onAdd={() => addInput.current?.click()}
         onVoice={() => setEditorPanel("Voice")}
         onMusic={() => setEditorPanel("Music")}
