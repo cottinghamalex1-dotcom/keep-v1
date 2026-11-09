@@ -446,7 +446,7 @@ body:has(.keep-studio) {
   color: #F7F5F2;
 }
 .keep-studio-workspace input[type="range"] { accent-color: #D2BA99; }
-.keep-studio-workspace :is(input,textarea,select) {
+.keep-studio-workspace :is(input:not([type=range]):not([type=checkbox]):not([type=radio]),textarea,select) {
   background-color: #242326;
   border-color: #575157;
   color: #F7F5F2;
