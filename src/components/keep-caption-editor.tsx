@@ -105,7 +105,7 @@ export function KeepCaptionEditor({
       <button type="button" onClick={() => setMoreStyles((open) => !open)} aria-expanded={moreStyles} className="mt-3 text-xs text-[#D2BA99]">
         {moreStyles ? "Fewer styles" : "More styles"}
       </button>
-      {moreStyles && <div className="mt-2 grid grid-cols-2 gap-2">
+      {(moreStyles || extraStyles.includes(style)) && <div className="mt-2 grid grid-cols-2 gap-2">
         {extraStyles.map((name) => <button key={name} type="button" onClick={() => onChangeStyle(name)} aria-pressed={style === name}
           className={`min-h-11 rounded-lg border text-xs ${style === name ? "border-[#D2BA99] bg-[#E8E1D7] text-[#111113]" : "border-border bg-card text-foreground"}`}>
           {name === "None" ? "Hide captions" : name}
@@ -136,9 +136,9 @@ export function KeepCaptionEditor({
         </div>
         <div>
           <p className="mb-2 text-xs font-medium">Caption length</p>
-          <p className="mb-3 text-[11px] leading-5 text-muted-foreground">Choose how many spoken words appear together. This rebuilds the automatic captions.</p>
+          <p className="mb-3 text-[11px] leading-5 text-muted-foreground">{canRestore ? "Choose how many spoken words appear together. This rebuilds the automatic captions." : "Grouping is available when words have been synchronized to your voice."}</p>
           <div className="grid grid-cols-3 gap-2">
-            {([{ count: 3, label: "Short" }, { count: 5, label: "Balanced" }, { count: 8, label: "Long" }] as const).map((preset) => <button type="button" key={preset.count} onClick={() => changeGrouping(preset.count)}
+            {([{ count: 3, label: "Short" }, { count: 5, label: "Balanced" }, { count: 8, label: "Long" }] as const).map((preset) => <button type="button" key={preset.count} disabled={!canRestore} onClick={() => changeGrouping(preset.count)}
               className={`rounded-lg border px-1 py-3 text-xs ${wordsPerCue === preset.count ? "border-[#D2BA99] bg-[#E8E1D7] text-[#111113]" : "border-border text-foreground"}`}>
               {preset.label}
             </button>)}
