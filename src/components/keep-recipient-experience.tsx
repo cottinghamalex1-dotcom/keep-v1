@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, ArrowRight, BookOpen, Headphones, Images, Pause, Play, RotateCcw, Volume2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { KeepPlayer, memoryImages, type PlayerMedia } from "@/components/keep-player";
+import { KeepFirstPlayReveal } from "@/components/keep-first-play-reveal";
 import type { AudioMix, CaptionCue } from "@/lib/keep-project";
 import { createKeepVoiceMix, type MusicBalance } from "@/lib/keep-audio";
 
@@ -117,7 +118,10 @@ export function KeepRecipientExperience({
       try { localStorage.setItem(visitKey, "1"); } catch { /* private browsing */ }
     }
     setVisited(true);
-    setStage("choose");
+    setExperience("watch");
+    setListening(false);
+    setListenProgress(0);
+    setStage("experience");
   };
 
   const choose = (next: KeepExperienceMode) => {
@@ -192,7 +196,7 @@ export function KeepRecipientExperience({
   };
 
   if (stage === "experience" && experience === "watch") {
-    return <main className="app-shell"><KeepPlayer name={name.toUpperCase()} from={from} year={year} subtitle={subtitle} recipient onExit={backToChoose} onFinish={finishExperience} style={style} captions={captions} media={media} audioUrl={audioUrl} audioDuration={audioDuration} lines={lines} captionCues={captionCues} musicMood={musicMood} voiceMusicBalance={voiceMusicBalance} voiceVolume={voiceVolume} musicVolume={musicVolume} captionPosition={captionPosition} captionLines={captionLines} audioMix={audioMix} /></main>;
+    return <main className="app-shell"><KeepPlayer name={name.toUpperCase()} from={from} year={year} subtitle={subtitle} recipient skipIntro onExit={backToChoose} onFinish={finishExperience} style={style} captions={captions} media={media} audioUrl={audioUrl} audioDuration={audioDuration} lines={lines} captionCues={captionCues} musicMood={musicMood} voiceMusicBalance={voiceMusicBalance} voiceVolume={voiceVolume} musicVolume={musicVolume} captionPosition={captionPosition} captionLines={captionLines} audioMix={audioMix} /></main>;
   }
 
   if (stage === "experience" && experience === "listen") {
@@ -241,5 +245,16 @@ export function KeepRecipientExperience({
     </div></main>;
   }
 
-  return <main className="app-shell"><div className="relative flex keep-h-screen min-h-0 flex-col overflow-hidden">{items[0] ? (items[0].kind === "video" ? <video src={items[0].url} autoPlay muted loop playsInline className="absolute inset-0 h-full w-full object-cover opacity-35" /> : <img src={items[0].url} alt="A memory from this Keep" className="absolute inset-0 h-full w-full object-cover opacity-35" />) : <div className="absolute inset-0 bg-card" />}<div className="absolute inset-0 photo-shade" /><div className="relative z-10 flex h-full flex-col items-center justify-between px-7 pb-[max(45px,env(safe-area-inset-bottom))] pt-[max(38px,env(safe-area-inset-top))] text-center"><span className="keep-wordmark">Keep</span><div className="w-full max-w-sm"><p className="eyebrow mb-7 text-foreground">A KEEP FOR</p><h1 className="keep-editorial-title break-words">{name}</h1>{(openingMessage ?? "Made just for you.").trim() && <p className="mx-auto mt-7 max-w-xs whitespace-pre-line break-words font-display text-[clamp(22px,6vw,27px)] leading-snug">{(openingMessage ?? "Made just for you.").trim()}</p>}<p className="mt-5 text-sm text-foreground/75">from {from}{year ? ` · ${year}` : ""}</p></div><div className="w-full">{creatorPreview && onCreatorExit && <Button variant="bare" size="sm" className="mx-auto mb-5 text-white/80" onClick={onCreatorExit}><ArrowLeft /> Back to editor</Button>}<Button variant="keep" size="touch" className="keep-premium-action w-full justify-between" onClick={enter}>Open your Keep <ArrowRight /></Button></div></div></div></main>;
+  return <main className="app-shell">
+    <KeepFirstPlayReveal
+      name={name}
+      occasion={subtitle}
+      introduction={openingMessage}
+      from={from}
+      year={year}
+      onOpen={enter}
+      onOtherFormats={() => { setVisited(true); setStage("choose"); }}
+      onCreatorExit={creatorPreview ? onCreatorExit : undefined}
+    />
+  </main>;
 }
