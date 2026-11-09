@@ -11,12 +11,14 @@ type Props = {
   compareOriginal: boolean;
   onLook: (name: string) => void;
   onTransition: (transition: "fade" | "dissolve" | "cut") => void;
+  hasNextMoment: boolean;
+  onPreviewTransition: () => void;
   onCompare: (compare: boolean) => void;
   onClose: () => void;
 };
 const slug = (value: string) => value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 
-export function KeepStyleEditor({ looks, currentLook, moment, currentTransition, compareOriginal, onLook, onTransition, onCompare, onClose }: Props) {
+export function KeepStyleEditor({ looks, currentLook, moment, currentTransition, compareOriginal, onLook, onTransition, hasNextMoment, onPreviewTransition, onCompare, onClose }: Props) {
   const [showAll, setShowAll] = useState(false);
   const featured = looks.slice(0, 4);
   const selectedExtra = looks.slice(4).find(x => x.name === currentLook);
@@ -72,7 +74,11 @@ export function KeepStyleEditor({ looks, currentLook, moment, currentTransition,
           </button>
         ))}
       </div>
-      <p className="mt-3 text-[11px] leading-5 text-muted-foreground">Transitions blend directly between images, without fading to a black screen.</p>
+      <button type="button" disabled={!hasNextMoment} onClick={onPreviewTransition}
+        className="mt-3 flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-[#E8E1D7] px-3 text-xs font-semibold text-[#111113] disabled:opacity-40">
+        Preview this transition
+      </button>
+      <p className="mt-2 text-[11px] leading-5 text-muted-foreground">{hasNextMoment ? "Watch the selected photo blend into the next one." : "The final photo has no next transition."}</p>
     </div>
   </section>;
 }
