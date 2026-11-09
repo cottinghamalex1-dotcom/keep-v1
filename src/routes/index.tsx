@@ -1204,11 +1204,11 @@ function KeepApp() {
               </p>
             </div>}
 
-            <button type="button" aria-label={editorPlaying ? "Pause video preview" : "Play video preview"} aria-pressed={editorPlaying}
+            {editorPanel !== "Memories" && <button type="button" aria-label={editorPlaying ? "Pause video preview" : "Play video preview"} aria-pressed={editorPlaying}
               onClick={() => { if (editorTime >= editorDuration - .1) seekEditor(0); setEditorPlaying(!editorPlaying); }}
-              className={`keep-video-play absolute left-1/2 top-1/2 z-30 flex size-17 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border border-white/25 bg-black/55 text-white shadow-xl backdrop-blur-sm transition-opacity duration-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white ${editorPlaying ? "opacity-0 hover:opacity-100 focus-visible:opacity-100" : "opacity-100"}`}>
+              className={`keep-video-play absolute left-1/2 ${editorPanel === "Captions" && project.captionPosition === "middle" ? "top-[26%]" : "top-1/2"} z-30 flex size-17 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border border-white/25 bg-black/55 text-white shadow-xl backdrop-blur-sm transition-opacity duration-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white ${editorPlaying ? "opacity-0 hover:opacity-100 focus-visible:opacity-100" : "opacity-100"}`}>
               {editorPlaying ? <Pause className="size-7" fill="currentColor" /> : <Play className="ml-1 size-8" fill="currentColor" />}
-            </button>
+            </button>}
           </div>
 
 
