@@ -6,6 +6,7 @@ import { KeepTimeline } from "@/components/keep-timeline";
 import { KeepCaptionEditor } from "@/components/keep-caption-editor";
 import { KeepMusicEditor } from "@/components/keep-music-editor";
 import { KeepVoiceEditor } from "@/components/keep-voice-editor";
+import { KeepStyleEditor } from "@/components/keep-style-editor";
 import { arrangeWords, spreadMemories, recommendedStyle } from "@/lib/keep-story-layout";
 import { activeKeepSession, loadEditableKeep, loadCloudDraft, saveCloudDraft, removeCloudDraft } from "@/lib/keep-cloud";
 import { CinematicMedia } from "@/components/cinematic-media";
@@ -146,6 +147,7 @@ function KeepApp() {
   const [mode, setMode] = useState<Mode>("Memories");
   const [resumeError, setResumeError] = useState("");
   const [editorPanel, setEditorPanel] = useState<Mode | null>(null);
+  const [compareOriginalStyle, setCompareOriginalStyle] = useState(false);
   const [previewChooserOpen, setPreviewChooserOpen] = useState(false);
   const [creatorPreviewMode, setCreatorPreviewMode] = useState<KeepExperienceMode | null>(null);
   const [readArrangeOpen, setReadArrangeOpen] = useState(false);
@@ -1198,7 +1200,7 @@ function KeepApp() {
       <div className="keep-studio-stage">
         <div className="keep-studio-canvas-wrap">
           <div className="keep-studio-canvas relative aspect-[9/16] overflow-hidden rounded-2xl bg-card shadow-lg">
-            <CinematicMedia item={selected} playing={editorPlaying} duration={Math.max(5, selected.displayDurationSec ?? 7)} className="absolute inset-0" imageClassName={`editor-image-${styleSlug(project.visualStyle)}`} />
+            <CinematicMedia item={selected} playing={editorPlaying} duration={Math.max(5, selected.displayDurationSec ?? 7)} className="absolute inset-0" imageClassName={`editor-image-${styleSlug(compareOriginalStyle && editorPanel === "Style" ? "Natural" : project.visualStyle)}`} />
             <div className="absolute inset-0 photo-shade" />
             {editorPanel === "Memories" && <div className="absolute inset-x-0 top-0 bottom-14 z-20 cursor-grab touch-none active:cursor-grabbing" aria-label="Drag photo to reposition" onPointerDown={(e) => { e.currentTarget.setPointerCapture(e.pointerId); const r = e.currentTarget.getBoundingClientRect(); photoDrag.current = { x: e.clientX, y: e.clientY, focusX: selected.focusX ?? 50, focusY: selected.focusY ?? 50, width: r.width, height: r.height }; setEditorPlaying(false); }} onPointerMove={(e) => { const d = photoDrag.current; if (!d) return; updateSelectedMoment({ focusX: Math.max(0, Math.min(100, d.focusX - (e.clientX - d.x) / d.width * 100)), focusY: Math.max(0, Math.min(100, d.focusY - (e.clientY - d.y) / d.height * 100)) }); }} onPointerUp={() => { photoDrag.current = null; }} onPointerCancel={() => { photoDrag.current = null; }}><span className="absolute left-1/2 top-3 -translate-x-1/2 whitespace-nowrap rounded-full bg-black/65 px-3 py-1 text-[10px] text-white">Drag photo to reposition</span></div>}
 
@@ -1221,7 +1223,7 @@ function KeepApp() {
 
       <div className="keep-studio-workspace" key={editorPanel ?? "timeline"}>
       {!rec?.demo && rec?.audioUrl && project.captionStyle !== "None" && !project.captionCues.length && <div className="border-t border-border/60 bg-card/70 px-5 py-3 text-xs"><div className="flex items-center justify-between gap-3"><span>{captionSyncing ? "Syncing captions to your recording…" : captionSyncError ? "Captions did not sync. Your recording is safe." : "Captions are not ready yet."}</span>{!captionSyncing && <Button variant="quiet" size="sm" onClick={() => void retryCaptionSync()}><RotateCcw className="size-3" /> Retry captions</Button>}</div></div>}
-      {(editorPanel === "Music" || editorPanel === "Captions" || editorPanel === "Style") && <div className={`border-t border-border/60 bg-card/55 backdrop-blur-md page-enter ${editorPanel === "Captions" || editorPanel === "Music" ? "" : "px-5 py-3"}`}>
+      {(editorPanel === "Music" || editorPanel === "Captions" || editorPanel === "Style") && <div className={`border-t border-border/60 bg-card/55 backdrop-blur-md page-enter ${editorPanel === "Captions" || editorPanel === "Music" || editorPanel === "Style" ? "" : "px-5 py-3"}`}>
         {editorPanel === "Music" && <KeepMusicEditor
           tracks={tracks}
           selected={project.musicMood}
@@ -1262,10 +1264,17 @@ function KeepApp() {
           onRestore={() => patch({captionCues:groupTimedWords(project.captionWords ?? [],project.captionWordsPerCue ?? 5)})}
           onRetrySync={() => void retryCaptionSync()}
         />}
-        {editorPanel === "Style" && <>
-          <div className="mb-3 flex items-center justify-between"><div><p className="font-display text-2xl">Style</p><p className="mt-1 text-[10px] text-muted-foreground">Tap a look and see it above instantly.</p></div><Button variant="bare" size="icon" aria-label="Close style" onClick={() => setEditorPanel(null)}><X className="size-4" /></Button></div>
-          <div className="thin-scroll flex gap-2 overflow-x-auto pb-1">{styles.map((style) => <button key={style.name} type="button" onClick={() => patch({ visualStyle: style.name })} className={`w-24 shrink-0 overflow-hidden rounded-lg border text-left ${project.visualStyle === style.name ? "border-accent ring-1 ring-accent" : "border-border"}`}><div className="relative h-14 overflow-hidden"><MediaView item={selected} thumb alt={style.name} className={`h-full w-full object-cover editor-image-${styleSlug(style.name)}`} /></div><div className="p-2"><p className="text-[10px] font-medium">{style.name}</p></div></button>)}</div>
-        </>}
+        {editorPanel === "Style" && <KeepStyleEditor
+          looks={styles}
+          currentLook={project.visualStyle}
+          moment={selected}
+          currentTransition={selected.transition ?? "dissolve"}
+          compareOriginal={compareOriginalStyle}
+          onLook={(name) => patch({visualStyle:name})}
+          onTransition={(transition) => updateSelectedMoment({transition})}
+          onCompare={setCompareOriginalStyle}
+          onClose={() => { setCompareOriginalStyle(false); setEditorPanel(null); }}
+        />}
       </div>}
 
       {!editorPanel && <KeepTimeline
@@ -1337,7 +1346,7 @@ function KeepApp() {
 
       </div>
       <nav className="keep-studio-tools" aria-label="Editing tools">
-        {([{ panel: null, label: "Timeline", Icon: GripVertical }, { panel: "Memories", label: "Photos", Icon: Images }, { panel: "Captions", label: "Captions", Icon: MessageCircle }, { panel: "Music", label: "Music", Icon: Music2 }, { panel: "Voice", label: "Voice", Icon: Mic }, { panel: "Style", label: "Style", Icon: Sparkles }] as const).map(({ panel, label, Icon }) => <button key={label} type="button" aria-pressed={editorPanel === panel} onClick={() => { stopMusicSample(); setMusicSampling(""); setEditorPanel(panel); }}><Icon /><span>{label}</span></button>)}
+        {([{ panel: null, label: "Timeline", Icon: GripVertical }, { panel: "Memories", label: "Photos", Icon: Images }, { panel: "Captions", label: "Captions", Icon: MessageCircle }, { panel: "Music", label: "Music", Icon: Music2 }, { panel: "Voice", label: "Voice", Icon: Mic }, { panel: "Style", label: "Style", Icon: Sparkles }] as const).map(({ panel, label, Icon }) => <button key={label} type="button" aria-pressed={editorPanel === panel} onClick={() => { stopMusicSample(); setMusicSampling(""); setCompareOriginalStyle(false); setEditorPanel(panel); }}><Icon /><span>{label}</span></button>)}
       </nav>
 
       {previewChooserOpen && sheet("Preview your Keep", () => { setPreviewChooserOpen(false); setReadArrangeOpen(false); }, <div className="pb-2">
