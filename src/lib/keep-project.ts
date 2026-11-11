@@ -44,6 +44,9 @@ export type KeepProject = {
   publicationId?: string;
   publicationToken?: string;
   active: boolean;
+  /** Transient: some cloud media have not restored; never autosave this partial copy. */
+  restoreIncomplete?: boolean;
+  restoreMissingCount?: number;
   stage: string;
   recipientName: string;
   /** Short personalized note shown when the NFC card is opened, before playback. */
