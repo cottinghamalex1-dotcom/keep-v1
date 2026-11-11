@@ -31,6 +31,15 @@ const captionChoices = [
   { name: "Story", note: "Warm and personal" },
   { name: "None", note: "Without captions" },
 ];
+// These previews mirror the typography used for each style in the finished Keep film.
+const captionTitleStyles: Record<string, string> = {
+  Reel: "font-sans text-[22px] font-semibold tracking-[-.025em]",
+  Clean: "font-sans text-[21px] font-medium tracking-[-.015em]",
+  Film: "font-display text-[27px] font-normal tracking-[-.025em]",
+  Minimal: "font-sans text-[18px] font-normal tracking-[.015em]",
+  Story: "font-display text-[26px] font-normal italic tracking-[-.025em]",
+  None: "font-sans text-[18px] font-normal text-muted-foreground",
+};
 const voiceChoices: { name: VoiceTone; label: string; note: string }[] = [
   { name: "natural", label: "Natural", note: "Your voice, just as it is" },
   { name: "clear", label: "Clear", note: "A little more presence" },
@@ -42,6 +51,15 @@ function Choice({ name, note, chosen, onSelect }: { name: string; note?: string;
   return <button type="button" aria-pressed={chosen} onClick={onSelect} className={`keep-choice-bubble keep-finish-choice min-h-[76px] flex-col !items-start !justify-center gap-1 ${chosen ? "keep-choice-bubble--selected" : ""}`}>
     <span className="flex w-full items-center justify-between gap-2"><span className="text-left text-[13px] font-medium">{name}</span>{chosen && <span className="keep-choice-check !size-5"><Check className="!size-3" strokeWidth={2.7} /></span>}</span>
     {note && <span className="text-left text-[11px] leading-4 text-muted-foreground">{note}</span>}
+  </button>;
+}
+
+function CaptionChoice({ name, note, chosen, onSelect }: { name: string; note: string; chosen: boolean; onSelect: () => void }) {
+  return <button type="button" aria-pressed={chosen} aria-label={`Caption style: ${name}. ${note}`} onClick={onSelect}
+    className={`keep-choice-bubble keep-finish-choice relative min-h-[90px] flex-col !items-start !justify-center gap-1.5 ${chosen ? "keep-choice-bubble--selected" : ""}`}>
+    <span className={`block w-full pr-6 text-left leading-tight ${captionTitleStyles[name] ?? "font-sans text-xl"}`}>{name}</span>
+    {chosen && <span className="keep-choice-check absolute right-3 top-3 !size-5"><Check className="!size-3" strokeWidth={2.7} /></span>}
+    <span className="block text-left text-[11px] leading-4 text-muted-foreground">{note}</span>
   </button>;
 }
 
@@ -63,7 +81,7 @@ export function KeepFinishingChoices({ captionStyle, musicMood, visualStyle, voi
 
     <section className="keep-finish-section" aria-labelledby="finish-captions">
       <div className="mb-3"><h2 id="finish-captions" className="font-display text-[29px]">Captions</h2><p className="mt-1 text-xs leading-5 text-muted-foreground">How would you like your words to appear?</p></div>
-      <div className="grid grid-cols-2 gap-2.5">{captionChoices.map((c) => <Choice key={c.name} name={c.name} note={c.note} chosen={captionStyle === c.name} onSelect={() => onCaption(c.name)} />)}</div>
+      <div className="grid grid-cols-2 gap-2.5">{captionChoices.map((c) => <CaptionChoice key={c.name} name={c.name} note={c.note} chosen={captionStyle === c.name} onSelect={() => onCaption(c.name)} />)}</div>
     </section>
 
     <section className="keep-finish-section" aria-labelledby="finish-music">
