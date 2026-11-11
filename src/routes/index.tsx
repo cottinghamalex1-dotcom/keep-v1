@@ -12,7 +12,7 @@ import { KeepAskAIModal, KeepWordChanges } from "@/components/keep-ask-ai-modal"
 import { arrangeWords, spreadMemories, recommendedStyle } from "@/lib/keep-story-layout";
 import { filmTotal, sceneBoundary, sceneDuration, sceneIndexAt } from "@/lib/keep-film-timing";
 import { captionAtTime, recoverCaptionTiming } from "@/lib/keep-caption-timing";
-import { activeKeepSession, loadEditableKeep, loadCloudDraft, saveCloudDraft, removeCloudDraft } from "@/lib/keep-cloud";
+import { activeKeepSession, loadEditableKeep, loadCloudDraft, saveCloudDraft, removeCloudDraft, retryMissingCloudMedia } from "@/lib/keep-cloud";
 import { CinematicMedia } from "@/components/cinematic-media";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useRef, useState, type ChangeEvent, type ReactNode } from "react";
@@ -137,6 +137,7 @@ function KeepApp() {
   const [openingPhase, setOpeningPhase] = useState<"session" | "draft" | "media" | "finishing">("session");
   const [openingProgress, setOpeningProgress] = useState<KeepRestoreProgress | null>(null);
   const [cloudSyncAllowed, setCloudSyncAllowed] = useState(true);
+  const [restoreRetrying, setRestoreRetrying] = useState(false);
   const [viewingDemo, setViewingDemo] = useState(false);
   const [activeParagraph, setActiveParagraph] = useState(0);
   const [askOpen, setAskOpen] = useState(false);
@@ -228,7 +229,12 @@ function KeepApp() {
             setOpeningProgress(progress);
           };
           const remote = editId ? await loadEditableKeep(editId, session, onRestore) : await loadCloudDraft(session, onRestore);
-          if (remote) next = remote;
+          if (remote) {
+            next = remote;
+            // A partial restore may be viewed, but must NEVER overwrite the
+            // complete cloud copy or its associated published Keep.
+            if (remote.restoreIncomplete) setCloudSyncAllowed(false);
+          }
           else if (local?.active) {
             // Never silently attach an unclaimed device draft to a different account.
             if (true) {
@@ -286,7 +292,7 @@ function KeepApp() {
     return () => { cancelled = true; };
   }, []);
   useEffect(() => {
-    if (!hydrated) return;
+    if (!hydrated || project.restoreIncomplete) return;
     saveDraft(project);
     if (!cloudSyncAllowed) return;
     const timer = window.setTimeout(async () => {
@@ -340,6 +346,27 @@ function KeepApp() {
     stopMusicSample();
     if (musicSampleTimer.current) window.clearTimeout(musicSampleTimer.current);
   }, []);
+
+  const retryMissingRestore = async () => {
+    if (restoreRetrying || !project.restoreIncomplete) return;
+    setRestoreRetrying(true);
+    try {
+      const session = await activeKeepSession();
+      if (!session) throw new Error("Please sign in again to restore your remaining media.");
+      const restored = await retryMissingCloudMedia(project,session);
+      setProject(restored);
+      if (!restored.restoreIncomplete) {
+        setCloudSyncAllowed(true);
+        toast.success("All your original photos and audio are restored. Saving is enabled.");
+      } else {
+        toast.error(`${restored.restoreMissingCount ?? 0} files still need restoring. Your cloud Keep remains unchanged.`);
+      }
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Your saved Keep is safe. Try restoring the remaining files again.");
+    } finally {
+      setRestoreRetrying(false);
+    }
+  };
 
   const resetPageScroll = () => window.requestAnimationFrame(() => window.scrollTo({ top: 0, left: 0, behavior: "auto" }));
   const go = (next: Screen) => { setHistory((h) => [...h, screen]); setScreen(next); resetPageScroll(); };
@@ -1263,13 +1290,19 @@ function KeepApp() {
     /></>}
     {screen === "generating" && <div className="flex keep-h-screen flex-col items-center justify-center px-8 text-center"><div className="relative mb-14 flex size-30 items-center justify-center"><div className="pulse-ring absolute inset-0 rounded-full border border-accent" /><Sparkles className="size-8 text-accent" /></div><h1 key={generation} className="display min-h-32 text-5xl page-enter">{["Gathering your moments…", "Bringing your voice and music together…", "Building your Keep…", "Your film is almost ready…"][generation]}</h1><p className="mt-8 max-w-xs text-xs leading-6 text-muted-foreground">Your selections are coming together into one personal film.</p></div>}
     {screen === "editor" && selected && <div className={`keep-studio ${editorExpanded ? "keep-studio--expanded" : "keep-studio--immersive"}`}>
+      {project.restoreIncomplete && <div role="alert" className="mx-4 mt-3 flex items-center justify-between gap-3 rounded-xl border border-[#AD8F66] bg-[#30281F] px-3 py-3 text-white">
+        <p className="text-xs leading-5">Your Keep is open. {project.restoreMissingCount ?? "Some"} files still need restoring. Your saved cloud copy is safe; editing and cloud saves are paused until recovery finishes.</p>
+        <Button type="button" variant="quiet" size="sm" disabled={restoreRetrying} onClick={() => void retryMissingRestore()}>
+          <RotateCcw className={`size-3.5 ${restoreRetrying ? "animate-spin" : ""}`} /> {restoreRetrying ? "Restoring" : "Retry"}
+        </Button>
+      </div>}
       <div className="flex items-center justify-between px-5 pt-[max(14px,env(safe-area-inset-top))]">
         <Button variant="bare" size="icon" aria-label="Back" onClick={back}><ArrowLeft /></Button>
         <div className="flex items-center gap-1">
           <Button variant="bare" size="icon" aria-label="Undo" disabled={!undoPast.current.length} onClick={() => stepHistory("undo")}><Undo2 className="size-4" /></Button>
           <Button variant="bare" size="icon" aria-label="Redo" disabled={!undoFuture.current.length} onClick={() => stepHistory("redo")}><Redo2 className="size-4" /></Button>
           <Button variant="bare" size="sm" className="text-muted-foreground" onClick={() => { setViewingDemo(false); setPreviewChooserOpen(true); setReadArrangeOpen(false); }}><Play className="size-4" /> Preview</Button>
-          <Button variant="keep" size="sm" onClick={toCard}>Done <Check className="size-4" /></Button>
+          <Button variant="keep" size="sm" disabled={!!project.restoreIncomplete} onClick={toCard}>Done <Check className="size-4" /></Button>
         </div>
       </div>
 
