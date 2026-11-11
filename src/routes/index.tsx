@@ -10,6 +10,7 @@ import { KeepStyleEditor } from "@/components/keep-style-editor";
 import { KeepFinishingChoices } from "@/components/keep-finishing-choices";
 import { KeepAskAIModal, KeepWordChanges } from "@/components/keep-ask-ai-modal";
 import { arrangeWords, spreadMemories, recommendedStyle } from "@/lib/keep-story-layout";
+import { captionAtTime, recoverCaptionTiming } from "@/lib/keep-caption-timing";
 import { activeKeepSession, loadEditableKeep, loadCloudDraft, saveCloudDraft, removeCloudDraft } from "@/lib/keep-cloud";
 import { CinematicMedia } from "@/components/cinematic-media";
 import { createFileRoute, Link } from "@tanstack/react-router";
@@ -600,7 +601,7 @@ function KeepApp() {
   };
   const startFinal = async () => { setRehearsing(false); setScroll(0); setScrollPaused(false); lastElapsed.current = 0; const ok = await recorder.start(); if (!ok) toast.error("The microphone isn't available right now."); };
 
-  const syncFinalCaptions = async (blob: Blob, mimeType?: string) => {
+  const syncFinalCaptions = async (blob: Blob, mimeType?: string, recordedDuration = rec?.durationSec ?? 0) => {
     setCaptionSyncing(true);
     setCaptionSyncError(false);
     try {
@@ -608,7 +609,12 @@ function KeepApp() {
       const timed = await transcribeTimedAudio(blob, mimeType, prompt);
       const cues = groupTimedWords(timed.words, project.captionWordsPerCue ?? 5);
       if (!cues.length) throw new Error("No timestamped words returned");
-      setProject((o) => ({ ...o, captionTranscript: timed.transcript, captionWords: timed.words, captionCues: cues }));
+      // Some transcription responses contain impossible timestamps: dozens of
+      // words can pile up at one instant, leaving long stretches with no captions.
+      // Preserve every recognized word and reconstruct estimated cue timing.
+      const corrected = recoverCaptionTiming(timed.words, cues, recordedDuration);
+      setProject((o) => ({ ...o, captionTranscript: timed.transcript, captionWords: corrected.words, captionCues: corrected.cues, captionTimingEstimated: corrected.repaired }));
+      if (corrected.repaired) toast.info("Captions were placed across your recording. Check the timing in the editor.");
     } catch {
       setCaptionSyncError(true);
       toast.error("Caption syncing failed. You can retry from the editor without recording again.");
@@ -630,9 +636,10 @@ function KeepApp() {
       captionTranscript: "",
       captionCues: [],
       captionWords: [],
+      captionTimingEstimated: false,
     }));
     go("recorded");
-    void syncFinalCaptions(r.blob, r.mimeType);
+    void syncFinalCaptions(r.blob, r.mimeType, r.durationSec);
   };
 
   const retryCaptionSync = async () => {
@@ -640,7 +647,7 @@ function KeepApp() {
     try {
       const response = await fetch(rec.audioUrl);
       const blob = await response.blob();
-      await syncFinalCaptions(blob, rec.mimeType);
+      await syncFinalCaptions(blob, rec.mimeType, rec.durationSec);
     } catch {
       setCaptionSyncError(true);
       setCaptionSyncing(false);
@@ -651,6 +658,21 @@ function KeepApp() {
     if (!rec?.audioUrl || rec.demo || project.captionCues.length || captionSyncing || captionSyncError) return;
     void retryCaptionSync();
   }, [screen, rec?.audioUrl, rec?.demo, project.captionCues.length, captionSyncing, captionSyncError]);
+
+  // Recover previously saved Keeps that contain broken timestamp metadata.
+  // The original voice blob and caption text are left untouched.
+  useEffect(() => {
+    if (!hydrated || !project.active || !rec?.durationSec || rec.demo || !project.captionCues.length || project.captionTimingEstimated) return;
+    const corrected = recoverCaptionTiming(project.captionWords ?? [], project.captionCues, rec.durationSec);
+    if (!corrected.repaired) return;
+    setProject((old) => ({
+      ...old,
+      captionWords: corrected.words,
+      captionCues: corrected.cues,
+      captionTimingEstimated: true,
+    }));
+    toast.info("We repaired gaps in your saved caption timing. Your recording and words are unchanged.");
+  }, [hydrated, project.active, project.captionWords, project.captionCues, project.captionTimingEstimated, rec?.durationSec, rec?.demo]);
 
   const useDemoRecording = () => {
     if (rec) { releaseUrls([rec.audioUrl]); if (rec.audioId) void deleteBlobs([rec.audioId]); }
@@ -852,7 +874,7 @@ function KeepApp() {
     }
     return shown.length - 1;
   };
-  const editorCue = project.captionCues.find((cue) => editorTime >= cue.start && editorTime <= cue.end + 0.12);
+  const editorCue = captionAtTime(project.captionCues, editorTime);
   const editorCaption = editorCue?.text ?? (rec?.demo ? captionLines[Math.min(captionLines.length - 1, Math.floor(editorTime / Math.max(1, editorDuration / Math.max(1, captionLines.length))))] ?? "" : "");
   const seekEditor = (time: number) => {
     const next = Math.max(0, Math.min(editorDuration, time));
@@ -1268,8 +1290,8 @@ function KeepApp() {
             <div className="absolute inset-0 photo-shade" />
             {editorPanel === "Memories" && <div className="absolute inset-x-0 top-0 bottom-14 z-20 cursor-grab touch-none active:cursor-grabbing" aria-label="Drag photo to reposition" onPointerDown={(e) => { e.currentTarget.setPointerCapture(e.pointerId); const r = e.currentTarget.getBoundingClientRect(); photoDrag.current = { x: e.clientX, y: e.clientY, focusX: selected.focusX ?? 50, focusY: selected.focusY ?? 50, width: r.width, height: r.height }; setEditorPlaying(false); }} onPointerMove={(e) => { const d = photoDrag.current; if (!d) return; updateSelectedMoment({ focusX: Math.max(0, Math.min(100, d.focusX - (e.clientX - d.x) / d.width * 100)), focusY: Math.max(0, Math.min(100, d.focusY - (e.clientY - d.y) / d.height * 100)) }); }} onPointerUp={() => { photoDrag.current = null; }} onPointerCancel={() => { photoDrag.current = null; }}><span className="absolute left-1/2 top-3 -translate-x-1/2 whitespace-nowrap rounded-full bg-black/65 px-3 py-1 text-[10px] text-white">Drag photo to reposition</span></div>}
 
-            {project.captionStyle !== "None" && editorCaption && <div className={`absolute left-5 right-5 text-center ${project.captionPosition === "top" ? "top-16" : project.captionPosition === "middle" ? "top-1/2 -translate-y-1/2" : "bottom-16"}`}>
-              <p className={`${project.captionStyle === "Film" ? "font-display text-3xl font-normal" : project.captionStyle === "Minimal" ? "text-sm" : project.captionStyle === "Story" ? "font-display text-2xl italic" : project.captionStyle === "Clean" ? "text-sm font-medium" : "text-lg font-semibold"} leading-tight drop-shadow-md`} style={{ maxWidth: (project.captionLines ?? 2) === 1 ? "95%" : (project.captionLines ?? 2) === 3 ? "65%" : "80%", marginInline: "auto", whiteSpace: "pre-line" }}>
+            {project.captionStyle !== "None" && editorCaption && <div className={`absolute left-5 right-5 text-center ${project.captionPosition === "top" ? "top-16" : project.captionPosition === "middle" ? "top-1/2 -translate-y-1/2" : "bottom-32"}`}>
+              <p className={`${project.captionStyle === "Film" ? "font-display text-3xl font-normal" : project.captionStyle === "Minimal" ? "text-sm" : project.captionStyle === "Story" ? "font-display text-2xl italic" : project.captionStyle === "Clean" ? "text-sm font-medium" : "text-lg font-semibold"} keep-caption-visible leading-tight drop-shadow-md`} style={{ maxWidth: (project.captionLines ?? 2) === 1 ? "95%" : (project.captionLines ?? 2) === 3 ? "65%" : "80%", marginInline: "auto", whiteSpace: "pre-line" }}>
                 {editorCaption}
               </p>
             </div>}
@@ -1343,6 +1365,7 @@ function KeepApp() {
           wordsPerCue={project.captionWordsPerCue ?? 5}
           syncing={captionSyncing}
           syncError={captionSyncError}
+          timingEstimated={!!project.captionTimingEstimated}
           hasVoice={!!rec?.audioUrl && !rec.demo}
           canRestore={!!project.captionWords?.length}
           onClose={() => setEditorPanel(null)}
