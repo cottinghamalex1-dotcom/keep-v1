@@ -144,7 +144,12 @@ export function CinematicMedia({
           ref={(node) => { videos.current[slot] = node; }}
           src={moment.url} muted playsInline loop autoPlay={playing}
           preload="auto" onLoadedData={() => { if (isPending) reveal(slot, scene); }}
-          onError={() => { if (isPending) setState((old) => old.pending === slot ? { ...old, pending: null, revealed: false } : old); }}
+          onError={() => { if (isPending) setState((old) => {
+            if (old.pending !== slot) return old;
+            const slots = [...old.slots] as Layers;
+            slots[slot] = null;
+            return { ...old, slots, pending: null, revealed: false };
+          }); }}
           className={mediaClass} style={motionStyle}
         />
       : <img
@@ -155,7 +160,12 @@ export function CinematicMedia({
             if (typeof element.decode === "function") void element.decode().catch(() => undefined).finally(() => reveal(slot, scene));
             else reveal(slot, scene);
           }}
-          onError={() => { if (isPending) setState((old) => old.pending === slot ? { ...old, pending: null, revealed: false } : old); }}
+          onError={() => { if (isPending) setState((old) => {
+            if (old.pending !== slot) return old;
+            const slots = [...old.slots] as Layers;
+            slots[slot] = null;
+            return { ...old, slots, pending: null, revealed: false };
+          }); }}
           className={mediaClass} style={motionStyle}
         />;
   };
