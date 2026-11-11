@@ -30,20 +30,20 @@ export function KeepOpeningScreen({ phase, progress, onBack }: Props) {
     : "Preparing your editing space";
   return (
     <main className="app-shell keep-opening-screen">
-      <header className="flex items-center justify-between px-7 pt-[max(35px,env(safe-area-inset-top))]">
+      <header className="mx-auto flex w-full max-w-md items-center px-7 pt-[max(28px,env(safe-area-inset-top))]">
         <a href="/app" aria-label="Back to your creations" className="keep-wordmark">Keep</a>
       </header>
-      <div className="mx-auto flex min-h-[calc(100dvh-115px)] max-w-md flex-col justify-center px-8 pb-16">
-        <h1 className="font-display text-[clamp(37px,9.5vw,49px)] font-normal leading-[1.13] tracking-[-.035em] text-foreground">
+      <div className="mx-auto flex w-full max-w-md flex-col px-7 pb-[max(40px,env(safe-area-inset-bottom))] pt-12 sm:pt-14">
+        <h1 className="max-w-[17ch] text-balance font-display text-[clamp(34px,8.4vw,44px)] font-normal leading-[1.12] tracking-[-.03em] text-foreground">
           Getting your Keep ready.
         </h1>
-        <p className="mt-5 max-w-[30ch] text-[15px] leading-7 text-muted-foreground">
+        <p className="mt-4 max-w-[36ch] text-[15px] leading-[1.6] text-muted-foreground">
           We're bringing your words and memories back together, right where you left off.
         </p>
-        <div className="mt-12" aria-live="polite" aria-atomic="true">
-          <div className="mb-3 flex items-end justify-between gap-3">
-            <p className="text-xs font-medium text-foreground">{status}</p>
-            {percentage !== null && <span className="text-xs font-medium tabular-nums text-[#6A5849]">{percentage}%</span>}
+        <div className="mt-11" aria-live="polite" aria-atomic="true">
+          <div className="mb-3 flex items-end justify-between gap-4">
+            <p className="min-w-0 flex-1 text-xs font-medium leading-5 text-foreground">{status}</p>
+            {percentage !== null && <span className="shrink-0 text-xs font-medium tabular-nums text-[#6A5849]">{percentage}%</span>}
           </div>
           <div role="progressbar" aria-label="Restoring your Keep" aria-valuemin={0} aria-valuemax={percentage === null ? undefined : 100} aria-valuenow={percentage === null ? undefined : percentage} aria-valuetext={status} className="keep-opening-track h-1.5 overflow-hidden rounded-full bg-[#E6DED3]">
             <div className={percentage === null ? "keep-opening-indeterminate h-full rounded-full bg-[#0B0B0B]" : "h-full rounded-full bg-[#0B0B0B] transition-[width] duration-300"} style={percentage === null ? undefined : { width: `${percentage}%` }} />
@@ -52,7 +52,7 @@ export function KeepOpeningScreen({ phase, progress, onBack }: Props) {
             {hasCount ? "Progress reflects files restored. Larger videos may take longer." : "Connecting and checking your saved work. Time depends on your connection."}
           </p>
         </div>
-        <div className="mt-11 space-y-4 border-t border-border pt-7">
+        <div className="mt-9 space-y-4 border-t border-border pt-7">
           {steps.map((step, index) => (
             <div key={step.id} className="flex items-center gap-3">
               <span aria-hidden="true" className={`flex size-6 items-center justify-center rounded-full border text-[11px] ${index < current ? "border-[#0B0B0B] bg-[#0B0B0B] text-white" : index === current ? "border-[#6A5849] bg-[#E6DED3] text-[#0B0B0B]" : "border-border text-muted-foreground"}`}>
