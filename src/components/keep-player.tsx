@@ -59,13 +59,19 @@ export function KeepPlayer({ name, from, year, onExit, onFinish, recipient = fal
   useEffect(() => {
     if (!audioUrl || !playing || end || scene < 0) return;
     let raf = 0;
+    let lastPublished = -1;
     const tick = () => {
       const element = audio.current;
       if (element && !element.paused) {
         const time = element.currentTime;
-        setAudioTime(time);
         const duration = Number.isFinite(element.duration) && element.duration > 0 ? element.duration : (audioDuration || 1);
-        setProgress(Math.min(1, time / duration));
+        // 10fps is ample precision for word captions, without re-rendering
+        // every large photo on every animation frame on mobile Safari.
+        if (lastPublished < 0 || Math.abs(time - lastPublished) >= 0.09) {
+          lastPublished = time;
+          setAudioTime(time);
+          setProgress(Math.min(1, time / duration));
+        }
         const index = sceneIndexAt(items, time, audioDuration || duration);
         setScene((current) => current === index ? current : index);
       }
