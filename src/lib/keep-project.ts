@@ -62,6 +62,8 @@ export type KeepProject = {
   captionTranscript: string;
   captionCues: CaptionCue[];
   captionWords?: CaptionWord[];
+  /** True when unreliable provider timestamps were estimated across the preserved voice recording. */
+  captionTimingEstimated?: boolean;
   captionWordsPerCue?: number;
   captionLines?: number;
   captionPosition?: "top" | "middle" | "bottom";
