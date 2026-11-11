@@ -1,11 +1,17 @@
 import type { MediaItem } from './keep-project';
+import { defaultMotionAt } from './keep-film-timing';
 
 export type CreationStyle = 'memories' | 'words';
 export const recommendedStyle = (count: number, seconds: number): CreationStyle => count >= Math.max(5, Math.ceil(seconds / 16)) ? 'memories' : 'words';
 
 export function spreadMemories(media: MediaItem[], duration: number): MediaItem[] {
   const seconds = Math.max(8, duration);
-  return media.map(item => ({ ...item, displayDurationSec: seconds / Math.max(1, media.length) }));
+  return media.map((item, index) => ({
+    ...item,
+    displayDurationSec: seconds / Math.max(1, media.length),
+    motion: item.motion ?? defaultMotionAt(index),
+    transition: item.transition ?? (index % 3 === 1 ? 'fade' as const : 'dissolve' as const),
+  }));
 }
 
 function wordScene(text: string, index: number): MediaItem {
@@ -38,7 +44,13 @@ export function arrangeWords(media: MediaItem[], paragraphs: string[], duration:
   for (let i = 0; i < wordCount; i++) {
     result.push({ ...wordScene(text[i % text.length]!, i), displayDurationSec: wordDuration });
     if (photoIndex < photoCount && i + 1 === Math.round((photoIndex + 1) * wordCount / (photoCount + 1))) {
-      result.push({ ...photos[photoIndex++]!, displayDurationSec: photoDuration });
+      const photo = photos[photoIndex++]!;
+      result.push({
+        ...photo,
+        displayDurationSec: photoDuration,
+        motion: photo.motion ?? defaultMotionAt(result.length),
+        transition: photo.transition ?? 'dissolve',
+      });
     }
   }
   return result;
