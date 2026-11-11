@@ -10,6 +10,7 @@ import { KeepStyleEditor } from "@/components/keep-style-editor";
 import { KeepFinishingChoices } from "@/components/keep-finishing-choices";
 import { KeepAskAIModal, KeepWordChanges } from "@/components/keep-ask-ai-modal";
 import { arrangeWords, spreadMemories, recommendedStyle } from "@/lib/keep-story-layout";
+import { filmTotal, sceneBoundary, sceneDuration, sceneIndexAt } from "@/lib/keep-film-timing";
 import { captionAtTime, recoverCaptionTiming } from "@/lib/keep-caption-timing";
 import { activeKeepSession, loadEditableKeep, loadCloudDraft, saveCloudDraft, removeCloudDraft } from "@/lib/keep-cloud";
 import { CinematicMedia } from "@/components/cinematic-media";
@@ -862,18 +863,11 @@ function KeepApp() {
   }, [screen, generation]);
   const captionLines = project.messageParagraphs.map((p) => (p.split(/(?<=[.!?])\s/)[0] ?? p).trim()).filter(Boolean).slice(0, 8);
   // The recorded voice is the editor's master clock. Photo timing and captions follow it.
-  const editorDuration = Math.max(rec?.durationSec ?? 0, shown.reduce((sum, item) => sum + Math.max(1, item.displayDurationSec ?? 7), 0), 1);
-  const editorMediaTotal = shown.reduce((sum, item) => sum + Math.max(1, item.displayDurationSec ?? 4), 0);
-  const editorSceneAt = (time: number) => {
-    if (!shown.length || !editorMediaTotal) return 0;
-    const position = Math.min(Math.max(time, 0), editorMediaTotal - 0.000001);
-    let elapsed = 0;
-    for (let i = 0; i < shown.length; i++) {
-      elapsed += Math.max(1, shown[i]?.displayDurationSec ?? 4);
-      if (position < elapsed) return i;
-    }
-    return shown.length - 1;
-  };
+  const editorMediaTotal = Math.max(1, filmTotal(shown));
+  const editorDuration = rec?.audioUrl && !rec.demo && rec.durationSec > 0
+    ? rec.durationSec
+    : Math.max(rec?.durationSec ?? 0, editorMediaTotal);
+  const editorSceneAt = (time: number) => sceneIndexAt(shown, time, editorDuration);
   const editorCue = captionAtTime(project.captionCues, editorTime);
   const editorCaption = editorCue?.text ?? (rec?.demo ? captionLines[Math.min(captionLines.length - 1, Math.floor(editorTime / Math.max(1, editorDuration / Math.max(1, captionLines.length))))] ?? "" : "");
   const seekEditor = (time: number) => {
@@ -889,8 +883,7 @@ function KeepApp() {
       toast.info("The last photo has no next transition.");
       return;
     }
-    const boundary = shown.slice(0, index + 1)
-      .reduce((sum, moment) => sum + Math.max(1, moment.displayDurationSec ?? 7), 0);
+    const boundary = sceneBoundary(shown, index, editorDuration);
     setEditorPlaying(false);
     seekEditor(Math.max(0, boundary - 0.9));
     window.requestAnimationFrame(() => setEditorPlaying(true));
@@ -986,13 +979,11 @@ function KeepApp() {
     const voiceClock = !!(rec?.audioUrl && !rec.demo && audio);
     const started = performance.now();
     const initialTime = editorTime;
-    const audioStart = audio?.currentTime ?? 0;
-    const audioLength = rec?.durationSec ?? 0;
-    const tick = (now: number) => {
+     const tick = (now: number) => {
       const elapsed = (now - started) / 1000;
       const audioTime = audio?.currentTime ?? 0;
-      const useAudio = voiceClock && audioTime < audioLength - 0.05 && audioTime > audioStart + 0.005;
-      const next = Math.min(editorDuration, useAudio ? audioTime : initialTime + elapsed);
+      // Never advance visuals while a recorded narration is buffering or paused.
+      const next = Math.min(editorDuration, voiceClock ? audioTime : initialTime + elapsed);
       setEditorTime(next);
       if (next >= editorDuration) { setEditorPlaying(false); return; }
       raf = window.requestAnimationFrame(tick);
@@ -1277,7 +1268,7 @@ function KeepApp() {
         <div className="flex items-center gap-1">
           <Button variant="bare" size="icon" aria-label="Undo" disabled={!undoPast.current.length} onClick={() => stepHistory("undo")}><Undo2 className="size-4" /></Button>
           <Button variant="bare" size="icon" aria-label="Redo" disabled={!undoFuture.current.length} onClick={() => stepHistory("redo")}><Redo2 className="size-4" /></Button>
-          <Button variant="bare" size="sm" className="text-muted-foreground" onClick={() => { setViewingDemo(false); setPreviewChooserOpen(true); setReadArrangeOpen(false); }}><Play className="size-4" /> Review</Button>
+          <Button variant="bare" size="sm" className="text-muted-foreground" onClick={() => { setViewingDemo(false); setPreviewChooserOpen(true); setReadArrangeOpen(false); }}><Play className="size-4" /> Preview</Button>
           <Button variant="keep" size="sm" onClick={toCard}>Done <Check className="size-4" /></Button>
         </div>
       </div>
@@ -1286,7 +1277,7 @@ function KeepApp() {
       <div className="keep-studio-stage">
         <div className="keep-studio-canvas-wrap">
           <div className="keep-studio-canvas relative aspect-[9/16] overflow-hidden rounded-2xl bg-card shadow-lg">
-            <CinematicMedia item={selected} playing={editorPlaying} duration={Math.max(5, selected.displayDurationSec ?? 7)} className="absolute inset-0" imageClassName={`editor-image-${styleSlug(compareOriginalStyle && editorPanel === "Style" ? "Natural" : project.visualStyle)}`} />
+            <CinematicMedia item={selected} nextItem={shown[frame + 1]} sceneKey={frame} motionIndex={frame} playing={editorPlaying} duration={sceneDuration(shown, frame, editorDuration)} className="absolute inset-0" imageClassName={`editor-image-${styleSlug(compareOriginalStyle && editorPanel === "Style" ? "Natural" : project.visualStyle)}`} />
             <div className="absolute inset-0 photo-shade" />
             {editorPanel === "Memories" && <div className="absolute inset-x-0 top-0 bottom-14 z-20 cursor-grab touch-none active:cursor-grabbing" aria-label="Drag photo to reposition" onPointerDown={(e) => { e.currentTarget.setPointerCapture(e.pointerId); const r = e.currentTarget.getBoundingClientRect(); photoDrag.current = { x: e.clientX, y: e.clientY, focusX: selected.focusX ?? 50, focusY: selected.focusY ?? 50, width: r.width, height: r.height }; setEditorPlaying(false); }} onPointerMove={(e) => { const d = photoDrag.current; if (!d) return; updateSelectedMoment({ focusX: Math.max(0, Math.min(100, d.focusX - (e.clientX - d.x) / d.width * 100)), focusY: Math.max(0, Math.min(100, d.focusY - (e.clientY - d.y) / d.height * 100)) }); }} onPointerUp={() => { photoDrag.current = null; }} onPointerCancel={() => { photoDrag.current = null; }}><span className="absolute left-1/2 top-3 -translate-x-1/2 whitespace-nowrap rounded-full bg-black/65 px-3 py-1 text-[10px] text-white">Drag photo to reposition</span></div>}
 
