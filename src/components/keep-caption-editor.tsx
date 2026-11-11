@@ -11,6 +11,7 @@ type Props = {
   wordsPerCue: number;
   syncing: boolean;
   syncError: boolean;
+  timingEstimated: boolean;
   hasVoice: boolean;
   canRestore: boolean;
   onClose: () => void;
@@ -31,7 +32,7 @@ const format = (time: number) => `${Math.floor(time / 60)}:${String(Math.floor(t
 
 /** One caption at a time; text edits are visible instantly in the film above. */
 export function KeepCaptionEditor({
-  cues, time, style, position, maxLines, wordsPerCue, syncing, syncError, hasVoice,
+  cues, time, style, position, maxLines, wordsPerCue, syncing, syncError, timingEstimated, hasVoice,
   canRestore, onClose, onSeek, onChangeCaption, onChangeCaptionTime, onChangeStyle,
   onChangePosition, onChangeLines, onRegroup, onRestore, onRetrySync,
 }: Props) {
@@ -58,6 +59,10 @@ export function KeepCaptionEditor({
         <X className="size-4" />
       </button>
     </div>
+
+    {timingEstimated && cues.length > 0 && <p className="mt-4 rounded-lg border border-[#6A5849]/60 bg-[#2A2725] px-3 py-2 text-[11px] leading-5 text-[#E8DED3]">
+      We corrected unreliable timing to keep your captions visible. Their placement is estimated; use the timing controls below to fine-tune it to your voice.
+    </p>}
 
     {hasVoice && !cues.length && <div className="mt-5 rounded-xl border border-border bg-card p-4">
       <p className="text-sm font-medium">{syncing ? "Syncing your spoken words…" : syncError ? "Captions couldn't sync" : "No captions yet"}</p>
