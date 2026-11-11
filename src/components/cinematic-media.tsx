@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { motionFor } from "@/lib/keep-film-timing";
 
 export type CinematicMoment = {
   url: string;
@@ -12,135 +13,163 @@ export type CinematicMoment = {
 
 type Props = {
   item: CinematicMoment;
+  nextItem?: CinematicMoment | undefined;
+  sceneKey?: string | number | undefined;
+  motionIndex?: number | undefined;
   playing?: boolean;
   duration?: number;
   className?: string;
   imageClassName?: string;
 };
 
-type Scene = { item: CinematicMoment; duration: number; imageClassName: string };
+type Scene = { key: string; item: CinematicMoment; duration: number; imageClassName: string; index: number };
+type Slot = 0 | 1;
+type Layers = [Scene | null, Scene | null];
+type State = { slots: Layers; active: Slot; pending: Slot | null; revealed: boolean };
+
+const flip = (slot: Slot): Slot => slot === 0 ? 1 : 0;
 
 /**
- * Keeps the last fully visible frame on screen until the next photo/video
- * has loaded. The new frame fades ON TOP of the old frame, never through black.
- * The outgoing clip's transition setting controls how it leaves the screen.
+ * Two persistent layers: the last decoded image/video NEVER unmounts while
+ * the next frame is loading. The incoming layer is decoded behind the scenes
+ * and dissolves over the existing image. Once complete, it remains mounted
+ * as the active layer (no remount/black flashes on Safari).
  */
-export function CinematicMedia({ item, playing = true, duration = 7, className = "", imageClassName = "" }: Props) {
-  const currentVideo = useRef<HTMLVideoElement>(null);
-  const [front, setFront] = useState<Scene>(() => ({ item, duration, imageClassName }));
-  const [outgoing, setOutgoing] = useState<Scene | null>(null);
-  const [ready, setReady] = useState(false);
-  const [revealed, setRevealed] = useState(true);
-  const [failed, setFailed] = useState(false);
-  const lastUrl = useRef(item.url);
-  const fadeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const transition: NonNullable<CinematicMoment["transition"]> = outgoing?.item.transition ?? front.item.transition ?? "dissolve";
-  const fadeMs = transition === "cut" ? 0 : transition === "fade" ? 440 : 760;
+export function CinematicMedia({
+  item, nextItem, sceneKey, motionIndex = 0, playing = true, duration = 7, className = "", imageClassName = "",
+}: Props) {
+  const key = String(sceneKey ?? item.url);
+  const [state, setState] = useState<State>(() => ({
+    slots: [{ key, item, duration, imageClassName, index: motionIndex }, null], active: 0, pending: null, revealed: false,
+  }));
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const videos = useRef<[HTMLVideoElement | null, HTMLVideoElement | null]>([null, null]);
+  const activeScene = state.slots[state.active];
+  const transition = activeScene?.item.transition ?? "dissolve";
+  const fadeMs = transition === "cut" ? 0 : transition === "fade" ? 570 : 830;
 
-  // useLayoutEffect preserves the previous image during a route/player update
-  // before the browser paints the first frame of the incoming clip.
   useLayoutEffect(() => {
-    const next: Scene = { item, duration, imageClassName };
-    if (item.url !== lastUrl.current) {
-      if (fadeTimer.current) clearTimeout(fadeTimer.current);
-      setOutgoing(front);
-      setFront(next);
-      setReady(false);
-      setRevealed(false);
-      setFailed(false);
-      lastUrl.current = item.url;
-    } else if (front.item !== item || front.duration !== duration || front.imageClassName !== imageClassName) {
-      setFront(next);
-    }
-  }, [item, duration, imageClassName]);
+    const next: Scene = { key, item, duration, imageClassName, index: motionIndex };
+    setState((previous) => {
+      const current = previous.slots[previous.active];
+      const incoming = previous.pending !== null ? previous.slots[previous.pending] : null;
+      // Settings edits update the existing scene without triggering a slideshow cut.
+      if (current?.key === key) {
+        const slots = [...previous.slots] as Layers;
+        slots[previous.active] = next;
+        if (previous.pending !== null) slots[previous.pending] = null;
+        return { ...previous, slots, pending: null, revealed: false };
+      }
+      if (incoming?.key === key) {
+        const slots = [...previous.slots] as Layers;
+        slots[previous.pending!] = next;
+        return { ...previous, slots };
+      }
+      const pending = flip(previous.active);
+      const slots = [...previous.slots] as Layers;
+      slots[pending] = next;
+      return { ...previous, slots, pending, revealed: false };
+    });
+  }, [key, item, duration, imageClassName, motionIndex]);
 
-  // Two paint frames ensure cached images also crossfade rather than jump.
+  // Warm the browser cache for the following image, without creating a flash.
   useEffect(() => {
-    if (!ready || !outgoing) return;
-    if (fadeMs === 0) {
-      setRevealed(true);
-      return;
+    if (nextItem?.kind !== "image" || !nextItem.url || nextItem.url === item.url) return;
+    const image = new Image();
+    image.src = nextItem.url;
+    if (typeof image.decode === "function") void image.decode().catch(() => undefined);
+  }, [nextItem?.url, nextItem?.kind, item.url]);
+
+  useEffect(() => {
+    for (const video of videos.current) {
+      if (!video) continue;
+      if (playing) void video.play().catch(() => undefined);
+      else video.pause();
     }
+  }, [playing, state.slots[0]?.key, state.slots[1]?.key, state.pending]);
+
+  const reveal = (slot: Slot, scene: Scene) => {
     let first = 0;
     let second = 0;
     first = requestAnimationFrame(() => {
-      second = requestAnimationFrame(() => setRevealed(true));
+      second = requestAnimationFrame(() => {
+        setState((previous) => previous.pending === slot && previous.slots[slot]?.key === scene.key
+          ? { ...previous, revealed: true } : previous);
+      });
     });
-    return () => { cancelAnimationFrame(first); cancelAnimationFrame(second); };
-  }, [ready, outgoing?.item.url, fadeMs]);
+    // RAFs are short-lived; when a later scene arrives, its identity check wins.
+    void first;
+    void second;
+  };
 
   useEffect(() => {
-    if (!revealed || !outgoing) return;
-    if (fadeTimer.current) clearTimeout(fadeTimer.current);
-    fadeTimer.current = setTimeout(() => {
-      setOutgoing(null);
-      fadeTimer.current = null;
-    }, fadeMs + 65);
-    return () => { if (fadeTimer.current) clearTimeout(fadeTimer.current); };
-  }, [revealed, outgoing?.item.url, fadeMs]);
+    if (state.pending === null || !state.revealed) return;
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = setTimeout(() => {
+      setState((previous) => {
+        if (previous.pending === null || !previous.revealed) return previous;
+        const newActive = previous.pending;
+        const slots = [...previous.slots] as Layers;
+        slots[previous.active] = null;
+        return { slots, active: newActive, pending: null, revealed: false };
+      });
+      timer.current = null;
+    }, fadeMs + 50);
+    return () => { if (timer.current) clearTimeout(timer.current); timer.current = null; };
+  }, [state.pending, state.revealed, fadeMs]);
 
-  useEffect(() => () => { if (fadeTimer.current) clearTimeout(fadeTimer.current); }, []);
+  useEffect(() => () => { if (timer.current) clearTimeout(timer.current); }, []);
 
-  useEffect(() => {
-    const video = currentVideo.current;
-    if (!video) return;
-    if (playing) void video.play().catch(() => {});
-    else video.pause();
-  }, [playing, front.item.url, front.item.kind]);
-
-  const mediaElement = (scene: Scene, isFront: boolean) => {
+  const renderMedia = (scene: Scene, slot: Slot) => {
     const moment = scene.item;
     const x = Math.max(0, Math.min(100, moment.focusX ?? 50));
     const y = Math.max(0, Math.min(100, moment.focusY ?? 50));
-    const zoom = Math.max(1, Math.min(1.5, moment.zoom ?? 1.08));
-    const pan = moment.motion === "left" ? -2 : moment.motion === "right" ? 2 : 0;
-    const from = moment.motion === "out" ? zoom * 1.08 : zoom;
-    const to = moment.motion === "out" ? zoom : zoom * 1.08;
+    const zoom = Math.max(1.03, Math.min(1.35, moment.zoom ?? 1.08));
+    const motion = motionFor(moment, scene.index);
+    const from = motion === "out" ? zoom * 1.065 : zoom;
+    const to = motion === "out" ? zoom : zoom * 1.065;
+    const shift = motion === "left" ? [2.4, -2.4] : motion === "right" ? [-2.4, 2.4] : [0, 0];
     const motionStyle = {
       objectPosition: `${x}% ${y}%`,
       transformOrigin: `${x}% ${y}%`,
-      animation: playing && isFront ? `keep-cinematic-move ${Math.max(3, scene.duration)}s ease-in-out both` : undefined,
-      transform: playing && isFront ? undefined : `scale(${zoom})`,
-      ["--keep-from" as string]: `translateX(${-pan}%) scale(${from})`,
-      ["--keep-to" as string]: `translateX(${pan}%) scale(${to})`,
+      animation: `keep-cinematic-move ${Math.max(1, scene.duration)}s linear both`,
+      animationPlayState: playing ? "running" as const : "paused" as const,
+      ["--keep-from" as string]: `translateX(${shift[0]}%) scale(${from})`,
+      ["--keep-to" as string]: `translateX(${shift[1]}%) scale(${to})`,
     };
-    const className = `absolute inset-0 block h-full w-full object-cover ${scene.imageClassName}`;
+    const mediaClass = `absolute inset-0 block h-full w-full object-cover ${scene.imageClassName}`;
+    const isPending = state.pending === slot;
     return moment.kind === "video"
       ? <video
-          key={moment.url}
-          ref={isFront ? currentVideo : undefined}
-          src={moment.url} muted playsInline loop autoPlay={isFront && playing}
-          preload="auto"
-          onLoadedData={isFront ? () => setReady(true) : undefined}
-          onError={isFront ? () => { setFailed(true); setReady(true); } : undefined}
-          className={className} style={motionStyle}
+          ref={(node) => { videos.current[slot] = node; }}
+          src={moment.url} muted playsInline loop autoPlay={playing}
+          preload="auto" onLoadedData={() => { if (isPending) reveal(slot, scene); }}
+          onError={() => { if (isPending) setState((old) => old.pending === slot ? { ...old, pending: null, revealed: false } : old); }}
+          className={mediaClass} style={motionStyle}
         />
       : <img
-          key={moment.url}
-          src={moment.url} alt="Memory" decoding="async"
-          onLoad={isFront ? () => setReady(true) : undefined}
-          onError={isFront ? () => { setFailed(true); setReady(true); } : undefined}
-          className={className} style={motionStyle}
+          src={moment.url} alt="" decoding="async"
+          onLoad={(event) => {
+            if (!isPending) return;
+            const element = event.currentTarget;
+            if (typeof element.decode === "function") void element.decode().catch(() => undefined).finally(() => reveal(slot, scene));
+            else reveal(slot, scene);
+          }}
+          onError={() => { if (isPending) setState((old) => old.pending === slot ? { ...old, pending: null, revealed: false } : old); }}
+          className={mediaClass} style={motionStyle}
         />;
   };
 
-  // There is always a frame behind the incoming one during loading and fading.
-  const showIncoming = !outgoing || revealed;
   return <div className={`isolate overflow-hidden bg-[#171719] ${className}`}>
     <style>{`@keyframes keep-cinematic-move {from {transform:var(--keep-from)} to {transform:var(--keep-to)}} @media (prefers-reduced-motion:reduce) {[style*="keep-cinematic-move"] {animation:none!important}}`}</style>
-    {outgoing?.item.url && <div className="absolute inset-0">{mediaElement(outgoing, false)}</div>}
-    <div
-      className="absolute inset-0"
+    {state.slots.map((scene, slot) => scene && <div key={slot} className="absolute inset-0"
       style={{
-        opacity: showIncoming ? 1 : 0,
-        transition: outgoing && fadeMs > 0 ? `opacity ${fadeMs}ms ease-in-out` : "none",
-        willChange: outgoing && fadeMs > 0 ? "opacity" : "auto",
-      }}
-    >
-      {front.item.url && !failed ? mediaElement(front, true) :
-        <div className="absolute inset-0 flex items-center justify-center px-5 text-center text-sm text-white/65">
-          {failed ? "This memory couldn't load. Try replacing it." : "Add a photo to preview your Keep."}
-        </div>}
-    </div>
+        zIndex: slot === state.pending ? 2 : 1,
+        opacity: slot === state.pending && !state.revealed ? 0 : 1,
+        transition: slot === state.pending && fadeMs ? `opacity ${fadeMs}ms ease-in-out` : "none",
+        pointerEvents: "none",
+      }}>
+      {renderMedia(scene, slot as Slot)}
+    </div>)}
   </div>;
 }
