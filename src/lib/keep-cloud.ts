@@ -48,11 +48,39 @@ async function uploadBlob(session:KeepSession,id:string,blob:Blob) {
   await request("/storage/v1/object/keep-draft-media/"+path,session,{method:"POST",headers:{"Content-Type":blob.type||"application/octet-stream","x-upsert":"true"},body:blob});
   uploadedThisSession.add(cacheKey);
 }
-async function downloadBlob(session:KeepSession,id:string) {
+/** Abort slow storage requests; no one image may keep the editor loading forever. */
+async function withTimeout<T>(work: (signal: AbortSignal) => Promise<T>, ms: number): Promise<T> {
+  const controller = new AbortController();
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      work(controller.signal),
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => {
+          controller.abort();
+          reject(new Error("A media transfer timed out"));
+        }, ms);
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+async function downloadBlob(session:KeepSession,id:string,budgetMs = 10000) {
+  // Previously restored files should reopen instantly, even on slow cellular.
+  let cached: Blob | null = null;
+  try { cached = await withTimeout(() => getBlob(id), Math.min(2000, budgetMs)); } catch { /* IndexedDB unavailable */ }
+  if (cached?.size) return URL.createObjectURL(cached);
+
   const path=encodeURIComponent(session.user.id)+"/"+encodeURIComponent(id);
-  const res=await request("/storage/v1/object/authenticated/keep-draft-media/"+path,session);
-  const blob=await res.blob();
-  await putBlob(id,blob);
+  const blob = await withTimeout(async (signal) => {
+    const res = await request("/storage/v1/object/authenticated/keep-draft-media/"+path,session,{signal});
+    const file = await res.blob();
+    if (!file.size) throw new Error("Empty media response");
+    return file;
+  }, Math.max(1500,budgetMs));
+  // Never let a blocked IndexedDB transaction freeze the editor either.
+  try { await withTimeout(() => putBlob(id,blob), 2500); } catch { /* usable in this session */ }
   uploadedThisSession.add(session.user.id+":"+id);
   return URL.createObjectURL(blob);
 }
@@ -80,25 +108,72 @@ export async function loadCloudDraft(session:KeepSession,onProgress?: (progress:
 export type KeepRestoreProgress = { completed: number; total: number; kind: "media" };
 async function hydrateCloudProject(project: Partial<KeepProject>, session: KeepSession, onProgress?: (progress: KeepRestoreProgress) => void): Promise<KeepProject> {
   const p:KeepProject={...newProject(),...project};
-  const total = p.memories.filter(m=>m.source==="upload").length + p.interviewAnswers.filter(a=>a.audioId).length + (p.finalVoiceRecording?.audioId ? 1 : 0);
+  type Need = { id: string; url: string | undefined };
+  const needs: Need[] = [
+    ...(p.finalVoiceRecording?.audioId ? [{ id: p.finalVoiceRecording.audioId, url: p.finalVoiceRecording.audioUrl }] : []),
+    ...p.memories.filter((m) => m.source === "upload").map((m) => ({id:m.id,url:m.url})),
+    ...p.interviewAnswers.filter((a) => !!a.audioId).map((a) => ({id:a.audioId!,url:a.audioUrl})),
+  ];
+  const total = needs.length;
+  const urls = new Map<string,string>();
+  const missing = new Set<string>();
   let completed = 0;
-  onProgress?.({completed,total,kind:"media"});
-  const markRestored = () => { completed += 1; onProgress?.({completed,total,kind:"media"}); };
-  const memories=[];
-  for(const m of p.memories) {
-    if(m.source==="sample") { memories.push({...m,url:memoryImages[m.sampleIndex??0]??""}); continue; }
-    if(m.source==="text") { memories.push(m); continue; }
-    try { memories.push({...m,url:await downloadBlob(session,m.id)}); markRestored(); } catch { throw new Error("A saved photo or video could not be restored. Please try again."); }
+  const progress = () => onProgress?.({completed,total,kind:"media"});
+  for (const need of needs) {
+    if (need.url?.startsWith("blob:")) {
+      urls.set(need.id,need.url);
+      completed++;
+    }
   }
-  const interviewAnswers=[];
-  for(const a of p.interviewAnswers) {
-    const audioUrl = a.audioId ? await downloadBlob(session,a.audioId) : undefined;
-    interviewAnswers.push({...a,audioUrl});
-    if(a.audioId) markRestored();
-  }
-  const finalVoiceRecording=p.finalVoiceRecording?.audioId ? {...p.finalVoiceRecording,audioUrl:await downloadBlob(session,p.finalVoiceRecording.audioId)}:p.finalVoiceRecording;
-  if(p.finalVoiceRecording?.audioId) markRestored();
-  return {...p,memories,interviewAnswers,finalVoiceRecording};
+  progress();
+  const remaining = [...new Set(needs.filter((need) => !urls.has(need.id)).map((need) => need.id))];
+  let next = 0;
+  // Hard overall restoration budget; any incomplete files remain safely in cloud
+  // and can be retried from the editor without deleting or overwriting them.
+  const deadline = Date.now() + 28000;
+  const worker = async () => {
+    while (next < remaining.length) {
+      const id = remaining[next++]!;
+      const left = deadline - Date.now();
+      if (left < 1500) { missing.add(id); continue; }
+      try {
+        const url = await downloadBlob(session,id,Math.min(9500,left));
+        urls.set(id,url);
+        completed += 1;
+        progress();
+      } catch {
+        // A second attempt helps with transient cellular drops, within budget.
+        const retryBudget = Math.min(5500,deadline-Date.now());
+        if (retryBudget >= 1800) {
+          try {
+            const url = await downloadBlob(session,id,retryBudget);
+            urls.set(id,url);
+            completed += 1;
+            progress();
+            continue;
+          } catch { /* continue opening with available media */ }
+        }
+        missing.add(id);
+      }
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(5,remaining.length) }, () => worker()));
+  const memories = p.memories.map((m) => {
+    if (m.source === "sample") return {...m,url:memoryImages[m.sampleIndex??0]??""};
+    if (m.source === "text") return m;
+    return {...m,url:urls.get(m.id)??"",persisted:!!urls.get(m.id)};
+  });
+  const interviewAnswers = p.interviewAnswers.map((a) => ({...a,audioUrl:a.audioId ? urls.get(a.audioId) : a.audioUrl}));
+  const finalVoiceRecording = p.finalVoiceRecording?.audioId
+    ? {...p.finalVoiceRecording,audioUrl:urls.get(p.finalVoiceRecording.audioId)}
+    : p.finalVoiceRecording;
+  return {...p,memories,interviewAnswers,finalVoiceRecording,
+    restoreIncomplete:missing.size>0,restoreMissingCount:missing.size};
+}
+
+/** Retry just the unfinished media without ever replacing text or recorded audio. */
+export async function retryMissingCloudMedia(project: KeepProject, session: KeepSession, onProgress?: (progress: KeepRestoreProgress) => void): Promise<KeepProject> {
+  return hydrateCloudProject(project,session,onProgress);
 }
 export async function removeCloudDraft(session:KeepSession):Promise<void> {
   await request("/rest/v1/keep_drafts?owner_id=eq."+encodeURIComponent(session.user.id),session,{method:"DELETE"});
