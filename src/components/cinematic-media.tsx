@@ -141,6 +141,7 @@ export function CinematicMedia({
     const isPending = state.pending === slot;
     return moment.kind === "video"
       ? <video
+          key={scene.key}
           ref={(node) => { videos.current[slot] = node; }}
           src={moment.url} muted playsInline loop autoPlay={playing}
           preload="auto" onLoadedData={() => { if (isPending) reveal(slot, scene); }}
@@ -153,6 +154,7 @@ export function CinematicMedia({
           className={mediaClass} style={motionStyle}
         />
       : <img
+          key={scene.key}
           src={moment.url} alt="" decoding="async"
           onLoad={(event) => {
             if (!isPending) return;
