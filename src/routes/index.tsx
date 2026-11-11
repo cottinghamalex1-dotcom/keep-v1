@@ -1291,7 +1291,7 @@ function KeepApp() {
     {screen === "generating" && <div className="flex keep-h-screen flex-col items-center justify-center px-8 text-center"><div className="relative mb-14 flex size-30 items-center justify-center"><div className="pulse-ring absolute inset-0 rounded-full border border-accent" /><Sparkles className="size-8 text-accent" /></div><h1 key={generation} className="display min-h-32 text-5xl page-enter">{["Gathering your moments…", "Bringing your voice and music together…", "Building your Keep…", "Your film is almost ready…"][generation]}</h1><p className="mt-8 max-w-xs text-xs leading-6 text-muted-foreground">Your selections are coming together into one personal film.</p></div>}
     {screen === "editor" && selected && <div className={`keep-studio ${editorExpanded ? "keep-studio--expanded" : "keep-studio--immersive"}`}>
       {project.restoreIncomplete && <div role="alert" className="mx-4 mt-3 flex items-center justify-between gap-3 rounded-xl border border-[#AD8F66] bg-[#30281F] px-3 py-3 text-white">
-        <p className="text-xs leading-5">Your Keep is open. {project.restoreMissingCount ?? "Some"} files still need restoring. Your saved cloud copy is safe; editing and cloud saves are paused until recovery finishes.</p>
+        <p className="text-xs leading-5">Your Keep is open. {project.restoreMissingCount ?? "Some"} files still need restoring. Your saved cloud copy is safe. Cloud saving is paused; tap Retry before making edits.</p>
         <Button type="button" variant="quiet" size="sm" disabled={restoreRetrying} onClick={() => void retryMissingRestore()}>
           <RotateCcw className={`size-3.5 ${restoreRetrying ? "animate-spin" : ""}`} /> {restoreRetrying ? "Restoring" : "Retry"}
         </Button>
