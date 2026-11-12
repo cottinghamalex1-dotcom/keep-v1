@@ -894,6 +894,67 @@ function KeepApp() {
     setScreen("recipientPreview");
     resetPageScroll();
   };
+  const stopVoiceSample = () => {
+    const active = voiceSampleRef.current;
+    if (!active) return;
+    voiceSampleRef.current = null;
+    if (active.timer !== null) window.clearTimeout(active.timer);
+    active.audio.onended = null;
+    active.audio.pause();
+    active.audio.removeAttribute("src");
+    active.audio.load();
+    void active.mixer.stop();
+    setVoiceSampling(null);
+  };
+  const toggleVoiceSample = async (tone: VoiceTone) => {
+    if (voiceSampleRef.current?.tone === tone) { stopVoiceSample(); return; }
+    stopVoiceSample();
+    if (!rec?.audioUrl || rec.demo) {
+      toast.info("Record your own voice first to hear these effects.");
+      return;
+    }
+    stopMusicSample();
+    setMusicSampling("");
+    if (musicSampleTimer.current) window.clearTimeout(musicSampleTimer.current);
+    musicSampleTimer.current = null;
+    const audio = new Audio(rec.audioUrl);
+    audio.preload = "auto";
+    const mixer = createKeepVoiceMix(audio, project.musicMood, "Soft", Math.max(rec.durationSec, 10), 0, { voiceTone: tone, voiceMuted: false, musicMuted: true });
+    if (!mixer) {
+      toast.error("Voice samples are not supported in this browser.");
+      return;
+    }
+    const sample = { tone, audio, mixer, timer: null as number | null };
+    voiceSampleRef.current = sample;
+    mixer.setTrackMutes(false, true);
+    mixer.setLevels(85, 0);
+    audio.onended = () => { if (voiceSampleRef.current === sample) stopVoiceSample(); };
+    setVoiceSampling(tone);
+    try {
+      // Both playback requests start inside the same tap for iOS Safari audio permissions.
+      const audioStart = audio.play();
+      const graphStart = mixer.play();
+      await Promise.all([audioStart, graphStart]);
+      if (voiceSampleRef.current === sample) {
+        sample.timer = window.setTimeout(() => { if (voiceSampleRef.current === sample) stopVoiceSample(); }, 8000);
+      }
+    } catch {
+      if (voiceSampleRef.current === sample) stopVoiceSample();
+      toast.error("Couldn't play that voice sample. Tap to try again.");
+    }
+  };
+  useEffect(() => {
+    if (screen !== "storyStyle" && voiceSampleRef.current) stopVoiceSample();
+  }, [screen]);
+  useEffect(() => () => {
+    const active = voiceSampleRef.current;
+    if (!active) return;
+    voiceSampleRef.current = null;
+    if (active.timer !== null) window.clearTimeout(active.timer);
+    active.audio.pause();
+    void active.mixer.stop();
+  }, []);
+
   const toggleMusicSample = async (trackName: string) => {
     if (musicSampleTimer.current) window.clearTimeout(musicSampleTimer.current);
     musicSampleTimer.current = null;
@@ -1439,13 +1500,15 @@ function KeepApp() {
       looks={styles}
       previewMedia={personalMedia.find((moment) => !!moment.url)}
       musicSampling={musicSampling}
+      voiceSampling={voiceSampling}
       hasVoice={!!rec?.audioUrl && !rec.demo}
       onCaption={(captionStyle) => patch({ captionStyle })}
       onMusic={(musicMood) => patch({ musicMood })}
       onSample={(track) => { void toggleMusicSample(track); }}
       onStyle={(visualStyle) => patch({ visualStyle })}
       onVoice={(voiceTone) => patchMix({ voiceTone })}
-      onCreate={createStory}
+      onVoiceSample={(tone) => { void toggleVoiceSample(tone); }}
+      onCreate={() => { stopVoiceSample(); createStory(); }}
     /></>}
     {screen === "generating" && <div className="flex keep-h-screen flex-col items-center justify-center px-8 text-center"><div className="relative mb-14 flex size-30 items-center justify-center"><div className="pulse-ring absolute inset-0 rounded-full border border-accent" /><Sparkles className="size-8 text-accent" /></div><h1 key={generation} className="display min-h-32 text-5xl page-enter">{["Gathering your moments…", "Bringing your voice and music together…", "Building your Keep…", "Your film is almost ready…"][generation]}</h1><p className="mt-8 max-w-xs text-xs leading-6 text-muted-foreground">Your selections are coming together into one personal film.</p></div>}
     {screen === "editor" && selected && <div className={`keep-studio ${editorExpanded ? "keep-studio--expanded" : "keep-studio--immersive"}`}>
