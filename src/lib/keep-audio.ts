@@ -309,9 +309,8 @@ function createMusicBed(ctx: AudioContext, destination: AudioNode, mood: string,
         // Start both streams during the same audio-unlock interaction. The
         // secondary goes through a zero-gain WebAudio channel until needed.
         const activePlayback = channels[active]!.player.play();
-        const silentPlayback = channels[1 - active]!.player.play().catch(() => undefined);
+        void channels[1 - active]!.player.play().catch(() => undefined);
         await activePlayback;
-        await silentPlayback;
         if (stopped) return;
         if (!started) {
           started = true;
