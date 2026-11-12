@@ -32,24 +32,24 @@ const balanceLevels: Record<string, { intro: number; under: number; outro: numbe
 export const KEEP_MUSIC_LEAD_SECONDS = 2.8;
 export const KEEP_MUSIC_TAIL_SECONDS = 4.5;
 
-export function musicEnvelope(introSeconds: number, voiceDuration: number) {
+export function musicEnvelope(introSeconds: number, voiceDuration: number, fadeInSeconds = 2.5, fadeOutSeconds = 3) {
   const intro = Math.max(0, introSeconds);
   const voiceEnd = intro + Math.max(1, voiceDuration);
   return {
-    introPeak: Math.min(1.05, Math.max(0.25, intro * 0.5)),
-    duckStart: Math.max(Math.min(1.05, Math.max(0.25, intro * 0.5)) + 0.05, intro - 0.45),
-    duckEnd: Math.max(intro + 0.38, Math.max(0.25, intro * 0.5) + 0.35),
+    introPeak: Math.min(Math.max(0.25, intro - 0.55), Math.max(0.25, Math.min(1.35, fadeInSeconds * 0.4))),
+    duckStart: Math.max(Math.min(Math.max(0.25, intro - 0.55), Math.max(0.25, Math.min(1.35, fadeInSeconds * 0.4))) + 0.05, intro - 0.45),
+    duckEnd: Math.max(intro + 0.38, Math.max(0.25, intro - 0.55) + 0.35),
     voiceStart: intro,
     voiceEnd,
     outroRise: voiceEnd + 0.72,
-    outroFadeStart: voiceEnd + 1.65,
+    outroFadeStart: voiceEnd + Math.max(0.8, KEEP_MUSIC_TAIL_SECONDS - Math.max(1.1, Math.min(3.7, fadeOutSeconds))),
     outroEnd: voiceEnd + KEEP_MUSIC_TAIL_SECONDS,
   };
 }
 
 /** Music opens alone, ducks under the voice, then lifts and fades after the last word. */
-function applyMusicEnvelope(gain: AudioParam, start: number, intro: number, duration: number, introLevel: number, underLevel: number, outroLevel: number) {
-  const e = musicEnvelope(intro, duration);
+function applyMusicEnvelope(gain: AudioParam, start: number, intro: number, duration: number, introLevel: number, underLevel: number, outroLevel: number, options: MixOptions) {
+  const e = musicEnvelope(intro, duration, options.fadeIn, options.fadeOut);
   gain.cancelScheduledValues(start);
   gain.setValueAtTime(0, start);
   gain.linearRampToValueAtTime(introLevel, start + e.introPeak);
@@ -91,7 +91,7 @@ function scheduleMusic(
   const start = ctx.currentTime + 0.02;
   const total = Math.max(20, introSeconds + voiceDuration + KEEP_MUSIC_TAIL_SECONDS + 0.2);
   const under = options.ducking === false ? levels.intro * 0.75 : levels.under;
-  applyMusicEnvelope(musicGain.gain, start, introSeconds, voiceDuration, levels.intro, under, levels.outro);
+  applyMusicEnvelope(musicGain.gain, start, introSeconds, voiceDuration, levels.intro, under, levels.outro, options);
 
   // "Worth Keeping": original 60-second instrumental arrangement in C major / A minor.
   // Layered, individually enveloped piano notes, arpeggios, and gentle string swells
@@ -185,7 +185,7 @@ function createMusicBed(ctx: AudioContext, destination: AudioNode, mood: string,
       await audio.play();
       if (!started) {
         started = true;
-        applyMusicEnvelope(gain.gain, ctx.currentTime, introSeconds, voiceDuration, level, under, level);
+        applyMusicEnvelope(gain.gain, ctx.currentTime, introSeconds, voiceDuration, level, under, level, options);
       }
     },
     pause: () => audio.pause(),
