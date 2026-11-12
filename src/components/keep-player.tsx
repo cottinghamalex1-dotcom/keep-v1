@@ -129,7 +129,7 @@ export function KeepPlayer({ name, from, year, onExit, onFinish, recipient = fal
         if (!cancelled) setBlocked(true);
         return;
       }
-      if (cancelled) return;
+      if (cancelled) { void controller.pause(); return; }
       setBlocked(false);
       if (voiceStartedRef.current) {
         // During the outro, the music continues after the audio element ends.
