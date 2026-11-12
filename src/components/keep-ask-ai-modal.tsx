@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { ArrowRight, Check, ChevronDown, RotateCcw, Sparkles, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -66,6 +67,19 @@ type Props = {
 export function KeepAskAIModal({ paragraphs, activeParagraph, onParagraph, busy, error, suggestion, instruction, scope, onAction, onApply, onDismiss }: Props) {
   const [selectedScope, setSelectedScope] = useState<Scope>("message");
   const [custom, setCustom] = useState("");
+  const dialogRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    // Keep the modal above the transcript even when a scrolling or transformed
+    // ancestor would reposition position:fixed on mobile Safari.
+    const previouslyFocused = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    dialogRef.current?.focus({ preventScroll: true });
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      previouslyFocused?.focus({ preventScroll: true });
+    };
+  }, []);
   useEffect(() => {
     const handleEscape = (event: KeyboardEvent) => { if (event.key === "Escape" && !busy) onDismiss(); };
     document.addEventListener("keydown", handleEscape);
@@ -75,8 +89,8 @@ export function KeepAskAIModal({ paragraphs, activeParagraph, onParagraph, busy,
     ? suggestion.paragraphs.map((p, i) => p !== paragraphs[i] ? i : -1).filter((i) => i >= 0)
     : [];
   const actions = selectedScope === "message" ? fullMessageActions : paragraphActions;
-  return <div className="fixed inset-0 z-[80] flex items-center justify-center bg-[#111113]/65 px-3 py-[max(12px,env(safe-area-inset-top))] backdrop-blur-[5px]" onMouseDown={(event) => { if (event.target === event.currentTarget && !busy) onDismiss(); }}>
-    <section role="dialog" aria-modal="true" aria-label="Ask Keep AI" aria-describedby="keep-ai-description" className="relative flex max-h-[min(850px,calc(100dvh-24px))] w-full max-w-[510px] flex-col overflow-hidden rounded-[22px] border border-[#E2DAD0] bg-[#F7F5F2] text-[#161412] shadow-[0_28px_90px_rgba(0,0,0,.32)]">
+  const dialog = <div className="fixed inset-0 z-[100] flex h-[100dvh] items-center justify-center overflow-hidden bg-[#111113]/65 px-3 py-[max(12px,env(safe-area-inset-top))] backdrop-blur-[5px]" onMouseDown={(event) => { if (event.target === event.currentTarget && !busy) onDismiss(); }}>
+    <section ref={dialogRef} tabIndex={-1} role="dialog" aria-modal="true" aria-label="Ask Keep AI" aria-describedby="keep-ai-description" className="relative flex max-h-[min(850px,calc(100dvh-24px))] w-full max-w-[510px] flex-col overflow-hidden rounded-[22px] border border-[#E2DAD0] bg-[#F7F5F2] text-[#161412] shadow-[0_28px_90px_rgba(0,0,0,.32)]">
       <header className="flex shrink-0 items-start justify-between gap-4 border-b border-[#E1DAD0] px-6 pb-5 pt-6 sm:px-8">
         <div>
           <div className="mb-4 flex size-10 items-center justify-center rounded-full border border-[#D8C5AC] bg-[#EAE1D7]"><Sparkles className="size-5 text-[#6A5849]" strokeWidth={1.7}/></div>
@@ -144,4 +158,5 @@ export function KeepAskAIModal({ paragraphs, activeParagraph, onParagraph, busy,
       </div>}
     </section>
   </div>;
+  return typeof document !== "undefined" ? createPortal(dialog, document.body) : null;
 }
