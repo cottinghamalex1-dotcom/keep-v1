@@ -11,7 +11,7 @@ import { KeepStyleEditor } from "@/components/keep-style-editor";
 import { KeepFinishingChoices } from "@/components/keep-finishing-choices";
 import { KeepAskAIModal, KeepWordChanges } from "@/components/keep-ask-ai-modal";
 import { arrangeWords, spreadMemories, recommendedStyle } from "@/lib/keep-story-layout";
-import { filmTotal, sceneBoundary, sceneDuration, sceneIndexAt } from "@/lib/keep-film-timing";
+import { filmTotal, sceneBoundary, sceneDuration, sceneElapsed, sceneIndexAt, sceneSeekTime } from "@/lib/keep-film-timing";
 import { captionAtTime, recoverCaptionTiming } from "@/lib/keep-caption-timing";
 import { activeKeepSession, loadEditableKeep, loadCloudDraft, saveCloudDraft, removeCloudDraft, retryMissingCloudMedia } from "@/lib/keep-cloud";
 import { CinematicMedia } from "@/components/cinematic-media";
@@ -72,8 +72,8 @@ const initialMessage = [
   "Twenty years from now, I hope you know this: through every version of us, I'd choose this life with you again. Always.",
 ];
 const tracks = [
-  { name: "Intentional", note: "Our signature soundtrack · beautifully personal", group: "For You" },
   { name: "Warm + Nostalgic", note: "Gentle, familiar warmth", group: "For You" },
+  { name: "Intentional", note: "Our signature soundtrack · beautifully personal", group: "For You" },
   { name: "Joyful", note: "Lighthearted and full of life", group: "For You" },
   { name: "Cinematic", note: "A story that stays with you", group: "For You" },
   { name: "Romantic", note: "Tender, close, timeless", group: "More feelings" },
@@ -1545,7 +1545,7 @@ function KeepApp() {
       <div className="keep-studio-stage">
         <div className="keep-studio-canvas-wrap">
           <div className="keep-studio-canvas relative aspect-[9/16] overflow-hidden rounded-2xl bg-card shadow-lg">
-            <CinematicMedia item={selected} nextItem={shown[frame + 1]} sceneKey={frame} motionIndex={frame} playing={editorPlaying} duration={sceneDuration(shown, frame, editorDuration)} className="absolute inset-0" imageClassName={`editor-image-${styleSlug(compareOriginalStyle && editorPanel === "Style" ? "Natural" : project.visualStyle)}`} />
+            <CinematicMedia item={selected} nextItem={shown[frame + 1]} sceneKey={frame} motionIndex={frame} playing={editorPlaying} duration={sceneDuration(shown, frame, editorDuration)} sceneElapsed={sceneElapsed(shown, frame, editorTime, editorDuration)} className="absolute inset-0" imageClassName={`editor-image-${styleSlug(compareOriginalStyle && editorPanel === "Style" ? "Natural" : project.visualStyle)}`} />
             <div className="absolute inset-0 photo-shade" />
             {editorPanel === "Memories" && <div className="absolute inset-x-0 top-0 bottom-14 z-20 cursor-grab touch-none active:cursor-grabbing" aria-label="Drag photo to reposition" onPointerDown={(e) => { e.currentTarget.setPointerCapture(e.pointerId); const r = e.currentTarget.getBoundingClientRect(); photoDrag.current = { x: e.clientX, y: e.clientY, focusX: selected.focusX ?? 50, focusY: selected.focusY ?? 50, width: r.width, height: r.height }; setEditorPlaying(false); }} onPointerMove={(e) => { const d = photoDrag.current; if (!d) return; updateSelectedMoment({ focusX: Math.max(0, Math.min(100, d.focusX - (e.clientX - d.x) / d.width * 100)), focusY: Math.max(0, Math.min(100, d.focusY - (e.clientY - d.y) / d.height * 100)) }); }} onPointerUp={() => { photoDrag.current = null; }} onPointerCancel={() => { photoDrag.current = null; }}><span className="absolute left-1/2 top-3 -translate-x-1/2 whitespace-nowrap rounded-full bg-black/65 px-3 py-1 text-[10px] text-white">Drag photo to reposition</span></div>}
 
@@ -1645,7 +1645,15 @@ function KeepApp() {
 
       {editorPanel === "Memories" && editorToolPanel("Photos", () => { setEditorExpanded(false); setEditorPanel(null); }, <div className="pb-2">
         <p className="mt-2 text-xs leading-5 text-muted-foreground">Choose the moments that bring your words to life. Reorder, replace, or add anything you want.</p>
-        <div className="thin-scroll mt-5 flex gap-2 overflow-x-auto pb-2">{shown.map((m, i) => <div key={m.id} draggable onDragStart={() => { dragFrom.current = i; }} onDragOver={(e) => e.preventDefault()} onDrop={() => { if (dragFrom.current !== null) moveMemory(dragFrom.current, i); dragFrom.current = null; }} className="shrink-0"><Button variant="bare" className={`relative h-24 w-18 overflow-hidden rounded-lg !p-0 ${i === frame % shown.length ? "ring-2 ring-accent" : "opacity-65"}`} aria-label={`Select memory ${i + 1}`} onClick={() => { setEditorPlaying(false); seekEditor(shown.slice(0, i).reduce((sum, m) => sum + Math.max(1, m.displayDurationSec ?? 4), 0)); }}><MediaView item={m} thumb alt={m.source === "sample" ? memoryLabels[i % memoryLabels.length] ?? "" : m.name ?? ""} className="h-full w-full object-cover" />{m.kind === "video" && <Play className="absolute bottom-1.5 left-1.5 size-3" fill="currentColor" />}</Button></div>)}</div>
+        <div className="thin-scroll mt-5 flex gap-2 overflow-x-auto pb-2" role="group" aria-label="Choose a photo to edit">{shown.map((m, i) => <div key={m.id} draggable={typeof window !== "undefined" && window.matchMedia("(hover: hover) and (pointer: fine)").matches} onDragStart={() => { dragFrom.current = i; }} onDragEnd={() => { dragFrom.current = null; }} onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); if (dragFrom.current !== null) moveMemory(dragFrom.current, i); dragFrom.current = null; }} className="shrink-0"><Button variant="bare" className={`relative h-24 w-18 overflow-hidden rounded-lg !p-0 touch-manipulation ${i === frame % shown.length ? "ring-2 ring-accent opacity-100" : "opacity-75"}`} aria-label={`Select photo ${i + 1} of ${shown.length}`} aria-pressed={i === frame % shown.length} onClick={() => {
+          if (dragFrom.current !== null) return;
+          // Film scenes are stretched/compressed to fit the recording. Seeking
+          // with unscaled photo lengths made taps select the wrong thumbnail.
+          setEditorPlaying(false);
+          editorAudioRef.current?.pause();
+          seekEditor(sceneSeekTime(shown, i, editorDuration));
+          setFrame(i);
+        }}><MediaView item={m} thumb alt={m.source === "sample" ? memoryLabels[i % memoryLabels.length] ?? "" : m.name ?? ""} className="h-full w-full object-cover pointer-events-none" />{m.kind === "video" && <Play className="pointer-events-none absolute bottom-1.5 left-1.5 size-3" fill="currentColor" />}</Button></div>)}</div>
         <div className="mt-5 grid grid-cols-2 gap-2">
           <Button variant="quiet" onClick={() => addInput.current?.click()}><Plus /> Add moments</Button>
           <Button variant="quiet" onClick={() => replaceInput.current?.click()}>Replace</Button>
