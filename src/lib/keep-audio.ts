@@ -215,28 +215,49 @@ export function createKeepVoiceMix(audio: HTMLAudioElement, mood: string, balanc
   presence.Q.value = 0.75;
   presence.gain.value = 2.2;
 
-  // Gentle, real-time EQ options. This is tonal shaping, not AI denoising.
+  // Three intentionally distinct, lightweight voice treatments.
+  // These are real-time EQ/dynamics profiles (not pitch shifting or AI cleanup).
   const warmth = ctx.createBiquadFilter();
   warmth.type = "lowshelf";
-  warmth.frequency.value = 240;
+  warmth.frequency.value = 230;
   warmth.gain.value = 0;
 
-  const applyVoiceTone = (tone: VoiceTone = "natural") => {
-    const next = tone === "clear" ? { bassCut: 115, clarity: 4.4, warmth: -0.8 }
-      : tone === "warm" ? { bassCut: 64, clarity: 1.2, warmth: 2.2 }
-      : { bassCut: 78, clarity: 2.2, warmth: 0 };
-    const at = ctx.currentTime;
-    highpass.frequency.setTargetAtTime(next.bassCut, at, 0.04);
-    presence.gain.setTargetAtTime(next.clarity, at, 0.04);
-    warmth.gain.setTargetAtTime(next.warmth, at, 0.04);
-  };
+  const lowMids = ctx.createBiquadFilter();
+  lowMids.type = "peaking";
+  lowMids.frequency.value = 480;
+  lowMids.Q.value = 0.78;
+  lowMids.gain.value = 0;
+
+  const air = ctx.createBiquadFilter();
+  air.type = "highshelf";
+  air.frequency.value = 4900;
+  air.gain.value = 0;
 
   const compressor = ctx.createDynamicsCompressor();
-  compressor.threshold.value = -25;
-  compressor.knee.value = 18;
-  compressor.ratio.value = 3.2;
-  compressor.attack.value = 0.006;
-  compressor.release.value = 0.24;
+  compressor.knee.value = 13;
+  compressor.attack.value = 0.008;
+  compressor.release.value = 0.23;
+
+  const applyVoiceTone = (tone: VoiceTone = "natural") => {
+    // Clear = definition/presence, Warm = rounded/full, Natural = lightly balanced.
+    // Retain the same output volume setting and smooth all live preset changes.
+    const next = tone === "clear"
+      ? { bassCut: 118, clarity: 7.2, warmth: -1.3, lowMids: -3.6, air: 3.7, threshold: -27, ratio: 3.6, attack: 0.006, release: 0.19 }
+      : tone === "warm"
+        ? { bassCut: 64, clarity: -0.6, warmth: 5.2, lowMids: 1.5, air: -2.6, threshold: -24, ratio: 3.0, attack: 0.011, release: 0.29 }
+        : { bassCut: 76, clarity: 1.0, warmth: 0, lowMids: 0, air: 0, threshold: -21, ratio: 2.4, attack: 0.009, release: 0.23 };
+    const at = ctx.currentTime;
+    const ease = 0.065;
+    highpass.frequency.setTargetAtTime(next.bassCut, at, ease);
+    presence.gain.setTargetAtTime(next.clarity, at, ease);
+    warmth.gain.setTargetAtTime(next.warmth, at, ease);
+    lowMids.gain.setTargetAtTime(next.lowMids, at, ease);
+    air.gain.setTargetAtTime(next.air, at, ease);
+    compressor.threshold.setTargetAtTime(next.threshold, at, ease);
+    compressor.ratio.setTargetAtTime(next.ratio, at, ease);
+    compressor.attack.setTargetAtTime(next.attack, at, ease);
+    compressor.release.setTargetAtTime(next.release, at, ease);
+  };
 
   const voiceGain = ctx.createGain();
   voiceGain.gain.value = 0.6;
@@ -250,9 +271,11 @@ export function createKeepVoiceMix(audio: HTMLAudioElement, mood: string, balanc
   master.gain.value = 0.92;
 
   source.connect(highpass);
-  highpass.connect(presence);
-  presence.connect(warmth);
-  warmth.connect(compressor);
+  highpass.connect(warmth);
+  warmth.connect(lowMids);
+  lowMids.connect(presence);
+  presence.connect(air);
+  air.connect(compressor);
   compressor.connect(voiceGain);
   applyVoiceTone(initialOptions.voiceTone ?? "natural");
   voiceGain.connect(voiceMute);
