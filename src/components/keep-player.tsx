@@ -144,7 +144,12 @@ export function KeepPlayer({ name, from, year, onExit, onFinish, recipient = fal
         voiceStartedRef.current = true;
         setVoiceStarted(true);
         setScene((current) => current < 0 ? 0 : current);
-        void a.play().then(() => setBlocked(false)).catch(() => { if (!cancelled) setBlocked(true); });
+        void a.play().then(() => setBlocked(false)).catch(() => {
+          // iOS may reject delayed audio.play(). Freeze the soundtrack's
+          // envelope so it cannot run ahead of narration while we request a tap.
+          void mix.current?.pause();
+          if (!cancelled) setBlocked(true);
+        });
       }, introRemainingRef.current);
     };
     void start();
@@ -184,7 +189,14 @@ export function KeepPlayer({ name, from, year, onExit, onFinish, recipient = fal
   const resumeAudio = () => {
     // Directly unlock the audio context from the user's tap on iOS.
     const controller = mix.current;
-    if (!controller) return;
+    if (!controller) {
+      // An older browser without Web Audio must still be able to hear its Keep.
+      voiceStartedRef.current = true;
+      setVoiceStarted(true);
+      setScene((current) => current < 0 ? 0 : current);
+      void audio.current?.play().then(() => setBlocked(false)).catch(() => setBlocked(true));
+      return;
+    }
     void controller.play().then(() => {
       setBlocked(false);
       if (voiceStartedRef.current) {
