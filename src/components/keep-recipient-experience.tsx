@@ -216,10 +216,6 @@ export function KeepRecipientExperience({
           <span className="size-11" aria-hidden="true" />
         </header>
         <div className="keep-listen__inner">
-          <div className="keep-listen__cover" aria-hidden="true">
-            <div className="keep-listen__cover-ring"><img src="/brand/keep-monogram.svg" alt="" className="keep-listen__monogram" /></div>
-            <span className="keep-listen__cover-label">A PRIVATE KEEP</span>
-          </div>
           <div className="keep-listen__details">
             <p className="keep-listen__eyebrow">A KEEP FOR</p>
             <h1 className="keep-listen__name">{name}</h1>
