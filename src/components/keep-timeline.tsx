@@ -13,7 +13,6 @@ type Props = {
   onSeek: (seconds: number) => void;
   onSelect: (index: number) => void;
   onMove: (from: number, to: number) => void;
-  onDuration: (index: number, seconds: number) => void;
   onCaption: (index: number) => void;
   onAdd: () => void;
   onVoice: () => void;
@@ -28,11 +27,10 @@ type Props = {
 };
 const clamp = (n: number, min: number, max: number) => Math.min(max, Math.max(min, n));
 const format = (n: number) => `${Math.floor(n / 60)}:${String(Math.floor(n % 60)).padStart(2,"0")}`;
-export function KeepTimeline({ media, captions, duration, time, selectedIndex, voicePresent, musicMood, onSeek, onSelect, onMove, onDuration, onCaption, onAdd, onVoice, onMusic, onSplit, onDuplicate, onDelete, onReplace, onPhotoSettings, onCaptionChange, onCaptionTime }: Props) {
+export function KeepTimeline({ media, captions, duration, time, selectedIndex, voicePresent, musicMood, onSeek, onSelect, onMove, onCaption, onAdd, onVoice, onMusic, onSplit, onDuplicate, onDelete, onReplace, onPhotoSettings, onCaptionChange, onCaptionTime }: Props) {
   const scroller = useRef<HTMLDivElement>(null);
   const [zoom,setZoom] = useState(1);
   const [draggingPlayhead,setDraggingPlayhead] = useState(false);
-  const drag = useRef<{index:number;x:number;width:number;duration:number}|null>(null);
   const reorder = useRef<{index:number;startX:number;startY:number}|null>(null);
   const [reorderTarget,setReorderTarget] = useState<number|null>(null);
   const total = media.reduce((sum, m) => sum + Math.max(1,m.displayDurationSec ?? 7),0) || 1;
@@ -51,31 +49,13 @@ export function KeepTimeline({ media, captions, duration, time, selectedIndex, v
   let elapsed = 0;
   return <section aria-label="Keep multitrack timeline" className="border-t border-white/10 bg-[#131315] px-3 pb-3 pt-3 text-white">
     <div className="mb-2 flex items-center justify-between gap-3">
-      <div><p className="text-[11px] font-semibold tracking-wide">Your story timeline</p><p className="text-[10px] text-white/45">Select clips, trim edges, or edit caption blocks</p></div>
+      <div><p className="text-[11px] font-semibold tracking-wide">Your story timeline</p><p className="text-[10px] text-white/45">Select moments, reorder photos, or edit captions</p></div>
       <span className="rounded-md bg-white/10 px-2 py-1 font-mono text-[11px] tabular-nums">{format(time)} / {format(safeDuration)}</span>
     </div>
     <div className="mb-2 flex items-center gap-2 overflow-x-auto pb-1 text-[11px]">
       <button type="button" onClick={()=>setZoom(z=>clamp(z-.25,.5,2.5))} className="rounded-lg border border-white/20 px-3 py-2">−</button><ZoomIn className="size-3 shrink-0 text-white/50"/><span className="shrink-0 text-white/60">{Math.round(zoom*100)}%</span><button type="button" onClick={()=>setZoom(z=>clamp(z+.25,.5,2.5))} className="rounded-lg border border-white/20 px-3 py-2">+</button>
       <span className="ml-auto shrink-0 text-white/50">Swipe timeline to explore · drag grips to reorder</span>
     </div>
-    {media[selectedIndex] && <div className="mb-3 flex items-center gap-3 rounded-xl border border-[#D2BA99]/35 bg-[#242326] p-3" aria-label="Selected clip duration">
-      <div className="size-14 shrink-0 overflow-hidden rounded-lg border border-white/20 bg-black/50">
-        {media[selectedIndex]!.kind === "video"
-          ? <video src={media[selectedIndex]!.url} muted playsInline preload="metadata" className="h-full w-full object-cover" />
-          : <img src={media[selectedIndex]!.url} alt={`Selected photo ${selectedIndex + 1}`} className="h-full w-full object-cover" />}
-      </div>
-      <div className="min-w-0 flex-1">
-        <div className="mb-2 flex items-center justify-between gap-3">
-          <span className="text-xs font-medium text-white">Moment {selectedIndex + 1} · Duration</span>
-          <output className="shrink-0 text-sm font-semibold tabular-nums text-[#E8D1B2]">{(media[selectedIndex]!.displayDurationSec ?? 7).toFixed(1)}s</output>
-        </div>
-        <input aria-label={`Duration for selected photo ${selectedIndex + 1}`} type="range" min={2} max={20} step={.5}
-          value={media[selectedIndex]!.displayDurationSec ?? 7}
-          onChange={(e) => onDuration(selectedIndex, Number(e.target.value))}
-          className="keep-timeline-duration h-7 w-full cursor-pointer accent-[#E8D1B2]" />
-        <div className="mt-0.5 flex justify-between text-[10px] text-white/45"><span>Shorter</span><span>Longer</span></div>
-      </div>
-    </div>}
     <div className="flex gap-2">
       <div className="flex w-14 shrink-0 flex-col gap-1 pt-6 text-[10px] text-white/70">
         <button type="button" onClick={onPhotoSettings} className="flex h-[66px] items-center text-left font-medium text-[#e5c69b]">Moments ›</button>
@@ -96,11 +76,9 @@ export function KeepTimeline({ media, captions, duration, time, selectedIndex, v
                 <div role="button" tabIndex={0} aria-label={`Drag to reorder moment ${i+1}`} className="absolute bottom-0 left-0 top-5 z-10 flex w-5 touch-none items-center justify-center bg-black/60 text-white" onPointerDown={e=>{e.stopPropagation();e.currentTarget.setPointerCapture(e.pointerId);reorder.current={index:i,startX:e.clientX,startY:e.clientY};setReorderTarget(i);}} onPointerMove={e=>{if(!reorder.current)return;const row=e.currentTarget.parentElement?.parentElement;const clips=Array.from(row?.querySelectorAll<HTMLElement>("[data-clip-index]")??[]);const hit=clips.find(el=>{const r=el.getBoundingClientRect();return e.clientX>=r.left&&e.clientX<=r.right;});if(hit)setReorderTarget(Number(hit.dataset["clipIndex"]));}} onPointerUp={e=>{e.stopPropagation();const from=reorder.current?.index;const to=reorderTarget;reorder.current=null;setReorderTarget(null);if(from!==undefined&&to!==null&&from!==to)onMove(from,to);}} onPointerCancel={()=>{reorder.current=null;setReorderTarget(null);}} onKeyDown={e=>{if(e.key==="ArrowLeft"||e.key==="ArrowRight"){e.preventDefault();onMove(i,i+(e.key==="ArrowRight"?1:-1));}}}><GripVertical className="size-4"/></div>
                 <button type="button" aria-label={`Edit photo ${i+1}`} className="relative h-full w-full" onClick={()=>{onSelect(i);onSeek(start/100*safeDuration);}}>
                   {m.kind==="video"?<video src={m.url} muted playsInline preload="metadata" className="h-full w-full object-cover"/>:<img src={m.url} alt="" className="h-full w-full object-cover"/>}
-                  <span className="absolute bottom-1 left-1 rounded bg-black/65 px-1 text-[9px]">{Math.round(m.displayDurationSec ?? 7)}s</span>
                 </button>
                 <button type="button" aria-label={`Move photo ${i+1} earlier`} disabled={i===0} className="absolute left-0 top-0 bg-black/65 px-1.5 text-[11px] disabled:opacity-20" onClick={()=>onMove(i,i-1)}>‹</button>
                 <button type="button" aria-label={`Move photo ${i+1} later`} disabled={i===media.length-1} className="absolute right-0 top-0 bg-black/65 px-1.5 text-[11px] disabled:opacity-20" onClick={()=>onMove(i,i+1)}>›</button>
-                <div role="slider" tabIndex={0} aria-label={`Duration for photo ${i+1}`} aria-valuemin={2} aria-valuemax={20} aria-valuenow={m.displayDurationSec ?? 7} className="absolute bottom-0 right-0 top-6 w-2 cursor-ew-resize touch-none bg-white/30" onPointerDown={e=>{e.stopPropagation();e.currentTarget.setPointerCapture(e.pointerId);drag.current={index:i,x:e.clientX,width:timelineWidth,duration:m.displayDurationSec??7};}} onPointerMove={e=>{if(!drag.current||drag.current.index!==i)return;const delta=(e.clientX-drag.current.x)/drag.current.width*total;onDuration(i,Math.round(clamp(drag.current.duration+delta,2,20)*2)/2);}} onPointerUp={()=>{drag.current=null;}} onPointerCancel={()=>{drag.current=null;}} onKeyDown={e=>{if(e.key==="ArrowLeft"||e.key==="ArrowRight"){e.preventDefault();onDuration(i,clamp((m.displayDurationSec??7)+(e.key==="ArrowRight"?.5:-.5),2,20));}}}><GripVertical className="absolute -left-1 top-1/2 size-3 -translate-y-1/2"/></div>
               </div>;
             })}
             <button type="button" onClick={onAdd} className="flex h-full min-w-10 items-center justify-center rounded border border-dashed border-white/30 text-white/60"><Plus className="size-4"/></button>
