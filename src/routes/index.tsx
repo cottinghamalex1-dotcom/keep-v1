@@ -25,7 +25,8 @@ import { KeepRecipientExperience, type KeepExperienceMode } from "@/components/k
 import { openingMessageIdeas } from "@/lib/keep-opening-message";
 import { KeepErrorBoundary } from "@/components/keep-error-boundary";
 import { KeepLengthGuide } from "@/components/keep-length-guide";
-import { checkKeepVideo, KEEP_VIDEO_MAX_BYTES, readKeepVideoDuration } from "@/lib/keep-video-upload";
+import { checkKeepVideo, KEEP_VIDEO_MAX_BYTES, KEEP_VIDEO_MAX_SOURCE_BYTES, KEEP_VIDEO_MAX_SECONDS, readKeepVideoDuration } from "@/lib/keep-video-upload";
+import { compressKeepVideo, keepCompressedSizeText, shouldCompressKeepVideo } from "@/lib/keep-video-compression";
 import { countKeepWords, estimateKeepSeconds, formatKeepTime } from "@/lib/keep-length";
 import { useRecorder } from "@/hooks/use-recorder";
 import { deleteBlobs, getBlob, putBlob } from "@/lib/keep-media-store";
@@ -192,7 +193,7 @@ function KeepApp() {
   const musicSampleTimer = useRef<number | null>(null);
   const voicePlaybackRef = useRef<HTMLAudioElement>(null);
   const [busy, setBusy] = useState(false);
-  const [mediaImport, setMediaImport] = useState<{ total: number; completed: number } | null>(null);
+  const [mediaImport, setMediaImport] = useState<{ total: number; completed: number; detail?: string; compressionPercent?: number } | null>(null);
   const [voiceSampling, setVoiceSampling] = useState<VoiceTone | null>(null);
   const voiceSampleRef = useRef<{ tone: VoiceTone; audio: HTMLAudioElement; mixer: NonNullable<ReturnType<typeof createKeepVoiceMix>>; timer: number | null } | null>(null);
   const [otherOccasion, setOtherOccasion] = useState("");
@@ -814,29 +815,56 @@ function KeepApp() {
         try {
           const kind = f.type.startsWith("video/") || /\.(mov|mp4|m4v)$/i.test(f.name) ? "video" as const : "image" as const;
           let displayDurationSec = 7;
+          let savedFile = f;
           if (kind === "video") {
-            // Reject huge files before asking Safari to read/decode metadata.
-            const sizeError = f.size > KEEP_VIDEO_MAX_BYTES ? checkKeepVideo(f.size, 1) : null;
-            if (sizeError) throw new Error(sizeError);
+            if (f.size > KEEP_VIDEO_MAX_SOURCE_BYTES) {
+              throw new Error("This source video is very large. Please trim it or export a smaller version in Photos.");
+            }
+            setMediaImport({ total: supported.length, completed: processed, detail: "Checking video length…" });
             let seconds: number;
             try { seconds = await readKeepVideoDuration(f); }
-            catch { throw new Error("Couldn't read this video's length. Try a short MP4 or MOV clip."); }
-            const issue = checkKeepVideo(f.size, seconds);
-            if (issue) throw new Error(issue);
-            // Let shorter video clips play in full rather than using a generic 7s photo duration.
+            catch { throw new Error("Couldn't read this video's length. Try an MP4 or MOV clip."); }
+            if (!Number.isFinite(seconds) || seconds <= 0) throw new Error("Couldn't read this video's length.");
+            if (seconds > KEEP_VIDEO_MAX_SECONDS + 0.5) throw new Error("Please trim this clip to 90 seconds or less.");
             displayDurationSec = Math.max(1, seconds);
+            if (shouldCompressKeepVideo(f.size)) {
+              setMediaImport({ total: supported.length, completed: processed, detail: "Compressing video on your device…", compressionPercent: 0 });
+              const encoded = await compressKeepVideo(f, seconds, (percent) => {
+                setMediaImport({ total: supported.length, completed: processed, detail: "Compressing video on your device…", compressionPercent: percent });
+              });
+              if (encoded && encoded.size > 0 && encoded.size < f.size * 0.9) {
+                // Verify the result is actually decodable and the whole
+                // moment survived before replacing the user's source file.
+                let verified = false;
+                try {
+                  const resultSeconds = await readKeepVideoDuration(encoded);
+                  verified = Math.abs(resultSeconds - seconds) <= Math.max(1.5, seconds * 0.12);
+                } catch { /* Some devices create incompatible containers. */ }
+                if (verified) {
+                  savedFile = encoded;
+                  toast.success(`Video compressed — ${keepCompressedSizeText(f.size, encoded.size)}`);
+                }
+              }
+            }
+            setMediaImport({ total: supported.length, completed: processed, detail: "Saving your video…" });
+            const issue = checkKeepVideo(savedFile.size, seconds);
+            if (issue) {
+              throw new Error(savedFile === f
+                ? "This video couldn't be compressed enough on your device. Try a shorter clip or export it at 720p."
+                : issue);
+            }
           }
           const id = newId("media");
-          const persisted = await putBlob(id, f);
-          // Unlike a photo, a raw video cannot reliably be recovered from a
-          // temporary object URL after Safari closes its tab.
-          if (kind === "video" && !persisted) throw new Error("This video couldn't be saved on your device. Try a smaller clip.");
-          items.push({ id, kind, source: "upload", url: URL.createObjectURL(f), name: f.name, mimeType: f.type, persisted, displayDurationSec });
+          const persisted = await putBlob(id, savedFile);
+          // Never point an uploaded video at a transient URL that cannot be
+          // restored from IndexedDB after closing Safari.
+          if (kind === "video" && !persisted) throw new Error("This video couldn't be saved on your device. Try a shorter clip.");
+          items.push({ id, kind, source: "upload", url: URL.createObjectURL(savedFile), name: savedFile.name, mimeType: savedFile.type, persisted, displayDurationSec });
         } catch (error) {
           skipped.push(`${f.name}: ${error instanceof Error ? error.message : "This file could not be added."}`);
         } finally {
           processed++;
-          setMediaImport({ total: supported.length, completed: processed });
+          setMediaImport({ total: supported.length, completed: processed, detail: undefined });
           await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
         }
       }
@@ -1242,7 +1270,8 @@ function KeepApp() {
       <div className="w-full max-w-xs rounded-[22px] border border-[#DED4C8] bg-[#F7F5F2] px-7 py-8 text-center text-[#181614] shadow-[0_25px_80px_rgba(0,0,0,.27)]">
         <Loader2 className="mx-auto mb-5 size-7 animate-spin text-[#7B6551]" />
         <p className="font-display text-[27px] leading-tight">Adding your moments.</p>
-        <p className="mt-3 text-[13px] leading-5 text-[#73695F]">Checking and adding ${mediaImport.total === 1 ? "your moment" : `${mediaImport.total} moments`} to Keep…</p>
+        <p className="mt-3 text-[13px] leading-5 text-[#73695F]">{mediaImport.detail ?? `Checking and adding ${mediaImport.total === 1 ? "your moment" : `${mediaImport.total} moments`} to Keep…`}</p>
+        {mediaImport.compressionPercent !== undefined && <p className="mt-2 text-[12px] tabular-nums text-[#73695F]">{mediaImport.compressionPercent}% compressed</p>}
         <div className="mt-5 h-1.5 w-full overflow-hidden rounded-full bg-[#E7DED4]"><div className="h-full rounded-full bg-[#6A5849] transition-[width] duration-200" style={{ width: `${(mediaImport.completed / mediaImport.total) * 100}%` }} /></div>
         <p className="mt-3 text-xs tabular-nums text-[#73695F]">{mediaImport.completed} of {mediaImport.total} added</p>
         <p className="mt-3 text-[11px] text-[#8B8177]">You can continue as soon as these finish saving.</p>
@@ -1536,7 +1565,7 @@ function KeepApp() {
         <Play className="mt-0.5 size-4 shrink-0 text-[#79654F]" aria-hidden="true" />
         <div>
           <p className="text-[12px] font-semibold text-[#44382D]">Adding videos? Keep them short.</p>
-          <p className="mt-1 text-[12px] leading-5 text-[#675B50]">For the best experience, use clips <strong>10 seconds or less</strong> and <strong>under 40 MB</strong>. Trim longer clips in iPhone Photos first. Keep will let you know if a clip is too long or large. Video sound is muted so your voice and music stay front and center.</p>
+          <p className="mt-1 text-[12px] leading-5 text-[#675B50]">Short clips of <strong>10 seconds or less</strong> usually tell the story best. For longer videos, Keep will <strong>automatically compress</strong> the file on your device when possible (up to 90 seconds). This can take a little while. The video plays muted so your narration and music stay front and center.</p>
         </div>
       </aside>
       <div className="keep-creator-photo-grid grid grid-cols-3 gap-1">
@@ -1687,7 +1716,7 @@ function KeepApp() {
       </div>}
 
       {editorPanel === "Memories" && editorToolPanel("Photos", () => { setEditorExpanded(false); setEditorPanel(null); }, <div className="pb-2">
-        <p className="mt-2 text-xs leading-5 text-muted-foreground">Choose the photos and short videos that bring your words to life. Tap a moment to select it, then use Earlier or Later to reorder. Video clips should be 10 seconds or shorter and under 40 MB.</p>
+        <p className="mt-2 text-xs leading-5 text-muted-foreground">Choose the photos and short videos that bring your words to life. Tap a moment to select it, then use Earlier or Later to reorder. Short video clips work best; longer videos are automatically compressed when supported.</p>
         <div className="thin-scroll mt-5 flex gap-2 overflow-x-auto pb-2" role="group" aria-label="Choose a photo to edit">{shown.map((m, i) => <div key={m.id} draggable={typeof window !== "undefined" && window.matchMedia("(hover: hover) and (pointer: fine)").matches} onDragStart={() => { dragFrom.current = i; }} onDragEnd={() => { dragFrom.current = null; }} onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); if (dragFrom.current !== null) moveMemory(dragFrom.current, i); dragFrom.current = null; }} className="shrink-0"><Button variant="bare" className={`relative h-24 w-18 overflow-hidden rounded-lg !p-0 touch-manipulation ${i === frame % shown.length ? "ring-2 ring-accent opacity-100" : "opacity-75"}`} aria-label={`Select photo ${i + 1} of ${shown.length}`} aria-pressed={i === frame % shown.length} onClick={() => {
           if (dragFrom.current !== null) return;
           // Film scenes are stretched/compressed to fit the recording. Seeking
