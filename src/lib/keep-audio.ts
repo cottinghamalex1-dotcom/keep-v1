@@ -247,7 +247,9 @@ function createMusicBed(ctx: AudioContext, destination: AudioNode, mood: string,
       // Begin the incoming copy at an established point in the arrangement,
       // skipping both the repeating intro and the original song's fade-out.
       incoming.player.currentTime = plan.loopFrom;
-      await incoming.player.play();
+      // Both decoders are kept playing silently after the first user gesture.
+      // Only attempt play() if the secondary stream was blocked by the browser.
+      if (incoming.player.paused) await incoming.player.play();
       if (stopped || paused || active !== outgoingIndex) {
         incoming.player.pause();
         transitioning = false;
@@ -269,15 +271,14 @@ function createMusicBed(ctx: AudioContext, destination: AudioNode, mood: string,
     }
   };
 
-  const tick = () => {
-    frame = 0;
+  const advance = () => {
     if (stopped || paused || fallback) return;
     if (transitioning && transitionEndsAt > 0 && ctx.currentTime >= transitionEndsAt) {
       const outgoing = channels[active]!;
       const now = ctx.currentTime;
       outgoing.gain.gain.cancelScheduledValues(now);
       outgoing.gain.gain.setValueAtTime(0, now);
-      outgoing.player.pause();
+      // Keep the silent decoder running to preserve iOS gesture permission.
       const incomingIndex = 1 - active;
       channels[incomingIndex]!.gain.gain.cancelScheduledValues(now);
       channels[incomingIndex]!.gain.gain.setValueAtTime(1, now);
@@ -286,18 +287,18 @@ function createMusicBed(ctx: AudioContext, destination: AudioNode, mood: string,
       transitionEndsAt = 0;
     }
     if (!transitioning) void startCrossfade();
-    frame = requestAnimationFrame(tick);
   };
-
+  const tick = () => {
+    frame = 0;
+    advance();
+    if (!stopped && !paused && !fallback) frame = requestAnimationFrame(tick);
+  };
   const ensureTicker = () => {
     if (!frame && !stopped && !paused && !fallback) frame = requestAnimationFrame(tick);
   };
-
-  // timeupdate keeps crossfades discoverable when a phone throttles animation
-  // frames; the audio fades themselves run on the AudioContext clock.
-  const handleTimeUpdate = () => {
-    if (!paused && !stopped && !fallback && !frame) void startCrossfade();
-  };
+  // Some phones throttle animation frames during a long listening session.
+  // timeupdate offers a second opportunity to schedule and finish the overlap.
+  const handleTimeUpdate = () => advance();
   for (const channel of channels) channel.player.addEventListener("timeupdate", handleTimeUpdate);
 
   return {
@@ -305,11 +306,12 @@ function createMusicBed(ctx: AudioContext, destination: AudioNode, mood: string,
       if (stopped || fallback) return;
       paused = false;
       try {
+        // Start both streams during the same audio-unlock interaction. The
+        // secondary goes through a zero-gain WebAudio channel until needed.
         const activePlayback = channels[active]!.player.play();
-        const overlappingPlayback = transitioning && transitionEndsAt > 0
-          ? channels[1 - active]!.player.play()
-          : Promise.resolve();
-        await Promise.all([activePlayback, overlappingPlayback]);
+        const silentPlayback = channels[1 - active]!.player.play().catch(() => undefined);
+        await activePlayback;
+        await silentPlayback;
         if (stopped) return;
         if (!started) {
           started = true;
