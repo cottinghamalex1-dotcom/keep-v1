@@ -26,3 +26,16 @@ comment on table public.keep_purchases is
   'Provider-verified purchase entitlements. Exactly one Stripe checkout session or one Shopify line-item unit per Keep. Service role alone grants entitlements.';
 comment on column public.keep_purchases.stripe_shipping_details is
   'Shipping destination supplied by Stripe Checkout; sensitive customer information, RLS protected.';
+
+
+-- Record fully refunded or disputed Stripe PaymentIntents even if webhooks arrive out of order.
+-- Clients cannot read or write this reconciliation table.
+create table if not exists public.keep_stripe_reversals (
+  payment_intent_id text primary key,
+  reason text not null check (reason in ('refunded', 'disputed')),
+  stripe_event_id text not null,
+  recorded_at timestamptz not null default now()
+);
+alter table public.keep_stripe_reversals enable row level security;
+revoke all on public.keep_stripe_reversals from anon, authenticated;
+
