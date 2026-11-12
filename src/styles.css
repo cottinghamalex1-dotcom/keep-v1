@@ -765,3 +765,201 @@ body:has(.keep-studio) {
   font-size: 14px; font-weight: 500;
 }
 .keep-read :is(button):focus-visible { outline: 2px solid #42362C; outline-offset: 3px; }
+
+
+/* RESPONSIVE CREATOR v2
+   The mobile-first experience remains unchanged on phones. On wider screens,
+   use the canvas and side panels as real desktop workspace, not a 540px phone.
+   Keep focused reading lengths for emotional storytelling forms. */
+@media (min-width: 768px) {
+  .keep-creator-app {
+    max-width: none;
+    width: 100%;
+    min-height: 100dvh;
+    margin: 0;
+    box-shadow: none;
+    background: #F7F5F2;
+  }
+  .keep-creator-app .keep-screen {
+    width: 100%;
+    min-height: 100dvh;
+  }
+  .keep-creator-app .keep-screen > header {
+    height: 80px;
+    padding: 0 clamp(32px, 5vw, 80px);
+    border-bottom: 1px solid #DED8D0;
+  }
+  /* Center the active task in a generous desktop reading column. These
+     selectors deliberately exclude the player/editor's viewport layout. */
+  .keep-creator-app .keep-screen:not(.keep-screen--editor):not(.keep-screen--preview):not(.keep-screen--recipientPreview):not(.keep-screen--recipientReveal) > div {
+    width: 100%;
+    max-width: 920px;
+    margin-inline: auto;
+  }
+  .keep-creator-app .keep-screen--message > div { max-width: 870px; }
+  .keep-creator-app .keep-screen--memories > div { max-width: 1080px; }
+  .keep-creator-app .keep-screen--storyStyle > div { max-width: 1040px; }
+  .keep-creator-app .keep-screen--card > div { max-width: 840px; }
+  .keep-creator-app .keep-screen--success > div { max-width: 750px; }
+  .keep-creator-app .keep-screen--write > div { max-width: 880px; }
+  .keep-creator-app .keep-screen--interview > .keep-interview-screen {
+    max-width: 960px;
+    border-inline: 1px solid #E9E2D9;
+    box-shadow: 0 12px 44px rgba(45,33,23,.035);
+  }
+  .keep-creator-app .keep-screen--interview .max-w-md { max-width: 680px; }
+  .keep-creator-app .keep-screen--interview .keep-interview-screen > div:not(.thin-scroll) { padding-inline: clamp(28px,5vw,65px); }
+  .keep-creator-app .keep-screen--interview .keep-interview-screen > header { padding-inline: 36px; }
+  .keep-creator-app .keep-screen--interview .keep-interview-screen .thin-scroll { padding-inline: clamp(28px,5vw,65px); }
+  .keep-creator-app .keep-page-heading { max-width: 760px; }
+  .keep-creator-app .keep-page-description { max-width: 60ch; }
+  .keep-creator-app .keep-screen--recipient [role="group"].grid-cols-2,
+  .keep-creator-app .keep-screen--occasion [role="group"].grid-cols-2 {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .keep-creator-app .keep-creator-path-options {
+    grid-template-columns: repeat(2, minmax(0,1fr));
+  }
+  .keep-creator-app .keep-creator-path-options > button {
+    min-height: 245px;
+    transition: transform .2s ease, border-color .2s ease, background-color .2s ease;
+  }
+  .keep-creator-app .keep-creator-path-options > button:hover {
+    transform: translateY(-3px);
+    border-color: #9A8268;
+  }
+  .keep-creator-app .keep-creator-photo-grid {
+    grid-template-columns: repeat(4, minmax(0,1fr));
+    gap: 10px;
+  }
+  .keep-creator-app .keep-creator-photo-grid > * { border-radius: 10px; }
+  .keep-creator-app .keep-screen--write textarea[aria-label="Your message"] {
+    min-height: 440px;
+    padding: 28px;
+    font-size: 24px;
+  }
+  .keep-creator-app .keep-screen--message textarea[aria-label^="Message paragraph"] { padding: 22px 26px; }
+  .keep-creator-app .keep-screen--storyStyle .grid.grid-cols-2 {
+    grid-template-columns: repeat(3, minmax(0,1fr));
+  }
+  .keep-creator-app .keep-screen--record > div {
+    max-width: 980px;
+    margin-inline: auto;
+    border-inline: 1px solid #E9E2D9;
+  }
+  .keep-creator-app .keep-screen--recorded > div { max-width: 870px; }
+  /* A cinematic Keep is a portrait film, even when opened on a laptop. */
+  .keep-creator-app .keep-screen--preview > .keep-h-screen {
+    width: min(100%, 540px);
+    margin-inline: auto;
+    box-shadow: 0 12px 55px rgba(0,0,0,.14);
+  }
+}
+
+@media (min-width: 1024px) and (min-height: 560px) {
+  /* Full desktop editor: film on the left, editing controls on the right.
+     This overrides the compact phone editor without changing its markup or
+     mobile behavior. */
+  .keep-creator-app .keep-screen--editor .keep-studio {
+    display: grid;
+    width: 100%;
+    height: 100dvh;
+    min-height: 560px;
+    overflow: hidden;
+    grid-template-rows: 76px minmax(0, 1fr) 82px;
+    grid-template-columns: minmax(0, 1.3fr) minmax(360px, .8fr);
+    column-gap: 0;
+  }
+  .keep-creator-app .keep-studio > .keep-studio-header {
+    grid-column: 1 / -1;
+    grid-row: 1;
+    min-height: 0;
+    height: 76px;
+    padding: 12px 32px;
+    border-bottom: 1px solid #ffffff16;
+    background: #141416;
+  }
+  .keep-creator-app .keep-studio > audio { display: none; }
+  .keep-creator-app .keep-studio--expanded .keep-studio-stage {
+    grid-column: 1;
+    grid-row: 2 / 4;
+    min-height: 0;
+    height: 100%;
+    width: 100%;
+    padding: 20px clamp(18px,3vw,48px);
+    align-items: center;
+    justify-content: center;
+    border-right: 1px solid #ffffff13;
+  }
+  .keep-creator-app .keep-studio--expanded .keep-studio-canvas-wrap {
+    height: 100%;
+    width: 100%;
+    min-height: 0;
+    align-items: center;
+    justify-content: center;
+  }
+  .keep-creator-app .keep-studio--expanded .keep-studio-canvas {
+    height: 100%;
+    width: auto;
+    max-width: 100%;
+    max-height: 100%;
+    aspect-ratio: 9 / 16;
+    border-radius: 16px;
+  }
+  .keep-creator-app .keep-studio--expanded .keep-studio-workspace {
+    grid-column: 2;
+    grid-row: 2;
+    min-width: 0;
+    min-height: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+    border-top: 0;
+    border-left: 1px solid #ffffff16;
+  }
+  .keep-creator-app .keep-studio--expanded .keep-studio-tools {
+    display: grid;
+    grid-column: 2;
+    grid-row: 3;
+    align-self: stretch;
+    gap: 6px;
+    padding: 8px 12px 10px;
+  }
+  .keep-creator-app .keep-studio--expanded .keep-studio-tools button {
+    min-height: 58px;
+    font-size: 11px;
+  }
+  .keep-creator-app .keep-studio--expanded .keep-studio-panel { padding: 24px 28px 28px; }
+  .keep-creator-app .keep-studio--immersive {
+    grid-template-columns: minmax(0,1fr);
+    grid-template-rows: 76px minmax(0,1fr) 80px;
+  }
+  .keep-creator-app .keep-studio--immersive .keep-studio-stage {
+    grid-column: 1;
+    grid-row: 2;
+    min-height: 0;
+    flex: none;
+    padding: 16px 24px;
+  }
+  .keep-creator-app .keep-studio--immersive .keep-studio-canvas {
+    height: 100%;
+    width: auto;
+    max-width: 100%;
+    max-height: 100%;
+    aspect-ratio: 9 / 16;
+  }
+  .keep-creator-app .keep-studio--immersive .keep-studio-preview-controls {
+    grid-column: 1;
+    grid-row: 3;
+    width: 100%;
+    min-height: 80px;
+    padding-inline: max(36px, calc((100vw - 850px) / 2));
+  }
+}
+
+/* Large displays get roomier selection grids without stretching text into
+   hard-to-read lines or making photo previews disproportionately tall. */
+@media (min-width: 1200px) {
+  .keep-creator-app .keep-creator-photo-grid {
+    grid-template-columns: repeat(5, minmax(0,1fr));
+  }
+}
