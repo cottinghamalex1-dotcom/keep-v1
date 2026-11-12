@@ -847,6 +847,17 @@ function KeepApp() {
     const [m] = list.splice(from, 1);
     if (!m) return;
     list.splice(to, 0, m);
+    // The active photo keeps its identity after a reorder. Move the playback
+    // head to its NEW scaled time as well, otherwise the next audio timeupdate
+    // unexpectedly selects the photo that previously occupied this position.
+    const duration = rec?.audioUrl && !rec.demo && rec.durationSec > 0
+      ? rec.durationSec
+      : Math.max(rec?.durationSec ?? 0, filmTotal(list));
+    const time = sceneSeekTime(list, to, duration);
+    setEditorPlaying(false);
+    editorAudioRef.current?.pause();
+    if (editorAudioRef.current) editorAudioRef.current.currentTime = time;
+    setEditorTime(time);
     patch({ memories: list });
     setFrame(to);
   };
