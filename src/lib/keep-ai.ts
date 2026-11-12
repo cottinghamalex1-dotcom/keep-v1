@@ -1,3 +1,5 @@
+import { activeKeepSession } from "@/lib/keep-cloud";
+
 // Client for KEEP's guided interview service. Configured via VITE_KEEP_AI_URL / VITE_KEEP_AI_KEY.
 const URL_ = (import.meta.env['VITE_KEEP_AI_URL'] as string | undefined) || "https://lwkzhpwugtosbidxvdcr.supabase.co/functions/v1/keep-ai";
 const KEY = (import.meta.env['VITE_KEEP_AI_KEY'] as string | undefined) || "sb_publishable_K8_SWJByLhV78h7gY4NySw_4sgjEVTi";
@@ -14,7 +16,9 @@ export type InterviewContext = {
 
 async function post<T>(body: BodyInit, json: boolean): Promise<T> {
   if (!URL_ || !KEY) throw new Error("unavailable");
-  const headers: Record<string, string> = { apikey: KEY };
+  const session = await activeKeepSession();
+  if (!session) throw new Error("Sign in with your purchase email to use Keep AI.");
+  const headers: Record<string, string> = { apikey: KEY, Authorization: "Bearer " + session.access_token };
   if (json) headers["Content-Type"] = "application/json";
   const res = await fetch(URL_, { method: "POST", headers, body });
   if (!res.ok) throw new Error(`status ${res.status}`);
