@@ -1465,12 +1465,8 @@ function KeepApp() {
           looks={styles}
           currentLook={project.visualStyle}
           moment={selected}
-          currentTransition={selected.transition ?? "dissolve"}
           compareOriginal={compareOriginalStyle}
           onLook={(name) => patch({visualStyle:name})}
-          onTransition={(transition) => updateSelectedMoment({transition})}
-          hasNextMoment={frame % Math.max(1,shown.length) < shown.length - 1}
-          onPreviewTransition={previewCurrentTransition}
           onCompare={setCompareOriginalStyle}
           onClose={() => { setCompareOriginalStyle(false); setEditorPanel(null); }}
         />}
@@ -1510,19 +1506,27 @@ function KeepApp() {
           <Button variant="quiet" disabled={frame % shown.length === 0} onClick={() => moveMemory(frame % shown.length, frame % shown.length - 1)}><ChevronLeft /> Earlier</Button>
           <Button variant="quiet" disabled={frame % shown.length >= shown.length - 1} onClick={() => moveMemory(frame % shown.length, frame % shown.length + 1)}>Later <ChevronRight /></Button>
         </div>
-        <div className="mt-4 space-y-3 rounded-xl border border-border bg-background/50 p-3">
-          <p className="text-xs font-medium">Frame and movement · Moment {frame % shown.length + 1}</p>
-          <p className="text-[10px] text-muted-foreground">Move the focus to keep faces and important details in view. Changes appear in the preview.</p>
-          <p className="text-xs">Touch and drag the photo above to reposition it. Changes appear instantly.</p>
-          <label className="block text-xs">Zoom: {Math.round((selected?.zoom ?? 1.08) * 100)}%<input type="range" min="100" max="140" step="1" value={Math.round((selected?.zoom ?? 1.08) * 100)} className="mt-1 w-full" onChange={(e) => patch({ memories: shown.map((m,i) => i === frame % shown.length ? { ...m, zoom: Number(e.target.value) / 100 } : m) })} /></label>
-          <div><p className="mb-2 text-xs">Motion direction</p><div className="grid grid-cols-4 gap-1">{(["in","out","left","right"] as const).map((direction) => <Button key={direction} size="sm" variant={(selected?.motion ?? "in") === direction ? "selected" : "quiet"} className="capitalize px-1 text-[10px]" onClick={() => patch({ memories: shown.map((m,i) => i === frame % shown.length ? { ...m, motion: direction } : m) })}>{direction}</Button>)}</div></div>
-          <div><p className="mb-2 text-xs">Transition into next photo</p><div className="grid grid-cols-3 gap-1">{(["fade","dissolve","cut"] as const).map((transition) => <Button key={transition} size="sm" variant={(selected?.transition ?? "fade") === transition ? "selected" : "quiet"} className="capitalize text-[11px]" onClick={() => { updateSelectedMoment({ transition }); previewCurrentTransition(); }}>{transition === "cut" ? "Instant" : transition === "dissolve" ? "Dissolve" : "Fade"}</Button>)}</div></div>
-          <label className="block text-xs">Moment duration: {selected?.displayDurationSec ?? 7}s<input type="range" min="4" max="15" step="1" value={selected?.displayDurationSec ?? 7} className="mt-1 w-full" onChange={(e) => patch({ memories: shown.map((m,i) => i === frame % shown.length ? { ...m, displayDurationSec: Number(e.target.value) } : m) })} /></label>
-          <Button variant="quiet" size="sm" onClick={() => patch({ memories: shown.map((m,i) => i === frame % shown.length ? { ...m, focusX: 50, focusY: 50, zoom: 1.08, motion: "in" } : m) })}>Reset framing</Button>
+        <div className="mt-5 rounded-xl border border-border bg-background/50 p-4">
+          <div className="flex items-center justify-between gap-2">
+            <h3 className="text-sm font-medium">Photo transitions</h3>
+            <span className="text-[10px] text-muted-foreground">Moment {frame % shown.length + 1}</span>
+          </div>
+          <p className="mt-1 text-[11px] leading-5 text-muted-foreground">Choose how this photo flows into the next one.</p>
+          <div className="mt-3 grid grid-cols-3 gap-2">
+            {([{ key: "fade", label: "Fade", note: "Smooth" }, { key: "dissolve", label: "Dissolve", note: "Soft blend" }, { key: "cut", label: "Instant", note: "No blend" }] as const).map(option =>
+              <button key={option.key} type="button" disabled={frame % shown.length >= shown.length - 1} aria-pressed={(selected?.transition ?? "dissolve") === option.key} onClick={() => updateSelectedMoment({ transition: option.key })}
+                className={`min-h-[70px] rounded-xl border p-2.5 text-left disabled:opacity-40 ${(selected?.transition ?? "dissolve") === option.key ? "border-[#D2BA99] bg-[#E8E1D7] text-[#171719]" : "border-border bg-[#252326] text-foreground"}`}>
+                <span className="block text-xs font-medium">{option.label}</span>
+                <span className={`mt-1 block text-[10px] ${(selected?.transition ?? "dissolve") === option.key ? "text-[#5F544B]" : "text-muted-foreground"}`}>{option.note}</span>
+              </button>)}
+          </div>
+          <Button variant="quiet" className="mt-3 w-full" disabled={frame % shown.length >= shown.length - 1} onClick={previewCurrentTransition}>
+            <Play className="size-4" /> Preview transition
+          </Button>
         </div>
-        <div className="mt-3 flex items-center justify-between border-t border-border pt-4">
-          <Button variant="bare" size="sm" disabled={shown.length <= 1} className="text-muted-foreground" onClick={() => removeMemory(frame % shown.length)}><Trash2 className="size-4" /> Remove</Button>
-          <Button variant="bare" size="sm" onClick={cycleMemoryDuration}>Duration {selected?.displayDurationSec ?? 4}s</Button>
+        <p className="mt-3 text-[11px] leading-5 text-muted-foreground">Need to reposition a photo? Drag it in the preview above. Gentle motion is applied automatically.</p>
+        <div className="mt-3 flex justify-start border-t border-border pt-4">
+          <Button variant="bare" size="sm" disabled={shown.length <= 1} className="text-muted-foreground" onClick={() => removeMemory(frame % shown.length)}><Trash2 className="size-4" /> Remove photo</Button>
         </div>
       </div>)}
 
@@ -1538,14 +1542,14 @@ function KeepApp() {
         onEditWords={editWordsFromEditor}
         onRerecord={rerecordFromEditor}
         onPlayPreview={() => { if(editorTime >= editorDuration - .1) seekEditor(0); setEditorPlaying(v=>!v); }}
-        onTone={(tone) => patchMix({voiceTone:tone})}
+        onTone={(tone) => { patchMix({ voiceTone: tone }); if (!editorPlaying && !!rec?.audioUrl && !rec.demo) { if (editorTime >= editorDuration - 0.1) seekEditor(0); setEditorPlaying(true); } }}
         onVolume={(kind,value) => patch(kind === "voice" ? {voiceVolume:value} : {musicVolume:value})}
         onMix={patchMix}
       />}
 
       </div>
       <nav className="keep-studio-tools" aria-label="Editing tools">
-        {([{ panel: null, label: "Timeline", Icon: GripVertical }, { panel: "Memories", label: "Photos", Icon: Images }, { panel: "Captions", label: "Captions", Icon: MessageCircle }, { panel: "Music", label: "Music", Icon: Music2 }, { panel: "Voice", label: "Voice", Icon: Mic }, { panel: "Style", label: "Style", Icon: Sparkles }] as const).map(({ panel, label, Icon }) => <button key={label} type="button" aria-pressed={editorPanel === panel} onClick={() => { stopMusicSample(); setMusicSampling(""); setCompareOriginalStyle(false); setEditorPanel(panel); }}><Icon /><span>{label}</span></button>)}
+        {([{ panel: "Memories", label: "Photos", Icon: Images }, { panel: "Captions", label: "Captions", Icon: MessageCircle }, { panel: "Music", label: "Music", Icon: Music2 }, { panel: "Voice", label: "Voice", Icon: Mic }, { panel: "Style", label: "Style", Icon: Sparkles }, { panel: null, label: "Timeline", Icon: GripVertical }] as const).map(({ panel, label, Icon }) => <button key={label} type="button" aria-pressed={editorPanel === panel} onClick={() => { stopMusicSample(); setMusicSampling(""); setCompareOriginalStyle(false); setEditorPanel(panel); }}><Icon /><span>{label}</span></button>)}
       </nav>
 
       {previewChooserOpen && sheet("Preview your Keep", () => { setPreviewChooserOpen(false); setReadArrangeOpen(false); }, <div className="pb-2">
