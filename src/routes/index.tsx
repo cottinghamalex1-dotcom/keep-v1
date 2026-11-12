@@ -1610,7 +1610,51 @@ function KeepApp() {
       onCreatorExit={() => { setScreen("card"); resetPageScroll(); }}
       onCreatorContinue={() => { setScreen("card"); resetPageScroll(); }}
     />}
-    {screen === "card" && <>{top()}<div className="px-7 pb-10 pt-7">{title("The final touch", "Give it somewhere to live.", "Your card opens this Keep with a tap. No app or login required.")}<div className="card-object relative mx-auto aspect-[1.586] w-full max-w-none overflow-hidden rounded-lg border border-foreground/10 p-7 text-white"><span className="brand absolute left-7 top-7 text-sm text-white">Keep</span><div className="absolute left-7 top-[42%] flex -translate-y-1/2 flex-col items-start gap-1 text-left text-[11px] tracking-[.2em] text-white"><strong className="font-normal">{engraving[0]}</strong>{engraving[1] && <span>{engraving[1]}</span>}{engraving[2] && <span>{engraving[2]}</span>}</div></div><div className="mt-9 space-y-4">{["To / Title", "From (optional)", "Date (optional)"].map((label, i) => <label key={label} className="block"><span className="eyebrow">{label}</span><input aria-label={`Card ${label}`} maxLength={22} value={engraving[i] ?? ""} onChange={(e) => updateEngraving(i, e.target.value)} className="mt-2 w-full border-0 border-b border-border bg-transparent pb-3 text-sm tracking-widest outline-none focus:border-accent" /></label>)}</div><div className="mt-9 space-y-3 border-t border-border pt-7"><h2 className="font-display text-2xl">Your opening message</h2><p className="text-xs leading-5 text-muted-foreground">The first words they'll see when they tap your card. Keep it short and personal.</p><details className="mt-4 rounded-lg border border-border/75 p-4"><summary className="cursor-pointer text-xs font-medium text-accent">Need a little inspiration? Explore opening lines</summary><div className="mt-4 space-y-2">{openingMessageIdeas(name, project.occasion).map((idea) => <button key={idea} type="button" className="block w-full rounded-md border border-border/60 px-4 py-3 text-left font-display text-base leading-6 transition-colors hover:border-accent hover:bg-secondary/40" onClick={() => patch({ openingMessage: idea })}>{idea}</button>)}</div></details><label className="block"><span className="sr-only">Opening message</span><textarea aria-label="Opening message" maxLength={160} rows={3} placeholder="Made just for you." value={project.openingMessage ?? "Made just for you."} onChange={(e) => patch({ openingMessage: e.target.value })} className="mt-2 w-full resize-none rounded-xl border border-border bg-background p-4 font-display text-lg outline-none focus:border-accent" /></label><div className="flex items-center justify-between"><span className="text-[11px] text-muted-foreground">{(project.openingMessage ?? "Made just for you.").length}/160</span><Button variant="quiet" size="sm" onClick={() => { go("recipientReveal"); }}>Preview card opening <ArrowRight className="size-4" /></Button></div></div><div className="mt-10">{engraving[0]?.trim() && <KeepPublishPanel project={project} onChange={patch} onPublished={() => go("success")} />}</div><p className="mt-3 text-center text-[11px] text-muted-foreground">Only To / Title is required. Use your own NFC card with the viewing link.</p></div></>}
-    {screen === "success" && <div className="flex keep-min-screen flex-col justify-between px-7 pb-10 pt-10"><span className="brand">Keep</span><div className="py-12"><div className="mb-10 flex size-13 items-center justify-center rounded-full border border-accent text-accent"><Check /></div>{title("", "Your Keep is ready.")}<button type="button" className="card-object relative mt-12 block aspect-[1.586] w-full overflow-hidden rounded-lg border border-foreground/10 p-7 text-left text-white" onClick={() => setCardBack(!cardBack)} aria-label={cardBack ? "View front of keepsake card" : "View back of keepsake card"}>{!cardBack ? <><span className="brand absolute left-7 top-7 text-lg text-white">Keep</span><div className="absolute left-7 top-[42%] flex -translate-y-1/2 flex-col items-start gap-1 text-left text-[11px] tracking-[.2em] text-white"><span>{engraving[0]}</span>{engraving[1] && <span>{engraving[1]}</span>}{engraving[2] && <span>{engraving[2]}</span>}</div></> : <div className="absolute inset-x-0 bottom-6 flex flex-col items-center gap-2 px-7 text-center text-[11px] font-normal tracking-[.2em] text-white"><span>SOME THINGS ARE WORTH KEEPING.</span><Radio className="size-4 stroke-[1.5]" aria-hidden="true" /></div>}</button><Button variant="bare" className="mx-auto mt-3 flex h-auto items-center gap-2 px-3 py-2 text-xs text-muted-foreground" onClick={() => setCardBack(!cardBack)}>{cardBack ? "View front" : "View back"} <RotateCcw className="size-3.5" /></Button><p className="mt-2 text-xs text-muted-foreground">{engraving[0]}{engraving[1] ? ` · ${engraving[1].toLowerCase()}` : ""}{engraving[2] ? ` · ${engraving[2]}` : ""}</p><p className="mt-3 text-xs leading-5 text-muted-foreground">Physical card ordering is coming next. No card has been ordered or shipped.</p></div><div className="space-y-3"><KeepPublishPanel project={project} onChange={patch} /><Button variant="quiet" size="touch" className="w-full" onClick={() => go("editor")}>Back to editor</Button><Button asChild variant="quiet" size="touch" className="w-full"><Link to="/app">Back to Keeps</Link></Button></div></div>}
+    {screen === "card" && <>{top()}<div className="mx-auto max-w-xl px-7 pb-14 pt-7">
+      {title("The final touch", "Give it somewhere to live.", "One simple front design for your physical Keep card.")}
+      <KeepCardFront engraving={engraving} />
+      <p className="mt-4 text-center text-[11px] leading-5 text-muted-foreground">Your words are personalized on the front only.</p>
+      <div className="mt-10 space-y-4">
+        {["To / Title", "From (optional)", "Date (optional)"].map((label, i) => <label key={label} className="block">
+          <span className="eyebrow">{label}</span>
+          <input aria-label={`Card ${label}`} maxLength={22} value={engraving[i] ?? ""} onChange={(e) => updateEngraving(i, e.target.value)} className="mt-2 w-full border-0 border-b border-border bg-transparent pb-3 text-sm tracking-widest outline-none focus:border-accent" />
+        </label>)}
+      </div>
+      <div className="mt-9 space-y-3 border-t border-border pt-7">
+        <h2 className="font-display text-2xl">Your opening message</h2>
+        <p className="text-xs leading-5 text-muted-foreground">The first words they'll see when they tap your card. Keep it short and personal.</p>
+        <details className="mt-4 rounded-lg border border-border/75 p-4"><summary className="cursor-pointer text-xs font-medium text-accent">Need inspiration? Explore opening lines</summary><div className="mt-4 space-y-2">{openingMessageIdeas(name, project.occasion).map((idea) => <button key={idea} type="button" className="block w-full rounded-md border border-border/60 px-4 py-3 text-left font-display text-base leading-6 transition-colors hover:border-accent hover:bg-secondary/40" onClick={() => patch({ openingMessage: idea })}>{idea}</button>)}</div></details>
+        <label className="block"><span className="sr-only">Opening message</span><textarea aria-label="Opening message" maxLength={160} rows={3} placeholder="Made just for you." value={project.openingMessage ?? "Made just for you."} onChange={(e) => patch({ openingMessage: e.target.value })} className="mt-2 w-full resize-none rounded-xl border border-border bg-background p-4 font-display text-lg outline-none focus:border-accent" /></label>
+        <div className="flex items-center justify-between">
+          <span className="text-[11px] text-muted-foreground">{(project.openingMessage ?? "Made just for you.").length}/160</span>
+          <Button variant="quiet" size="sm" disabled={publishing} onClick={() => go("recipientReveal")}>Preview opening <ArrowRight className="size-4" /></Button>
+        </div>
+      </div>
+      <div className="mt-10 border-t border-border pt-7">
+        <Button variant="keep" size="touch" className="keep-premium-action w-full justify-between" disabled={publishing || !engraving[0]?.trim()} onClick={() => void finishAndShare()}>
+          {publishing ? "Saving your Keep…" : "Finish & share"} <ArrowRight className="size-5" />
+        </Button>
+        {publishing && <p role="status" className="mt-3 text-center text-xs text-muted-foreground">{publishStatus}</p>}
+        {publishError && <p role="alert" className="mt-3 text-sm leading-6 text-[#9B3529]">{publishError}</p>}
+        <p className="mt-3 text-center text-[11px] leading-5 text-muted-foreground">Finishing saves your changes and creates or refreshes the same permanent viewing link.</p>
+      </div>
+    </div></>}
+
+    {screen === "success" && <div className="mx-auto flex keep-min-screen w-full max-w-xl flex-col px-7 pb-12 pt-10">
+      <div className="flex items-center justify-center"><span className="keep-wordmark">Keep</span></div>
+      <div className="pt-12">
+        <div className="mb-7 flex size-12 items-center justify-center rounded-full border border-[#B8A89A] text-[#6A5849]"><Check className="size-5" /></div>
+        <h1 className="keep-editorial-title">Your Keep is ready.</h1>
+        <p className="mt-4 text-sm leading-6 text-muted-foreground">A memory worth keeping. Ready to share whenever you are.</p>
+        <div className="mt-9"><KeepCardFront engraving={engraving} /></div>
+        <p className="mt-4 text-center text-[11px] leading-5 text-muted-foreground">Physical card ordering is coming next. No card has been ordered or shipped.</p>
+      </div>
+      <div className="mt-11 space-y-3">
+        {project.publicationToken && <ViewingLink token={project.publicationToken} />}
+        <Button variant="quiet" size="touch" className="w-full" onClick={() => go("editor")}>Back to editor</Button>
+        <Button asChild variant="quiet" size="touch" className="w-full"><Link to="/app">Back to Keeps</Link></Button>
+        <p className="pt-2 text-center text-[11px] leading-5 text-muted-foreground">Your draft is saved as you edit. Tapping Done in the editor refreshes this same viewing link.</p>
+      </div>
+    </div>}
   </div></main>;
 }
