@@ -94,7 +94,7 @@ export function KeepFinishingChoices({ captionStyle, musicMood, visualStyle, voi
             <span className="flex w-full items-start justify-between gap-1"><span className="text-[13px] font-medium leading-5">{track.name}</span>{chosen && <span className="keep-choice-check !size-5 shrink-0"><Check className="!size-3" /></span>}</span>
             <span className="mt-1 text-[11px] leading-4 text-muted-foreground">{track.note.split(" · ").at(-1)}</span>
           </button>
-          <button type="button" aria-label={`${sampling ? "Stop" : "Play"} sample of ${track.name}`} aria-pressed={sampling} onClick={() => onSample(track.name)} className={`mr-2 flex size-9 shrink-0 items-center justify-center rounded-full border ${sampling ? "border-[#6A5849] bg-[#E6DED3]" : "border-border bg-white/60"}`}>
+          <button type="button" aria-label={`${sampling ? "Stop" : "Play"} sample of ${track.name}`} aria-pressed={sampling} onClick={() => onSample(track.name)} className={`mr-3 flex size-10 shrink-0 self-center items-center justify-center rounded-full border ${sampling ? "border-[#6A5849] bg-[#E6DED3]" : "border-border bg-white/60"}`}>
             {sampling ? <Pause className="size-4" fill="currentColor" /> : <Play className="ml-0.5 size-4" fill="currentColor" />}
           </button>
         </div>;
