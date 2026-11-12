@@ -19,6 +19,9 @@ type Props = {
   motionIndex?: number | undefined;
   playing?: boolean;
   duration?: number;
+  /** Narration-clock seconds within the current scene; avoids animations
+   * finishing early or restarting when a user seeks or when media buffers. */
+  sceneElapsed?: number;
   className?: string;
   imageClassName?: string;
 };
@@ -37,7 +40,7 @@ const flip = (slot: Slot): Slot => slot === 0 ? 1 : 0;
  * as the active layer (no remount/black flashes on Safari).
  */
 export function CinematicMedia({
-  item, nextItem, followingItem, sceneKey, motionIndex = 0, playing = true, duration = 7, className = "", imageClassName = "",
+  item, nextItem, followingItem, sceneKey, motionIndex = 0, playing = true, duration = 7, sceneElapsed, className = "", imageClassName = "",
 }: Props) {
   const key = String(sceneKey ?? item.url);
   const [state, setState] = useState<State>(() => ({
@@ -153,11 +156,21 @@ export function CinematicMedia({
     const from = motion === "out" ? zoom * 1.065 : zoom;
     const to = motion === "out" ? zoom : zoom * 1.065;
     const shift = motion === "left" ? [2.4, -2.4] : motion === "right" ? [-2.4, 2.4] : [0, 0];
+    // In narrated Keeps the actual recording clock owns every frame. Do not
+    // let a one-shot CSS animation finish and freeze while the photo stays up.
+    // The outgoing layer settles at 100% while the incoming photo starts at 0%.
+    const timed = typeof sceneElapsed === "number" && Number.isFinite(sceneElapsed);
+    const fraction = timed ? (scene.key === key
+      ? Math.max(0, Math.min(1, sceneElapsed! / Math.max(0.1, scene.duration)))
+      : 1) : null;
+    const translate = fraction === null ? undefined : shift[0] + (shift[1] - shift[0]) * fraction;
+    const scale = fraction === null ? undefined : from + (to - from) * fraction;
     const motionStyle = {
       objectPosition: `${x}% ${y}%`,
       transformOrigin: `${x}% ${y}%`,
-      animation: `keep-cinematic-move ${Math.max(1, scene.duration)}s linear both`,
+      animation: fraction === null ? `keep-cinematic-move ${Math.max(1, scene.duration)}s linear both` : "none",
       animationPlayState: playing && (!isPending || state.revealed) ? "running" as const : "paused" as const,
+      ...(fraction !== null ? { transform: `translateX(${translate}%) scale(${scale})` } : {}),
       ["--keep-from" as string]: `translateX(${shift[0]}%) scale(${from})`,
       ["--keep-to" as string]: `translateX(${shift[1]}%) scale(${to})`,
     };
