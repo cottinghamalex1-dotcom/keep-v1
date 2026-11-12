@@ -11,6 +11,7 @@ type MusicConfig = {
 };
 
 const configs: Record<string, MusicConfig> = {
+  "Intentional": { chords: [[48,55,60,64],[45,52,57,60],[41,48,53,57],[43,50,55,59]], waveform: "sine", chordSeconds: 4.8, brightness: 1250 },
   "Warm + Nostalgic": { chords: [[48,55,60,64],[45,52,57,60],[41,48,53,57],[43,50,55,59]], waveform: "sine", chordSeconds: 4.8, brightness: 1250 },
   "Joyful": { chords: [[48,55,60,64],[53,60,65,69],[45,52,57,60],[55,62,67,71]], waveform: "triangle", chordSeconds: 3.4, brightness: 1800 },
   "Cinematic": { chords: [[45,52,57,60],[41,48,53,57],[48,55,60,64],[43,50,55,59]], waveform: "sine", chordSeconds: 5.8, brightness: 950 },
@@ -93,9 +94,6 @@ function scheduleMusic(
   const under = options.ducking === false ? levels.intro * 0.75 : levels.under;
   applyMusicEnvelope(musicGain.gain, start, introSeconds, voiceDuration, levels.intro, under, levels.outro, options);
 
-  // "Worth Keeping": original 60-second instrumental arrangement in C major / A minor.
-  // Layered, individually enveloped piano notes, arpeggios, and gentle string swells
-  // replace the old four continuously running oscillators (which sounded like a drone).
   const nodes: OscillatorNode[] = [];
   const beat = 0.625; // 96 BPM; 24 bars of 4 beats = 60 seconds
   const bars = Math.ceil(total / (beat * 4)) + 1;
@@ -162,11 +160,32 @@ function scheduleMusic(
   };
 }
 
-const WORTH_KEEPING_MP3 = "/audio/worth-keeping.mp3";
+/** Music files deployed in public/audio. Filename mapping is kept centralized so
+ * replacing a soundtrack never changes the name stored in existing Keeps.
+ * "Worth Keeping" is an alias for older published Keeps only.
+ */
+export const MUSIC_FILES: Record<string, string> = {
+  "Intentional": "/audio/intentional.mp3",
+  "Warm + Nostalgic": "/audio/warm-nostalgic.mp3",
+  "Joyful": "/audio/joyful.mp3",
+  "Cinematic": "/audio/cinematic.mp3",
+  "Romantic": "/audio/romantic.mp3",
+  "Hopeful": "/audio/hopeful.mp3",
+  "Playful": "/audio/playful.mp3",
+  "Reflective": "/audio/reflective.mp3",
+  "Acoustic": "/audio/acoustic.mp3",
+  "Piano": "/audio/piano.mp3",
+};
+
+const normalizeMood = (mood: string) => mood === "Worth Keeping" ? "Intentional" : mood;
 type MusicBed = { stop: () => void; play?: () => Promise<void>; pause?: () => void };
+
 function createMusicBed(ctx: AudioContext, destination: AudioNode, mood: string, balance: MusicBalance, voiceDuration: number, introSeconds: number, options: MixOptions): MusicBed {
-  if (mood !== "Worth Keeping") return scheduleMusic(ctx, destination, mood, balance, voiceDuration, introSeconds, options);
-  const audio = new Audio(WORTH_KEEPING_MP3);
+  const choice = normalizeMood(mood);
+  const musicPath = MUSIC_FILES[choice];
+  if (!musicPath) return scheduleMusic(ctx, destination, choice, balance, voiceDuration, introSeconds, options);
+
+  const audio = new Audio(musicPath);
   audio.preload = "auto";
   audio.loop = true;
   const source = ctx.createMediaElementSource(audio);
@@ -176,16 +195,29 @@ function createMusicBed(ctx: AudioContext, destination: AudioNode, mood: string,
   const levels: Record<MusicBalance, number> = { Soft: 0.22, Balanced: 0.32, Full: 0.45 };
   const level = levels[balance] ?? levels.Balanced;
   const under = options.ducking === false ? level * 0.75 : level * 0.36;
-  // Don't schedule the envelope before a large MP3 actually begins playing:
-  // buffering on iPhone would otherwise consume the music-only introduction.
   gain.gain.value = 0;
   let started = false;
+  let fallback: ScheduledMusic | null = null;
+
   return {
     play: async () => {
-      await audio.play();
-      if (!started) {
-        started = true;
-        applyMusicEnvelope(gain.gain, ctx.currentTime, introSeconds, voiceDuration, level, under, level, options);
+      if (fallback) return;
+      try {
+        // Never schedule the fade envelope until the MP3 starts playing;
+        // iPhone buffering otherwise consumes the music-only introduction.
+        await audio.play();
+        if (!started) {
+          started = true;
+          applyMusicEnvelope(gain.gain, ctx.currentTime, introSeconds, voiceDuration, level, under, level, options);
+        }
+      } catch {
+        // Keep playback functional if one asset is missing during a deployment
+        // or if a device cannot decode a particular audio file.
+        if (fallback) return;
+        audio.pause();
+        source.disconnect();
+        gain.disconnect();
+        fallback = scheduleMusic(ctx, destination, choice, balance, voiceDuration, introSeconds, options);
       }
     },
     pause: () => audio.pause(),
@@ -193,8 +225,8 @@ function createMusicBed(ctx: AudioContext, destination: AudioNode, mood: string,
       audio.pause();
       audio.removeAttribute("src");
       audio.load();
-      source.disconnect();
-      gain.disconnect();
+      try { source.disconnect(); gain.disconnect(); } catch { /* already disconnected */ }
+      fallback?.stop();
     },
   };
 }
@@ -332,15 +364,25 @@ let activeFileSample: { audio: HTMLAudioElement; timer: number } | null = null;
 
 export async function playMusicSample(mood: string, seconds = 9) {
   stopMusicSample();
-  if (mood === "Worth Keeping") {
-    const audio = new Audio(WORTH_KEEPING_MP3);
+  const choice = normalizeMood(mood);
+  const path = MUSIC_FILES[choice];
+  if (path) {
+    const audio = new Audio(path);
     audio.preload = "auto";
+    audio.loop = true;
     audio.volume = 0.65;
-    audio.addEventListener("ended", () => stopMusicSample(), { once: true });
-    await audio.play();
-    const timer = window.setTimeout(() => stopMusicSample(), seconds * 1000);
-    activeFileSample = { audio, timer };
-    return;
+    try {
+      await audio.play();
+      const timer = window.setTimeout(() => stopMusicSample(), seconds * 1000);
+      audio.addEventListener("ended", () => stopMusicSample(), { once: true });
+      activeFileSample = { audio, timer };
+      return;
+    } catch {
+      audio.pause();
+      audio.removeAttribute("src");
+      audio.load();
+      // If an MP3 hasn't been uploaded yet, preserve preview playback.
+    }
   }
   const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
   if (!AudioCtx) throw new Error("Audio preview isn't supported in this browser.");
@@ -348,7 +390,7 @@ export async function playMusicSample(mood: string, seconds = 9) {
   const output = context.createGain();
   output.gain.value = 1;
   output.connect(context.destination);
-  const music = scheduleMusic(context, output, mood, "Full", Math.max(4, seconds - 4), 1.2);
+  const music = scheduleMusic(context, output, choice, "Full", Math.max(4, seconds - 4), 1.2);
   await context.resume();
   const timer = window.setTimeout(() => stopMusicSample(), seconds * 1000);
   activeSample = { context, music, timer };
