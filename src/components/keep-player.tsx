@@ -19,13 +19,13 @@ const styleSlug = (name: string) => name.toLowerCase().replace(/[^a-z0-9]+/g, "-
 
 export type PlayerMedia = { url: string; kind: "image" | "video"; displayDurationSec?: number | undefined; focusX?: number | undefined; focusY?: number | undefined; zoom?: number | undefined; motion?: "in" | "out" | "left" | "right" | undefined; transition?: "fade" | "dissolve" | "cut" | undefined };
 type Props = {
-  name: string; from: string; year: string; onExit: () => void; onFinish?: () => void; recipient?: boolean; skipIntro?: boolean; style?: string; captions?: string;
+  name: string; from: string; year: string; onExit: () => void; onFinish?: () => void; recipient?: boolean; style?: string; captions?: string;
   subtitle?: string | undefined; media?: PlayerMedia[] | undefined; audioUrl?: string | undefined; audioDuration?: number | undefined; lines?: string[] | undefined;
   captionCues?: CaptionCue[] | undefined; musicMood?: string | undefined; voiceMusicBalance?: string | undefined; voiceVolume?: number | undefined; musicVolume?: number | undefined; captionPosition?: "top" | "middle" | "bottom" | undefined; captionLines?: number | undefined; audioMix?: AudioMix | undefined;
 };
 
-export function KeepPlayer({ name, from, year, onExit, onFinish, recipient = false, skipIntro = false, style = "Natural", captions = "Reel", subtitle, media, audioUrl, audioDuration, lines, captionCues = [], musicMood = "Warm + Nostalgic", voiceMusicBalance = "Balanced", voiceVolume = 60, musicVolume = 60, captionPosition = "bottom", captionLines = 2, audioMix }: Props) {
-  const [scene, setScene] = useState(skipIntro ? 0 : -1);
+export function KeepPlayer({ name, from, year, onExit, onFinish, recipient = false, style = "Natural", captions = "Reel", subtitle, media, audioUrl, audioDuration, lines, captionCues = [], musicMood = "Warm + Nostalgic", voiceMusicBalance = "Balanced", voiceVolume = 60, musicVolume = 60, captionPosition = "bottom", captionLines = 2, audioMix }: Props) {
+  const [scene, setScene] = useState(0);
   const [playing, setPlaying] = useState(true);
   const [muted, setMuted] = useState(false);
   const [blocked, setBlocked] = useState(false);
@@ -105,19 +105,13 @@ export function KeepPlayer({ name, from, year, onExit, onFinish, recipient = fal
     }
   }, [recipient, audioUrl, scene, onFinish]);
 
-  // skipIntro only skips the visual title reveal, not the musical introduction.
-  const introSeconds = audioUrl ? KEEP_MUSIC_LEAD_SECONDS : (skipIntro ? 0 : 3.2);
+  // Play the musical lead-in over the first photo, never over a separate title screen.
+  const introSeconds = audioUrl ? KEEP_MUSIC_LEAD_SECONDS : 0;
   const targetSceneSeconds = sceneDuration(items, Math.max(0, scene), audioUrl ? masterDuration : undefined) || 7;
   // Without a recording, use per-photo timing. With voice, the actual audio
   // currentTime below is the single clock for pictures, captions and progress.
   useEffect(() => {
     if (!playing || !mediaReady || end) return;
-    if (scene === -1) {
-      // With narration, the music/voice controller below owns this intro.
-      if (audioUrl) return;
-      const timer = window.setTimeout(() => setScene(0), introSeconds * 1000);
-      return () => window.clearTimeout(timer);
-    }
     if (audioUrl) return;
     const timer = window.setTimeout(() => setScene((current) => current + 1), Math.max(700, sceneDuration(items, scene) * 1000));
     return () => window.clearTimeout(timer);
@@ -253,7 +247,7 @@ export function KeepPlayer({ name, from, year, onExit, onFinish, recipient = fal
   const item = scene >= 0 ? items[Math.min(scene, items.length - 1)] : undefined;
   const nextItem = scene >= 0 ? items[scene + 1] : undefined;
   const activeCue = captionAtTime(captionCues, audioTime);
-  const captionText = activeCue?.text || (!captionCues.length && scene >= 0 ? words[scene % words.length] : "");
+  const captionText = audioUrl && !voiceStarted ? "" : (activeCue?.text || (!captionCues.length && scene >= 0 ? words[scene % words.length] : ""));
 
   return <div className="relative keep-h-screen min-h-0 w-full overflow-hidden bg-[#F7F5F2] text-foreground" onClick={(event) => {
     if ((event.target as HTMLElement).closest("button")) return;
@@ -261,9 +255,7 @@ export function KeepPlayer({ name, from, year, onExit, onFinish, recipient = fal
     else showControls();
   }}>
     {audioUrl && <audio ref={audio} crossOrigin="anonymous" src={audioUrl} playsInline preload="auto" onLoadedMetadata={(event) => { const duration = event.currentTarget.duration; if (Number.isFinite(duration) && duration > 0) setMasterDuration(duration); }} onEnded={() => { if (endingTimer.current) window.clearTimeout(endingTimer.current); endingTimer.current = window.setTimeout(() => { if (!finishSent.current) { finishSent.current = true; onFinish?.(); } }, KEEP_MUSIC_TAIL_SECONDS * 1000); }} onTimeUpdate={(e) => { const a = e.currentTarget; const d = Number.isFinite(a.duration) && a.duration > 0 ? a.duration : audioDuration || 1; setAudioTime(a.currentTime); setScene((current) => { const index = sceneIndexAt(items, a.currentTime, d); return current < 0 || current === index ? current : index; }); }} />}
-    {!mediaReady && <div className="absolute inset-0 flex items-center justify-center bg-[#F7F5F2]"><img src="/brand/keep-wordmark.svg" alt="Keep" className="w-28 opacity-65" /></div>}
-    {mediaReady && item && !end && <><CinematicMedia item={item} nextItem={nextItem} followingItem={items[scene + 2]} sceneKey={scene} motionIndex={scene} playing={playing && (!audioUrl || voiceStarted)} duration={targetSceneSeconds} className="absolute inset-0" imageClassName={`editor-image-${styleSlug(style)}`} /><div className="pointer-events-none absolute inset-0 photo-shade" /></>}
-    {scene === -1 && <div className="cinematic-intro absolute inset-0 flex flex-col items-center justify-center px-7 text-center"><div className="cinematic-glow absolute inset-0" /><div className="relative"><div className="eyebrow mb-6 text-foreground/55">FOR</div><h1 className="display px-6 text-[clamp(58px,17vw,82px)] uppercase">{name}</h1><div className="mx-auto mt-8 h-px w-10 bg-accent/65" /><p className="mt-7 text-xs tracking-wide text-muted-foreground">from {from} · {year}{subtitle ? ` · ${subtitle}` : ""}</p></div></div>}
+    {item && !end && <><CinematicMedia item={item} nextItem={nextItem} followingItem={items[scene + 2]} sceneKey={scene} motionIndex={scene} playing={playing} duration={targetSceneSeconds} className="absolute inset-0" imageClassName={`editor-image-${styleSlug(style)}`} /><div className="pointer-events-none absolute inset-0 photo-shade" /></>}
     {blocked && !end && <div className="absolute inset-x-0 bottom-24 z-40 flex justify-center px-6">
       <Button variant="keep" size="touch" onClick={resumeAudio}><Volume2 /> Tap to start your Keep</Button>
     </div>}
