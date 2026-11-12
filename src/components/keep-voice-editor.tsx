@@ -1,5 +1,4 @@
-import { useState } from "react";
-import { ArrowRight, ChevronDown, MessageCircle, Mic2, Pause, Play, Volume2, X } from "lucide-react";
+import { ArrowRight, MessageCircle, Mic2, Pause, Play, Volume2, X } from "lucide-react";
 import type { AudioMix, VoiceTone } from "@/lib/keep-project";
 
 type Props = {
@@ -20,15 +19,14 @@ type Props = {
 };
 
 const presets: { key:VoiceTone; title:string; description:string }[] = [
-  {key:"natural",title:"Natural",description:"Your original voice"},
-  {key:"clear",title:"Clear",description:"Brighter, clearer speech"},
-  {key:"warm",title:"Warm",description:"A softer, fuller sound"},
+  {key:"natural",title:"Natural",description:"True-to-life sound"},
+  {key:"clear",title:"Clear",description:"Crisp, defined words"},
+  {key:"warm",title:"Warm",description:"Rich, rounded tone"},
 ];
 const time = (seconds: number) => { const total = Math.max(0, Math.round(seconds)); return `${Math.floor(total / 60)}:${String(total % 60).padStart(2,"0")}`; };
 
 export function KeepVoiceEditor({ hasVoice, duration, playing, tone, voiceVolume, musicVolume, mix,
   onClose, onEditWords, onRerecord, onPlayPreview, onTone, onVolume, onMix }: Props) {
-  const [showMix, setShowMix] = useState(false);
   const slider = (label: string, track: "voice" | "music", value: number) => <label className="block">
     <span className="mb-1.5 flex items-center justify-between text-xs"><span>{label}</span><output className="tabular-nums text-[#D2BA99]">{value}%</output></span>
     <input type="range" min={0} max={100} step={1} value={value}
@@ -53,6 +51,24 @@ export function KeepVoiceEditor({ hasVoice, duration, playing, tone, voiceVolume
       </button>
     </div>
 
+    <div className="mt-3 rounded-xl border border-[#766352] bg-[#282522] p-3.5" aria-label="Mix voice and music">
+      <div className="mb-4 flex items-start gap-2">
+        <Volume2 className="mt-0.5 size-4 shrink-0 text-[#E8D1B2]" />
+        <div>
+          <p className="text-sm font-semibold text-[#F7F5F2]">Mix voice & music</p>
+          <p className="mt-1 text-[11px] leading-4 text-[#C1B5A8]">Give every word the perfect balance.</p>
+        </div>
+      </div>
+      <div className="space-y-4">
+        {slider("Voice volume","voice",voiceVolume)}
+        {slider("Music volume","music",musicVolume)}
+        <label className="flex items-center justify-between gap-3 border-t border-[#51473F] pt-3 text-xs">
+          <span><span className="block font-medium">Keep voice in front</span><span className="mt-1 block text-[11px] text-muted-foreground">Lower the music when speaking.</span></span>
+          <input type="checkbox" checked={mix.ducking} onChange={e=>onMix({ducking:e.target.checked})} className="size-5 accent-[#E8E1D7]" />
+        </label>
+      </div>
+    </div>
+
     <div className="mt-3 grid grid-cols-2 gap-2">
       <button type="button" onClick={onEditWords} className="flex min-h-12 items-center justify-center gap-2 rounded-lg border border-[#494547] bg-[#222123] px-2 text-xs font-medium"><MessageCircle className="size-4 text-[#D2BA99]" />Edit words<ArrowRight className="size-3" /></button>
       <button type="button" onClick={onRerecord} className="flex min-h-12 items-center justify-center gap-2 rounded-lg border border-[#494547] bg-[#222123] px-2 text-xs font-medium"><Mic2 className="size-4 text-[#D2BA99]" />Re-record<ArrowRight className="size-3" /></button>
@@ -60,7 +76,7 @@ export function KeepVoiceEditor({ hasVoice, duration, playing, tone, voiceVolume
 
     <div className="mt-5">
       <p className="text-sm font-medium">Polish your voice</p>
-      <p className="mt-1 text-[11px] leading-4 text-muted-foreground">Hear each option in the video preview.</p>
+      <p className="mt-1 text-[11px] leading-4 text-muted-foreground">Tap a sound to hear the difference in your preview.</p>
       <div className="mt-3 grid grid-cols-3 gap-2">
         {presets.map((item)=><button key={item.key} type="button" disabled={!hasVoice} onClick={()=>onTone(item.key)} aria-pressed={tone===item.key}
           className={`min-h-20 rounded-xl border px-2 py-2.5 text-left disabled:opacity-40 ${tone===item.key ? "border-[#D2BA99] bg-[#3A332F]" : "border-[#494547] bg-[#222123]"}`}>
@@ -68,21 +84,8 @@ export function KeepVoiceEditor({ hasVoice, duration, playing, tone, voiceVolume
           <span className="block text-[10px] leading-[1.35] text-muted-foreground">{item.description}</span>
         </button>)}
       </div>
-      <p className="mt-2 text-[10px] leading-4 text-muted-foreground">Gentle tone and level adjustments; they won't remove strong background noise from a recording.</p>
+      <p className="mt-2 text-[10px] leading-4 text-muted-foreground">These profiles shape your sound without changing your words.</p>
     </div>
 
-    <button type="button" className="mt-4 flex min-h-11 w-full items-center justify-between border-t border-[#494547] pt-3 text-left text-sm font-medium"
-      onClick={()=>setShowMix(x=>!x)} aria-expanded={showMix}>
-      <span className="flex items-center gap-2"><Volume2 className="size-4 text-[#D2BA99]" />Mix voice & music</span>
-      <ChevronDown className={`size-4 transition-transform ${showMix ? "rotate-180" : ""}`} />
-    </button>
-    {showMix && <div className="mt-3 space-y-4 rounded-xl border border-[#494547] bg-[#222123] p-4">
-      {slider("Voice volume","voice",voiceVolume)}
-      {slider("Music volume","music",musicVolume)}
-      <label className="flex items-center justify-between gap-3 text-xs">
-        <span><span className="block font-medium">Keep voice in front</span><span className="mt-1 block text-[11px] text-muted-foreground">Lower music as you speak.</span></span>
-        <input type="checkbox" checked={mix.ducking} onChange={e=>onMix({ducking:e.target.checked})} className="size-5 accent-[#E8E1D7]" />
-      </label>
-    </div>}
   </section>;
 }
