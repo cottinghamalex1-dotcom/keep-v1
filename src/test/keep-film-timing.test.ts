@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { defaultMotionAt, filmTotal, motionFor, sceneBoundary, sceneDuration, sceneIndexAt } from "@/lib/keep-film-timing";
+import { defaultMotionAt, filmTotal, motionFor, sceneBoundary, sceneDuration, sceneElapsed, sceneIndexAt, sceneSeekTime } from "@/lib/keep-film-timing";
 import { spreadMemories } from "@/lib/keep-story-layout";
 import type { MediaItem } from "@/lib/keep-project";
 
@@ -35,4 +35,18 @@ it("assigns varied motion to new photos and retains manually selected transition
   expect(output.map((m) => m.displayDurationSec)).toEqual([5,5,5,5]);
   expect(output[1]!.transition).toBe("cut");
   expect(source[0]!.motion).toBeUndefined();
+});
+
+it("seeks to the tapped photo using scaled narration boundaries", () => {
+  const media = Array.from({ length: 8 }, (_, i) => ({ displayDurationSec: i % 2 === 0 ? 7 : 4 }));
+  // In a 20-second recording, raw seven-second timestamps would pick wrong photos.
+  const voiceSeconds = 20;
+  for (let index = 0; index < media.length; index++) {
+    const seek = sceneSeekTime(media, index, voiceSeconds);
+    expect(sceneIndexAt(media, seek, voiceSeconds)).toBe(index);
+    expect(sceneElapsed(media, index, seek, voiceSeconds)).toBeGreaterThanOrEqual(0);
+    expect(sceneElapsed(media, index, sceneBoundary(media, index, voiceSeconds), voiceSeconds))
+      .toBeCloseTo(sceneDuration(media, index, voiceSeconds), 5);
+  }
+  expect(sceneSeekTime(media, 4, voiceSeconds)).not.toBe(sceneBoundary(media, 3));
 });
