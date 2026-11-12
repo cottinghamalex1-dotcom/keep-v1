@@ -127,7 +127,7 @@ function KeepRoute() {
 function MediaView({ item, className, alt, thumb = false }: { item: MediaItem; className: string; alt: string; thumb?: boolean }) {
   if (!item.url) return <div className={`${className} bg-card`} aria-label="Media unavailable" />;
   if (item.kind === "video") return thumb ? <video src={`${item.url}#t=0.1`} muted playsInline preload="metadata" className={className} aria-label={alt} /> : <video src={item.url} autoPlay muted loop playsInline className={className} aria-label={alt} />;
-  return <img src={item.url} alt={alt} className={className} />;
+  return <img src={item.url} alt={alt} loading={thumb ? "lazy" : "eager"} className={className} />;
 }
 
 function KeepApp() {
@@ -1561,6 +1561,22 @@ function KeepApp() {
       </div>
 
 
+
+      {!editorExpanded && <nav aria-label="Preview photos" className="keep-studio-preview-strip">
+        <div className="thin-scroll flex items-center gap-1.5 overflow-x-auto overscroll-x-contain pb-1">
+          {shown.map((moment, i) => (
+            <button key={moment.id ?? i} type="button" aria-label={`View photo ${i + 1} of ${shown.length}`}
+              aria-current={frame === i ? "true" : undefined}
+              onClick={() => {
+                setEditorPlaying(false);
+                seekEditor(i === 0 ? 0 : sceneBoundary(shown, i - 1, editorDuration) + 0.02);
+              }}
+              className={`relative h-[60px] w-[56px] shrink-0 overflow-hidden rounded-md border-2 transition-[border-color,opacity] ${i === frame ? "border-[#E8D1B2] opacity-100" : "border-white/10 opacity-65"}`}>
+              <MediaView item={moment} thumb alt="" className="h-full w-full object-cover" />
+            </button>
+          ))}
+        </div>
+      </nav>}
 
       <div className="keep-studio-workspace" key={editorPanel ?? "preview"}>
       {!rec?.demo && rec?.audioUrl && project.captionStyle !== "None" && !project.captionCues.length && <div className="border-t border-border/60 bg-card/70 px-5 py-3 text-xs"><div className="flex items-center justify-between gap-3"><span>{captionSyncing ? "Syncing captions to your recording…" : captionSyncError ? "Captions did not sync. Your recording is safe." : "Captions are not ready yet."}</span>{!captionSyncing && <Button variant="quiet" size="sm" onClick={() => void retryCaptionSync()}><RotateCcw className="size-3" /> Retry captions</Button>}</div></div>}
