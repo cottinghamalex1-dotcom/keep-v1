@@ -1,3 +1,5 @@
+> **Archived Shopify implementation plan (November 12, 2026).** Keep has selected Stripe Payment Links for its one-product launch. DO NOT follow the Shopify activation steps below or direct the official Sites CTAs to Shopify. The current release checklist is [STRIPE_FIRST_LAUNCH.md](./STRIPE_FIRST_LAUNCH.md). Shopify remains an optional later ecommerce platform, not the checkout for this launch.
+
 # Keep purchase-first checkout and fulfillment rollout
 
 ## Customer journey
