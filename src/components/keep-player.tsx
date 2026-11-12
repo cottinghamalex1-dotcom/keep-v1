@@ -268,12 +268,19 @@ export function KeepPlayer({ name, from, year, onExit, onFinish, recipient = fal
       <Button variant="keep" size="touch" onClick={resumeAudio}><Volume2 /> Tap to start your Keep</Button>
     </div>}
     {!end && <>
+      {/* Keep's wordmark stays on screen throughout the film; only controls fade. */}
+      <div className="pointer-events-none absolute inset-x-0 top-0 z-[29] h-32 bg-gradient-to-b from-black/45 via-black/15 to-transparent" />
+      <div className="pointer-events-none absolute inset-x-0 top-0 z-[35] px-5 pt-[max(22px,env(safe-area-inset-top))]">
+        <div className="flex h-11 items-center justify-center">
+          <img src="/brand/keep-wordmark-ivory.svg" alt="Keep" className="h-9 w-[104px] object-contain drop-shadow-[0_2px_8px_rgba(0,0,0,.45)]" />
+        </div>
+      </div>
       <div inert={!controlsVisible} aria-hidden={!controlsVisible} className={`pointer-events-none absolute inset-x-0 top-0 z-30 bg-gradient-to-b from-black/65 via-black/25 to-transparent px-5 pb-12 pt-[max(22px,env(safe-area-inset-top))] transition-opacity duration-500 ease-out ${controlsVisible ? "opacity-100" : "opacity-0"}`}>
         <div className="flex items-center justify-between gap-3">
           <button type="button" aria-label="Exit preview" onClick={onExit} className="pointer-events-auto flex size-11 items-center justify-center rounded-full border border-white/20 bg-black/25 text-[#F7F5F2] shadow-sm backdrop-blur-md transition-colors hover:bg-black/40 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white">
             <ArrowLeft className="size-5" strokeWidth={1.7} />
           </button>
-          <img src="/brand/keep-wordmark-ivory.svg" alt="Keep" className="h-9 w-[104px] object-contain drop-shadow-[0_2px_8px_rgba(0,0,0,.45)]" />
+          <span aria-hidden="true" className="w-[104px]" />
           <button type="button" aria-label={muted ? "Unmute" : "Mute"} onClick={() => { setMuted(!muted); showControls(); }} className="pointer-events-auto flex size-11 items-center justify-center rounded-full border border-white/20 bg-black/25 text-[#F7F5F2] shadow-sm backdrop-blur-md transition-colors hover:bg-black/40 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white">
             {muted ? <VolumeX className="size-5" strokeWidth={1.7} /> : <Volume2 className="size-5" strokeWidth={1.7} />}
           </button>
