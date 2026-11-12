@@ -1532,9 +1532,6 @@ function KeepApp() {
       <div className="keep-studio-stage">
         <div className="keep-studio-canvas-wrap">
           <div className="keep-studio-canvas relative aspect-[9/16] overflow-hidden rounded-2xl bg-card shadow-lg">
-            <div className="pointer-events-none absolute right-3 top-3 z-40 rounded-full border border-white/15 bg-black/55 px-3 py-1.5 font-mono text-[10px] tabular-nums tracking-wide text-white/90 backdrop-blur-sm" aria-label={`Preview time ${fmt(editorTime)} of ${fmt(editorDuration)}`}>
-              {fmt(editorTime)} / {fmt(editorDuration)}
-            </div>
             <CinematicMedia item={selected} nextItem={shown[frame + 1]} sceneKey={frame} motionIndex={frame} playing={editorPlaying} duration={sceneDuration(shown, frame, editorDuration)} className="absolute inset-0" imageClassName={`editor-image-${styleSlug(compareOriginalStyle && editorPanel === "Style" ? "Natural" : project.visualStyle)}`} />
             <div className="absolute inset-0 photo-shade" />
             {editorPanel === "Memories" && <div className="absolute inset-x-0 top-0 bottom-14 z-20 cursor-grab touch-none active:cursor-grabbing" aria-label="Drag photo to reposition" onPointerDown={(e) => { e.currentTarget.setPointerCapture(e.pointerId); const r = e.currentTarget.getBoundingClientRect(); photoDrag.current = { x: e.clientX, y: e.clientY, focusX: selected.focusX ?? 50, focusY: selected.focusY ?? 50, width: r.width, height: r.height }; setEditorPlaying(false); }} onPointerMove={(e) => { const d = photoDrag.current; if (!d) return; updateSelectedMoment({ focusX: Math.max(0, Math.min(100, d.focusX - (e.clientX - d.x) / d.width * 100)), focusY: Math.max(0, Math.min(100, d.focusY - (e.clientY - d.y) / d.height * 100)) }); }} onPointerUp={() => { photoDrag.current = null; }} onPointerCancel={() => { photoDrag.current = null; }}><span className="absolute left-1/2 top-3 -translate-x-1/2 whitespace-nowrap rounded-full bg-black/65 px-3 py-1 text-[10px] text-white">Drag photo to reposition</span></div>}
@@ -1562,21 +1559,21 @@ function KeepApp() {
 
 
 
-      {!editorExpanded && <nav aria-label="Preview photos" className="keep-studio-preview-strip">
-        <div className="thin-scroll flex items-center gap-1.5 overflow-x-auto overscroll-x-contain pb-1">
-          {shown.map((moment, i) => (
-            <button key={moment.id ?? i} type="button" aria-label={`View photo ${i + 1} of ${shown.length}`}
-              aria-current={frame === i ? "true" : undefined}
-              onClick={() => {
-                setEditorPlaying(false);
-                seekEditor(i === 0 ? 0 : sceneBoundary(shown, i - 1, editorDuration) + 0.02);
-              }}
-              className={`relative h-[60px] w-[56px] shrink-0 overflow-hidden rounded-md border-2 transition-[border-color,opacity] ${i === frame ? "border-[#E8D1B2] opacity-100" : "border-white/10 opacity-65"}`}>
-              <MediaView item={moment} thumb alt="" className="h-full w-full object-cover" />
-            </button>
-          ))}
-        </div>
-      </nav>}
+      {!editorExpanded && <section className="keep-studio-preview-controls" aria-label="Preview playback">
+        <button type="button" aria-label={editorPlaying ? "Pause preview" : "Play preview"}
+          onClick={() => {
+            if (editorTime >= editorDuration - 0.1) seekEditor(0);
+            setEditorPlaying((current) => !current);
+          }}
+          className="keep-studio-preview-play">
+          {editorPlaying ? <Pause className="size-[18px]" fill="currentColor" /> : <Play className="ml-0.5 size-[18px]" fill="currentColor" />}
+        </button>
+        <input type="range" aria-label="Seek through your Keep" min={0} max={Math.max(1,editorDuration)} step={0.1}
+          value={Math.min(editorDuration,editorTime)}
+          onChange={(e) => { setEditorPlaying(false); seekEditor(Number(e.target.value)); }}
+          className="keep-studio-preview-range" />
+        <span className="keep-studio-preview-time">{fmt(editorTime)} / {fmt(editorDuration)}</span>
+      </section>}
 
       <div className="keep-studio-workspace" key={editorPanel ?? "preview"}>
       {!rec?.demo && rec?.audioUrl && project.captionStyle !== "None" && !project.captionCues.length && <div className="border-t border-border/60 bg-card/70 px-5 py-3 text-xs"><div className="flex items-center justify-between gap-3"><span>{captionSyncing ? "Syncing captions to your recording…" : captionSyncError ? "Captions did not sync. Your recording is safe." : "Captions are not ready yet."}</span>{!captionSyncing && <Button variant="quiet" size="sm" onClick={() => void retryCaptionSync()}><RotateCcw className="size-3" /> Retry captions</Button>}</div></div>}
