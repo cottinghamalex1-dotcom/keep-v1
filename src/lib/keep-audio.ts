@@ -34,11 +34,11 @@ export const KEEP_MUSIC_TAIL_SECONDS = 4.5;
 
 export function musicEnvelope(introSeconds: number, voiceDuration: number) {
   const intro = Math.max(0, introSeconds);
-  const voiceEnd = intro + Math.max(0, voiceDuration);
+  const voiceEnd = intro + Math.max(1, voiceDuration);
   return {
     introPeak: Math.min(1.05, Math.max(0.25, intro * 0.5)),
-    duckStart: Math.max(0.15, intro - 0.45),
-    duckEnd: intro + 0.38,
+    duckStart: Math.max(Math.min(1.05, Math.max(0.25, intro * 0.5)) + 0.05, intro - 0.45),
+    duckEnd: Math.max(intro + 0.38, Math.max(0.25, intro * 0.5) + 0.35),
     voiceStart: intro,
     voiceEnd,
     outroRise: voiceEnd + 0.72,
@@ -176,11 +176,18 @@ function createMusicBed(ctx: AudioContext, destination: AudioNode, mood: string,
   const levels: Record<MusicBalance, number> = { Soft: 0.22, Balanced: 0.32, Full: 0.45 };
   const level = levels[balance] ?? levels.Balanced;
   const under = options.ducking === false ? level * 0.75 : level * 0.36;
-  // A downloaded MP3 follows exactly the same fade/duck/outro timing as
-  // generated instrumentals; do not fade the voice in before the music.
-  applyMusicEnvelope(gain.gain, ctx.currentTime + 0.02, introSeconds, voiceDuration, level, under, level);
+  // Don't schedule the envelope before a large MP3 actually begins playing:
+  // buffering on iPhone would otherwise consume the music-only introduction.
+  gain.gain.value = 0;
+  let started = false;
   return {
-    play: async () => { await audio.play(); },
+    play: async () => {
+      await audio.play();
+      if (!started) {
+        started = true;
+        applyMusicEnvelope(gain.gain, ctx.currentTime, introSeconds, voiceDuration, level, under, level);
+      }
+    },
     pause: () => audio.pause(),
     stop: () => {
       audio.pause();
