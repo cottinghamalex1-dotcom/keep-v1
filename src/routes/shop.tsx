@@ -1,110 +1,222 @@
 import { KeepAccountButton } from "@/components/keep-account-button";
 import { KeepCardFront } from "@/components/keep-card-front";
 import couple from "@/assets/memory-couple.jpg";
+import wedding from "@/assets/memory-wedding.jpg";
 import home from "@/assets/memory-home.jpg";
 import travel from "@/assets/memory-travel.jpg";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { ArrowRight, Check, Gift, Heart, Images, LockKeyhole, PackageCheck, Smartphone, Volume2 } from "lucide-react";
+import { ArrowDown, ArrowRight, Check, CheckCircle2, Heart, Images, LockKeyhole, PackageCheck, Play, Smartphone, Sparkles, Volume2 } from "lucide-react";
 
 export const Route = createFileRoute("/shop")({
   head: () => ({
     meta: [
-      { title: "Create a Keep — A gift worth keeping" },
-      { name: "description", content: "Choose your Keep card, then create a personal memory experience with your words, voice, photos and music. We prepare and ship it after your approval." },
+      { title: "Keep — Some things are worth keeping" },
+      { name: "description", content: "A beautiful metal keepsake card, one personal memory film, and words they'll never forget. $99 with standard U.S. shipping included." },
     ],
   }),
   component: ShopKeep,
 });
 
+const shopifyProductUrl = "https://jn2cmt-se.myshopify.com/products/keep-signature-card";
 const checkoutUrl = (import.meta.env["VITE_KEEP_SHOPIFY_PRODUCT_URL"] as string | undefined)?.trim() ?? "";
+// Keep purchase UI disabled until order-to-creator webhooks and checkout are tested.
 const checkoutReady = /^https:\/\/[a-z0-9.-]+\/(products|cart)\//i.test(checkoutUrl);
 
-const steps = [
-  { number: "01", Icon: Gift, title: "Choose your Keep", copy: "Purchase your beautiful physical card with secure checkout." },
-  { number: "02", Icon: Images, title: "Make it personal", copy: "Follow a simple, guided process to bring your voice, photos and memories together." },
-  { number: "03", Icon: PackageCheck, title: "Approve. We'll ship.", copy: "Watch the finished experience, approve it, and we'll prepare, test and send your card." },
+const journey = [
+  { number: "01", title: "Choose your Keep", copy: "Start with a beautifully crafted metal keepsake card. Your $99 purchase includes the experience inside.", icon: "card" },
+  { number: "02", title: "Make it personal", copy: "Share your words, add your favorite photos and videos, and find the perfect music. Keep guides you along the way.", icon: "story" },
+  { number: "03", title: "Preview & approve", copy: "Watch your finished Keep, make it just right, then approve it for production.", icon: "play" },
+  { number: "04", title: "We make it yours", copy: "We prepare, test and ship your card. They simply tap with their phone to relive it.", icon: "gift" },
 ];
 
-function PurchaseButton({ className = "" }: { className?: string }) {
-  if (!checkoutReady) return <div className={className}>
-    <span className="flex min-h-14 items-center justify-center rounded-xl border border-border bg-secondary/50 px-6 py-4 text-center text-sm text-foreground/75">Checkout opening soon</span>
-    <p className="mt-2 text-center text-xs leading-5 text-muted-foreground">We're finalizing secure checkout and fulfillment. No payment is being collected yet.</p>
+const questions = [
+  { q: "What exactly am I purchasing?", a: "One matte-black metal Keep card and one personalized digital memory experience. After checkout, you'll use our guided editor to combine your own voice, words, photos, short videos and music." },
+  { q: "Do I need to know how to edit videos?", a: "Not at all. Keep guides you step by step. You can write or record a message yourself, or use Keep AI to help find the words." },
+  { q: "When will my Keep ship?", a: "After you've created, previewed and approved your finished Keep, we'll prepare the physical card for shipping. The timeline starts after your approval, not at checkout." },
+  { q: "Is standard shipping included?", a: "Yes. Standard shipping to addresses within the United States is included in the $99 price. Availability and rates outside the United States are not yet offered." },
+  { q: "Does the recipient need an app?", a: "No app is needed. With a compatible NFC-enabled smartphone, they can tap their Keep card to open their private viewing link." },
+];
+
+function BrandMark({ light = false }: { light?: boolean }) {
+  return <img src={light ? "/brand/keep-wordmark-ivory.svg" : "/brand/keep-wordmark.svg"} alt="Keep" width={106} height={54} className="h-12 w-[106px] object-contain object-left" />;
+}
+
+function PurchaseAction({ smaller = false }: { smaller?: boolean }) {
+  if (!checkoutReady) return <div className={smaller ? "w-full" : "max-w-[380px]"}>
+    <span aria-disabled="true" className="flex min-h-14 items-center justify-between gap-4 rounded-sm border border-[#0B0B0B] bg-[#0B0B0B] px-6 py-4 text-sm font-medium text-[#F7F5F2] opacity-75">
+      Checkout opening soon <ArrowRight className="size-4 shrink-0" />
+    </span>
+    <p className="mt-3 text-[11px] leading-5 text-[#74695E]">Our $99 product is active in Shopify. Checkout is temporarily paused while we complete secure order verification.</p>
   </div>;
-  return <a className={`keep-premium-action flex min-h-14 items-center justify-between px-6 py-4 ${className}`} href={checkoutUrl} rel="noopener noreferrer">
-    Purchase Your Keep <ArrowRight className="size-5" />
-  </a>;
+  return <a href={checkoutUrl} className={`flex min-h-14 items-center justify-between gap-4 rounded-sm border border-[#0B0B0B] bg-[#0B0B0B] px-6 py-4 text-sm font-medium text-[#F7F5F2] transition-colors hover:bg-[#302923] ${smaller ? "w-full" : "max-w-[380px]"}`}>Purchase your Keep — $99 <ArrowRight className="size-4 shrink-0" /></a>;
+}
+
+function PhotoPhone() {
+  return <div className="relative mx-auto w-[177px] overflow-hidden rounded-[29px] border-[6px] border-[#141414] bg-[#111] p-1 shadow-[0_28px_75px_rgba(0,0,0,.30)] sm:w-[205px]" aria-label="Illustration of a personal Keep playing on a phone">
+    <div className="absolute left-1/2 top-[10px] z-10 h-[9px] w-16 -translate-x-1/2 rounded-full bg-[#141414]" />
+    <div className="relative aspect-[9/18.5] overflow-hidden rounded-[19px] bg-[#131313]">
+      <img src={couple} alt="Memory slideshow on a phone" className="h-full w-full object-cover" />
+      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/20" />
+      <img src="/brand/keep-wordmark-ivory.svg" alt="" className="absolute left-4 top-4 w-11 object-contain" />
+      <div className="absolute inset-x-3 bottom-8 text-center text-[#fffdf9]">
+        <span className="font-display text-[26px] leading-tight">For you, always.</span>
+        <span className="mt-2 block text-[9px] tracking-[.14em] text-[#fffdf9]/80">A STORY WORTH KEEPING</span>
+      </div>
+    </div>
+  </div>;
 }
 
 function ShopKeep() {
-  return <main className="min-h-dvh bg-background text-foreground">
-    <div className="mx-auto max-w-5xl px-6 pb-24">
-      <header className="flex items-center justify-between border-b border-border/80 py-6">
-        <Link to="/shop" className="keep-wordmark" aria-label="Keep shop">Keep</Link>
-        <div className="flex items-center gap-4">
-          <Link to="/about" className="hidden text-sm text-foreground/70 sm:inline">How it works</Link>
+  return <main className="min-h-dvh bg-[#F7F5F2] text-[#161412]">
+    <div className="bg-[#161412] px-6 py-[11px] text-center text-[10px] font-medium tracking-[.19em] text-[#EEE5DA]">SOME THINGS ARE WORTH KEEPING</div>
+    <header className="sticky top-0 z-40 border-b border-[#D8D0C7]/80 bg-[#F7F5F2]/95 backdrop-blur-xl">
+      <div className="mx-auto flex h-[76px] max-w-[1240px] items-center justify-between gap-6 px-5 sm:px-8">
+        <Link to="/shop" aria-label="Keep home"><BrandMark /></Link>
+        <nav className="hidden items-center gap-9 text-[12px] font-medium text-[#4A4138] md:flex" aria-label="Shop navigation">
+          <a href="#experience" className="hover:text-black">The experience</a>
+          <a href="#how-it-works" className="hover:text-black">How it works</a>
+          <a href="#the-card" className="hover:text-black">The card</a>
+          <Link to="/about" className="hover:text-black">Our story</Link>
+        </nav>
+        <div className="flex items-center gap-3">
+          <a href="#the-card" className="hidden min-h-10 items-center gap-2 rounded-sm bg-[#151312] px-5 text-[12px] font-medium text-[#F7F5F2] sm:flex">Explore Keep <ArrowRight className="size-3.5" /></a>
           <KeepAccountButton />
         </div>
-      </header>
+      </div>
+    </header>
 
-      <section className="grid items-center gap-12 border-b border-border/80 py-14 md:grid-cols-2 md:py-24">
-        <div>
-          <h1 className="keep-editorial-title !text-[clamp(42px,6vw,76px)]">Some things are worth keeping.</h1>
-          <p className="mt-7 max-w-xl font-display text-[clamp(23px,3vw,30px)] leading-snug">Give them words they'll never forget.</p>
-          <p className="mt-5 max-w-xl text-base leading-8 text-foreground/75">Keep turns your words, your voice and your favorite moments into a beautiful, personal memory experience — connected to a physical card they can hold onto.</p>
-          <div className="mt-8 flex flex-wrap items-center gap-x-5 gap-y-3 text-xs text-[#6A5849]">
-            <span className="inline-flex items-center gap-2"><Check className="size-4" /> No design skills needed</span>
-            <span className="inline-flex items-center gap-2"><Check className="size-4" /> Create after purchase</span>
+    <section className="relative overflow-hidden border-b border-[#D8D0C7]/75">
+      <div className="mx-auto grid min-h-[750px] max-w-[1240px] items-center gap-8 px-6 pb-16 pt-14 lg:grid-cols-[1.03fr_.97fr] lg:gap-8 lg:px-10 lg:py-20">
+        <div className="relative z-10 max-w-[650px]">
+          <div className="mb-9 flex items-center gap-3 text-[10px] font-semibold uppercase tracking-[.19em] text-[#6A5849]"><span className="h-px w-8 bg-[#B8A999]" /> A more meaningful way to give</div>
+          <h1 className="font-display text-[clamp(49px,5.7vw,83px)] font-normal leading-[1.085] tracking-[-.048em]">Some things are <em className="text-[#8C7766]">worth keeping.</em></h1>
+          <p className="mt-7 max-w-[530px] font-display text-[clamp(23px,2.6vw,32px)] leading-snug tracking-[-.023em]">Give them words they'll never forget.</p>
+          <p className="mt-5 max-w-[475px] text-[15px] leading-[1.95] text-[#5F5850]">A beautiful metal card that opens an extraordinary personal gift: your voice, your photographs and the words that mean the most. Made by you. Kept by them.</p>
+          <div className="mt-9"><PurchaseAction /></div>
+          <a href="#experience" className="mt-7 inline-flex items-center gap-3 text-[12px] font-medium text-[#6A5849] hover:text-black">Discover the experience <ArrowDown className="size-4" /></a>
+        </div>
+
+        <div className="relative mx-auto flex w-full max-w-[620px] items-center justify-center py-6 lg:min-h-[630px]">
+          <div className="absolute inset-[2%] rounded-[50%] bg-[#EEE8E1] blur-[2px]" />
+          <div className="absolute right-[4%] top-[4%] size-[37%] rounded-full border border-[#D7CABB]/70" />
+          <div className="absolute bottom-[8%] left-[3%] size-[42%] rounded-full border border-[#D7CABB]/60" />
+          <div className="relative z-10 w-[83%] max-w-[485px] -translate-x-[8%] rotate-[-8deg]">
+            <KeepCardFront engraving={["FOR MOM", "WITH LOVE", "2026"]} className="!rounded-[12px] !shadow-[0_35px_75px_rgba(12,10,8,.25)]" />
           </div>
-          <PurchaseButton className="mt-8 max-w-md" />
-          <p className="mt-5 text-xs leading-6 text-muted-foreground">Already purchased? <Link to="/app" className="font-medium text-[#6A5849] underline underline-offset-4">Sign in and create your Keep</Link>.</p>
-        </div>
-        <div className="rounded-3xl bg-[#E8E0D6] p-6 sm:p-9">
-          <div className="mx-auto max-w-sm rounded-2xl bg-[#F7F3EF] p-6 shadow-xl">
-            <KeepCardFront engraving={["MOM", "FROM US", "2026"]} />
-            <p className="mt-5 text-center text-[11px] uppercase tracking-[.18em] text-[#6A5849]">A real gift. A lasting message.</p>
+          <div className="absolute bottom-[1%] right-[0%] z-20 w-[40%] rotate-[7deg] sm:right-[3%] sm:w-[41%]">
+            <PhotoPhone />
           </div>
+          <div className="absolute left-[4%] top-[13%] z-20 hidden max-w-[115px] border-l border-[#B8A999] pl-3 text-[10px] leading-5 tracking-[.08em] text-[#6A5849] sm:block">ONE BEAUTIFUL CARD. A THOUSAND FEELINGS.</div>
         </div>
-      </section>
+      </div>
+      <div className="border-t border-[#D8D0C7]/75 bg-[#F0EBE5]">
+        <div className="mx-auto grid max-w-[1240px] grid-cols-3 divide-x divide-[#D8D0C7] px-4 py-5 text-center text-[10px] font-medium leading-5 tracking-[.04em] text-[#6A5849] sm:text-xs">
+          <span>Made with your voice</span><span>Personal from start to finish</span><span>One tap to relive it</span>
+        </div>
+      </div>
+    </section>
 
-      <section className="border-b border-border/80 py-16 md:py-20">
-        <div className="mb-10 max-w-2xl">
-          <p className="mb-4 text-xs uppercase tracking-[.2em] text-[#6A5849]">The experience inside</p>
-          <h2 className="keep-section-title">Every word. Every memory. All in one place.</h2>
-          <p className="mt-5 text-sm leading-7 text-foreground/75">The person receiving your card taps it with their phone to open a personal film of the moments and words you've chosen. No app download required.</p>
+    <section id="experience" className="scroll-mt-24 overflow-hidden bg-[#171514] text-[#F7F5F2]">
+      <div className="mx-auto grid max-w-[1240px] items-center gap-14 px-6 py-20 md:grid-cols-[.94fr_1.06fr] md:gap-16 md:px-10 md:py-28">
+        <div className="relative">
+          <div className="grid grid-cols-[1fr_.73fr] items-end gap-3">
+            <div className="overflow-hidden"><img src={wedding} alt="A meaningful wedding memory" className="aspect-[4/5] w-full object-cover" /></div>
+            <div className="mb-10 overflow-hidden"><img src={home} alt="A cherished moment at home" className="aspect-[4/5] w-full object-cover" /></div>
+          </div>
+          <div className="absolute bottom-[-30px] left-[6%] rounded-sm border border-[#574F48] bg-[#27221F] px-5 py-4 text-[11px] leading-5 text-[#E8DFD6] shadow-xl">The moments you don't want to lose.<span className="block text-[#C6B49A]">The words you don't want to leave unsaid.</span></div>
         </div>
-        <div className="grid grid-cols-3 gap-2 sm:gap-5">
-          {[{ src: couple, alt: "A couple together" }, { src: travel, alt: "A moment from a trip" }, { src: home, alt: "A treasured moment at home" }].map(({src, alt}) =>
-            <div key={alt} className="overflow-hidden rounded-xl bg-secondary"><img src={src} alt={alt} className="aspect-[3/4] w-full object-cover" /></div>
-          )}
+        <div className="max-w-[510px]">
+          <p className="text-[10px] uppercase tracking-[.2em] text-[#C6B49A]">More than a gift</p>
+          <h2 className="mt-7 font-display text-[clamp(41px,4.8vw,69px)] leading-[1.16] tracking-[-.035em]">They can hold the card. <em className="text-[#C6B49A]">And feel everything inside it.</em></h2>
+          <p className="mt-7 text-[14px] leading-8 text-[#CCC5BF]">Some gifts are opened once. Keep is different. Your message comes alive through familiar photographs, a favorite soundtrack and the voice they know by heart.</p>
+          <p className="mt-5 text-[14px] leading-8 text-[#CCC5BF]">Every time they tap the card, they return to something that was made just for them.</p>
+          <a href="#how-it-works" className="mt-8 inline-flex min-h-11 items-center gap-3 border-b border-[#C6B49A] pb-2 text-[13px] text-[#F7F5F2]">See how Keep works <ArrowRight className="size-4" /></a>
         </div>
-        <div className="mt-6 grid gap-3 sm:grid-cols-3">
-          <p className="flex items-center gap-2 text-sm text-foreground/75"><Volume2 className="size-4 text-[#6A5849]" /> Your own voice and favorite music</p>
-          <p className="flex items-center gap-2 text-sm text-foreground/75"><Images className="size-4 text-[#6A5849]" /> Photos, short videos and captions</p>
-          <p className="flex items-center gap-2 text-sm text-foreground/75"><Smartphone className="size-4 text-[#6A5849]" /> A private tap-to-watch experience</p>
-        </div>
-        <p className="mt-5 text-xs text-muted-foreground">Illustrative memories shown. An actual narrated sample film will be added before launch.</p>
-      </section>
+      </div>
+    </section>
 
-      <section className="border-b border-border/80 py-16 md:py-20">
-        <p className="mb-4 text-xs uppercase tracking-[.2em] text-[#6A5849]">The journey</p>
-        <h2 className="keep-section-title">A meaningful gift, made simple.</h2>
-        <div className="mt-10 grid gap-4 md:grid-cols-3">
-          {steps.map(({ number, Icon, title, copy }) => <article key={number} className="keep-editorial-surface p-6">
-            <span className="text-xs tracking-[.2em] text-[#6A5849]">{number}</span>
-            <Icon className="mb-5 mt-8 size-6 text-[#6A5849]" />
-            <h3 className="font-display text-[27px]">{title}</h3>
-            <p className="mt-3 text-sm leading-7 text-foreground/70">{copy}</p>
+    <section id="how-it-works" className="scroll-mt-24 border-b border-[#D8D0C7]">
+      <div className="mx-auto max-w-[1240px] px-6 py-20 md:px-10 md:py-28">
+        <div className="mx-auto max-w-[690px] text-center">
+          <p className="text-[10px] uppercase tracking-[.2em] text-[#6A5849]">The simple part</p>
+          <h2 className="mt-5 font-display text-[clamp(39px,4.4vw,63px)] leading-tight tracking-[-.035em]">A meaningful gift, made simple.</h2>
+          <p className="mx-auto mt-5 max-w-[530px] text-[14px] leading-8 text-[#665D55]">No editing experience, perfect words or elaborate plan required. You bring the memories. We'll help you bring them together.</p>
+        </div>
+        <div className="mt-14 grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
+          {journey.map(({number,title,copy,icon})=><article key={number} className="flex min-h-[275px] flex-col border border-[#DDD4C9] bg-[#FBF9F6] p-7">
+            <div className="flex items-start justify-between text-[#8E7868]"><span className="font-display text-[31px]">{number}</span>{icon==="card"?<Images className="size-5" />:icon==="story"?<Sparkles className="size-5" />:icon==="play"?<Play className="size-5" />:<PackageCheck className="size-5" />}</div>
+            <h3 className="mt-9 font-display text-[26px] leading-tight">{title}</h3>
+            <p className="mt-3 text-[12px] leading-[1.9] text-[#665D55]">{copy}</p>
           </article>)}
         </div>
-      </section>
+      </div>
+    </section>
 
-      <section className="mx-auto max-w-2xl py-16 text-center md:py-20">
-        <Heart className="mx-auto mb-5 size-6 text-[#6A5849]" />
-        <h2 className="keep-section-title">A gift that means more every time they revisit it.</h2>
-        <p className="mx-auto mt-5 max-w-xl text-sm leading-7 text-foreground/75">You don't have to know exactly what to say. Keep will help you find the words and put everything together after your purchase.</p>
-        <PurchaseButton className="mx-auto mt-9 max-w-md" />
-        <div className="mt-8 flex items-center justify-center gap-2 text-xs text-muted-foreground"><LockKeyhole className="size-4" /> Your recordings and memories stay private.</div>
-      </section>
-    </div>
+    <section id="the-card" className="scroll-mt-24 bg-[#EDE7E0]">
+      <div className="mx-auto grid max-w-[1240px] items-center gap-12 px-6 py-20 md:grid-cols-2 md:gap-16 md:px-10 md:py-28">
+        <div className="relative flex min-h-[400px] items-center justify-center overflow-hidden bg-[#DDD3C7] p-10 sm:min-h-[530px]">
+          <div className="absolute inset-x-[15%] top-1/2 h-28 -translate-y-1/2 rounded-full bg-[#998979]/40 blur-3xl" />
+          <div className="relative w-[96%] max-w-[465px] rotate-[-7deg]"><KeepCardFront engraving={["SOMEONE SPECIAL", "FROM YOU", "2026"]}/></div>
+          <span className="absolute bottom-5 left-5 text-[10px] tracking-[.18em] text-[#6A5849]">SIGNATURE KEEP / PRODUCT PREVIEW</span>
+        </div>
+        <div className="max-w-[520px]">
+          <p className="text-[10px] font-medium uppercase tracking-[.18em] text-[#6A5849]">The signature gift</p>
+          <h2 className="mt-4 font-display text-[clamp(42px,4.6vw,68px)] leading-[1.1] tracking-[-.035em]">One card. One unforgettable story.</h2>
+          <div className="mt-7 flex items-baseline gap-4 border-b border-[#CBBFB2] pb-6"><strong className="font-display text-[46px] font-normal">$99</strong><span className="text-[12px] text-[#665D55]">Standard U.S. shipping included</span></div>
+          <ul className="my-8 space-y-4 text-[13px] leading-6 text-[#514A43]">
+            {["Matte-black metal NFC Keep card","One private, personalized memory experience","Your voice, photos, short videos, music and captions","Guided Keep AI tools to help find the words","Preview and approve before we prepare your card"].map(item=><li key={item} className="flex gap-3"><Check className="mt-[3px] size-4 shrink-0 text-[#6A5849]"/>{item}</li>)}
+          </ul>
+          <PurchaseAction />
+          <p className="mt-5 text-[11px] leading-6 text-[#665D55]">Cards are prepared after the creator approves their finished Keep. U.S. delivery only at launch. Taxes may apply at checkout.</p>
+          <a href={shopifyProductUrl} rel="noopener noreferrer" className="mt-5 inline-flex items-center gap-2 border-b border-[#6A5849]/50 pb-1 text-[12px] text-[#6A5849]" target="_blank">See the active Shopify product <ArrowRight className="size-3.5" /></a>
+        </div>
+      </div>
+    </section>
+
+    <section className="border-b border-[#D8D0C7]">
+      <div className="mx-auto grid max-w-[1240px] items-center gap-12 px-6 py-20 md:grid-cols-2 md:gap-24 md:px-10 md:py-28">
+        <div className="relative overflow-hidden">
+          <img src={travel} alt="Memorable moments deserve a place to live" className="aspect-[4/5] w-full object-cover" />
+          <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/65 via-black/10 to-transparent p-7 text-[#FCF8F4]"><p className="max-w-[290px] font-display text-[clamp(27px,3vw,39px)] leading-tight">The moments you remember. The words they'll keep.</p></div>
+        </div>
+        <div className="max-w-[510px]">
+          <p className="text-[10px] uppercase tracking-[.19em] text-[#6A5849]">Made by you. Kept by them.</p>
+          <h2 className="mt-5 font-display text-[clamp(39px,4.3vw,61px)] leading-[1.15] tracking-[-.04em]">You don't have to find the perfect words alone.</h2>
+          <p className="mt-6 text-[14px] leading-8 text-[#665D55]">Tell Keep who the gift is for and what you want them to remember. Write your own message, record it in your voice, or let Keep AI guide you with thoughtful questions. Add your favorite moments and make something that could only come from you.</p>
+          <div className="mt-9 grid grid-cols-3 gap-3 border-t border-[#DDD4C9] pt-7">
+            <div><Volume2 className="mb-3 size-5 text-[#6A5849]"/><p className="text-xs font-medium">Your voice</p></div>
+            <div><Images className="mb-3 size-5 text-[#6A5849]"/><p className="text-xs font-medium">Your memories</p></div>
+            <div><Heart className="mb-3 size-5 text-[#6A5849]"/><p className="text-xs font-medium">Your meaning</p></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section className="mx-auto max-w-[900px] px-6 py-20 md:py-28">
+      <p className="text-center text-[10px] uppercase tracking-[.2em] text-[#6A5849]">Good to know</p>
+      <h2 className="mt-5 text-center font-display text-[clamp(39px,4.4vw,59px)] tracking-[-.035em]">A few thoughtful answers.</h2>
+      <div className="mt-12 border-t border-[#D8D0C7]">
+        {questions.map(({q,a})=><details key={q} className="group border-b border-[#D8D0C7]">
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-6 py-6 text-[14px] font-medium marker:hidden [&::-webkit-details-marker]:hidden">{q}<span className="text-xl font-normal text-[#8C7766] transition-transform group-open:rotate-45">+</span></summary>
+          <p className="max-w-[690px] pb-7 text-[13px] leading-7 text-[#665D55]">{a}</p>
+        </details>)}
+      </div>
+    </section>
+
+    <section className="bg-[#171514] px-6 py-20 text-center text-[#F7F5F2] md:py-28">
+      <p className="text-[10px] uppercase tracking-[.2em] text-[#C6B49A]">For the people who matter most</p>
+      <h2 className="mx-auto mt-6 max-w-[830px] font-display text-[clamp(45px,6vw,79px)] leading-[1.12] tracking-[-.042em]">Some words deserve to last forever.</h2>
+      <p className="mx-auto mt-6 max-w-[510px] text-[14px] leading-8 text-[#D3C9C0]">For the thank-yous, the I-love-yous and the moments you never want them to forget.</p>
+      <div className="mx-auto mt-9 max-w-[380px]"><PurchaseAction smaller /></div>
+      <div className="mx-auto mt-10 flex items-center justify-center gap-2 text-[11px] text-[#D4C9BF]"><LockKeyhole className="size-4"/> Private memories. Made to be shared with someone special.</div>
+    </section>
+
+    <footer className="bg-[#131110] px-6 py-9 text-[#D2C7BF]">
+      <div className="mx-auto flex max-w-[1240px] flex-col items-center justify-between gap-6 border-t border-[#332D29] pt-8 md:flex-row">
+        <BrandMark light />
+        <p className="text-[11px]">Some things are worth keeping.</p>
+        <div className="flex gap-6 text-[11px]"><Link to="/about">Our story</Link><Link to="/app">My Keeps</Link><a href={shopifyProductUrl} target="_blank" rel="noopener noreferrer">Product details</a></div>
+      </div>
+    </footer>
   </main>;
 }
