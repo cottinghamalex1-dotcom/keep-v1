@@ -25,6 +25,7 @@ import { KeepRecipientExperience, type KeepExperienceMode } from "@/components/k
 import { openingMessageIdeas } from "@/lib/keep-opening-message";
 import { KeepErrorBoundary } from "@/components/keep-error-boundary";
 import { KeepLengthGuide } from "@/components/keep-length-guide";
+import { checkKeepVideo, KEEP_VIDEO_MAX_BYTES, readKeepVideoDuration } from "@/lib/keep-video-upload";
 import { countKeepWords, estimateKeepSeconds, formatKeepTime } from "@/lib/keep-length";
 import { useRecorder } from "@/hooks/use-recorder";
 import { deleteBlobs, getBlob, putBlob } from "@/lib/keep-media-store";
@@ -799,37 +800,58 @@ function KeepApp() {
     const files = Array.from(e.target.files ?? []);
     e.target.value = "";
     if (!files.length) return;
-    // New video uploads need compression and resumable transfers. Existing
-    // videos remain playable; do not invite unreliable raw iPhone uploads.
-    const supported = files.filter((f) => f.type.startsWith("image/") || /\.(heic|heif|jpe?g|png|gif|webp)$/i.test(f.name));
-    if (supported.length !== files.length) toast.info("Video uploads are being improved. For now, choose photos to add to your Keep.");
-    if (!supported.length) { toast.error("Choose photos to add."); return; }
+    const supported = files.filter((f) => f.type.startsWith("image/") || f.type.startsWith("video/") || /\.(heic|heif|jpe?g|png|gif|webp|mov|mp4|m4v)$/i.test(f.name));
+    if (!supported.length) { toast.error("Choose photos or short video clips to add."); return; }
     setBusy(true);
     setMediaImport({ total: supported.length, completed: 0 });
-    // Let the status bubble paint before reading large iCloud/iPhone media files.
+    // Give iPhone time to paint the status before reading iCloud media.
     await new Promise<void>((resolve) => requestAnimationFrame(() => window.setTimeout(resolve, 0)));
     const items: MediaItem[] = [];
+    const skipped: string[] = [];
+    let processed = 0;
     try {
       for (const f of supported) {
-        const kind = "image" as const;
-        const id = newId("media");
-        const persisted = await putBlob(id, f);
-        items.push({ id, kind, source: "upload", url: URL.createObjectURL(f), name: f.name, mimeType: f.type, persisted, displayDurationSec: 7 });
-        setMediaImport({ total: supported.length, completed: items.length });
-        // Yield regularly so progress stays responsive even with many big videos.
-        await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+        try {
+          const kind = f.type.startsWith("video/") || /\.(mov|mp4|m4v)$/i.test(f.name) ? "video" as const : "image" as const;
+          let displayDurationSec = 7;
+          if (kind === "video") {
+            // Reject huge files before asking Safari to read/decode metadata.
+            const sizeError = f.size > KEEP_VIDEO_MAX_BYTES ? checkKeepVideo(f.size, 1) : null;
+            if (sizeError) throw new Error(sizeError);
+            let seconds: number;
+            try { seconds = await readKeepVideoDuration(f); }
+            catch { throw new Error("Couldn't read this video's length. Try a short MP4 or MOV clip."); }
+            const issue = checkKeepVideo(f.size, seconds);
+            if (issue) throw new Error(issue);
+            // Let shorter video clips play in full rather than using a generic 7s photo duration.
+            displayDurationSec = Math.max(1, seconds);
+          }
+          const id = newId("media");
+          const persisted = await putBlob(id, f);
+          // Unlike a photo, a raw video cannot reliably be recovered from a
+          // temporary object URL after Safari closes its tab.
+          if (kind === "video" && !persisted) throw new Error("This video couldn't be saved on your device. Try a smaller clip.");
+          items.push({ id, kind, source: "upload", url: URL.createObjectURL(f), name: f.name, mimeType: f.type, persisted, displayDurationSec });
+        } catch (error) {
+          skipped.push(`${f.name}: ${error instanceof Error ? error.message : "This file could not be added."}`);
+        } finally {
+          processed++;
+          setMediaImport({ total: supported.length, completed: processed });
+          await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+        }
       }
-      if (replaceIndex !== undefined) {
-        patch({ memories: frames.length ? frames.map((m, i) => (i === replaceIndex ? { ...items[0]!, displayDurationSec: m.displayDurationSec ?? 7, focusX: m.focusX, focusY: m.focusY, zoom: m.zoom, motion: m.motion, transition: m.transition } : m)) : shown.map((m, i) => (i === replaceIndex ? { ...items[0]!, displayDurationSec: m.displayDurationSec ?? 4 } : m)) });
-        toast.success("Photo updated");
-      } else {
-        patch({ memories: [...frames, ...items] });
-        toast.success(`${items.length} ${items.length === 1 ? "memory" : "memories"} added`);
+      if (items.length) {
+        if (replaceIndex !== undefined) {
+          patch({ memories: frames.length ? frames.map((m, i) => (i === replaceIndex ? { ...items[0]!, displayDurationSec: items[0]!.kind === "video" ? items[0]!.displayDurationSec : m.displayDurationSec ?? 7, focusX: m.focusX, focusY: m.focusY, zoom: m.zoom, motion: m.motion, transition: m.transition } : m)) : shown.map((m, i) => (i === replaceIndex ? { ...items[0]!, displayDurationSec: items[0]!.displayDurationSec } : m)) });
+          toast.success("Moment updated");
+        } else {
+          patch({ memories: [...frames, ...items] });
+          toast.success(`${items.length} ${items.length === 1 ? "moment" : "moments"} added`);
+        }
       }
+      if (skipped.length) toast.error(skipped.length === 1 ? skipped[0]! : `${skipped.length} files skipped. ${skipped[0]}`, { duration: 8000 });
       if (items.some((item) => !item.persisted)) toast.warning("Some photos may not be stored on this device. Keep this page open until your account finishes syncing.");
-    } catch {
-      if (items.length) patch({ memories: [...frames, ...items] });
-      toast.error("Some photos couldn't be added. Try fewer photos at once.");
+      if (supported.length !== files.length) toast.info("Some selected files weren't recognized as photos or videos.");
     } finally {
       setMediaImport(null);
       setBusy(false);
@@ -1211,7 +1233,7 @@ function KeepApp() {
   const micMessage = recorder.supported === false ? "This browser can't record audio here." : recorder.status === "denied" ? "Microphone access was blocked. You can allow it in your browser settings." : recorder.status === "error" ? "The microphone couldn't start." : "";
   const isRecording = recorder.status === "recording" || recorder.status === "paused";
   const accountLink = <KeepAccountButton />;
-  const fileInputs = <><input ref={draftInput} type="file" accept=".docx,.pdf,.txt,.md,.rtf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/pdf,text/plain,text/markdown,application/rtf" className="sr-only" aria-label="Upload something you have already written" tabIndex={-1} onChange={(e) => void importDraft(e)} /><input ref={addInput} type="file" accept="image/*" multiple className="sr-only" aria-label="Choose photos" tabIndex={-1} onChange={(e) => void addFiles(e)} /><input ref={replaceInput} type="file" accept="image/*" className="sr-only" aria-label="Choose a replacement photo" tabIndex={-1} onChange={(e) => void addFiles(e, frame % Math.max(1, shown.length))} /></>;
+  const fileInputs = <><input ref={draftInput} type="file" accept=".docx,.pdf,.txt,.md,.rtf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/pdf,text/plain,text/markdown,application/rtf" className="sr-only" aria-label="Upload something you have already written" tabIndex={-1} onChange={(e) => void importDraft(e)} /><input ref={addInput} type="file" accept="image/*,video/mp4,video/quicktime,video/*" multiple className="sr-only" aria-label="Choose photos and videos" tabIndex={-1} onChange={(e) => void addFiles(e)} /><input ref={replaceInput} type="file" accept="image/*,video/mp4,video/quicktime,video/*" className="sr-only" aria-label="Choose a replacement photo or short video" tabIndex={-1} onChange={(e) => void addFiles(e, frame % Math.max(1, shown.length))} /></>;
 
   if (resumeError) return <main className="app-shell flex min-h-dvh flex-col px-8 py-10"><a href="/app" className="keep-wordmark" aria-label="Keep home">Keep</a><div className="my-auto max-w-sm"><h1 className="font-display text-[38px] leading-tight">We couldn't open your Keep.</h1><p role="alert" className="mt-5 text-sm leading-7 text-muted-foreground">{resumeError}</p><div className="mt-9 flex flex-col gap-3"><Button variant="keep" size="touch" onClick={() => window.location.reload()}>Try again</Button><a href="/app" className="rounded-xl border border-border px-5 py-3 text-center text-sm">Back to your creations</a></div></div></main>;
   if (!hydrated) return <KeepOpeningScreen phase={openingPhase} progress={openingProgress} onBack={() => window.location.assign("/app")} />;
@@ -1220,7 +1242,7 @@ function KeepApp() {
       <div className="w-full max-w-xs rounded-[22px] border border-[#DED4C8] bg-[#F7F5F2] px-7 py-8 text-center text-[#181614] shadow-[0_25px_80px_rgba(0,0,0,.27)]">
         <Loader2 className="mx-auto mb-5 size-7 animate-spin text-[#7B6551]" />
         <p className="font-display text-[27px] leading-tight">Adding your moments.</p>
-        <p className="mt-3 text-[13px] leading-5 text-[#73695F]">Saving ${mediaImport.total === 1 ? "your photo" : `${mediaImport.total} photos`} to Keep…</p>
+        <p className="mt-3 text-[13px] leading-5 text-[#73695F]">Checking and adding ${mediaImport.total === 1 ? "your moment" : `${mediaImport.total} moments`} to Keep…</p>
         <div className="mt-5 h-1.5 w-full overflow-hidden rounded-full bg-[#E7DED4]"><div className="h-full rounded-full bg-[#6A5849] transition-[width] duration-200" style={{ width: `${(mediaImport.completed / mediaImport.total) * 100}%` }} /></div>
         <p className="mt-3 text-xs tabular-nums text-[#73695F]">{mediaImport.completed} of {mediaImport.total} added</p>
         <p className="mt-3 text-[11px] text-[#8B8177]">You can continue as soon as these finish saving.</p>
@@ -1493,12 +1515,12 @@ function KeepApp() {
       </div>
     </div></>}
     {screen === "memories" && <>{top()}<div className="px-7 pb-10 pt-9">
-      {title("YOUR MOMENTS", "Add your photos.", "Choose the moments that bring your story to life.")}
+      {title("YOUR MOMENTS", "Add photos & videos.", "Choose the moments that bring your story to life.")}
       <div className="keep-editorial-surface mb-7 px-5 py-5" aria-live="polite">
         <div className="flex items-center justify-between gap-3"><p className="text-[11px] font-medium uppercase tracking-[.14em] text-[#6A5849]">Suggested moments</p>{guidanceSeconds > 0 && <span className="text-[11px] text-muted-foreground">{narrationLengthText}</span>}</div>
         {guidanceSeconds > 0 ? <>
-          <p className="mt-3 font-display text-[33px] leading-none text-foreground">{minRecommendedMoments}–{maxRecommendedMoments} <span className="text-[23px]">photos</span></p>
-          <p className="mt-3 text-xs leading-6 text-muted-foreground">We suggest about one photo every 3–5 seconds of narration. {recordedNarrationSec ? "This is based on your recording." : "This is estimated from your message length."} Around {idealRecommendedMoments} is a great starting point.</p>
+          <p className="mt-3 font-display text-[33px] leading-none text-foreground">{minRecommendedMoments}–{maxRecommendedMoments} <span className="text-[23px]">photos or videos</span></p>
+          <p className="mt-3 text-xs leading-6 text-muted-foreground">We suggest a new photo or video about every 3–5 seconds of narration. {recordedNarrationSec ? "This is based on your recording." : "This is estimated from your message length."} Around {idealRecommendedMoments} is a great starting point.</p>
           <p className="mt-3 text-xs text-[#6A5849]">{personalMedia.length} added{personalMedia.length >= minRecommendedMoments && personalMedia.length <= maxRecommendedMoments ? " · In the suggested range" : personalMedia.length < minRecommendedMoments ? ` · ${minRecommendedMoments - personalMedia.length} more to reach the range` : " · More than suggested is okay"}</p>
         </> : <p className="mt-3 text-sm leading-6 text-muted-foreground">Add a message or record your voice to see a personalized photo recommendation. For a 2–3 minute Keep, start with about 30–45 photos, but add as many or as few as you like.</p>}
         <p className="mt-3 border-t border-border/50 pt-3 text-[11px] leading-5 text-muted-foreground">Just a guide — use as many or as few moments as you'd like. You can always add more later.</p>
@@ -1506,14 +1528,14 @@ function KeepApp() {
       <aside aria-label="iPhone photo upload tip" className="mb-5 flex items-start gap-3 rounded-xl border border-[#DAD0C5] bg-[#F0EAE2]/65 px-4 py-4">
         <CircleHelp className="mt-0.5 size-5 shrink-0 text-[#79654F]" strokeWidth={1.6} aria-hidden="true" />
         <div>
-          <p className="text-[12px] font-semibold tracking-[.01em] text-[#44382D]">Quick tip for iPhone photos</p>
-          <p className="mt-1 text-[12px] leading-5 text-[#675B50]">After you tap the blue checkmark in your photo library, it may take a little while for iPhone to prepare your selection—especially when adding lots of photos. The screen may seem unchanged briefly. Keep will show progress as soon as your photos are ready. Please keep this page open.</p>
+          <p className="text-[12px] font-semibold tracking-[.01em] text-[#44382D]">Quick tip for iPhone uploads</p>
+          <p className="mt-1 text-[12px] leading-5 text-[#675B50]">After tapping the blue checkmark in your iPhone library, it may take a moment to prepare your photos or clips. Keep will show progress when the files arrive. Please leave this page open.</p>
         </div>
       </aside>
-      <p className="mb-3 text-[11px] leading-5 text-muted-foreground">Video uploads are coming back once large-file transfers are more reliable. Any videos already in your Keep will remain.</p>
+      <p className="mb-3 text-[11px] leading-5 text-muted-foreground">Videos make memories come alive. For reliable iPhone uploads, choose clips <strong className="font-semibold text-foreground">10 seconds or shorter</strong> and under <strong className="font-semibold text-foreground">40 MB</strong>. Trim longer videos in Photos before adding them; longer or larger files will be skipped. Keep plays video clips without their original sound, beneath your narration and music.</p>
       <div className="keep-creator-photo-grid grid grid-cols-3 gap-1">
         {personalMedia.map((m, i) => <div key={m.id} className="relative aspect-square overflow-hidden bg-card"><MediaView item={m} thumb alt={m.name ?? "Your memory"} className="h-full w-full object-cover" /><button type="button" aria-label={"Remove memory " + (i+1)} onClick={() => removeMemory(i)} className="absolute right-1 top-1 rounded-full bg-black/70 p-2 text-white"><X className="size-4" /></button></div>)}
-        <button type="button" onClick={() => addInput.current?.click()} disabled={busy} className="flex aspect-square flex-col items-center justify-center gap-2 border border-border text-xs text-muted-foreground"><Plus className="size-5" />{busy ? "Adding…" : "Add photos"}</button>
+        <button type="button" onClick={() => addInput.current?.click()} disabled={busy} className="flex aspect-square flex-col items-center justify-center gap-2 border border-border text-xs text-muted-foreground"><Plus className="size-5" />{busy ? "Adding…" : "Add moments"}</button>
       </div>
       <p className="mt-4 text-xs text-muted-foreground">{personalMedia.length} personal moments added</p>
       <div className="mt-10">{nextButton("Continue", () => { setStyleTouched(false); go("storyStyle"); })}</div>
@@ -1659,7 +1681,7 @@ function KeepApp() {
       </div>}
 
       {editorPanel === "Memories" && editorToolPanel("Photos", () => { setEditorExpanded(false); setEditorPanel(null); }, <div className="pb-2">
-        <p className="mt-2 text-xs leading-5 text-muted-foreground">Choose photos that bring your words to life. Tap a photo to select it, then use Earlier or Later to reorder. Video uploads are temporarily unavailable while we improve large-file support.</p>
+        <p className="mt-2 text-xs leading-5 text-muted-foreground">Choose the photos and short videos that bring your words to life. Tap a moment to select it, then use Earlier or Later to reorder. Video clips should be 10 seconds or shorter and under 40 MB.</p>
         <div className="thin-scroll mt-5 flex gap-2 overflow-x-auto pb-2" role="group" aria-label="Choose a photo to edit">{shown.map((m, i) => <div key={m.id} draggable={typeof window !== "undefined" && window.matchMedia("(hover: hover) and (pointer: fine)").matches} onDragStart={() => { dragFrom.current = i; }} onDragEnd={() => { dragFrom.current = null; }} onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); if (dragFrom.current !== null) moveMemory(dragFrom.current, i); dragFrom.current = null; }} className="shrink-0"><Button variant="bare" className={`relative h-24 w-18 overflow-hidden rounded-lg !p-0 touch-manipulation ${i === frame % shown.length ? "ring-2 ring-accent opacity-100" : "opacity-75"}`} aria-label={`Select photo ${i + 1} of ${shown.length}`} aria-pressed={i === frame % shown.length} onClick={() => {
           if (dragFrom.current !== null) return;
           // Film scenes are stretched/compressed to fit the recording. Seeking
@@ -1670,8 +1692,8 @@ function KeepApp() {
           setFrame(i);
         }}><MediaView item={m} thumb alt={m.source === "sample" ? memoryLabels[i % memoryLabels.length] ?? "" : m.name ?? ""} className="h-full w-full object-cover pointer-events-none" />{m.kind === "video" && <Play className="pointer-events-none absolute bottom-1.5 left-1.5 size-3" fill="currentColor" />}</Button></div>)}</div>
         <div className="mt-5 grid grid-cols-2 gap-2">
-          <Button variant="quiet" onClick={() => addInput.current?.click()}><Plus /> Add photos</Button>
-          <Button variant="quiet" onClick={() => replaceInput.current?.click()}>Replace photo</Button>
+          <Button variant="quiet" onClick={() => addInput.current?.click()}><Plus /> Add moments</Button>
+          <Button variant="quiet" onClick={() => replaceInput.current?.click()}>Replace</Button>
           <Button variant="quiet" disabled={frame % shown.length === 0} onClick={() => moveMemory(frame % shown.length, frame % shown.length - 1)}><ChevronLeft /> Earlier</Button>
           <Button variant="quiet" disabled={frame % shown.length >= shown.length - 1} onClick={() => moveMemory(frame % shown.length, frame % shown.length + 1)}>Later <ChevronRight /></Button>
         </div>
