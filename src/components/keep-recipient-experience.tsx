@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { KeepPlayer, memoryImages, type PlayerMedia } from "@/components/keep-player";
 import { KeepFirstPlayReveal } from "@/components/keep-first-play-reveal";
 import type { AudioMix, CaptionCue } from "@/lib/keep-project";
-import { createKeepVoiceMix, type MusicBalance } from "@/lib/keep-audio";
+import { createKeepVoiceMix, KEEP_MUSIC_LEAD_SECONDS, KEEP_MUSIC_TAIL_SECONDS, type MusicBalance } from "@/lib/keep-audio";
 
 export type KeepExperienceMode = "watch" | "listen" | "read";
 
@@ -100,7 +100,7 @@ export function KeepRecipientExperience({
   useEffect(() => {
     if (stage !== "experience" || experience !== "listen" || !audioUrl || !audio.current) return;
     const balance = (["Soft", "Balanced", "Full"].includes(voiceMusicBalance) ? voiceMusicBalance : "Balanced") as MusicBalance;
-    const controller = createKeepVoiceMix(audio.current, musicMood, balance, audioDuration, 3.2, audioMix);
+    const controller = createKeepVoiceMix(audio.current, musicMood, balance, audioDuration, KEEP_MUSIC_LEAD_SECONDS, audioMix);
     listenMix.current = controller;
     controller?.setLevels(voiceVolume, musicVolume);
     listenHasStarted.current = false;
@@ -161,16 +161,20 @@ export function KeepRecipientExperience({
         setListening(false);
       } else {
         setListening(true);
-        void listenMix.current?.play();
-        if (!listenHasStarted.current && element.currentTime < 0.05) {
-          listenIntroTimer.current = window.setTimeout(() => {
-            listenIntroTimer.current = null;
-            listenHasStarted.current = true;
-            void element.play();
-          }, 3200);
-        } else {
-          void element.play();
-        }
+        // Do not start the voice clock until the selected music has genuinely
+        // started playing (a large MP3 may need to buffer on cellular).
+        const controller = listenMix.current;
+        void (controller?.play() ?? Promise.reject(new Error("Music unavailable"))).then(() => {
+          if (!listenHasStarted.current && element.currentTime < 0.05) {
+            listenIntroTimer.current = window.setTimeout(() => {
+              listenIntroTimer.current = null;
+              listenHasStarted.current = true;
+              void element.play().catch(() => setListening(false));
+            }, KEEP_MUSIC_LEAD_SECONDS * 1000);
+          } else {
+            void element.play().catch(() => setListening(false));
+          }
+        }).catch(() => setListening(false));
       }
       return;
     }
@@ -205,7 +209,7 @@ export function KeepRecipientExperience({
       <div className="flex flex-1 flex-col items-center justify-center text-center">
         <div className="mb-10 flex size-16 items-center justify-center rounded-full border border-border"><Headphones className="size-6 text-accent" /></div>
         <p className="eyebrow mb-5">A KEEP FOR</p><h1 className="keep-editorial-title">{name}</h1><p className="mt-5 text-sm text-muted-foreground">from {from} · {year}</p>
-        {audioUrl && <audio ref={audio} crossOrigin="anonymous" src={audioUrl} preload="metadata" onPlay={() => { listenHasStarted.current = true; setListening(true); }} onPause={() => { if (!listenIntroTimer.current) setListening(false); }} onEnded={() => { setListening(false); timer.current = window.setTimeout(finishExperience, 3200); }} onTimeUpdate={(e) => { const a=e.currentTarget; const d=Number.isFinite(a.duration)&&a.duration>0?a.duration:audioDuration; setListenProgress(Math.min(100,(a.currentTime/d)*100)); }} />}
+        {audioUrl && <audio ref={audio} crossOrigin="anonymous" src={audioUrl} preload="metadata" onPlay={() => { listenHasStarted.current = true; setListening(true); }} onPause={() => { if (!listenIntroTimer.current) setListening(false); }} onEnded={() => { setListening(false); timer.current = window.setTimeout(finishExperience, KEEP_MUSIC_TAIL_SECONDS * 1000); }} onTimeUpdate={(e) => { const a=e.currentTarget; const d=Number.isFinite(a.duration)&&a.duration>0?a.duration:audioDuration; setListenProgress(Math.min(100,(a.currentTime/d)*100)); }} />}
         <div className="mt-14 w-full"><div className="h-px w-full bg-border"><div className="h-px bg-foreground transition-[width]" style={{ width: `${listenProgress}%` }} /></div><div className="mt-3 flex justify-between text-[10px] tracking-widest text-muted-foreground"><span>{Math.floor((listenProgress / 100) * audioDuration / 60)}:{String(Math.floor((listenProgress / 100) * audioDuration % 60)).padStart(2,"0")}</span><span>{Math.floor(audioDuration / 60)}:{String(Math.floor(audioDuration % 60)).padStart(2,"0")}</span></div></div>
         <Button variant="keep" className="mt-10 size-16 rounded-full p-0" aria-label={listening ? "Pause" : "Play"} onClick={toggleListen}>{listening ? <Pause fill="currentColor" /> : <Play fill="currentColor" />}</Button>
         <p className="mt-8 max-w-64 text-xs leading-5 text-muted-foreground">Just {from}'s voice and the music behind it. Nothing else competing for your attention.</p>
