@@ -42,7 +42,10 @@ export function KeepPlayer({ name, from, year, onExit, onFinish, recipient = fal
   const audio = useRef<HTMLAudioElement>(null);
   const mix = useRef<ReturnType<typeof createKeepVoiceMix>>(null);
   const endingTimer = useRef<number | null>(null);
-  const items: PlayerMedia[] = useMemo(() => media?.length ? media : memoryImages.map((url) => ({ url, kind: "image" as const })), [media]);
+  // Parent/editor updates may recreate the media array without changing a frame.
+  // Keep image layers and decode warmups stable across those unrelated rerenders.
+  const mediaFingerprint = JSON.stringify(media ?? []);
+  const items: PlayerMedia[] = useMemo(() => media?.length ? media : memoryImages.map((url) => ({ url, kind: "image" as const })), [mediaFingerprint]);
   const words = lines?.length ? lines : defaultLines;
   const end = !audioUrl && scene >= 5;
 
