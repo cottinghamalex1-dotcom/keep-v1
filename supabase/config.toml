@@ -1,0 +1,4 @@
+# Shopify sends signed webhooks without a Supabase JWT.
+# The keep-commerce handler authenticates browser calls and checks webhook HMAC.
+[functions.keep-commerce]
+verify_jwt = false
