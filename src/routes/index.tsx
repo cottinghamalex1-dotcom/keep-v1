@@ -1489,6 +1489,13 @@ function KeepApp() {
         </> : <p className="mt-3 text-sm leading-6 text-muted-foreground">Add a message or record your voice to see a personalized photo recommendation. For a 2–3 minute Keep, start with about 30–45 photos, but add as many or as few as you like.</p>}
         <p className="mt-3 border-t border-border/50 pt-3 text-[11px] leading-5 text-muted-foreground">Just a guide — use as many or as few moments as you'd like. You can always add more later.</p>
       </div>
+      <aside aria-label="iPhone photo upload tip" className="mb-5 flex items-start gap-3 rounded-xl border border-[#DAD0C5] bg-[#F0EAE2]/65 px-4 py-4">
+        <CircleHelp className="mt-0.5 size-5 shrink-0 text-[#79654F]" strokeWidth={1.6} aria-hidden="true" />
+        <div>
+          <p className="text-[12px] font-semibold tracking-[.01em] text-[#44382D]">Quick tip for iPhone photos</p>
+          <p className="mt-1 text-[12px] leading-5 text-[#675B50]">After you tap the blue checkmark in your photo library, it may take a little while for iPhone to prepare your selection—especially when adding lots of photos. The screen may seem unchanged briefly. Keep will show progress as soon as your photos are ready. Please keep this page open.</p>
+        </div>
+      </aside>
       <div className="keep-creator-photo-grid grid grid-cols-3 gap-1">
         {personalMedia.map((m, i) => <div key={m.id} className="relative aspect-square overflow-hidden bg-card"><MediaView item={m} thumb alt={m.name ?? "Your memory"} className="h-full w-full object-cover" /><button type="button" aria-label={"Remove memory " + (i+1)} onClick={() => removeMemory(i)} className="absolute right-1 top-1 rounded-full bg-black/70 p-2 text-white"><X className="size-4" /></button></div>)}
         <button type="button" onClick={() => addInput.current?.click()} disabled={busy} className="flex aspect-square flex-col items-center justify-center gap-2 border border-border text-xs text-muted-foreground"><Plus className="size-5" />{busy ? "Adding…" : "Add media"}</button>
