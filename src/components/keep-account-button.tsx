@@ -12,7 +12,7 @@ export function KeepAccountButton() {
       <Link to="/app" onClick={() => setOpen(false)} className="flex items-center gap-3 py-3"><Home className="size-4 text-[#6A5849]" />Home</Link>
       <button onClick={() => setKeepsOpen(!keepsOpen)} className="flex w-full items-center gap-3 py-3 text-left"><Gift className="size-4 text-[#6A5849]" />My Keeps<ChevronDown className={`ml-auto size-4 ${keepsOpen ? "rotate-180" : ""}`} /></button>
       {keepsOpen && <div className="space-y-1 pl-7 text-sm">
-        <a href="/?create=1" className="block py-2">+ Create a new Keep</a>
+        <a href="/shop" className="block py-2">+ Purchase a new Keep</a>
         <Link to="/my-keeps" onClick={() => setOpen(false)} className="block py-2">See all my Keeps</Link>
         <a href="/app#given" className="block py-2">Keeps given</a>
         <a href="/app#received" className="block py-2">Keeps received</a>

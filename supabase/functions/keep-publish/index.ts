@@ -34,6 +34,11 @@ Deno.serve(async(req:Request)=>{
     const {data:{user},error:authError}=await client.auth.getUser(auth.slice(7));
     if(authError||!user) return fail('Sign in to publish your Keep.',401);
     if(!uuid(body.keepId)) return fail('Invalid Keep ID');
+    const {data:entitlement,error:entitlementError}=await admin.from('keep_purchases')
+      .select('id,status').eq('owner_id',user.id).eq('keep_id',body.keepId)
+      .in('status',['reserved','approved']).maybeSingle();
+    if(entitlementError) return fail('We could not verify your paid Keep. Please try again.',503);
+    if(!entitlement) return fail('Purchase a Keep before approving it for production.',402);
     const parsed=manifestSchema.safeParse(body.project);
     if(!parsed.success) return fail('Some Keep details are missing or invalid. Return to the editor and try again.');
     const project=parsed.data;
@@ -44,6 +49,12 @@ Deno.serve(async(req:Request)=>{
     // RLS checks ownership for both insert and update. Never replace recipient_token.
     const {data,error}=await client.from('keeps').upsert({id:body.keepId,owner_id:user.id,recipient_name:project.recipientName,occasion:project.occasion,status:'ready',published_project:project,message_paragraphs:project.messageParagraphs,music_mood:project.musicMood,caption_style:project.captionStyle,visual_style:project.visualStyle,published_at:new Date().toISOString(),updated_at:new Date().toISOString()},{onConflict:'id'}).select('id,recipient_token').single();
     if(error) return fail('This Keep could not be published to your account. Please try again.',403);
+    if(entitlement.status==='reserved') {
+      const {error:approvalError}=await admin.from('keep_purchases')
+        .update({status:'approved',approved_at:new Date().toISOString(),updated_at:new Date().toISOString()})
+        .eq('id',entitlement.id).eq('status','reserved');
+      if(approvalError) return fail('Your Keep was saved, but production approval could not be confirmed. Please retry.',503);
+    }
     return reply({keepId:data.id,token:data.recipient_token});
   } catch {return fail('Unable to complete this request. Please try again.',500);}
 });

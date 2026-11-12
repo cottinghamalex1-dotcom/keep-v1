@@ -13,6 +13,7 @@ import { KeepAskAIModal, KeepWordChanges } from "@/components/keep-ask-ai-modal"
 import { arrangeWords, spreadMemories, recommendedStyle } from "@/lib/keep-story-layout";
 import { filmTotal, sceneBoundary, sceneDuration, sceneElapsed, sceneIndexAt, sceneSeekTime } from "@/lib/keep-film-timing";
 import { captionAtTime, recoverCaptionTiming } from "@/lib/keep-caption-timing";
+import { reservePaidKeep } from "@/lib/keep-commerce";
 import { activeKeepSession, loadEditableKeep, loadCloudDraft, saveCloudDraft, removeCloudDraft, retryMissingCloudMedia } from "@/lib/keep-cloud";
 import { CinematicMedia } from "@/components/cinematic-media";
 import { createFileRoute, Link } from "@tanstack/react-router";
@@ -297,7 +298,20 @@ function KeepApp() {
       }
       const createRequested = params.get("create") === "1";
       const canCreate = createRequested && (!next?.active || window.confirm("Start a new Keep? Your current draft will be replaced."));
-      if (canCreate) { setProject({ ...newProject(), publicationId: crypto.randomUUID(), active: true, stage: "recipient" }); window.history.replaceState(null, "", "/"); }
+      if (canCreate) {
+        const keepId = crypto.randomUUID();
+        try {
+          // Reserve exactly one verified Shopify purchase before using creator resources.
+          await reservePaidKeep(keepId);
+        } catch (error) {
+          toast.error(error instanceof Error ? error.message : "Please purchase your Keep before creating.");
+          window.location.replace("/shop");
+          return;
+        }
+        if (cancelled) return;
+        setProject({ ...newProject(), publicationId: keepId, active: true, stage: "recipient" });
+        window.history.replaceState(null, "", "/");
+      }
       setHistory(canCreate ? ["home"] : []);
       if (!canCreate) { window.location.replace("/app"); return; }
       setScreen("recipient");
@@ -396,7 +410,7 @@ function KeepApp() {
     setViewingDemo(false); setFrame(0); setMode("Memories");
     setHistory(["home"]); setScreen(at); window.scrollTo(0, 0);
   };
-  const begin = () => startProject(newProject(), "recipient");
+  const begin = () => { window.location.assign("/shop"); };
   const editDemoCopy = () => startProject({ ...newProject(), recipientName: "Hanna", relationship: "Spouse", messageSource: "demo", messageParagraphs: initialMessage, memories: sampleMemories(), finalVoiceRecording: { durationSec: 150, demo: true }, cardEngraving: ["HANNA", "FROM ALEX", "2026"] }, "editor");
   const continueDraft = () => { setViewingDemo(false); setHistory(["home"]); setScreen((project.stage as Screen) || "recipient"); };
 
@@ -1865,11 +1879,11 @@ function KeepApp() {
       </div>
       <div className="mt-10 border-t border-border pt-7">
         <Button variant="keep" size="touch" className="keep-premium-action w-full justify-between" disabled={publishing || !engraving[0]?.trim()} onClick={() => void finishAndShare()}>
-          {publishing ? "Saving your Keep…" : "Finish & share"} <ArrowRight className="size-5" />
+          {publishing ? "Saving your Keep…" : "Approve my Keep"} <ArrowRight className="size-5" />
         </Button>
         {publishing && <p role="status" className="mt-3 text-center text-xs text-muted-foreground">{publishStatus}</p>}
         {publishError && <p role="alert" className="mt-3 text-sm leading-6 text-[#9B3529]">{publishError}</p>}
-        <p className="mt-3 text-center text-[11px] leading-5 text-muted-foreground">Finishing saves your changes and creates or refreshes the same permanent viewing link.</p>
+        <p className="mt-3 text-center text-[11px] leading-5 text-muted-foreground">Approval saves your final experience and sends your purchased card into our production queue.</p>
       </div>
     </div></>}
 
@@ -1877,16 +1891,16 @@ function KeepApp() {
       <div className="flex items-center justify-center"><span className="keep-wordmark">Keep</span></div>
       <div className="pt-12">
         <div className="mb-7 flex size-12 items-center justify-center rounded-full border border-[#B8A89A] text-[#6A5849]"><Check className="size-5" /></div>
-        <h1 className="keep-editorial-title">Your Keep is ready.</h1>
-        <p className="mt-4 text-sm leading-6 text-muted-foreground">A memory worth keeping. Ready to share whenever you are.</p>
+        <h1 className="keep-editorial-title">Your Keep is approved.</h1>
+        <p className="mt-4 text-sm leading-6 text-muted-foreground">Your finished memory is saved. Your purchased physical card is ready for the next fulfillment step.</p>
         <div className="mt-9"><KeepCardFront engraving={engraving} /></div>
-        <p className="mt-4 text-center text-[11px] leading-5 text-muted-foreground">Physical card ordering is coming next. No card has been ordered or shipped.</p>
+        <p className="mt-4 text-center text-[11px] leading-5 text-muted-foreground">We will prepare, program and ship your card after production is confirmed. This page does not mean it has shipped.</p>
       </div>
       <div className="mt-11 space-y-3">
         {project.publicationToken && <ViewingLink token={project.publicationToken} />}
         <Button variant="quiet" size="touch" className="w-full" onClick={() => go("editor")}>Back to editor</Button>
         <Button asChild variant="quiet" size="touch" className="w-full"><Link to="/app">Back to Keeps</Link></Button>
-        <p className="pt-2 text-center text-[11px] leading-5 text-muted-foreground">Your draft is saved as you edit. Tapping Done in the editor refreshes this same viewing link.</p>
+        <p className="pt-2 text-center text-[11px] leading-5 text-muted-foreground">You can return to edit your Keep. Production changes may need to be reviewed if your card is already being prepared.</p>
       </div>
     </div>}
   </div></main>;

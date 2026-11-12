@@ -19,7 +19,7 @@ function AboutKeep() {
         <p className="mb-5 text-[11px] uppercase tracking-[.24em] text-[#6A5849]">Some things are worth keeping</p>
         <h1 className="keep-editorial-title !text-[clamp(46px,10vw,76px)]">Give them something they'll never forget.</h1>
         <p className="mt-8 max-w-xl text-base leading-8 text-foreground/75">The words you've always wanted to say. The photos that bring it all back. The voice they know by heart. Keep brings them together in a personal memory film, connected to a beautiful physical keepsake.</p>
-        <a href="/?create=1" className="keep-premium-action mt-10 px-6 py-4">Create a Keep <ArrowRight className="size-4" /></a>
+        <a href="/shop" className="keep-premium-action mt-10 px-6 py-4">Choose a Keep <ArrowRight className="size-4" /></a>
       </section>
       <section className="border-t border-border/80 py-16">
         <p className="mb-5 text-xs uppercase tracking-[.2em] text-[#6A5849]">Our mission</p>
@@ -38,14 +38,14 @@ function AboutKeep() {
         <p className="mb-4 text-xs uppercase tracking-[.2em] text-[#6A5849]">How it works</p>
         <h2 className="keep-section-title">A meaningful gift, made simple.</h2>
         <div className="mt-10 space-y-8">{[
-          { n:"01", title:"Choose who it's for", description:"Start with a person and an occasion — or simply because you love them.", Icon:Gift },
-          { n:"02", title:"Find the words", description:"Speak from the heart, write your own message, or let Keep guide you with thoughtful prompts.", Icon:MessageCircle },
+          { n:"01", title:"Choose and purchase your Keep", description:"Pick your physical card and complete secure checkout before creating.", Icon:Gift },
+          { n:"02", title:"Find the words", description:"After your purchase, speak from the heart, write a message, or let Keep guide you with thoughtful prompts.", Icon:MessageCircle },
           { n:"03", title:"Bring the story to life", description:"Add favorite photos and videos, then personalize the voice, captions, music, and feel.", Icon:Images },
-          { n:"04", title:"Give them their Keep", description:"Connect your finished creation to a physical Keep card. They tap with their phone to experience your message.", Icon:Smartphone },
+          { n:"04", title:"Approve and give", description:"Preview and approve your completed creation. We prepare and ship your card; they tap to experience it.", Icon:Smartphone },
         ].map(({n,title,description,Icon})=><div key={n} className="flex gap-5"><span className="pt-1 text-xs text-[#6A5849]">{n}</span><div className="flex-1 border-b border-border/80 pb-7"><Icon className="mb-3 size-5 text-[#6A5849]" /><h3 className="font-display text-2xl">{title}</h3><p className="mt-2 text-sm leading-7 text-foreground/75">{description}</p></div></div>)}</div>
-        <p className="mt-6 text-xs leading-6 text-muted-foreground">Physical card ordering and fulfillment availability may vary while Keep is in development.</p>
+        <p className="mt-6 text-xs leading-6 text-muted-foreground">The card is prepared and shipped only after you finish and approve your creation. Checkout is being finalized for launch.</p>
       </section>
-      <section className="border-t border-border/80 py-16 text-center"><Sparkles className="mx-auto mb-6 size-6 text-[#6A5849]" /><h2 className="keep-editorial-title">Say what matters. Keep it forever.</h2><p className="mx-auto mt-5 max-w-sm text-sm leading-7 text-foreground/75">It doesn't have to be perfect. It just has to be yours.</p><a href="/?create=1" className="keep-premium-action mt-9 px-7 py-4">Create a Keep <ArrowRight className="size-4" /></a></section>
+      <section className="border-t border-border/80 py-16 text-center"><Sparkles className="mx-auto mb-6 size-6 text-[#6A5849]" /><h2 className="keep-editorial-title">Say what matters. Keep it forever.</h2><p className="mx-auto mt-5 max-w-sm text-sm leading-7 text-foreground/75">It doesn't have to be perfect. It just has to be yours.</p><a href="/shop" className="keep-premium-action mt-9 px-7 py-4">Choose a Keep <ArrowRight className="size-4" /></a></section>
     </div>
   </main>;
 }
