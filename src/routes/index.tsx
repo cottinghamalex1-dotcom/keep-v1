@@ -826,13 +826,6 @@ function KeepApp() {
     if(at<1||duration-at<1){toast.error("Move the playhead inside the clip to split it.");return;}
     void duplicateMoment(index,Math.round(at*2)/2,Math.round((duration-at)*2)/2);
   };
-  const cycleMemoryDuration = () => {
-    const index = frame % shown.length;
-    const current = shown[index]?.displayDurationSec ?? 4;
-    const next = current >= 8 ? 2 : current + 1;
-    const list = [...(frames.length ? frames : shown)];
-    patch({ memories: list.map((m, i) => (i === index ? { ...m, displayDurationSec: next } : m)) });
-  };
   const readOrderedFrames = (() => {
     const base = frames.length ? frames : shown;
     if (!project.readMemoryOrder.length) return base;
@@ -1483,7 +1476,6 @@ function KeepApp() {
         onSeek={(t) => { setEditorPlaying(false); seekEditor(t); }}
         onSelect={(i) => { setEditorPlaying(false); setFrame(i); }}
         onMove={moveMemory}
-        onDuration={(i,seconds) => patch({ memories: shown.map((m,j)=>j===i?{...m,displayDurationSec:seconds}:m) })}
         onCaption={(i) => { setEditorPlaying(false); setEditorPanel("Captions"); seekEditor(project.captionCues[i]?.start??0); }}
         onAdd={() => addInput.current?.click()}
         onVoice={() => setEditorPanel("Voice")}
