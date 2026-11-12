@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { createKeepVoiceMix, KEEP_MUSIC_LEAD_SECONDS, KEEP_MUSIC_TAIL_SECONDS, type MusicBalance } from "@/lib/keep-audio";
 import type { AudioMix, CaptionCue } from "@/lib/keep-project";
 import { captionAtTime } from "@/lib/keep-caption-timing";
-import { sceneDuration, sceneIndexAt } from "@/lib/keep-film-timing";
+import { sceneDuration, sceneElapsed as filmSceneElapsed, sceneIndexAt } from "@/lib/keep-film-timing";
 import couple from "@/assets/memory-couple.jpg";
 import home from "@/assets/memory-home.jpg";
 import wedding from "@/assets/memory-wedding.jpg";
@@ -107,7 +107,8 @@ export function KeepPlayer({ name, from, year, onExit, onFinish, recipient = fal
 
   // Play the musical lead-in over the first photo, never over a separate title screen.
   const introSeconds = audioUrl ? KEEP_MUSIC_LEAD_SECONDS : 0;
-  const targetSceneSeconds = sceneDuration(items, Math.max(0, scene), audioUrl ? masterDuration : undefined) || 7;
+  const targetSceneSeconds = (sceneDuration(items, Math.max(0, scene), audioUrl ? masterDuration : undefined) || 7)
+    + (audioUrl && scene === 0 ? introSeconds : 0);
   // Without a recording, use per-photo timing. With voice, the actual audio
   // currentTime below is the single clock for pictures, captions and progress.
   useEffect(() => {
@@ -255,7 +256,11 @@ export function KeepPlayer({ name, from, year, onExit, onFinish, recipient = fal
     else showControls();
   }}>
     {audioUrl && <audio ref={audio} crossOrigin="anonymous" src={audioUrl} playsInline preload="auto" onLoadedMetadata={(event) => { const duration = event.currentTarget.duration; if (Number.isFinite(duration) && duration > 0) setMasterDuration(duration); }} onEnded={() => { if (endingTimer.current) window.clearTimeout(endingTimer.current); endingTimer.current = window.setTimeout(() => { if (!finishSent.current) { finishSent.current = true; onFinish?.(); } }, KEEP_MUSIC_TAIL_SECONDS * 1000); }} onTimeUpdate={(e) => { const a = e.currentTarget; const d = Number.isFinite(a.duration) && a.duration > 0 ? a.duration : audioDuration || 1; setAudioTime(a.currentTime); setScene((current) => { const index = sceneIndexAt(items, a.currentTime, d); return current < 0 || current === index ? current : index; }); }} />}
-    {item && !end && <><CinematicMedia item={item} nextItem={nextItem} followingItem={items[scene + 2]} sceneKey={scene} motionIndex={scene} playing={playing} duration={targetSceneSeconds} className="absolute inset-0" imageClassName={`editor-image-${styleSlug(style)}`} /><div className="pointer-events-none absolute inset-0 photo-shade" /></>}
+    {item && !end && <><CinematicMedia item={item} nextItem={nextItem} followingItem={items[scene + 2]} sceneKey={scene} motionIndex={scene} playing={playing} duration={targetSceneSeconds}
+      sceneElapsed={audioUrl && voiceStarted && scene > 0
+        ? filmSceneElapsed(items, scene, audioTime, masterDuration || audioDuration)
+        : undefined}
+      className="absolute inset-0" imageClassName={`editor-image-${styleSlug(style)}`} /><div className="pointer-events-none absolute inset-0 photo-shade" /></>}
     {blocked && !end && <div className="absolute inset-x-0 bottom-24 z-40 flex justify-center px-6">
       <Button variant="keep" size="touch" onClick={resumeAudio}><Volume2 /> Tap to start your Keep</Button>
     </div>}
