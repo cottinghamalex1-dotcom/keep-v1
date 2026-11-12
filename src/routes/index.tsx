@@ -17,7 +17,7 @@ import { activeKeepSession, loadEditableKeep, loadCloudDraft, saveCloudDraft, re
 import { CinematicMedia } from "@/components/cinematic-media";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useRef, useState, type ChangeEvent, type ReactNode } from "react";
-import { ArrowLeft, ArrowRight, Check, ChevronLeft, ChevronRight, CircleHelp, Download, Ellipsis, GripVertical, Images, LockKeyhole, MessageCircle, Mic, Keyboard, Music2, FileUp, Pause, Play, Plus, Radio, RotateCcw, Settings2, Sparkles, Square, Trash2, Undo2, Redo2, VolumeX, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, ChevronLeft, ChevronRight, CircleHelp, Download, Ellipsis, GripVertical, Images, LockKeyhole, MessageCircle, Mic, Keyboard, Music2, FileUp, Loader2, Pause, Play, Plus, Radio, RotateCcw, Settings2, Sparkles, Square, Trash2, Undo2, Redo2, VolumeX, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { KeepPlayer, memoryImages, memoryLabels } from "@/components/keep-player";
@@ -28,7 +28,7 @@ import { useRecorder } from "@/hooks/use-recorder";
 import { deleteBlobs, getBlob, putBlob } from "@/lib/keep-media-store";
 import { createKeepVoiceMix, playMusicSample, stopMusicSample, type MusicBalance } from "@/lib/keep-audio";
 import { fetchDraft, fetchNextQuestion, fetchRevision, keepAiAvailable, transcribeAudio, transcribeTimedAudio, type TimedWord } from "@/lib/keep-ai";
-import { fmt, hydrateDraftMedia, loadDraft, newId, newProject, projectBlobIds, projectObjectUrls, sampleMemories, saveDraft, stageLabels, defaultAudioMix, type AudioMix, type CaptionCue, type InterviewAnswer, type KeepProject, type MediaItem } from "@/lib/keep-project";
+import { fmt, hydrateDraftMedia, loadDraft, newId, newProject, projectBlobIds, projectObjectUrls, sampleMemories, saveDraft, stageLabels, defaultAudioMix, type AudioMix, type CaptionCue, type InterviewAnswer, type KeepProject, type MediaItem, type VoiceTone } from "@/lib/keep-project";
 
 export const Route = createFileRoute("/")({
   head: () => ({ meta: [
@@ -189,6 +189,9 @@ function KeepApp() {
   const musicSampleTimer = useRef<number | null>(null);
   const voicePlaybackRef = useRef<HTMLAudioElement>(null);
   const [busy, setBusy] = useState(false);
+  const [mediaImport, setMediaImport] = useState<{ total: number; completed: number } | null>(null);
+  const [voiceSampling, setVoiceSampling] = useState<VoiceTone | null>(null);
+  const voiceSampleRef = useRef<{ tone: VoiceTone; audio: HTMLAudioElement; mixer: NonNullable<ReturnType<typeof createKeepVoiceMix>>; timer: number | null } | null>(null);
   const [otherOccasion, setOtherOccasion] = useState("");
   const [otherRelationship, setOtherRelationship] = useState("");
   const [dictating, setDictating] = useState(false);
@@ -793,23 +796,37 @@ function KeepApp() {
     const files = Array.from(e.target.files ?? []);
     e.target.value = "";
     if (!files.length) return;
+    const supported = files.filter((f) => f.type.startsWith("video/") || f.type.startsWith("image/") || /\.(heic|heif|jpe?g|png|gif|webp|mov|mp4)$/i.test(f.name));
+    if (!supported.length) { toast.error("Choose photos or videos to add."); return; }
     setBusy(true);
+    setMediaImport({ total: supported.length, completed: 0 });
+    // Let the status bubble paint before reading large iCloud/iPhone media files.
+    await new Promise<void>((resolve) => requestAnimationFrame(() => window.setTimeout(resolve, 0)));
     const items: MediaItem[] = [];
-    for (const f of files) {
-      const kind = f.type.startsWith("video/") ? "video" : f.type.startsWith("image/") || /\.(heic|heif|jpe?g|png|gif|webp)$/i.test(f.name) ? "image" : null;
-      if (!kind) continue;
-      const id = newId("media");
-      const persisted = await putBlob(id, f);
-      items.push({ id, kind, source: "upload", url: URL.createObjectURL(f), name: f.name, mimeType: f.type, persisted, displayDurationSec: 7 });
-    }
-    setBusy(false);
-    if (!items.length) { toast.error("Those files aren't photos or videos."); return; }
-    if (replaceIndex !== undefined) {
-      patch({ memories: frames.length ? frames.map((m, i) => (i === replaceIndex ? { ...items[0]!, displayDurationSec: m.displayDurationSec ?? 7, focusX: m.focusX, focusY: m.focusY, zoom: m.zoom, motion: m.motion, transition: m.transition } : m)) : shown.map((m, i) => (i === replaceIndex ? { ...items[0]!, displayDurationSec: m.displayDurationSec ?? 4 } : m)) });
-      toast.success("Memory replaced");
-    } else {
-      patch({ memories: [...frames, ...items] });
-      toast.success(`${items.length} ${items.length === 1 ? "memory" : "memories"} added`);
+    try {
+      for (const f of supported) {
+        const kind = f.type.startsWith("video/") || /\.(mov|mp4)$/i.test(f.name) ? "video" : "image";
+        const id = newId("media");
+        const persisted = await putBlob(id, f);
+        items.push({ id, kind, source: "upload", url: URL.createObjectURL(f), name: f.name, mimeType: f.type, persisted, displayDurationSec: 7 });
+        setMediaImport({ total: supported.length, completed: items.length });
+        // Yield regularly so progress stays responsive even with many big videos.
+        await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+      }
+      if (replaceIndex !== undefined) {
+        patch({ memories: frames.length ? frames.map((m, i) => (i === replaceIndex ? { ...items[0]!, displayDurationSec: m.displayDurationSec ?? 7, focusX: m.focusX, focusY: m.focusY, zoom: m.zoom, motion: m.motion, transition: m.transition } : m)) : shown.map((m, i) => (i === replaceIndex ? { ...items[0]!, displayDurationSec: m.displayDurationSec ?? 4 } : m)) });
+        toast.success("Photo updated");
+      } else {
+        patch({ memories: [...frames, ...items] });
+        toast.success(`${items.length} ${items.length === 1 ? "memory" : "memories"} added`);
+      }
+      if (items.some((item) => !item.persisted)) toast.warning("Some photos may not be stored on this device. Keep this page open until your account finishes syncing.");
+    } catch {
+      if (items.length) patch({ memories: [...frames, ...items] });
+      toast.error("Some photos couldn't be added. Try fewer photos at once.");
+    } finally {
+      setMediaImport(null);
+      setBusy(false);
     }
   };
   const removeMemory = (i: number) => {
@@ -1120,7 +1137,18 @@ function KeepApp() {
 
   if (resumeError) return <main className="app-shell flex min-h-dvh flex-col px-8 py-10"><a href="/app" className="keep-wordmark" aria-label="Keep home">Keep</a><div className="my-auto max-w-sm"><h1 className="font-display text-[38px] leading-tight">We couldn't open your Keep.</h1><p role="alert" className="mt-5 text-sm leading-7 text-muted-foreground">{resumeError}</p><div className="mt-9 flex flex-col gap-3"><Button variant="keep" size="touch" onClick={() => window.location.reload()}>Try again</Button><a href="/app" className="rounded-xl border border-border px-5 py-3 text-center text-sm">Back to your creations</a></div></div></main>;
   if (!hydrated) return <KeepOpeningScreen phase={openingPhase} progress={openingProgress} onBack={() => window.location.assign("/app")} />;
-  return <main className="app-shell">{fileInputs}<div key={screen} className="page-enter">
+  return <main className="app-shell">{fileInputs}
+    {mediaImport && <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/45 px-6 backdrop-blur-[4px]" role="status" aria-live="polite" aria-label="Adding selected photos and videos to Keep">
+      <div className="w-full max-w-xs rounded-[22px] border border-[#DED4C8] bg-[#F7F5F2] px-7 py-8 text-center text-[#181614] shadow-[0_25px_80px_rgba(0,0,0,.27)]">
+        <Loader2 className="mx-auto mb-5 size-7 animate-spin text-[#7B6551]" />
+        <p className="font-display text-[27px] leading-tight">Adding your moments.</p>
+        <p className="mt-3 text-[13px] leading-5 text-[#73695F]">Saving ${mediaImport.total === 1 ? "your photo or video" : `${mediaImport.total} photos and videos`} to Keep…</p>
+        <div className="mt-5 h-1.5 w-full overflow-hidden rounded-full bg-[#E7DED4]"><div className="h-full rounded-full bg-[#6A5849] transition-[width] duration-200" style={{ width: `${(mediaImport.completed / mediaImport.total) * 100}%` }} /></div>
+        <p className="mt-3 text-xs tabular-nums text-[#73695F]">{mediaImport.completed} of {mediaImport.total} added</p>
+        <p className="mt-3 text-[11px] text-[#8B8177]">You can continue as soon as these finish saving.</p>
+      </div>
+    </div>}
+    <div key={screen} className="page-enter">
     {screen === "you" && <>{top()}<div className="px-7 pt-8">{title("Your space", "Alex.", "The things worth keeping, all in one place.")}<div className="mt-12 border-t border-border">{[{ label: "What is Keep?", Icon: Sparkles }, { label: "My cards", Icon: Radio }, { label: "Downloads & backups", Icon: Download }, { label: "Privacy", Icon: LockKeyhole }, { label: "Help", Icon: CircleHelp }].map(({ label, Icon }) => <Button key={label} variant="bare" className="flex h-17 w-full justify-between border-b border-border px-0 text-sm font-normal" onClick={() => (label === "What is KEEP?" ? window.location.assign("/about") : setSetting(label))}><span className="flex items-center gap-4"><Icon className="size-4 text-accent" />{label}</span><ChevronRight className="size-4 text-muted-foreground" /></Button>)}{project.active && <Button variant="bare" className="flex h-17 w-full justify-between border-b border-border px-0 text-sm font-normal text-destructive" onClick={() => { if (!window.confirm("Delete your draft Keep? Recordings and photos added to it will be removed from this device.")) return; discard(project); setProject(newProject()); toast.success("Draft deleted"); }}><span className="flex items-center gap-4"><Trash2 className="size-4" />Delete draft Keep</span></Button>}</div><p className="mt-9 text-xs leading-6 text-muted-foreground">Your Keeps are private.</p></div>{setting && sheet(setting, () => setSetting(""), <><p className="mt-5 text-sm leading-7 text-muted-foreground">{setting === "Privacy" ? "Your Keeps are private by default. In this MVP, drafts, recordings and photos stay on this device only. Sharing a card gives its recipient access to that Keep — no account required." : setting === "My cards" ? "HANNA · from Alex · 2026 (sample). Physical card ordering is coming next." : setting === "Downloads & backups" ? "Your draft is saved on this device. Cloud backups and downloads aren't available yet." : "We're here when you need us. Support isn't connected in this preview yet."}</p><Button variant="quiet" className="mt-8 w-full" onClick={() => setSetting("")}>Done</Button></>)}</>}
     {screen === "detail" && <>{top("READY")}<div className="relative mx-4 h-[min(55dvh,520px)] overflow-hidden"><img src={memoryImages[0]} alt="Couple at the coast, illustrative prototype photograph" className="h-full w-full object-cover" /><div className="absolute inset-0 photo-bottom" /><div className="absolute bottom-8 left-6"><p className="eyebrow text-foreground">ANNIVERSARY · 2026</p><h1 className="display mt-3 text-5xl">HANNA</h1><p className="mt-3 text-sm">from Alex · 3:57</p></div></div><div className="space-y-3 px-6 pt-7">{nextButton("Play Keep", () => { setViewingDemo(true); go("preview"); })}<Button variant="quiet" size="touch" className="w-full" onClick={editDemoCopy}><Settings2 /> Edit a copy</Button><Button variant="bare" size="touch" className="w-full" asChild><Link to="/recipient" search={{ keep: "" }}><Radio /> View as recipient</Link></Button></div></>}
     {screen === "recipient" && <>{top("01 / 04")}<div className="px-7 pt-11">{title("Begin with someone", "Who is this Keep for?")}<div className="grid grid-cols-2 gap-3" role="group" aria-label="Who is this Keep for?">{relationships.map((r) => <Button key={r} type="button" aria-pressed={project.relationship === r} variant="quiet" className={`keep-choice-bubble ${project.relationship === r ? "keep-choice-bubble--selected" : ""}`} onClick={() => { patch({ relationship: r, ...(r === "Myself" ? { recipientName: "Myself" } : project.relationship === "Myself" ? { recipientName: "" } : {}) }); if (r !== "Someone else") setOtherRelationship(""); }}><span className="min-w-0 flex-1 text-left">{r}</span>{project.relationship === r && <span className="keep-choice-check"><Check className="!size-3.5" strokeWidth={2.7} /></span>}</Button>)}</div>{project.relationship === "Someone else" && <div className="mt-8 page-enter"><label htmlFor="other-relationship" className="eyebrow">WHO ARE THEY TO YOU?</label><input id="other-relationship" value={otherRelationship} onChange={(e) => setOtherRelationship(e.target.value.slice(0, 50))} placeholder="My coach" autoComplete="off" className="mt-3 w-full border-0 border-b border-border bg-transparent pb-4 font-display text-3xl outline-none focus:border-accent" /><p className="mt-3 text-xs text-muted-foreground"></p></div>}{project.relationship && project.relationship !== "Myself" && <div className="mt-9 page-enter"><label htmlFor="recipient-name" className="eyebrow">NAME(S)</label><input id="recipient-name" value={name} onChange={(e) => patch({ recipientName: e.target.value.slice(0, 60) })} placeholder="Gigi & Pops" autoComplete="off" className="mt-3 w-full border-0 border-b border-border bg-transparent pb-4 font-display text-3xl outline-none focus:border-accent" /><p className="mt-3 text-xs text-muted-foreground"></p></div>}<div className="mt-10">{nextButton("Continue", () => { if (project.relationship === "Someone else") patch({ relationship: otherRelationship.trim() }); go("occasion"); }, !project.relationship || (project.relationship !== "Myself" && !name.trim()) || (project.relationship === "Someone else" && !otherRelationship.trim()))}</div></div></>}
@@ -1441,6 +1469,9 @@ function KeepApp() {
       <div className="keep-studio-stage">
         <div className="keep-studio-canvas-wrap">
           <div className="keep-studio-canvas relative aspect-[9/16] overflow-hidden rounded-2xl bg-card shadow-lg">
+            <div className="pointer-events-none absolute right-3 top-3 z-40 rounded-full border border-white/15 bg-black/55 px-3 py-1.5 font-mono text-[10px] tabular-nums tracking-wide text-white/90 backdrop-blur-sm" aria-label={`Preview time ${fmt(editorTime)} of ${fmt(editorDuration)}`}>
+              {fmt(editorTime)} / {fmt(editorDuration)}
+            </div>
             <CinematicMedia item={selected} nextItem={shown[frame + 1]} sceneKey={frame} motionIndex={frame} playing={editorPlaying} duration={sceneDuration(shown, frame, editorDuration)} className="absolute inset-0" imageClassName={`editor-image-${styleSlug(compareOriginalStyle && editorPanel === "Style" ? "Natural" : project.visualStyle)}`} />
             <div className="absolute inset-0 photo-shade" />
             {editorPanel === "Memories" && <div className="absolute inset-x-0 top-0 bottom-14 z-20 cursor-grab touch-none active:cursor-grabbing" aria-label="Drag photo to reposition" onPointerDown={(e) => { e.currentTarget.setPointerCapture(e.pointerId); const r = e.currentTarget.getBoundingClientRect(); photoDrag.current = { x: e.clientX, y: e.clientY, focusX: selected.focusX ?? 50, focusY: selected.focusY ?? 50, width: r.width, height: r.height }; setEditorPlaying(false); }} onPointerMove={(e) => { const d = photoDrag.current; if (!d) return; updateSelectedMoment({ focusX: Math.max(0, Math.min(100, d.focusX - (e.clientX - d.x) / d.width * 100)), focusY: Math.max(0, Math.min(100, d.focusY - (e.clientY - d.y) / d.height * 100)) }); }} onPointerUp={() => { photoDrag.current = null; }} onPointerCancel={() => { photoDrag.current = null; }}><span className="absolute left-1/2 top-3 -translate-x-1/2 whitespace-nowrap rounded-full bg-black/65 px-3 py-1 text-[10px] text-white">Drag photo to reposition</span></div>}
@@ -1466,21 +1497,7 @@ function KeepApp() {
         </div>
       </div>
 
-      {!editorExpanded && <section className="keep-studio-preview-controls" aria-label="Preview playback controls">
-        <button type="button" aria-label={editorPlaying ? "Pause Keep preview" : "Play Keep preview"}
-          onClick={() => { if (editorTime >= editorDuration - .1) seekEditor(0); setEditorPlaying((playing) => !playing); }}
-          className="flex size-10 shrink-0 items-center justify-center rounded-full bg-[#E8E1D7] text-[#111113]">
-          {editorPlaying ? <Pause className="size-4" fill="currentColor" /> : <Play className="ml-0.5 size-4" fill="currentColor" />}
-        </button>
-        <label className="flex min-w-0 flex-1 items-center gap-3">
-          <span className="sr-only">Preview position</span>
-          <input aria-label="Preview position" type="range" min={0} max={Math.max(1, editorDuration)} step={0.1}
-            value={Math.min(editorDuration, editorTime)}
-            onChange={(event) => { setEditorPlaying(false); seekEditor(Number(event.target.value)); }}
-            className="h-7 w-full cursor-pointer accent-[#D2BA99]" />
-        </label>
-        <span className="shrink-0 font-mono text-[11px] tabular-nums text-white/75">{fmt(editorTime)} / {fmt(editorDuration)}</span>
-      </section>}
+
 
       <div className="keep-studio-workspace" key={editorPanel ?? "preview"}>
       {!rec?.demo && rec?.audioUrl && project.captionStyle !== "None" && !project.captionCues.length && <div className="border-t border-border/60 bg-card/70 px-5 py-3 text-xs"><div className="flex items-center justify-between gap-3"><span>{captionSyncing ? "Syncing captions to your recording…" : captionSyncError ? "Captions did not sync. Your recording is safe." : "Captions are not ready yet."}</span>{!captionSyncing && <Button variant="quiet" size="sm" onClick={() => void retryCaptionSync()}><RotateCcw className="size-3" /> Retry captions</Button>}</div></div>}
