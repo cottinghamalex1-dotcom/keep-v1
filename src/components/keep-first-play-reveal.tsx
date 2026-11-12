@@ -18,7 +18,6 @@ type Props = {
  */
 export function KeepFirstPlayReveal({
   name,
-  occasion,
   introduction,
   from,
   year,
@@ -27,9 +26,8 @@ export function KeepFirstPlayReveal({
   onCreatorExit,
 }: Props) {
   const recipient = name.trim() || "You";
-  const moment = (occasion ?? "").trim();
   const message = (introduction ?? "").trim() || "Some things are worth keeping close.";
-  const signature = [from?.trim() ? `From ${from.trim()}` : "", year?.trim() ?? ""].filter(Boolean).join(" · ");
+  const signature = [from?.trim() ? `from ${from.trim()}` : "", year?.trim() ?? ""].filter(Boolean).join(" · ");
 
   return (
     <section className="keep-first-play" aria-label={`A personal Keep for ${recipient}`}>
@@ -39,19 +37,13 @@ export function KeepFirstPlayReveal({
 
       <header className="keep-first-play__header">
         <span className="keep-wordmark keep-first-play__wordmark">Keep</span>
-        <span className="keep-first-play__edition">A gift unlike any other</span>
       </header>
 
       <div className="keep-first-play__center">
-        <div className="keep-first-play__emblem" aria-hidden="true">
-          <span className="keep-first-play__emblem-letter" />
-        </div>
-        <p className="keep-first-play__kicker">Something was kept for you</p>
         <h1 className="keep-first-play__name">{recipient}</h1>
-        {moment && <p className="keep-first-play__occasion">{moment}</p>}
+        {signature && <p className="keep-first-play__signature">{signature}</p>}
         <div className="keep-first-play__rule" aria-hidden="true" />
         <blockquote className="keep-first-play__message">{message}</blockquote>
-        {signature && <p className="keep-first-play__signature">{signature}</p>}
       </div>
 
       <footer className="keep-first-play__footer">
