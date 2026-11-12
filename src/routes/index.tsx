@@ -72,7 +72,7 @@ const initialMessage = [
   "Twenty years from now, I hope you know this: through every version of us, I'd choose this life with you again. Always.",
 ];
 const tracks = [
-  { name: "Worth Keeping", note: "Signature instrumental · warm piano and strings", group: "For You" },
+  { name: "Intentional", note: "Our signature soundtrack · beautifully personal", group: "For You" },
   { name: "Warm + Nostalgic", note: "Gentle, familiar warmth", group: "For You" },
   { name: "Joyful", note: "Lighthearted and full of life", group: "For You" },
   { name: "Cinematic", note: "A story that stays with you", group: "For You" },
@@ -969,11 +969,11 @@ function KeepApp() {
     stopMusicSample();
     setMusicSampling(trackName);
     try {
-      await playMusicSample(trackName, trackName === "Worth Keeping" ? 60 : 9);
+      await playMusicSample(trackName, 12);
       musicSampleTimer.current = window.setTimeout(() => {
         setMusicSampling("");
         musicSampleTimer.current = null;
-      }, trackName === "Worth Keeping" ? 60000 : 9000);
+      }, 12000);
     } catch {
       setMusicSampling("");
       toast.error("Music preview isn't available in this browser.");
@@ -1499,7 +1499,7 @@ function KeepApp() {
     </div></>}
     {screen === "storyStyle" && <>{top()}<KeepFinishingChoices
       captionStyle={project.captionStyle}
-      musicMood={project.musicMood}
+      musicMood={project.musicMood === "Worth Keeping" ? "Intentional" : project.musicMood}
       visualStyle={project.visualStyle}
       voiceTone={mix.voiceTone ?? "natural"}
       tracks={tracks}
@@ -1586,7 +1586,7 @@ function KeepApp() {
       {(editorPanel === "Music" || editorPanel === "Captions" || editorPanel === "Style") && <div className={`border-t border-border/60 bg-card/55 backdrop-blur-md page-enter ${editorPanel === "Captions" || editorPanel === "Music" || editorPanel === "Style" ? "" : "px-5 py-3"}`}>
         {editorPanel === "Music" && <KeepMusicEditor
           tracks={tracks}
-          selected={project.musicMood}
+          selected={project.musicMood === "Worth Keeping" ? "Intentional" : project.musicMood}
           sampling={musicSampling}
           voiceVolume={project.voiceVolume ?? 60}
           musicVolume={project.musicVolume ?? 60}
