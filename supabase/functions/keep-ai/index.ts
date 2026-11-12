@@ -1,10 +1,13 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { createClient } from "@supabase/supabase-js";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "apikey, content-type, x-client-info",
+  "Access-Control-Allow-Headers": "authorization, apikey, content-type, x-client-info",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
+
+const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, { auth: { persistSession: false } });
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), {
@@ -98,6 +101,14 @@ Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
   if (!allowedClientKey(req)) return json({ error: "Invalid client key" }, 401);
+  const authorization = req.headers.get("Authorization") ?? "";
+  if (!authorization.startsWith("Bearer ")) return json({ error: "Sign in with your verified purchase email to use Keep AI." }, 401);
+  const { data: { user }, error: authError } = await admin.auth.getUser(authorization.slice(7));
+  if (authError || !user?.email_confirmed_at) return json({ error: "Please verify your account before using Keep AI." }, 401);
+  const { data: purchases, error: purchaseError } = await admin.from("keep_purchases")
+    .select("id").eq("owner_id", user.id).in("status", ["reserved", "approved"]).limit(1);
+  if (purchaseError) return json({ error: "Could not confirm your Keep purchase." }, 503);
+  if (!purchases?.length) return json({ error: "Purchase a Keep before using the guided creator." }, 402);
 
   const openaiKey = Deno.env.get("OPENAI_API_KEY");
   if (!openaiKey) return json({ error: "AI is not configured yet" }, 503);
