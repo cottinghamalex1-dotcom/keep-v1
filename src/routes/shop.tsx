@@ -48,9 +48,9 @@ function ShopKeep() {
 
       <section className="grid items-center gap-12 border-b border-border/80 py-14 md:grid-cols-2 md:py-24">
         <div>
-          <p className="mb-5 text-[11px] uppercase tracking-[.22em] text-[#6A5849]">Some things are worth keeping.</p>
-          <h1 className="keep-editorial-title !text-[clamp(42px,6vw,76px)]">Give them words they'll never forget.</h1>
-          <p className="mt-7 max-w-xl text-base leading-8 text-foreground/75">Keep turns your words, your voice and your favorite moments into a beautiful, personal memory experience — connected to a physical card they can hold onto.</p>
+          <h1 className="keep-editorial-title !text-[clamp(42px,6vw,76px)]">Some things are worth keeping.</h1>
+          <p className="mt-7 max-w-xl font-display text-[clamp(23px,3vw,30px)] leading-snug">Give them words they'll never forget.</p>
+          <p className="mt-5 max-w-xl text-base leading-8 text-foreground/75">Keep turns your words, your voice and your favorite moments into a beautiful, personal memory experience — connected to a physical card they can hold onto.</p>
           <div className="mt-8 flex flex-wrap items-center gap-x-5 gap-y-3 text-xs text-[#6A5849]">
             <span className="inline-flex items-center gap-2"><Check className="size-4" /> No design skills needed</span>
             <span className="inline-flex items-center gap-2"><Check className="size-4" /> Create after purchase</span>
