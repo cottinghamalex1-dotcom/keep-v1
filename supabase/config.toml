@@ -2,3 +2,7 @@
 # The keep-commerce handler authenticates browser calls and checks webhook HMAC.
 [functions.keep-commerce]
 verify_jwt = false
+
+# Stripe signs its public delivery without a JWT; handler validates its raw HMAC signature.
+[functions.keep-stripe-webhook]
+verify_jwt = false
