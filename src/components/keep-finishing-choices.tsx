@@ -14,12 +14,14 @@ type Props = {
   looks: Look[];
   previewMedia?: MediaItem | undefined;
   musicSampling: string;
+  voiceSampling: VoiceTone | null;
   hasVoice: boolean;
   onCaption: (value: string) => void;
   onMusic: (value: string) => void;
   onSample: (value: string) => void;
   onStyle: (value: string) => void;
   onVoice: (value: VoiceTone) => void;
+  onVoiceSample: (tone: VoiceTone) => void;
   onCreate: () => void;
 };
 
@@ -47,13 +49,6 @@ const voiceChoices: { name: VoiceTone; label: string; note: string }[] = [
 ];
 const slug = (name: string) => name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 
-function Choice({ name, note, chosen, onSelect }: { name: string; note?: string; chosen: boolean; onSelect: () => void }) {
-  return <button type="button" aria-pressed={chosen} onClick={onSelect} className={`keep-choice-bubble keep-finish-choice min-h-[76px] flex-col !items-start !justify-center gap-1 ${chosen ? "keep-choice-bubble--selected" : ""}`}>
-    <span className="flex w-full items-center justify-between gap-2"><span className="text-left text-[13px] font-medium">{name}</span>{chosen && <span className="keep-choice-check !size-5"><Check className="!size-3" strokeWidth={2.7} /></span>}</span>
-    {note && <span className="text-left text-[11px] leading-4 text-muted-foreground">{note}</span>}
-  </button>;
-}
-
 function CaptionChoice({ name, note, chosen, onSelect }: { name: string; note: string; chosen: boolean; onSelect: () => void }) {
   return <button type="button" aria-pressed={chosen} aria-label={`Caption style: ${name}. ${note}`} onClick={onSelect}
     className={`keep-choice-bubble keep-finish-choice relative min-h-[90px] flex-col !items-start !justify-center gap-1.5 ${chosen ? "keep-choice-bubble--selected" : ""}`}>
@@ -63,7 +58,7 @@ function CaptionChoice({ name, note, chosen, onSelect }: { name: string; note: s
   </button>;
 }
 
-export function KeepFinishingChoices({ captionStyle, musicMood, visualStyle, voiceTone, tracks, looks, previewMedia, musicSampling, hasVoice, onCaption, onMusic, onSample, onStyle, onVoice, onCreate }: Props) {
+export function KeepFinishingChoices({ captionStyle, musicMood, visualStyle, voiceTone, tracks, looks, previewMedia, musicSampling, voiceSampling, hasVoice, onCaption, onMusic, onSample, onStyle, onVoice, onVoiceSample, onCreate }: Props) {
   const [moreTracks, setMoreTracks] = useState(false);
   const [moreLooks, setMoreLooks] = useState(false);
   const featuredTracks = tracks.slice(0, 4);
@@ -121,8 +116,26 @@ export function KeepFinishingChoices({ captionStyle, musicMood, visualStyle, voi
     </section>
 
     <section className="keep-finish-section" aria-labelledby="finish-voice">
-      <div className="mb-3"><h2 id="finish-voice" className="font-display text-[29px]">Your voice</h2><p className="mt-1 text-xs leading-5 text-muted-foreground">A gentle finishing touch to your recording. {hasVoice ? "Your voice stays unmistakably yours." : "You can add a voice recording later."}</p></div>
-      <div className="grid grid-cols-2 gap-2.5">{voiceChoices.map((c) => <Choice key={c.name} name={c.label} note={c.note} chosen={voiceTone === c.name} onSelect={() => onVoice(c.name)} />)}</div>
+      <div className="mb-3"><h2 id="finish-voice" className="font-display text-[29px]">Your voice</h2><p className="mt-1 text-xs leading-5 text-muted-foreground">{hasVoice ? "Tap play to compare each effect using your own voice. Choose the sound you love." : "Record your voice to hear and compare these effects."}</p></div>
+      <div className="grid grid-cols-2 gap-2.5">{voiceChoices.map((c) => {
+        const chosen = voiceTone === c.name;
+        const sampling = voiceSampling === c.name;
+        return <div key={c.name} className={`keep-choice-bubble keep-finish-music min-w-0 !p-0 ${chosen ? "keep-choice-bubble--selected" : ""}`}>
+          <button type="button" aria-pressed={chosen} onClick={() => onVoice(c.name)} className="flex min-h-[92px] min-w-0 flex-1 flex-col items-start justify-center px-3 py-3 text-left">
+            <span className="flex w-full items-center justify-between gap-1">
+              <span className="text-[13px] font-medium">{c.label}</span>
+              {chosen && <span className="keep-choice-check !size-5 shrink-0"><Check className="!size-3" /></span>}
+            </span>
+            <span className="mt-1 text-left text-[11px] leading-4 text-muted-foreground">{c.note}</span>
+          </button>
+          <button type="button" aria-label={`${sampling ? "Stop" : "Play"} ${c.label} voice sample`}
+            aria-pressed={sampling} disabled={!hasVoice} onClick={() => onVoiceSample(c.name)}
+            className={`mr-3 flex size-10 shrink-0 self-center items-center justify-center rounded-full border disabled:cursor-not-allowed disabled:opacity-35 ${sampling ? "border-[#6A5849] bg-[#E6DED3]" : "border-border bg-white/70"}`}>
+            {sampling ? <Pause className="size-4" fill="currentColor" /> : <Play className="ml-0.5 size-4" fill="currentColor" />}
+          </button>
+        </div>;
+      })}</div>
+      {voiceSampling && <p role="status" className="mt-3 text-xs text-[#6A5849]">Playing your voice with the {voiceSampling} effect…</p>}
     </section>
 
     <div className="mt-9 border-t border-border pt-7">
