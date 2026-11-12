@@ -1532,7 +1532,13 @@ function KeepApp() {
           <p className="mt-1 text-[12px] leading-5 text-[#675B50]">After tapping the blue checkmark in your iPhone library, it may take a moment to prepare your photos or clips. Keep will show progress when the files arrive. Please leave this page open.</p>
         </div>
       </aside>
-      <p className="mb-3 text-[11px] leading-5 text-muted-foreground">Videos make memories come alive. For reliable iPhone uploads, choose clips <strong className="font-semibold text-foreground">10 seconds or shorter</strong> and under <strong className="font-semibold text-foreground">40 MB</strong>. Trim longer videos in Photos before adding them; longer or larger files will be skipped. Keep plays video clips without their original sound, beneath your narration and music.</p>
+      <aside aria-label="Video upload recommendation" className="mb-5 flex items-start gap-3 rounded-xl border border-[#DAD0C5] bg-white/50 px-4 py-3.5">
+        <Play className="mt-0.5 size-4 shrink-0 text-[#79654F]" aria-hidden="true" />
+        <div>
+          <p className="text-[12px] font-semibold text-[#44382D]">Adding videos? Keep them short.</p>
+          <p className="mt-1 text-[12px] leading-5 text-[#675B50]">For the best experience, use clips <strong>10 seconds or less</strong> and <strong>under 40 MB</strong>. Trim longer clips in iPhone Photos first. Keep will let you know if a clip is too long or large. Video sound is muted so your voice and music stay front and center.</p>
+        </div>
+      </aside>
       <div className="keep-creator-photo-grid grid grid-cols-3 gap-1">
         {personalMedia.map((m, i) => <div key={m.id} className="relative aspect-square overflow-hidden bg-card"><MediaView item={m} thumb alt={m.name ?? "Your memory"} className="h-full w-full object-cover" /><button type="button" aria-label={"Remove memory " + (i+1)} onClick={() => removeMemory(i)} className="absolute right-1 top-1 rounded-full bg-black/70 p-2 text-white"><X className="size-4" /></button></div>)}
         <button type="button" onClick={() => addInput.current?.click()} disabled={busy} className="flex aspect-square flex-col items-center justify-center gap-2 border border-border text-xs text-muted-foreground"><Plus className="size-5" />{busy ? "Adding…" : "Add moments"}</button>
