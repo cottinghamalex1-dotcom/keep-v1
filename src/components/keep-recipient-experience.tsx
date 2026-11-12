@@ -79,6 +79,7 @@ export function KeepRecipientExperience({
   const [experience, setExperience] = useState<KeepExperienceMode>(initialExperience ?? "watch");
   const [listening, setListening] = useState(false);
   const [listenProgress, setListenProgress] = useState(0);
+  const [listenDuration, setListenDuration] = useState(audioDuration);
   const audio = useRef<HTMLAudioElement>(null);
   const timer = useRef<number | null>(null);
   const listenMix = useRef<ReturnType<typeof createKeepVoiceMix>>(null);
@@ -204,28 +205,92 @@ export function KeepRecipientExperience({
   }
 
   if (stage === "experience" && experience === "listen") {
-    return <main className="app-shell"><div className="flex keep-min-screen flex-col px-7 pb-[max(38px,env(safe-area-inset-bottom))] pt-[max(32px,env(safe-area-inset-top))]">
-      <div className="flex items-center justify-between"><Button variant="bare" size="icon" aria-label="Back" onClick={backToChoose}><ArrowLeft /></Button><span className="keep-wordmark !text-[26px]">Keep</span><span className="size-10" /></div>
-      <div className="flex flex-1 flex-col items-center justify-center text-center">
-        <div className="mb-10 flex size-16 items-center justify-center rounded-full border border-border"><Headphones className="size-6 text-accent" /></div>
-        <p className="eyebrow mb-5">A KEEP FOR</p><h1 className="keep-editorial-title">{name}</h1><p className="mt-5 text-sm text-muted-foreground">from {from} · {year}</p>
-        {audioUrl && <audio ref={audio} crossOrigin="anonymous" src={audioUrl} preload="metadata" onPlay={() => { listenHasStarted.current = true; setListening(true); }} onPause={() => { if (!listenIntroTimer.current) setListening(false); }} onEnded={() => { setListening(false); timer.current = window.setTimeout(finishExperience, KEEP_MUSIC_TAIL_SECONDS * 1000); }} onTimeUpdate={(e) => { const a=e.currentTarget; const d=Number.isFinite(a.duration)&&a.duration>0?a.duration:audioDuration; setListenProgress(Math.min(100,(a.currentTime/d)*100)); }} />}
-        <div className="mt-14 w-full"><div className="h-px w-full bg-border"><div className="h-px bg-foreground transition-[width]" style={{ width: `${listenProgress}%` }} /></div><div className="mt-3 flex justify-between text-[10px] tracking-widest text-muted-foreground"><span>{Math.floor((listenProgress / 100) * audioDuration / 60)}:{String(Math.floor((listenProgress / 100) * audioDuration % 60)).padStart(2,"0")}</span><span>{Math.floor(audioDuration / 60)}:{String(Math.floor(audioDuration % 60)).padStart(2,"0")}</span></div></div>
-        <Button variant="keep" className="mt-10 size-16 rounded-full p-0" aria-label={listening ? "Pause" : "Play"} onClick={toggleListen}>{listening ? <Pause fill="currentColor" /> : <Play fill="currentColor" />}</Button>
-        <p className="mt-8 max-w-64 text-xs leading-5 text-muted-foreground">Just {from}'s voice and the music behind it. Nothing else competing for your attention.</p>
-      </div>
-    </div></main>;
+    const total = Math.max(1, listenDuration || audioDuration);
+    const elapsed = Math.min(total, (listenProgress / 100) * total);
+    const stamp = (seconds: number) => `${Math.floor(seconds / 60)}:${String(Math.floor(seconds % 60)).padStart(2, "0")}`;
+    return <main className="app-shell">
+      <section className="keep-listen min-h-dvh text-[#F7F5F2]" aria-label={`Listen to the Keep for ${name}`}>
+        <header className="keep-listen__header">
+          <button type="button" onClick={backToChoose} aria-label="Back to experiences" className="keep-listen__back"><ArrowLeft className="size-5" /></button>
+          <img src="/brand/keep-wordmark-ivory.svg" alt="Keep" className="h-9 w-24 object-contain" />
+          <span className="size-11" aria-hidden="true" />
+        </header>
+        <div className="keep-listen__inner">
+          <div className="keep-listen__cover" aria-hidden="true">
+            <div className="keep-listen__cover-ring"><img src="/brand/keep-monogram.svg" alt="" className="keep-listen__monogram" /></div>
+            <span className="keep-listen__cover-label">A PRIVATE KEEP</span>
+          </div>
+          <div className="keep-listen__details">
+            <p className="keep-listen__eyebrow">A KEEP FOR</p>
+            <h1 className="keep-listen__name">{name}</h1>
+            <p className="keep-listen__signature">{[from ? `from ${from}` : "", year].filter(Boolean).join(" · ")}</p>
+          </div>
+          {audioUrl && <audio ref={audio} crossOrigin="anonymous" src={audioUrl} preload="metadata"
+            onLoadedMetadata={(event) => { const d = event.currentTarget.duration; if (Number.isFinite(d) && d > 0) setListenDuration(d); }}
+            onPlay={() => { listenHasStarted.current = true; setListening(true); }}
+            onPause={() => { if (!listenIntroTimer.current) setListening(false); }}
+            onEnded={() => { setListening(false); timer.current = window.setTimeout(finishExperience, KEEP_MUSIC_TAIL_SECONDS * 1000); }}
+            onTimeUpdate={(event) => { const a = event.currentTarget; const d = Number.isFinite(a.duration) && a.duration > 0 ? a.duration : audioDuration; setListenProgress(Math.min(100, (a.currentTime / d) * 100)); }}
+          />}
+          <div className="keep-listen__controls">
+            <div className="keep-listen__progress">
+              <input type="range" min="0" max="100" step=".1" value={listenProgress}
+                aria-label="Audio playback position"
+                onChange={(event) => {
+                  const pct = Number(event.target.value);
+                  setListenProgress(pct);
+                  if (audio.current && Number.isFinite(audio.current.duration) && audio.current.duration > 0) audio.current.currentTime = pct / 100 * audio.current.duration;
+                }}
+                className="keep-listen__range"
+                style={{ background: `linear-gradient(to right, #DDCAB5 ${listenProgress}%, rgba(247,245,242,.20) ${listenProgress}%)` }}
+              />
+              <div className="keep-listen__times"><span>{stamp(elapsed)}</span><span>{stamp(total)}</span></div>
+            </div>
+            <button type="button" className="keep-listen__play" aria-label={listening ? "Pause narration" : "Play narration"} onClick={toggleListen}>
+              {listening ? <Pause className="size-7" fill="currentColor" /> : <Play className="ml-1 size-7" fill="currentColor" />}
+            </button>
+            <p className="keep-listen__hint">{listening ? "Playing your Keep" : "Press play when you're ready"}</p>
+          </div>
+          <div className="keep-listen__footer"><div className="mx-auto mb-5 h-px w-12 bg-[#C4AD91]/50" /><p>Some things are worth listening to.</p></div>
+        </div>
+      </section>
+    </main>;
   }
 
   if (stage === "experience" && experience === "read") {
-    return <main className="app-shell"><div className="keep-min-screen pb-20">
-      <div className="sticky top-0 z-20 flex items-center justify-between border-b border-border bg-background/95 px-5 py-4 backdrop-blur-xl"><Button variant="bare" size="icon" aria-label="Back" onClick={backToChoose}><ArrowLeft /></Button><span className="keep-wordmark !text-[26px]">Keep</span><span className="size-10" /></div>
-      <article className="px-7 pb-10 pt-14">
-        <p className="eyebrow">A KEEP FOR</p><h1 className="keep-editorial-title mt-4">{name}</h1><p className="mt-4 text-sm text-muted-foreground">from {from} · {year}</p>
-        <div className="mt-14 space-y-10">{paragraphs.map((paragraph, i) => <div key={i}><p className="keep-reading">{paragraph}</p>{readItems[i] && i < 4 && <figure className="mt-9 overflow-hidden rounded-sm">{readItems[i]!.kind === "video" ? <video src={readItems[i]!.url} controls playsInline className="aspect-[4/3] w-full object-cover" /> : <img src={readItems[i]!.url} alt="A memory from this Keep" className="aspect-[4/3] w-full object-cover" />}</figure>}</div>)}</div>
-        <div className="mt-16 border-t border-border pt-10 text-center"><p className="keep-section-title">SOME THINGS ARE<br />WORTH KEEPING.</p><Button variant="quiet" size="touch" className="mt-10 w-full" onClick={finishExperience}>Finish reading</Button></div>
-      </article>
-    </div></main>;
+    return <main className="app-shell">
+      <section className="keep-read min-h-dvh bg-[#F7F5F2] text-[#201D1A]">
+        <header className="keep-read__header">
+          <button type="button" aria-label="Back to experiences" onClick={backToChoose} className="keep-read__back"><ArrowLeft className="size-5" /></button>
+          <img src="/brand/keep-wordmark.svg" alt="Keep" className="h-9 w-24 object-contain" />
+          <span className="size-11" aria-hidden="true" />
+        </header>
+        <article className="keep-read__article">
+          <div className="keep-read__opening">
+            <span className="keep-read__eyebrow">A PERSONAL KEEP</span>
+            <h1 className="keep-read__name">{name}</h1>
+            <p className="keep-read__byline">{[from ? `from ${from}` : "", year].filter(Boolean).join(" · ")}</p>
+            <div className="keep-read__rule" aria-hidden="true" />
+          </div>
+          <div className="keep-read__story">{paragraphs.map((paragraph, i) => (
+            <section key={i} className="keep-read__passage">
+              <p className={i === 0 ? "keep-read__paragraph keep-read__paragraph--opening" : "keep-read__paragraph"}>{paragraph}</p>
+              {i < 4 && readItems[i] && <figure className="keep-read__figure">
+                {readItems[i]!.kind === "video"
+                  ? <video src={readItems[i]!.url} controls playsInline preload="metadata" className="keep-read__photo" />
+                  : <img src={readItems[i]!.url} alt={`Memory ${i + 1} in this Keep`} loading="lazy" className="keep-read__photo" />}
+              </figure>}
+            </section>
+          ))}</div>
+          <footer className="keep-read__closing">
+            <span className="keep-read__hairline" />
+            <p className="keep-read__closing-words">Some things are worth keeping.</p>
+            <p className="keep-read__closing-byline">{[from ? `with love, ${from}` : "", year].filter(Boolean).join(" · ")}</p>
+            <button type="button" className="keep-read__finish" onClick={finishExperience}>Finish reading <ArrowRight className="size-4" /></button>
+          </footer>
+        </article>
+      </section>
+    </main>;
   }
 
   if (stage === "ending") {
