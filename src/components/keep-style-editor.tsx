@@ -7,18 +7,14 @@ type Props = {
   looks: Look[];
   currentLook: string;
   moment: CinematicMoment;
-  currentTransition: "fade" | "dissolve" | "cut";
   compareOriginal: boolean;
   onLook: (name: string) => void;
-  onTransition: (transition: "fade" | "dissolve" | "cut") => void;
-  hasNextMoment: boolean;
-  onPreviewTransition: () => void;
   onCompare: (compare: boolean) => void;
   onClose: () => void;
 };
 const slug = (value: string) => value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 
-export function KeepStyleEditor({ looks, currentLook, moment, currentTransition, compareOriginal, onLook, onTransition, hasNextMoment, onPreviewTransition, onCompare, onClose }: Props) {
+export function KeepStyleEditor({ looks, currentLook, moment, compareOriginal, onLook, onCompare, onClose }: Props) {
   const [showAll, setShowAll] = useState(false);
   const featured = looks.slice(0, 4);
   const selectedExtra = looks.slice(4).find(x => x.name === currentLook);
@@ -40,7 +36,7 @@ export function KeepStyleEditor({ looks, currentLook, moment, currentTransition,
       </div>
     </button>;
   };
-  return <section className="keep-style-editor px-4 pb-6 pt-5 sm:px-5" aria-label="Film look and transitions">
+  return <section className="keep-style-editor px-4 pb-6 pt-5 sm:px-5" aria-label="Film look">
     <div className="flex items-start justify-between gap-3">
       <div><h2 className="font-display text-[28px] leading-8 text-foreground">Style</h2><p className="mt-1 text-xs leading-5 text-muted-foreground">Choose a look and watch your preview change.</p></div>
       <button type="button" aria-label="Close style" onClick={onClose} className="flex size-9 shrink-0 items-center justify-center rounded-full border border-border"><X className="size-4" /></button>
@@ -62,23 +58,5 @@ export function KeepStyleEditor({ looks, currentLook, moment, currentTransition,
       {compareOriginal ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
       {compareOriginal ? "Show selected look" : "Compare with original"}
     </button>
-    <div className="mt-6 border-t border-border pt-5">
-      <p className="text-sm font-medium">Photo transitions</p>
-      <p className="mt-1 text-[11px] leading-5 text-muted-foreground">How the selected photo changes into the next one.</p>
-      <div className="mt-3 grid grid-cols-3 gap-2">
-        {([{value:"fade",label:"Fade",note:"Smooth"},{value:"dissolve",label:"Dissolve",note:"Soft blend"},{value:"cut",label:"Instant",note:"No blend"}] as const).map(option => (
-          <button type="button" key={option.value} aria-pressed={currentTransition === option.value} onClick={() => onTransition(option.value)}
-            className={`min-h-[65px] rounded-xl border p-2 text-left ${currentTransition === option.value ? "border-[#E8D1B2] bg-[#E8E1D7] text-[#161518]" : "border-[#514C4F] bg-[#242326] text-foreground"}`}>
-            <span className="block text-xs font-medium">{option.label}</span>
-            <span className={`mt-1 block text-[10px] ${currentTransition === option.value ? "text-[#57504B]" : "text-[#B4B0AB]"}`}>{option.note}</span>
-          </button>
-        ))}
-      </div>
-      <button type="button" disabled={!hasNextMoment} onClick={onPreviewTransition}
-        className="mt-3 flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-[#E8E1D7] px-3 text-xs font-semibold text-[#111113] disabled:opacity-40">
-        Preview this transition
-      </button>
-      <p className="mt-2 text-[11px] leading-5 text-muted-foreground">{hasNextMoment ? "Watch the selected photo blend into the next one." : "The final photo has no next transition."}</p>
-    </div>
   </section>;
 }
