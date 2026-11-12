@@ -4,7 +4,6 @@ import type { KeepRestoreProgress } from "@/lib/keep-cloud";
 import { ViewingLink } from "@/components/keep-publish-panel";
 import { KeepCardFront } from "@/components/keep-card-front";
 import { publishKeep } from "@/lib/keep-publish";
-import { KeepTimeline } from "@/components/keep-timeline";
 import { KeepCaptionEditor } from "@/components/keep-caption-editor";
 import { KeepMusicEditor } from "@/components/keep-music-editor";
 import { KeepVoiceEditor } from "@/components/keep-voice-editor";
@@ -1377,7 +1376,7 @@ function KeepApp() {
               {editorPlaying ? <Pause className="size-7" fill="currentColor" /> : <Play className="ml-1 size-8" fill="currentColor" />}
             </button>}
             <button type="button" aria-label={editorExpanded ? "Hide editing tools" : "Open editing tools"} aria-expanded={editorExpanded}
-              onClick={() => { setEditorPlaying(false); setEditorExpanded((value) => !value); setEditorPanel(null); }}
+              onClick={() => { setEditorPlaying(false); setEditorExpanded((value) => !value); setEditorPanel(editorExpanded ? null : "Memories"); }}
               className="keep-studio-edit-toggle absolute bottom-2 left-1/2 z-40 flex -translate-x-1/2 flex-col items-center gap-0.5 rounded-xl bg-black/45 px-5 py-2 text-white backdrop-blur-sm">
               <ChevronRight className={`size-5 transition-transform ${editorExpanded ? "rotate-90" : "-rotate-90"}`} strokeWidth={3} />
               <span className="text-[11px] font-semibold">{editorExpanded ? "Close editor" : "Edit"}</span>
@@ -1386,31 +1385,23 @@ function KeepApp() {
         </div>
       </div>
 
-      {!editorExpanded && <section className="keep-studio-quick-timeline" aria-label="Scrub through your Keep">
-        <div className="mb-2 flex items-center justify-between gap-3">
-          <button type="button" aria-label={editorPlaying ? "Pause Keep" : "Play Keep"}
-            onClick={() => { if (editorTime >= editorDuration - .1) seekEditor(0); setEditorPlaying((playing) => !playing); }}
-            className="flex size-9 items-center justify-center rounded-full bg-white text-[#111113]">
-            {editorPlaying ? <Pause className="size-4" fill="currentColor" /> : <Play className="ml-0.5 size-4" fill="currentColor" />}
-          </button>
-          <span className="text-[11px] text-white/65">Drag the filmstrip to explore</span>
-          <span className="font-mono text-[11px] tabular-nums text-white/80">{fmt(editorTime)} / {fmt(editorDuration)}</span>
-        </div>
-        <div className="keep-studio-quick-frames relative h-11 overflow-hidden rounded-lg border border-white/15 bg-[#252428]">
-          <div className="flex h-full w-full">
-            {shown.filter((_, index) => index % Math.max(1, Math.ceil(shown.length / 10)) === 0).slice(0, 10).map((moment) =>
-              <div key={moment.id} className="h-full min-w-0 flex-1 border-r border-[#111113] last:border-r-0">
-                <MediaView item={moment} thumb alt="" className="h-full w-full object-cover" />
-              </div>)}
-          </div>
-          <div className="pointer-events-none absolute bottom-0 top-0 z-10 w-[2px] bg-white shadow-[0_0_7px_#000]" style={{ left: `${Math.min(100, editorTime / Math.max(1, editorDuration) * 100)}%` }} />
-          <input aria-label="Scrub Keep timeline" type="range" min={0} max={Math.max(1, editorDuration)} step={0.1} value={Math.min(editorDuration, editorTime)}
+      {!editorExpanded && <section className="keep-studio-preview-controls" aria-label="Preview playback controls">
+        <button type="button" aria-label={editorPlaying ? "Pause Keep preview" : "Play Keep preview"}
+          onClick={() => { if (editorTime >= editorDuration - .1) seekEditor(0); setEditorPlaying((playing) => !playing); }}
+          className="flex size-10 shrink-0 items-center justify-center rounded-full bg-[#E8E1D7] text-[#111113]">
+          {editorPlaying ? <Pause className="size-4" fill="currentColor" /> : <Play className="ml-0.5 size-4" fill="currentColor" />}
+        </button>
+        <label className="flex min-w-0 flex-1 items-center gap-3">
+          <span className="sr-only">Preview position</span>
+          <input aria-label="Preview position" type="range" min={0} max={Math.max(1, editorDuration)} step={0.1}
+            value={Math.min(editorDuration, editorTime)}
             onChange={(event) => { setEditorPlaying(false); seekEditor(Number(event.target.value)); }}
-            className="absolute inset-0 z-20 h-full w-full cursor-ew-resize opacity-0" />
-        </div>
+            className="h-7 w-full cursor-pointer accent-[#D2BA99]" />
+        </label>
+        <span className="shrink-0 font-mono text-[11px] tabular-nums text-white/75">{fmt(editorTime)} / {fmt(editorDuration)}</span>
       </section>}
 
-      <div className="keep-studio-workspace" key={editorPanel ?? "timeline"}>
+      <div className="keep-studio-workspace" key={editorPanel ?? "preview"}>
       {!rec?.demo && rec?.audioUrl && project.captionStyle !== "None" && !project.captionCues.length && <div className="border-t border-border/60 bg-card/70 px-5 py-3 text-xs"><div className="flex items-center justify-between gap-3"><span>{captionSyncing ? "Syncing captions to your recording…" : captionSyncError ? "Captions did not sync. Your recording is safe." : "Captions are not ready yet."}</span>{!captionSyncing && <Button variant="quiet" size="sm" onClick={() => void retryCaptionSync()}><RotateCcw className="size-3" /> Retry captions</Button>}</div></div>}
       {(editorPanel === "Music" || editorPanel === "Captions" || editorPanel === "Style") && <div className={`border-t border-border/60 bg-card/55 backdrop-blur-md page-enter ${editorPanel === "Captions" || editorPanel === "Music" || editorPanel === "Style" ? "" : "px-5 py-3"}`}>
         {editorPanel === "Music" && <KeepMusicEditor
@@ -1420,7 +1411,7 @@ function KeepApp() {
           voiceVolume={project.voiceVolume ?? 60}
           musicVolume={project.musicVolume ?? 60}
           mix={mix}
-          onClose={() => { stopMusicSample(); setMusicSampling(""); setEditorPanel(null); }}
+          onClose={() => { stopMusicSample(); setMusicSampling(""); setEditorExpanded(false); setEditorPanel(null); }}
           onSample={(track) => { void toggleMusicSample(track); }}
           onSelect={(track) => { stopMusicSample(); setMusicSampling(""); patch({musicMood:track}); }}
           onSetVolume={(kind,value) => patch(kind === "voice" ? {voiceVolume:value} : {musicVolume:value})}
@@ -1443,7 +1434,7 @@ function KeepApp() {
           timingEstimated={!!project.captionTimingEstimated}
           hasVoice={!!rec?.audioUrl && !rec.demo}
           canRestore={!!project.captionWords?.length}
-          onClose={() => setEditorPanel(null)}
+          onClose={() => { setEditorExpanded(false); setEditorPanel(null); }}
           onSeek={(seconds) => { setEditorPlaying(false); seekEditor(seconds); }}
           onChangeCaption={(i,text) => patch({captionCues:project.captionCues.map((c,j)=>j===i?{...c,text}:c)})}
           onChangeCaptionTime={(i,startTime,endTime) => patch({captionCues:project.captionCues.map((c,j)=>j===i?{...c,start:Math.max(0,Math.min(startTime,endTime-.1)),end:Math.min(editorDuration,Math.max(endTime,startTime+.1))}:c)})}
@@ -1461,35 +1452,13 @@ function KeepApp() {
           compareOriginal={compareOriginalStyle}
           onLook={(name) => patch({visualStyle:name})}
           onCompare={setCompareOriginalStyle}
-          onClose={() => { setCompareOriginalStyle(false); setEditorPanel(null); }}
+          onClose={() => { setCompareOriginalStyle(false); setEditorExpanded(false); setEditorPanel(null); }}
         />}
       </div>}
 
-      {!editorPanel && <KeepTimeline
-        media={shown}
-        captions={project.captionCues}
-        duration={editorDuration}
-        time={editorTime}
-        selectedIndex={frame % Math.max(1,shown.length)}
-        voicePresent={!!rec && !rec.demo}
-        musicMood={project.musicMood}
-        onSeek={(t) => { setEditorPlaying(false); seekEditor(t); }}
-        onSelect={(i) => { setEditorPlaying(false); setFrame(i); }}
-        onMove={moveMemory}
-        onCaption={(i) => { setEditorPlaying(false); setEditorPanel("Captions"); seekEditor(project.captionCues[i]?.start??0); }}
-        onAdd={() => addInput.current?.click()}
-        onVoice={() => setEditorPanel("Voice")}
-        onMusic={() => setEditorPanel("Music")}
-        onSplit={splitMoment}
-        onDuplicate={(i)=>{void duplicateMoment(i);}}
-        onDelete={removeMemory}
-        onReplace={()=>replaceInput.current?.click()}
-        onPhotoSettings={()=>setEditorPanel("Memories")}
-        onCaptionChange={(i,text)=>patch({captionCues:project.captionCues.map((c,j)=>j===i?{...c,text}:c)})}
-        onCaptionTime={(i,start,end)=>patch({captionCues:project.captionCues.map((c,j)=>j===i?{...c,start:Math.max(0,Math.min(start,end-.1)),end:Math.min(editorDuration,Math.max(end,start+.1))}:c)})}
-      />}
+/>}
 
-      {editorPanel === "Memories" && editorToolPanel("Photos", () => setEditorPanel(null), <div className="pb-2">
+      {editorPanel === "Memories" && editorToolPanel("Photos", () => { setEditorExpanded(false); setEditorPanel(null); }, <div className="pb-2">
         <p className="mt-2 text-xs leading-5 text-muted-foreground">Choose the moments that bring your words to life. Reorder, replace, or add anything you want.</p>
         <div className="thin-scroll mt-5 flex gap-2 overflow-x-auto pb-2">{shown.map((m, i) => <div key={m.id} draggable onDragStart={() => { dragFrom.current = i; }} onDragOver={(e) => e.preventDefault()} onDrop={() => { if (dragFrom.current !== null) moveMemory(dragFrom.current, i); dragFrom.current = null; }} className="shrink-0"><Button variant="bare" className={`relative h-24 w-18 overflow-hidden rounded-lg !p-0 ${i === frame % shown.length ? "ring-2 ring-accent" : "opacity-65"}`} aria-label={`Select memory ${i + 1}`} onClick={() => { setEditorPlaying(false); seekEditor(shown.slice(0, i).reduce((sum, m) => sum + Math.max(1, m.displayDurationSec ?? 4), 0)); }}><MediaView item={m} thumb alt={m.source === "sample" ? memoryLabels[i % memoryLabels.length] ?? "" : m.name ?? ""} className="h-full w-full object-cover" />{m.kind === "video" && <Play className="absolute bottom-1.5 left-1.5 size-3" fill="currentColor" />}</Button></div>)}</div>
         <div className="mt-5 grid grid-cols-2 gap-2">
@@ -1530,7 +1499,7 @@ function KeepApp() {
         voiceVolume={project.voiceVolume ?? 60}
         musicVolume={project.musicVolume ?? 60}
         mix={mix}
-        onClose={() => setEditorPanel(null)}
+        onClose={() => { setEditorExpanded(false); setEditorPanel(null); }}
         onEditWords={editWordsFromEditor}
         onRerecord={rerecordFromEditor}
         onPlayPreview={() => { if(editorTime >= editorDuration - .1) seekEditor(0); setEditorPlaying(v=>!v); }}
@@ -1541,7 +1510,7 @@ function KeepApp() {
 
       </div>
       <nav className="keep-studio-tools" aria-label="Editing tools">
-        {([{ panel: "Memories", label: "Photos", Icon: Images }, { panel: "Captions", label: "Captions", Icon: MessageCircle }, { panel: "Music", label: "Music", Icon: Music2 }, { panel: "Voice", label: "Voice", Icon: Mic }, { panel: "Style", label: "Style", Icon: Sparkles }, { panel: null, label: "Timeline", Icon: GripVertical }] as const).map(({ panel, label, Icon }) => <button key={label} type="button" aria-pressed={editorPanel === panel} onClick={() => { stopMusicSample(); setMusicSampling(""); setCompareOriginalStyle(false); setEditorPanel(panel); }}><Icon /><span>{label}</span></button>)}
+        {([{ panel: "Memories", label: "Photos", Icon: Images }, { panel: "Captions", label: "Captions", Icon: MessageCircle }, { panel: "Music", label: "Music", Icon: Music2 }, { panel: "Voice", label: "Voice", Icon: Mic }, { panel: "Style", label: "Style", Icon: Sparkles }] as const).map(({ panel, label, Icon }) => <button key={label} type="button" aria-pressed={editorPanel === panel} onClick={() => { stopMusicSample(); setMusicSampling(""); setCompareOriginalStyle(false); setEditorPanel(panel); }}><Icon /><span>{label}</span></button>)}
       </nav>
 
       {previewChooserOpen && sheet("Preview your Keep", () => { setPreviewChooserOpen(false); setReadArrangeOpen(false); }, <div className="pb-2">
