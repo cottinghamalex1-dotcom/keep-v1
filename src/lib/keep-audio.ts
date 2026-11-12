@@ -28,6 +28,39 @@ const balanceLevels: Record<string, { intro: number; under: number; outro: numbe
   Full: { intro: 0.19, under: 0.072, outro: 0.15 },
 };
 
+/** The same audio envelope is used in Watch and Listen, including the supplied MP3. */
+export const KEEP_MUSIC_LEAD_SECONDS = 2.8;
+export const KEEP_MUSIC_TAIL_SECONDS = 4.5;
+
+export function musicEnvelope(introSeconds: number, voiceDuration: number) {
+  const intro = Math.max(0, introSeconds);
+  const voiceEnd = intro + Math.max(0, voiceDuration);
+  return {
+    introPeak: Math.min(1.05, Math.max(0.25, intro * 0.5)),
+    duckStart: Math.max(0.15, intro - 0.45),
+    duckEnd: intro + 0.38,
+    voiceStart: intro,
+    voiceEnd,
+    outroRise: voiceEnd + 0.72,
+    outroFadeStart: voiceEnd + 1.65,
+    outroEnd: voiceEnd + KEEP_MUSIC_TAIL_SECONDS,
+  };
+}
+
+/** Music opens alone, ducks under the voice, then lifts and fades after the last word. */
+function applyMusicEnvelope(gain: AudioParam, start: number, intro: number, duration: number, introLevel: number, underLevel: number, outroLevel: number) {
+  const e = musicEnvelope(intro, duration);
+  gain.cancelScheduledValues(start);
+  gain.setValueAtTime(0, start);
+  gain.linearRampToValueAtTime(introLevel, start + e.introPeak);
+  gain.setValueAtTime(introLevel, start + e.duckStart);
+  gain.linearRampToValueAtTime(underLevel, start + e.duckEnd);
+  gain.setValueAtTime(underLevel, start + e.voiceEnd);
+  gain.linearRampToValueAtTime(outroLevel, start + e.outroRise);
+  gain.setValueAtTime(outroLevel, start + e.outroFadeStart);
+  gain.linearRampToValueAtTime(0, start + e.outroEnd);
+}
+
 const midiHz = (note: number) => 440 * Math.pow(2, (note - 69) / 12);
 
 type ScheduledMusic = {
@@ -56,30 +89,9 @@ function scheduleMusic(
   filter.connect(destination);
 
   const start = ctx.currentTime + 0.02;
-  const total = Math.max(20, introSeconds + voiceDuration + 1.5 + (options.fadeOut ?? 3));
-  const voiceEnd = start + introSeconds + Math.max(1, voiceDuration);
-
-  // Fades are linear from true silence so the first second never "whooshes" in.
-  // Ducking lowers the bed while the voice speaks; without it the bed stays at intro level.
-  const fadeIn = Math.max(0.3, Math.min(8, options.fadeIn ?? 2.5));
-  const fadeOut = Math.max(0.5, Math.min(10, options.fadeOut ?? 3));
+  const total = Math.max(20, introSeconds + voiceDuration + KEEP_MUSIC_TAIL_SECONDS + 0.2);
   const under = options.ducking === false ? levels.intro * 0.75 : levels.under;
-  const voiceStart = start + introSeconds;
-  const g = musicGain.gain;
-  g.cancelScheduledValues(start);
-  g.setValueAtTime(0, start);
-  if (introSeconds >= fadeIn + 0.8) {
-    g.linearRampToValueAtTime(levels.intro, start + fadeIn);
-    g.setValueAtTime(levels.intro, voiceStart - 0.6);
-    g.linearRampToValueAtTime(under, voiceStart + 0.4);
-  } else {
-    // Short intro (editor): fade straight in underneath the voice.
-    g.linearRampToValueAtTime(under, start + fadeIn);
-  }
-  g.setValueAtTime(under, Math.max(start + fadeIn + 0.1, voiceStart + 0.5, voiceEnd - 1.2));
-  g.linearRampToValueAtTime(levels.outro, voiceEnd + 0.6);
-  g.setValueAtTime(levels.outro, voiceEnd + 0.7);
-  g.linearRampToValueAtTime(0, voiceEnd + 0.7 + fadeOut);
+  applyMusicEnvelope(musicGain.gain, start, introSeconds, voiceDuration, levels.intro, under, levels.outro);
 
   // "Worth Keeping": original 60-second instrumental arrangement in C major / A minor.
   // Layered, individually enveloped piano notes, arpeggios, and gentle string swells
@@ -163,18 +175,10 @@ function createMusicBed(ctx: AudioContext, destination: AudioNode, mood: string,
   gain.connect(destination);
   const levels: Record<MusicBalance, number> = { Soft: 0.22, Balanced: 0.32, Full: 0.45 };
   const level = levels[balance] ?? levels.Balanced;
-  const start = ctx.currentTime;
-  const fadeIn = Math.max(0.25, options.fadeIn ?? 2.5);
-  gain.gain.setValueAtTime(0, start);
-  gain.gain.linearRampToValueAtTime(level, start + fadeIn);
-  if (options.ducking !== false && voiceDuration > 0) {
-    const voiceStart = start + Math.max(0, introSeconds);
-    gain.gain.setValueAtTime(level, Math.max(start + fadeIn, voiceStart));
-    gain.gain.linearRampToValueAtTime(level * 0.52, Math.max(start + fadeIn, voiceStart) + 0.6);
-    const voiceEnd = voiceStart + voiceDuration;
-    gain.gain.setValueAtTime(level * 0.52, Math.max(start + fadeIn, voiceEnd - 0.6));
-    gain.gain.linearRampToValueAtTime(level, voiceEnd + 0.4);
-  }
+  const under = options.ducking === false ? level * 0.75 : level * 0.36;
+  // A downloaded MP3 follows exactly the same fade/duck/outro timing as
+  // generated instrumentals; do not fade the voice in before the music.
+  applyMusicEnvelope(gain.gain, ctx.currentTime + 0.02, introSeconds, voiceDuration, level, under, level);
   return {
     play: async () => { await audio.play(); },
     pause: () => audio.pause(),
