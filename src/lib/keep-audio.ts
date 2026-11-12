@@ -1,4 +1,5 @@
 import type { AudioMix, VoiceTone } from "./keep-project";
+import { musicCrossfadeCurves, musicLoopPlan } from "./keep-music-loop";
 
 export type MusicBalance = "Soft" | "Balanced" | "Full";
 type MixOptions = Partial<AudioMix>;
@@ -185,47 +186,155 @@ function createMusicBed(ctx: AudioContext, destination: AudioNode, mood: string,
   const musicPath = MUSIC_FILES[choice];
   if (!musicPath) return scheduleMusic(ctx, destination, choice, balance, voiceDuration, introSeconds, options);
 
-  const audio = new Audio(musicPath);
-  audio.preload = "auto";
-  audio.loop = true;
-  const source = ctx.createMediaElementSource(audio);
-  const gain = ctx.createGain();
-  source.connect(gain);
-  gain.connect(destination);
+  // The backing track has two alternating streaming decoders. Each transition
+  // overlaps the SAME MP3 before its baked-in ending/fade. Their individual
+  // gains are independent of the voice-over ducking/end envelope below.
+  const players = [new Audio(musicPath), new Audio(musicPath)] as const;
+  const channels = players.map((player, index) => {
+    player.preload = "auto";
+    player.loop = true; // Native fallback if background tabs throttle the handoff.
+    const source = ctx.createMediaElementSource(player);
+    const gain = ctx.createGain();
+    gain.gain.value = index === 0 ? 1 : 0;
+    source.connect(gain);
+    return { player, source, gain };
+  });
+  const musicGain = ctx.createGain();
+  for (const channel of channels) channel.gain.connect(musicGain);
+  musicGain.connect(destination);
+  musicGain.gain.value = 0;
+
   const levels: Record<MusicBalance, number> = { Soft: 0.22, Balanced: 0.32, Full: 0.45 };
   const level = levels[balance] ?? levels.Balanced;
   const under = options.ducking === false ? level * 0.75 : level * 0.36;
-  gain.gain.value = 0;
+  const expectedKeepSeconds = introSeconds + voiceDuration + KEEP_MUSIC_TAIL_SECONDS;
+  const curves = musicCrossfadeCurves();
+  let active = 0;
   let started = false;
+  let paused = true;
+  let stopped = false;
+  let transitioning = false;
+  let transitionEndsAt = 0;
+  let frame = 0;
   let fallback: ScheduledMusic | null = null;
+
+  const stopFrame = () => {
+    if (frame) cancelAnimationFrame(frame);
+    frame = 0;
+  };
+  const cleanupTracks = () => {
+    stopFrame();
+    for (const channel of channels) {
+      channel.player.pause();
+      channel.player.removeAttribute("src");
+      channel.player.load();
+      try { channel.source.disconnect(); channel.gain.disconnect(); } catch { /* already disconnected */ }
+    }
+    try { musicGain.disconnect(); } catch { /* already disconnected */ }
+  };
+
+  const startCrossfade = async () => {
+    if (transitioning || stopped || paused || fallback) return;
+    const outgoingIndex = active;
+    const incomingIndex = 1 - active;
+    const outgoing = channels[outgoingIndex]!;
+    const incoming = channels[incomingIndex]!;
+    const plan = musicLoopPlan(outgoing.player.duration, expectedKeepSeconds);
+    if (!plan || outgoing.player.currentTime < plan.crossfadeStart) return;
+    transitioning = true;
+
+    try {
+      // Begin the incoming copy at an established point in the arrangement,
+      // skipping both the repeating intro and the original song's fade-out.
+      incoming.player.currentTime = plan.loopFrom;
+      await incoming.player.play();
+      if (stopped || paused || active !== outgoingIndex) {
+        incoming.player.pause();
+        transitioning = false;
+        return;
+      }
+      const now = ctx.currentTime + 0.015;
+      outgoing.gain.gain.cancelScheduledValues(now);
+      incoming.gain.gain.cancelScheduledValues(now);
+      outgoing.gain.gain.setValueAtTime(1, now);
+      incoming.gain.gain.setValueAtTime(0, now);
+      outgoing.gain.gain.setValueCurveAtTime(curves.outgoing, now, plan.crossfadeSeconds);
+      incoming.gain.gain.setValueCurveAtTime(curves.incoming, now, plan.crossfadeSeconds);
+      transitionEndsAt = now + plan.crossfadeSeconds;
+    } catch {
+      // If iOS refuses a secondary play, the original element's native loop
+      // continues rather than stopping the recipient's music entirely.
+      incoming.player.pause();
+      transitioning = false;
+    }
+  };
+
+  const tick = () => {
+    frame = 0;
+    if (stopped || paused || fallback) return;
+    if (transitioning && transitionEndsAt > 0 && ctx.currentTime >= transitionEndsAt) {
+      const outgoing = channels[active]!;
+      const now = ctx.currentTime;
+      outgoing.gain.gain.cancelScheduledValues(now);
+      outgoing.gain.gain.setValueAtTime(0, now);
+      outgoing.player.pause();
+      const incomingIndex = 1 - active;
+      channels[incomingIndex]!.gain.gain.cancelScheduledValues(now);
+      channels[incomingIndex]!.gain.gain.setValueAtTime(1, now);
+      active = incomingIndex;
+      transitioning = false;
+      transitionEndsAt = 0;
+    }
+    if (!transitioning) void startCrossfade();
+    frame = requestAnimationFrame(tick);
+  };
+
+  const ensureTicker = () => {
+    if (!frame && !stopped && !paused && !fallback) frame = requestAnimationFrame(tick);
+  };
+
+  // timeupdate keeps crossfades discoverable when a phone throttles animation
+  // frames; the audio fades themselves run on the AudioContext clock.
+  const handleTimeUpdate = () => {
+    if (!paused && !stopped && !fallback && !frame) void startCrossfade();
+  };
+  for (const channel of channels) channel.player.addEventListener("timeupdate", handleTimeUpdate);
 
   return {
     play: async () => {
-      if (fallback) return;
+      if (stopped || fallback) return;
+      paused = false;
       try {
-        // Never schedule the fade envelope until the MP3 starts playing;
-        // iPhone buffering otherwise consumes the music-only introduction.
-        await audio.play();
+        const activePlayback = channels[active]!.player.play();
+        const overlappingPlayback = transitioning && transitionEndsAt > 0
+          ? channels[1 - active]!.player.play()
+          : Promise.resolve();
+        await Promise.all([activePlayback, overlappingPlayback]);
+        if (stopped) return;
         if (!started) {
           started = true;
-          applyMusicEnvelope(gain.gain, ctx.currentTime, introSeconds, voiceDuration, level, under, level, options);
+          applyMusicEnvelope(musicGain.gain, ctx.currentTime, introSeconds, voiceDuration, level, under, level, options);
         }
+        ensureTicker();
       } catch {
-        // Keep playback functional if one asset is missing during a deployment
-        // or if a device cannot decode a particular audio file.
-        if (fallback) return;
-        audio.pause();
-        source.disconnect();
-        gain.disconnect();
+        // Never let a failed audio decode block the voice/recipient experience.
+        if (stopped || started) return;
+        cleanupTracks();
         fallback = scheduleMusic(ctx, destination, choice, balance, voiceDuration, introSeconds, options);
       }
     },
-    pause: () => audio.pause(),
+    pause: () => {
+      paused = true;
+      stopFrame();
+      for (const channel of channels) channel.player.pause();
+    },
     stop: () => {
-      audio.pause();
-      audio.removeAttribute("src");
-      audio.load();
-      try { source.disconnect(); gain.disconnect(); } catch { /* already disconnected */ }
+      if (stopped) return;
+      stopped = true;
+      paused = true;
+      stopFrame();
+      for (const channel of channels) channel.player.removeEventListener("timeupdate", handleTimeUpdate);
+      cleanupTracks();
       fallback?.stop();
     },
   };
