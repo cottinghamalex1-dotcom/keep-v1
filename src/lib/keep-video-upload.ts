@@ -1,17 +1,14 @@
-/**
- * Small clips are a first-class Keep memory. We intentionally limit new raw
- * iPhone videos until we have a resumable server-side transcoding pipeline:
- * unlike photos, browsers cannot reliably transcode 4K/HEVC footage on iOS.
- */
+/** Short videos are recommended; larger clips are compressed on-device when supported. */
 export const KEEP_VIDEO_RECOMMENDED_SECONDS = 10;
-export const KEEP_VIDEO_MAX_SECONDS = 10.5; // iPhone encoders can add a few trailing frames
+export const KEEP_VIDEO_MAX_SECONDS = 90;
+export const KEEP_VIDEO_MAX_SOURCE_BYTES = 350 * 1024 * 1024;
 export const KEEP_VIDEO_MAX_BYTES = 40 * 1024 * 1024;
 
 export function checkKeepVideo(sizeBytes: number, durationSeconds: number): string | null {
   if (!Number.isFinite(sizeBytes) || sizeBytes <= 0) return "This video appears to be empty.";
-  if (sizeBytes > KEEP_VIDEO_MAX_BYTES) return "This video is over 40 MB. Please export a smaller clip, ideally at 1080p, then try again.";
-  if (!Number.isFinite(durationSeconds) || durationSeconds <= 0) return "Couldn't read this video's length. Try a shorter MP4 or MOV clip.";
-  if (durationSeconds > KEEP_VIDEO_MAX_SECONDS) return "This video is longer than 10 seconds. Trim it to 10 seconds or less in Photos, then add it again.";
+  if (sizeBytes > KEEP_VIDEO_MAX_BYTES) return "This video is still over 40 MB after compression. Trim it or export at 720p, then try again.";
+  if (!Number.isFinite(durationSeconds) || durationSeconds <= 0) return "Couldn't read this video's length. Try a short MP4 or MOV clip.";
+  if (durationSeconds > KEEP_VIDEO_MAX_SECONDS + 0.5) return "This video is longer than 90 seconds. Trim it to a shorter moment in Photos and try again.";
   return null;
 }
 
