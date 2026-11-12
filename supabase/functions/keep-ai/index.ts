@@ -192,9 +192,9 @@ Rules:
 - Prefer real memories, everyday details, gratitude, change over time, and what the creator hopes the recipient understands, but only after the big picture has emerged.
 - Do not invent facts or assume feelings the creator has not expressed.
 - Avoid clichés, therapy language, melodrama, and repetitive questions.
-- Keep each question warm and conversational, usually one sentence and never more than two.
+- Keep every question SHORT, warm, and conversational: ONE straightforward question, ideally 12–22 words and no more than 28 words. Never stack multiple questions, suggest a long list of examples, or put an answer in the question. Let the creator provide the details.
 - The finished message should usually land around 3–4 spoken minutes. Gather enough specific raw material to support roughly 425–550 spoken words without padding.
-- Do not finish before 6 substantive answers. Prefer 7–8 questions for a normal KEEP. You may finish at 6 only if the prior answers are unusually detailed and specific. By 9 substantive answers, finish rather than dragging the interview out.
+- Keep the interview respectful of time: prefer 6–7 substantive answers. You may finish after 5 if the answers already provide the meaning and personal material needed for a compelling message. By 8 substantive answers, finish the interview rather than asking more. Do not repeat or force an anecdote that the creator has not offered.
 - When there is enough material for a specific, personal message, set done=true, question="", and write a concise 2–4 sentence summary of the emotional through-line in summary.
 - Otherwise set done=false, provide the next question, and set summary="".`,
         input: JSON.stringify(context),
