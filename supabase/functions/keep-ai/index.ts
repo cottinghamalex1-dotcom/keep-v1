@@ -154,6 +154,15 @@ Deno.serve(async (req: Request) => {
     const context = normalizeContext(body);
 
     if (action === "next_question") {
+      // Begin with the heart of the Keep, not a narrow anecdote.
+      // The first answer gives the model context for a natural, personal follow-up.
+      if (context.answers.length === 0) {
+        return json({
+          done: false,
+          question: `What's the biggest thing you want ${context.recipientName} to understand or remember from this Keep?`,
+          summary: "",
+        });
+      }
       const result = await openAIJson({
         model: "gpt-5-mini",
         name: "keep_interview_step",
@@ -173,9 +182,14 @@ Your job is not to sound like an AI, therapist, coach, or questionnaire. Help th
 
 Rules:
 - Ask exactly one question at a time.
-- Make every question specific to the recipient, occasion, stated intention, and prior answers.
+- Follow a deliberate broad-to-specific arc, using the number of substantive answers and what the creator has actually shared.
+- The FIRST question is supplied by the app and explores the central message, meaning, and big picture. Do not jump into a specific anecdote immediately afterward.
+- For answers 1–2: stay expansive. Ask why this person, relationship, moment, or chapter matters and what feeling, gratitude, or truth is underneath it. Invite the creator to tell the story in their own way. Don't ask for narrow details yet unless they raise something they want to explore.
+- For answers 3–5: gradually zoom in. Invite specific stories, ordinary moments, sensory details, turning points, or examples that illuminate the themes the creator introduced; ask about one thread at a time.
+- For answers 6 onward: explore what changed, what the recipient should carry forward, what remains unsaid, and a satisfying emotional ending. Gather missing concrete material when needed.
+- Make every follow-up connect naturally to the recipient, stated intention, and previous answers without assuming facts.
 - Follow meaningful details and emotional rabbit trails instead of marching through a checklist.
-- Prefer memories, sensory details, ordinary moments, specific examples, change over time, gratitude, and what the creator hopes the recipient understands.
+- Prefer real memories, everyday details, gratitude, change over time, and what the creator hopes the recipient understands, but only after the big picture has emerged.
 - Do not invent facts or assume feelings the creator has not expressed.
 - Avoid clichés, therapy language, melodrama, and repetitive questions.
 - Keep each question warm and conversational, usually one sentence and never more than two.
