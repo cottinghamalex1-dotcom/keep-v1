@@ -14,6 +14,7 @@ export type CinematicMoment = {
 type Props = {
   item: CinematicMoment;
   nextItem?: CinematicMoment | undefined;
+  followingItem?: CinematicMoment | undefined;
   sceneKey?: string | number | undefined;
   motionIndex?: number | undefined;
   playing?: boolean;
@@ -36,7 +37,7 @@ const flip = (slot: Slot): Slot => slot === 0 ? 1 : 0;
  * as the active layer (no remount/black flashes on Safari).
  */
 export function CinematicMedia({
-  item, nextItem, sceneKey, motionIndex = 0, playing = true, duration = 7, className = "", imageClassName = "",
+  item, nextItem, followingItem, sceneKey, motionIndex = 0, playing = true, duration = 7, className = "", imageClassName = "",
 }: Props) {
   const key = String(sceneKey ?? item.url);
   const [state, setState] = useState<State>(() => ({
@@ -44,6 +45,7 @@ export function CinematicMedia({
   }));
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const videos = useRef<[HTMLVideoElement | null, HTMLVideoElement | null]>([null, null]);
+  const prefetched = useRef<Map<string, HTMLImageElement>>(new Map());
   const activeScene = state.slots[state.active];
   const transition = activeScene?.item.transition ?? "dissolve";
   const fadeMs = transition === "cut" ? 0 : transition === "fade" ? 570 : 830;
@@ -55,6 +57,14 @@ export function CinematicMedia({
       const incoming = previous.pending !== null ? previous.slots[previous.pending] : null;
       // Settings edits update the existing scene without triggering a slideshow cut.
       if (current?.key === key) {
+        // Ignore parent renders that recreated an equivalent item object:
+        // interrupting an in-flight dissolve can reveal an undecoded frame.
+        const old = current.item;
+        if (old.url === item.url && old.kind === item.kind &&
+          old.focusX === item.focusX && old.focusY === item.focusY &&
+          old.zoom === item.zoom && old.motion === item.motion &&
+          old.transition === item.transition && current.duration === duration &&
+          current.imageClassName === imageClassName && current.index === motionIndex) return previous;
         const slots = [...previous.slots] as Layers;
         slots[previous.active] = next;
         if (previous.pending !== null) slots[previous.pending] = null;
@@ -72,13 +82,26 @@ export function CinematicMedia({
     });
   }, [key, item, duration, imageClassName, motionIndex]);
 
-  // Warm the browser cache for the following image, without creating a flash.
+  // Retain decoded images for the current and next two scenes.
+  // A short-lived Image() could be garbage collected before Safari finishes decoding it.
   useEffect(() => {
-    if (nextItem?.kind !== "image" || !nextItem.url || nextItem.url === item.url) return;
-    const image = new Image();
-    image.src = nextItem.url;
-    if (typeof image.decode === "function") void image.decode().catch(() => undefined);
-  }, [nextItem?.url, nextItem?.kind, item.url]);
+    const wanted = new Set(
+      [item, nextItem, followingItem]
+        .filter((moment): moment is CinematicMoment => !!moment && moment.kind === "image" && !!moment.url)
+        .map((moment) => moment.url),
+    );
+    for (const url of wanted) {
+      if (prefetched.current.has(url)) continue;
+      const image = new Image();
+      image.decoding = "async";
+      prefetched.current.set(url, image);
+      image.src = url;
+      if (typeof image.decode === "function") void image.decode().catch(() => undefined);
+    }
+    for (const url of prefetched.current.keys()) {
+      if (!wanted.has(url)) prefetched.current.delete(url);
+    }
+  }, [item.url, item.kind, nextItem?.url, nextItem?.kind, followingItem?.url, followingItem?.kind]);
 
   useEffect(() => {
     for (const video of videos.current) {
@@ -126,6 +149,7 @@ export function CinematicMedia({
     const y = Math.max(0, Math.min(100, moment.focusY ?? 50));
     const zoom = Math.max(1.03, Math.min(1.35, moment.zoom ?? 1.08));
     const motion = motionFor(moment, scene.index);
+    const isPending = state.pending === slot;
     const from = motion === "out" ? zoom * 1.065 : zoom;
     const to = motion === "out" ? zoom : zoom * 1.065;
     const shift = motion === "left" ? [2.4, -2.4] : motion === "right" ? [-2.4, 2.4] : [0, 0];
@@ -133,18 +157,18 @@ export function CinematicMedia({
       objectPosition: `${x}% ${y}%`,
       transformOrigin: `${x}% ${y}%`,
       animation: `keep-cinematic-move ${Math.max(1, scene.duration)}s linear both`,
-      animationPlayState: playing ? "running" as const : "paused" as const,
+      animationPlayState: playing && (!isPending || state.revealed) ? "running" as const : "paused" as const,
       ["--keep-from" as string]: `translateX(${shift[0]}%) scale(${from})`,
       ["--keep-to" as string]: `translateX(${shift[1]}%) scale(${to})`,
     };
-    const mediaClass = `absolute inset-0 block h-full w-full object-cover ${scene.imageClassName}`;
-    const isPending = state.pending === slot;
+    const mediaClass = `absolute inset-0 block h-full w-full object-cover will-change-transform [backface-visibility:hidden] ${scene.imageClassName}`;
     return moment.kind === "video"
       ? <video
           key={scene.key}
           ref={(node) => { videos.current[slot] = node; }}
           src={moment.url} muted playsInline loop autoPlay={playing}
           preload="auto" onLoadedData={() => { if (isPending) reveal(slot, scene); }}
+          onCanPlay={(event) => { if (isPending && event.currentTarget.readyState >= 2) reveal(slot, scene); }}
           onError={() => { if (isPending) setState((old) => {
             if (old.pending !== slot) return old;
             const slots = [...old.slots] as Layers;
@@ -174,7 +198,7 @@ export function CinematicMedia({
 
   return <div className={`isolate overflow-hidden bg-[#171719] ${className}`}>
     <style>{`@keyframes keep-cinematic-move {from {transform:var(--keep-from)} to {transform:var(--keep-to)}} @media (prefers-reduced-motion:reduce) {[style*="keep-cinematic-move"] {animation:none!important}}`}</style>
-    {state.slots.map((scene, slot) => scene && <div key={slot} className="absolute inset-0"
+    {state.slots.map((scene, slot) => scene && <div key={slot} className="absolute inset-0 will-change-[opacity]"
       style={{
         zIndex: slot === state.pending ? 2 : 1,
         opacity: slot === state.pending && !state.revealed ? 0 : 1,
