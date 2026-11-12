@@ -54,7 +54,7 @@ export function KeepRecipientExperience({
   media,
   readMedia,
   audioUrl,
-  audioDuration = 237,
+  audioDuration = 150,
   messageParagraphs,
   style = "Natural",
   captions = "Reel",
