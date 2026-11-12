@@ -151,6 +151,10 @@ function KeepApp() {
   const [askLastScope, setAskLastScope] = useState<"section" | "message">("section");
   const [askSuggestion, setAskSuggestion] = useState<null | { paragraphs: string[]; changedIndexes: number[]; note: string }>(null);
   const [aiBusy, setAiBusy] = useState<null | "start" | "transcribe" | "next" | "draft">(null);
+  const [interviewViewportHeight, setInterviewViewportHeight] = useState<number | null>(null);
+  const [interviewKeyboardOpen, setInterviewKeyboardOpen] = useState(false);
+  const [interviewInputFocused, setInterviewInputFocused] = useState(false);
+  const interviewFullHeight = useRef(0);
   const [aiError, setAiError] = useState<null | { kind: "start" | "transcribe" | "next" | "draft"; retry: () => void }>(null);
   const [generation, setGeneration] = useState(0);
   const [mode, setMode] = useState<Mode>("Memories");
@@ -389,6 +393,29 @@ function KeepApp() {
   const editDemoCopy = () => startProject({ ...newProject(), recipientName: "Hanna", relationship: "Spouse", messageSource: "demo", messageParagraphs: initialMessage, memories: sampleMemories(), finalVoiceRecording: { durationSec: 237, demo: true }, cardEngraving: ["HANNA", "FROM ALEX", "2026"] }, "editor");
   const continueDraft = () => { setViewingDemo(false); setHistory(["home"]); setScreen((project.stage as Screen) || "recipient"); };
 
+
+  // On iPhone the keyboard shrinks the visual viewport without consistently
+  // updating 100dvh. Size this screen to the actual visible area instead.
+  useEffect(() => {
+    if (screen !== "interview") return;
+    const viewport = window.visualViewport;
+    interviewFullHeight.current = Math.max(window.innerHeight, viewport?.height ?? 0);
+    const measure = () => {
+      const height = Math.round(viewport?.height ?? window.innerHeight);
+      setInterviewViewportHeight(height);
+      setInterviewKeyboardOpen(interviewFullHeight.current - height > 135);
+    };
+    measure();
+    viewport?.addEventListener("resize", measure);
+    viewport?.addEventListener("scroll", measure);
+    window.addEventListener("resize", measure);
+    return () => {
+      viewport?.removeEventListener("resize", measure);
+      viewport?.removeEventListener("scroll", measure);
+      window.removeEventListener("resize", measure);
+      setInterviewInputFocused(false);
+    };
+  }, [screen]);
 
   // ---- Interview ----
   const currentAnswer = project.interviewAnswers.find((a) => a.questionIndex === q);
@@ -1120,23 +1147,75 @@ function KeepApp() {
         </Button>
       </div>
     </div></>}
-    {screen === "interview" && <div className="flex keep-h-screen min-h-0 flex-col px-7 pb-[max(28px,env(safe-area-inset-bottom))]">{top()}<div className="mt-4"><p className="eyebrow">GETTING TO KNOW YOUR STORY…</p><div className="mt-4 flex items-center gap-1.5" aria-label={`${completedAnswers} ${completedAnswers === 1 ? "answer" : "answers"} shared`}>{Array.from({ length: completedAnswers }, (_, i) => <span key={i} className="h-[2px] w-6 bg-accent page-enter" />)}<span className="h-[2px] w-6 animate-pulse bg-accent/50" /><span className="h-[2px] flex-1 bg-border" /></div></div>
-      <div className="thin-scroll flex min-h-0 flex-1 flex-col items-center justify-center overflow-y-auto py-6 text-center">
-      {!aiReady ? <div className="page-enter"><span className="mb-8 block font-display text-6xl text-accent">“</span><h1 className="font-display text-[clamp(27px,7vw,35px)] leading-[1.15]">KEEP's guided interview is taking a short rest.</h1><p className="mx-auto mt-5 max-w-xs text-sm leading-7 text-muted-foreground">It's temporarily unavailable. You can still write your message in your own words.</p></div>
-      : aiBusy === "start" || aiBusy === "next" ? <div className="page-enter">{wave(21, true)}<p className="mt-6 font-display text-2xl text-foreground/85">{aiBusy === "start" ? "Getting ready to listen…" : "Thinking…"}</p></div>
-      : !project.interviewQuestion ? <div className="page-enter"><p className="font-display text-2xl text-foreground/85">{aiError ? aiErrorText : "Getting ready to listen…"}</p></div>
-      : <><span className="mb-8 font-display text-6xl text-accent">“</span><h1 key={q} className="font-display text-[clamp(29px,7vw,38px)] leading-[1.09] page-enter">{project.interviewQuestion}</h1>
-      {currentAnswer?.audioUrl && !isRecording && <div className="mt-8 w-full rounded-sm border border-border p-4 text-left page-enter"><div className="mb-3 flex justify-between text-[10px] tracking-widest text-muted-foreground"><span>YOUR VOICE</span><span>{fmt(currentAnswer.durationSec ?? 0)}</span></div><audio controls src={currentAnswer.audioUrl} className="w-full" preload="metadata" /></div>}
-      {aiBusy === "transcribe" && <p className="mt-6 text-sm text-accent animate-pulse">Turning your words into text…</p>}
-      {!isRecording && aiBusy !== "transcribe" && <textarea aria-label="Your answer" value={currentAnswer?.transcript ?? ""} onChange={(e) => setTypedAnswer(e.target.value)} placeholder={micUnavailable ? "Type your answer here…" : "Speak your answer, or type it here…"} rows={7} className="mt-6 min-h-[190px] max-h-[34dvh] w-full resize-none overflow-y-auto rounded-sm border border-border bg-transparent p-5 text-left font-display text-lg leading-[1.45] outline-none focus:border-accent" />}
-      {micUnavailable && <p className="mt-3 max-w-xs text-xs leading-6 text-muted-foreground">{micMessage} You can type your answer instead.</p>}
-      </>}
-      {aiError && aiReady && <div className="mt-6 w-full border-l border-accent pl-4 text-left page-enter" role="alert"><p className="text-sm leading-6 text-foreground/85">{aiErrorText}</p><Button variant="bare" size="sm" className="mt-1 px-0 text-accent" onClick={aiError.retry}><RotateCcw /> Retry</Button></div>}
-    </div><div className="flex flex-col items-center gap-3">{!aiReady ? <Button variant="keep" size="touch" className="w-full justify-between" onClick={() => go("write")}>Write it myself<ArrowRight /></Button>
-      : isRecording ? <><div className="text-sm tabular-nums text-accent">● {fmt(recorder.elapsed)}</div>{wave(27, true)}<Button variant="keep" size="touch" className="w-full" onClick={() => void stopAnswer()}><Square fill="currentColor" /> Stop</Button></>
-      : !project.interviewQuestion ? <Button variant="quiet" size="touch" className="w-full" onClick={() => go("write")}>Write it myself</Button>
-      : currentAnswer?.transcript?.trim() ? <><Button variant="keep" size="touch" className="w-full justify-between" disabled={!!aiBusy} onClick={nextQuestion}>Continue<ArrowRight /></Button>{!micUnavailable && <Button variant="bare" size="sm" className="text-muted-foreground" disabled={!!aiBusy} onClick={() => void startAnswer()}><Mic /> Record again</Button>}</>
-      : <>{!micUnavailable && <Button variant="keep" size="touch" className="w-full" disabled={!!aiBusy || recorder.status === "requesting" || recorder.supported === null} onClick={() => void startAnswer()}><Mic /> {recorder.status === "requesting" ? "Waiting for microphone…" : currentAnswer?.audioUrl ? "Record again" : "Tap to answer"}</Button>}<Button variant="bare" size="sm" className="text-muted-foreground" onClick={() => go("write")}>Write it myself</Button></>}</div></div>}
+    {screen === "interview" && <div
+      className="flex min-h-0 w-full flex-col overflow-hidden bg-background"
+      style={{ height: interviewViewportHeight ? `${interviewViewportHeight}px` : "100dvh" }}
+    >
+      {top()}
+      <div className={`shrink-0 px-6 pt-4 ${interviewKeyboardOpen ? "pb-2" : "pb-4"}`}>
+        <div className="flex items-center justify-between gap-3">
+          <p className="eyebrow !text-[10px]">YOUR STORY, YOUR WORDS</p>
+          <p className="text-[11px] tabular-nums text-muted-foreground">{completedAnswers} shared</p>
+        </div>
+        <div className="mt-3 flex h-1 items-center gap-1" aria-label={`${completedAnswers} answers shared`}>
+          {Array.from({ length: Math.min(8, completedAnswers) }, (_, i) => <span key={i} className="h-[3px] w-6 rounded-full bg-accent" />)}
+          <span className="h-[3px] w-6 rounded-full bg-accent/50" />
+          <span className="h-[3px] flex-1 rounded-full bg-border" />
+        </div>
+      </div>
+      <div key={q} className="thin-scroll min-h-0 flex-1 overflow-y-auto overscroll-contain px-6 pb-5 pt-4">
+        {!aiReady ? <div className="mx-auto max-w-md py-4 text-center page-enter">
+          <h1 className="font-display text-3xl leading-tight">Let's find your words another way.</h1>
+          <p className="mt-4 text-sm leading-6 text-muted-foreground">The guided interview is temporarily unavailable. You can still write your message.</p>
+        </div> : aiBusy === "start" || aiBusy === "next" ? <div className="mx-auto max-w-md py-8 text-center page-enter">
+          {wave(17,true)}
+          <p className="mt-5 font-display text-2xl">{aiBusy === "start" ? "Getting ready to listen…" : "Thinking about your words…"}</p>
+        </div> : !project.interviewQuestion ? <p className="mx-auto max-w-md py-8 text-center font-display text-2xl">{aiError ? aiErrorText : "Getting ready to listen…"}</p>
+        : <div className="mx-auto max-w-md page-enter">
+          <p className="mb-3 text-[10px] font-medium uppercase tracking-[.18em] text-accent">A question for you</p>
+          <h1 className="font-display text-[clamp(25px,6.6vw,35px)] font-normal leading-[1.16] tracking-[-.025em] text-foreground">{project.interviewQuestion}</h1>
+          {currentAnswer?.audioUrl && !isRecording && <div className="mt-5 rounded-xl border border-border bg-card/60 p-3">
+            <p className="mb-2 text-[10px] font-medium uppercase tracking-widest text-muted-foreground">Your recorded answer · {fmt(currentAnswer.durationSec ?? 0)}</p>
+            <audio controls src={currentAnswer.audioUrl} className="w-full" preload="metadata" />
+          </div>}
+          {aiBusy === "transcribe" && <p role="status" className="mt-5 text-sm text-accent animate-pulse">Turning your recording into words…</p>}
+          {micUnavailable && <p className="mt-4 text-xs leading-5 text-muted-foreground">{micMessage} You can type your answer instead.</p>}
+        </div>}
+        {aiError && aiReady && <div className="mx-auto mt-5 max-w-md border-l-2 border-accent pl-4 text-left" role="alert">
+          <p className="text-sm leading-6">{aiErrorText}</p>
+          <Button variant="bare" size="sm" className="mt-2 px-0 text-accent" onClick={aiError.retry}><RotateCcw /> Retry</Button>
+        </div>}
+      </div>
+      <div className={`z-10 w-full shrink-0 border-t border-border/75 bg-background px-5 pt-3 shadow-[0_-12px_30px_rgba(0,0,0,.045)] ${interviewKeyboardOpen ? "pb-2" : "pb-[max(18px,env(safe-area-inset-bottom))]"}`}>
+        {!aiReady ? <Button variant="keep" size="touch" className="w-full justify-between" onClick={() => go("write")}>Write it myself <ArrowRight /></Button>
+        : isRecording ? <div className="space-y-3">
+          <p role="status" className="text-center text-sm tabular-nums text-accent">● Recording · {fmt(recorder.elapsed)}</p>
+          <Button variant="keep" size="touch" className="w-full" onClick={() => void stopAnswer()}><Square fill="currentColor" /> Stop recording</Button>
+        </div> : !project.interviewQuestion ? <Button variant="quiet" size="touch" className="w-full" onClick={() => go("write")}>Write it myself</Button>
+        : <div className="mx-auto max-w-md">
+          {aiBusy !== "transcribe" && <>
+            <label htmlFor="keep-interview-answer" className="mb-2 block text-xs font-medium text-foreground/75">Your answer</label>
+            <textarea id="keep-interview-answer" aria-label="Your answer" value={currentAnswer?.transcript ?? ""}
+              onChange={(e) => setTypedAnswer(e.target.value)}
+              onFocus={() => setInterviewInputFocused(true)}
+              onBlur={() => setInterviewInputFocused(false)}
+              placeholder="Tap here to type your answer…"
+              rows={interviewKeyboardOpen ? 2 : 3}
+              className="block w-full min-h-[76px] max-h-[19dvh] resize-none overflow-y-auto rounded-xl border border-border bg-card px-4 py-3 text-left text-[16px] leading-6 text-foreground outline-none placeholder:text-muted-foreground/75 focus:border-accent focus:ring-1 focus:ring-accent/20"
+            />
+          </>}
+          <div className="mt-3 space-y-2">
+            {currentAnswer?.transcript?.trim()
+              ? <Button variant="keep" size="touch" className="w-full justify-between" disabled={!!aiBusy} onClick={nextQuestion}>Continue <ArrowRight /></Button>
+              : !micUnavailable && aiBusy !== "transcribe"
+                ? <Button variant="keep" size="touch" className="w-full" disabled={!!aiBusy || recorder.status === "requesting" || recorder.supported === null} onClick={() => void startAnswer()}><Mic className="size-4" /> {recorder.status === "requesting" ? "Waiting for microphone…" : "Or tap to speak"}</Button>
+                : aiBusy === "transcribe" ? <p className="py-2 text-center text-xs text-muted-foreground">Saving your words…</p> : null}
+            {!interviewKeyboardOpen && !interviewInputFocused && (currentAnswer?.transcript?.trim() ? !micUnavailable : true) && !micUnavailable && !!currentAnswer?.transcript?.trim() && <Button variant="bare" size="sm" className="w-full text-muted-foreground" disabled={!!aiBusy} onClick={() => void startAnswer()}><Mic className="size-4" /> Record again</Button>}
+            {!interviewKeyboardOpen && !interviewInputFocused && <Button variant="bare" size="sm" className="w-full text-muted-foreground" onClick={() => go("write")}>Write it myself</Button>}
+          </div>
+        </div>}
+      </div>
+    </div>}
     {screen === "summary" && <>{top()}<div className="flex keep-min-screen-minus-100 flex-col px-7 pb-10 pt-12"><div className="flex-1">{title("Your story", "I think we have it.")}<p className="max-w-md font-display text-[22px] leading-[1.55] text-foreground/88 page-enter sm:text-[24px]">{project.interviewSummary || "You've shared what matters. Let's put it into words."}</p></div><div className="mt-16 space-y-3">{nextButton("Create My Message", createAiMessage, !aiReady)}<Button variant="quiet" size="touch" className="w-full" onClick={() => go("write")}>Write it myself</Button></div></div></>}
     {screen === "messageGenerating" && <div className="relative flex keep-min-screen flex-col overflow-hidden px-7 pb-[max(40px,env(safe-area-inset-bottom))] pt-[max(36px,env(safe-area-inset-top))]">
       <div className="pointer-events-none absolute inset-x-[-25%] top-[20%] h-72 rounded-full bg-accent/[0.06] blur-3xl" />
