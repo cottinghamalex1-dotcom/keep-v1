@@ -30,6 +30,24 @@ export function sceneBoundary(media: readonly FilmMoment[], index: number, durat
   return media.slice(0, count).reduce((sum, item) => sum + clipSeconds(item), 0) * ratio(media, duration);
 }
 
+/** Begin at the exact narration-scaled boundary, not the raw photo duration.
+ * A tiny inset protects floating-point rounding at the boundary on Safari. */
+export function sceneSeekTime(media: readonly FilmMoment[], index: number, duration?: number): number {
+  if (!media.length) return 0;
+  const safeIndex = Math.max(0, Math.min(media.length - 1, Math.trunc(index)));
+  if (safeIndex === 0) return 0;
+  const start = sceneBoundary(media, safeIndex - 1, duration);
+  const length = sceneDuration(media, safeIndex, duration);
+  return start + Math.min(0.04, length * 0.2);
+}
+
+/** Elapsed time within the selected scene, in the narration clock. */
+export function sceneElapsed(media: readonly FilmMoment[], index: number, time: number, duration?: number): number {
+  const start = index > 0 ? sceneBoundary(media, index - 1, duration) : 0;
+  const maxDuration = sceneDuration(media, index, duration);
+  return Math.max(0, Math.min(maxDuration, time - start));
+}
+
 export function sceneIndexAt(media: readonly FilmMoment[], time: number, duration?: number): number {
   if (!media.length) return 0;
   const effectiveTime = Math.max(0, Number.isFinite(time) ? time : 0);
