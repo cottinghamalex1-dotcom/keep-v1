@@ -1155,12 +1155,14 @@ function KeepApp() {
       <div className={`shrink-0 px-6 pt-4 ${interviewKeyboardOpen ? "pb-2" : "pb-4"}`}>
         <div className="flex items-center justify-between gap-3">
           <p className="eyebrow !text-[10px]">YOUR STORY, YOUR WORDS</p>
-          <p className="text-[11px] tabular-nums text-muted-foreground">{completedAnswers} shared</p>
+          <p className="text-[11px] tabular-nums text-muted-foreground">Question {q + 1} · about 7 total</p>
         </div>
-        <div className="mt-3 flex h-1 items-center gap-1" aria-label={`${completedAnswers} answers shared`}>
-          {Array.from({ length: Math.min(8, completedAnswers) }, (_, i) => <span key={i} className="h-[3px] w-6 rounded-full bg-accent" />)}
-          <span className="h-[3px] w-6 rounded-full bg-accent/50" />
-          <span className="h-[3px] flex-1 rounded-full bg-border" />
+        <div className="mt-3 grid h-[5px] gap-1.5" style={{ gridTemplateColumns: `repeat(${Math.max(7, q + 1)}, minmax(0, 1fr))` }}
+             role="progressbar" aria-label="Interview progress" aria-valuemin={0}
+             aria-valuemax={Math.max(7, q + 1)} aria-valuenow={Math.min(q + 1, Math.max(7, q + 1))}
+             aria-valuetext={`Question ${q + 1} of approximately 7; the interview may finish a little sooner or later.`}>
+          {Array.from({ length: Math.max(7, q + 1) }, (_, i) =>
+            <span key={i} className={`h-[4px] rounded-full ${i < completedAnswers ? "bg-accent" : i === q ? "bg-accent/60" : "bg-border"}`} />)}
         </div>
       </div>
       <div key={q} className="thin-scroll min-h-0 flex-1 overflow-y-auto overscroll-contain px-6 pb-5 pt-4">
