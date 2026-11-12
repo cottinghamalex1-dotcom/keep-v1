@@ -1,7 +1,9 @@
 import { KeepAccountButton } from "@/components/keep-account-button";
 import { KeepOpeningScreen } from "@/components/keep-opening-screen";
 import type { KeepRestoreProgress } from "@/lib/keep-cloud";
-import { KeepPublishPanel } from "@/components/keep-publish-panel";
+import { ViewingLink } from "@/components/keep-publish-panel";
+import { KeepCardFront } from "@/components/keep-card-front";
+import { publishKeep } from "@/lib/keep-publish";
 import { KeepTimeline } from "@/components/keep-timeline";
 import { KeepCaptionEditor } from "@/components/keep-caption-editor";
 import { KeepMusicEditor } from "@/components/keep-music-editor";
@@ -167,7 +169,10 @@ function KeepApp() {
   const [editorTime, setEditorTime] = useState(0);
   const editorAudioRef = useRef<HTMLAudioElement>(null);
   const editorMixRef = useRef<ReturnType<typeof createKeepVoiceMix>>(null);
-  const [cardBack, setCardBack] = useState(false);
+  const [publishing, setPublishing] = useState(false);
+  const [publishStatus, setPublishStatus] = useState("");
+  const [publishError, setPublishError] = useState("");
+  const publishingLock = useRef(false);
   const [setting, setSetting] = useState("");
   const [scroll, setScroll] = useState(0);
   const [scrollPaused, setScrollPaused] = useState(false);
@@ -1024,7 +1029,58 @@ function KeepApp() {
 
   const engraving = project.cardEngraving;
   const updateEngraving = (i: number, value: string) => patch({ cardEngraving: engraving.map((v, j) => (j === i ? value.toUpperCase() : v)) });
-  const toCard = () => { if (!engraving[0]) patch({ cardEngraving: [(name || "Hanna").toUpperCase(), engraving[1] || "FROM ALEX", engraving[2] || "2026"] }); go("card"); };
+  // Publishing happens as part of finishing, not through a separate "Update" action.
+  // A published Keep is always republished under its original ID/token.
+  const finishAndShare = async (updated?: KeepProject) => {
+    if (publishingLock.current) return;
+    const current = updated ?? project;
+    if (current.restoreIncomplete) {
+      setPublishError("Finish restoring your saved memories before publishing.");
+      return;
+    }
+    publishingLock.current = true;
+    setPublishing(true);
+    setPublishError("");
+    setPublishStatus("Saving your Keep…");
+    const publicationId = current.publicationId || crypto.randomUUID();
+    const next = { ...current, publicationId, stage: "success" };
+    saveDraft(next);
+    try {
+      const result = await publishKeep(next, publicationId, setPublishStatus);
+      const complete = { ...next, publicationId: result.keepId, publicationToken: result.token };
+      setProject(complete);
+      saveDraft(complete);
+      // The permanent link is updated before we display the success screen.
+      // Persist the editable version as well so Back to editor restores these edits.
+      try {
+        const session = await activeKeepSession();
+        if (session) await saveCloudDraft(complete, session);
+      } catch {
+        toast.info("Your published Keep is saved. A cloud draft backup will retry when you reopen the editor.");
+      }
+      setHistory((h) => [...h, screen]);
+      setScreen("success");
+      resetPageScroll();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Couldn't save your Keep. Please try again.";
+      setPublishError(message);
+      toast.error(message);
+    } finally {
+      publishingLock.current = false;
+      setPublishing(false);
+      setPublishStatus("");
+    }
+  };
+  const toCard = () => {
+    const next = !engraving[0]?.trim()
+      ? { ...project, cardEngraving: [(name || "Hanna").toUpperCase(), engraving[1] || "FROM ALEX", engraving[2] || "2026"] }
+      : project;
+    if (next !== project) setProject(next);
+    saveDraft(next);
+    // "Done" on an already published Keep also updates the live viewing link.
+    if (next.publicationToken) { void finishAndShare(next); return; }
+    go("card");
+  };
   const totalSec = rec?.durationSec ?? 237;
 
   const title = (eyebrow: string, heading: string, sub?: string) => <div className="mb-10 keep-page-heading"><h1 className="keep-editorial-title">{heading}</h1>{sub && <p className="keep-page-description mt-5">{sub}</p>}</div>;
