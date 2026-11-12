@@ -178,7 +178,7 @@ Deno.serve(async (req: Request) => {
         },
         instructions: `You are the invisible interviewer inside KEEP, a product that helps people preserve meaningful words and memories.
 
-Your job is not to sound like an AI, therapist, coach, or questionnaire. Help the creator uncover concrete, emotionally resonant material for a 2–4 minute spoken message to someone they care about.
+Your job is not to sound like an AI, therapist, coach, or questionnaire. Help the creator uncover concrete, emotionally resonant material for an approximately 2–3 minute spoken message to someone they care about.
 
 Rules:
 - Ask exactly one question at a time.
@@ -193,7 +193,7 @@ Rules:
 - Do not invent facts or assume feelings the creator has not expressed.
 - Avoid clichés, therapy language, melodrama, and repetitive questions.
 - Keep every question SHORT, warm, and conversational: ONE straightforward question, ideally 12–22 words and no more than 28 words. Never stack multiple questions, suggest a long list of examples, or put an answer in the question. Let the creator provide the details.
-- The finished message should usually land around 3–4 spoken minutes. Gather enough specific raw material to support roughly 425–550 spoken words without padding.
+- The finished message should usually land around 2–3 spoken minutes. Gather enough real personal material to support roughly 300–390 spoken words without padding; brevity and emotional specificity matter more than volume.
 - Keep the interview respectful of time: prefer 6–7 substantive answers. You may finish after 5 if the answers already provide the meaning and personal material needed for a compelling message. By 8 substantive answers, finish the interview rather than asking more. Do not repeat or force an anecdote that the creator has not offered.
 - When there is enough material for a specific, personal message, set done=true, question="", and write a concise 2–4 sentence summary of the emotional through-line in summary.
 - Otherwise set done=false, provide the next question, and set summary="".`,
@@ -227,17 +227,45 @@ Writing rules:
 - Avoid greeting-card clichés, inflated sentiment, therapy language, and generic inspiration.
 - Let specific ordinary details do the emotional work.
 - Use contractions when natural.
-- Create 5–8 short, recordable paragraphs and usually 425–550 words, aiming for about 3–4 minutes spoken at a natural pace.
+- Create 4–7 short, recordable paragraphs, ideally 300–390 words. The finished message should feel like a natural 2–3 minute recording at roughly 140 words per minute. Stay below 420 words by default unless the creator explicitly asks for a longer Keep.
 - Do not pad the message to hit a word count. If the interview genuinely does not support that length, stay shorter rather than inventing or repeating.
 - Build toward a strong, simple ending that says what the creator most wants the recipient to know.
 - Do not mention KEEP, AI, the interview, or drafting.
 - Return only the paragraphs in the required JSON structure.`,
         input: JSON.stringify(context),
       });
-      const paragraphs = Array.isArray(result.paragraphs)
+      let paragraphs = Array.isArray(result.paragraphs)
         ? result.paragraphs.map((p: unknown) => String(p).trim()).filter(Boolean).slice(0, 8)
         : [];
       if (!paragraphs.length) throw new Error("Draft contained no paragraphs");
+
+      const countWords = (parts: string[]) => (parts.join(" ").trim().match(/\S+/gu) ?? []).length;
+      // Gently bring an unexpectedly long AI-generated draft back into the
+      // 2–3-minute sweet spot. Never arbitrarily truncate a personal message.
+      if (countWords(paragraphs) > 420) {
+        try {
+          const shorter = await openAIJson({
+            model: "gpt-5.1",
+            name: "keep_message_shortened",
+            schema: {
+              type: "object",
+              additionalProperties: false,
+              properties: {
+                paragraphs: { type: "array", items: { type: "string" } },
+              },
+              required: ["paragraphs"],
+            },
+            instructions: `You are KEEP's attentive editor. Shorten this personal spoken message into a complete, satisfying 2–3 minute Keep, ideally 300–390 words and no more than 420 words. Preserve the creator's exact real facts, specific memories, recognizable voice, recipient, emotional intention, and strongest ending. Remove redundancy and filler rather than deleting the heart of the message. Do not invent or add anything. Use 4–7 short, natural spoken paragraphs. Return only paragraphs.`,
+            input: JSON.stringify({ paragraphs, recipientName: context.recipientName, intent: context.intent }),
+          });
+          const compact = Array.isArray(shorter.paragraphs)
+            ? shorter.paragraphs.map((p: unknown) => String(p).trim()).filter(Boolean).slice(0, 8)
+            : [];
+          if (compact.length && countWords(compact) < countWords(paragraphs)) paragraphs = compact;
+        } catch {
+          // Keep the complete, valid first draft if refinement is temporarily unavailable.
+        }
+      }
       return json({ paragraphs });
     }
 
