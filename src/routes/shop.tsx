@@ -17,10 +17,11 @@ export const Route = createFileRoute("/shop")({
   component: ShopKeep,
 });
 
-const shopifyProductUrl = "https://jn2cmt-se.myshopify.com/products/keep-signature-card";
-const checkoutUrl = (import.meta.env["VITE_KEEP_SHOPIFY_PRODUCT_URL"] as string | undefined)?.trim() ?? "";
-// Keep purchase UI disabled until order-to-creator webhooks and checkout are tested.
-const checkoutReady = /^https:\/\/[a-z0-9.-]+\/(products|cart)\//i.test(checkoutUrl);
+// Stripe Payment Links keep payments off our site and collect US shipping at checkout.
+const checkoutUrl = (import.meta.env["VITE_KEEP_STRIPE_PAYMENT_LINK_URL"] as string | undefined)?.trim() ?? "";
+// Never expose checkout until the signed webhook, production secrets and paid-to-creator flow are verified.
+const checkoutReady = import.meta.env["VITE_KEEP_STRIPE_CHECKOUT_READY"] === "true" &&
+  /^https:\/\/buy\.stripe\.com\/[a-zA-Z0-9_]+(?:\?.*)?$/.test(checkoutUrl);
 
 const journey = [
   { number: "01", title: "Choose your Keep", copy: "Start with a beautifully crafted metal keepsake card. Your $99 purchase includes the experience inside.", icon: "card" },
@@ -46,7 +47,7 @@ function PurchaseAction({ smaller = false }: { smaller?: boolean }) {
     <span aria-disabled="true" className="flex min-h-14 items-center justify-between gap-4 rounded-sm border border-[#0B0B0B] bg-[#0B0B0B] px-6 py-4 text-sm font-medium text-[#F7F5F2] opacity-75">
       Checkout opening soon <ArrowRight className="size-4 shrink-0" />
     </span>
-    <p className="mt-3 text-[11px] leading-5 text-[#74695E]">Our $99 product is active in Shopify. Checkout is temporarily paused while we complete secure order verification.</p>
+    <p className="mt-3 text-[11px] leading-5 text-[#74695E]">We’re finishing secure payment verification before opening orders.</p>
   </div>;
   return <a href={checkoutUrl} className={`flex min-h-14 items-center justify-between gap-4 rounded-sm border border-[#0B0B0B] bg-[#0B0B0B] px-6 py-4 text-sm font-medium text-[#F7F5F2] transition-colors hover:bg-[#302923] ${smaller ? "w-full" : "max-w-[380px]"}`}>Purchase your Keep — $99 <ArrowRight className="size-4 shrink-0" /></a>;
 }
@@ -168,7 +169,7 @@ function ShopKeep() {
           </ul>
           <PurchaseAction />
           <p className="mt-5 text-[11px] leading-6 text-[#665D55]">Cards are prepared after the creator approves their finished Keep. U.S. delivery only at launch. Taxes may apply at checkout.</p>
-          <a href={shopifyProductUrl} rel="noopener noreferrer" className="mt-5 inline-flex items-center gap-2 border-b border-[#6A5849]/50 pb-1 text-[12px] text-[#6A5849]" target="_blank">See the active Shopify product <ArrowRight className="size-3.5" /></a>
+          
         </div>
       </div>
     </section>
@@ -215,7 +216,7 @@ function ShopKeep() {
       <div className="mx-auto flex max-w-[1240px] flex-col items-center justify-between gap-6 border-t border-[#332D29] pt-8 md:flex-row">
         <BrandMark light />
         <p className="text-[11px]">Some things are worth keeping.</p>
-        <div className="flex gap-6 text-[11px]"><Link to="/about">Our story</Link><Link to="/app">My Keeps</Link><a href={shopifyProductUrl} target="_blank" rel="noopener noreferrer">Product details</a></div>
+        <div className="flex gap-6 text-[11px]"><Link to="/about">Our story</Link><Link to="/app">My Keeps</Link><a href="#the-card">The card</a></div>
       </div>
     </footer>
   </main>;
