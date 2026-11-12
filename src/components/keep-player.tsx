@@ -1,6 +1,6 @@
 import { CinematicMedia } from "@/components/cinematic-media";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, Volume2, VolumeX, Pause, Play, RotateCcw } from "lucide-react";
+import { ArrowLeft, Volume2, VolumeX, Pause, Play } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { createKeepVoiceMix, KEEP_MUSIC_LEAD_SECONDS, KEEP_MUSIC_TAIL_SECONDS, type MusicBalance } from "@/lib/keep-audio";
 import type { AudioMix, CaptionCue } from "@/lib/keep-project";
@@ -28,9 +28,9 @@ export function KeepPlayer({ name, from, year, onExit, onFinish, recipient = fal
   const [scene, setScene] = useState(skipIntro ? 0 : -1);
   const [playing, setPlaying] = useState(true);
   const [muted, setMuted] = useState(false);
-  const [ended, setEnded] = useState(false);
   const [blocked, setBlocked] = useState(false);
   const [audioTime, setAudioTime] = useState(0);
+  const [masterDuration, setMasterDuration] = useState(audioDuration);
   const [voiceStarted, setVoiceStarted] = useState(false);
   const [controlsVisible, setControlsVisible] = useState(true);
   const [mediaReady, setMediaReady] = useState(false);
@@ -44,7 +44,7 @@ export function KeepPlayer({ name, from, year, onExit, onFinish, recipient = fal
   const endingTimer = useRef<number | null>(null);
   const items: PlayerMedia[] = useMemo(() => media?.length ? media : memoryImages.map((url) => ({ url, kind: "image" as const })), [media]);
   const words = lines?.length ? lines : defaultLines;
-  const end = audioUrl ? ended : scene >= 5;
+  const end = !audioUrl && scene >= 5;
 
   // Decode the opening frame before starting the music/voice timeline.
   // Keep the following two photos warm without keeping the whole film in memory.
@@ -96,7 +96,7 @@ export function KeepPlayer({ name, from, year, onExit, onFinish, recipient = fal
 
   // Recipients go straight to the light completion page, not a second dark end card.
   useEffect(() => {
-    if (recipient && !audioUrl && scene >= 5 && !finishSent.current) {
+    if (!audioUrl && scene >= 5 && !finishSent.current) {
       finishSent.current = true;
       onFinish?.();
     }
@@ -104,7 +104,7 @@ export function KeepPlayer({ name, from, year, onExit, onFinish, recipient = fal
 
   // skipIntro only skips the visual title reveal, not the musical introduction.
   const introSeconds = audioUrl ? KEEP_MUSIC_LEAD_SECONDS : (skipIntro ? 0 : 3.2);
-  const targetSceneSeconds = sceneDuration(items, Math.max(0, scene), audioUrl ? audioDuration : undefined) || 7;
+  const targetSceneSeconds = sceneDuration(items, Math.max(0, scene), audioUrl ? masterDuration : undefined) || 7;
   // Without a recording, use per-photo timing. With voice, the actual audio
   // currentTime below is the single clock for pictures, captions and progress.
   useEffect(() => {
@@ -137,14 +137,14 @@ export function KeepPlayer({ name, from, year, onExit, onFinish, recipient = fal
           lastPublished = time;
           setAudioTime(time);
         }
-        const index = sceneIndexAt(items, time, audioDuration || duration);
+        const index = sceneIndexAt(items, time, masterDuration || duration);
         setScene((current) => current === index ? current : index);
       }
       raf = requestAnimationFrame(tick);
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, [audioUrl, playing, mediaReady, end, scene < 0, items, audioDuration]);
+  }, [audioUrl, playing, mediaReady, end, scene < 0, items, masterDuration]);
 
   useEffect(() => {
     const a = audio.current;
@@ -226,25 +226,6 @@ export function KeepPlayer({ name, from, year, onExit, onFinish, recipient = fal
   useEffect(() => { mix.current?.setTrackMutes(!!audioMix?.voiceMuted, !!audioMix?.musicMuted); }, [audioMix?.voiceMuted, audioMix?.musicMuted]);
   useEffect(() => { mix.current?.setVoiceTone(audioMix?.voiceTone ?? "natural"); }, [audioMix?.voiceTone]);
 
-  const replay = () => {
-    if (endingTimer.current) window.clearTimeout(endingTimer.current);
-    endingTimer.current = null;
-    if (introTimerRef.current) window.clearTimeout(introTimerRef.current);
-    introTimerRef.current = null;
-    voiceStartedRef.current = false;
-    setVoiceStarted(false);
-    introRemainingRef.current = KEEP_MUSIC_LEAD_SECONDS * 1000;
-    audio.current?.pause();
-    if (audio.current) audio.current.currentTime = 0;
-    mix.current?.restartMusic(musicMood, (["Soft", "Balanced", "Full"].includes(voiceMusicBalance) ? voiceMusicBalance : "Balanced") as MusicBalance, audioMix);
-    setScene(skipIntro ? 0 : -1);
-    setEnded(false);
-    setPlaying(true);
-    setBlocked(false);
-    setAudioTime(0);
-    finishSent.current = false;
-    showControls();
-  };
   const resumeAudio = () => {
     // Directly unlock the audio context from the user's tap on iOS.
     const controller = mix.current;
@@ -276,11 +257,10 @@ export function KeepPlayer({ name, from, year, onExit, onFinish, recipient = fal
     if (controlsVisible) setControlsVisible(false);
     else showControls();
   }}>
-    {audioUrl && <audio ref={audio} crossOrigin="anonymous" src={audioUrl} playsInline preload="auto" onEnded={() => { if (endingTimer.current) window.clearTimeout(endingTimer.current); endingTimer.current = window.setTimeout(() => { if (recipient && onFinish) { if (!finishSent.current) { finishSent.current = true; onFinish(); } } else setEnded(true); }, KEEP_MUSIC_TAIL_SECONDS * 1000); }} onTimeUpdate={(e) => { const a = e.currentTarget; const d = Number.isFinite(a.duration) && a.duration > 0 ? a.duration : audioDuration || 1; setAudioTime(a.currentTime); setScene((current) => { const index = sceneIndexAt(items, a.currentTime, audioDuration || d); return current < 0 || current === index ? current : index; }); }} />}
+    {audioUrl && <audio ref={audio} crossOrigin="anonymous" src={audioUrl} playsInline preload="auto" onLoadedMetadata={(event) => { const duration = event.currentTarget.duration; if (Number.isFinite(duration) && duration > 0) setMasterDuration(duration); }} onEnded={() => { if (endingTimer.current) window.clearTimeout(endingTimer.current); endingTimer.current = window.setTimeout(() => { if (!finishSent.current) { finishSent.current = true; onFinish?.(); } }, KEEP_MUSIC_TAIL_SECONDS * 1000); }} onTimeUpdate={(e) => { const a = e.currentTarget; const d = Number.isFinite(a.duration) && a.duration > 0 ? a.duration : audioDuration || 1; setAudioTime(a.currentTime); setScene((current) => { const index = sceneIndexAt(items, a.currentTime, d); return current < 0 || current === index ? current : index; }); }} />}
     {!mediaReady && <div className="absolute inset-0 flex items-center justify-center bg-[#F7F5F2]"><img src="/brand/keep-wordmark.svg" alt="Keep" className="w-28 opacity-65" /></div>}
-    {mediaReady && item && !end && <><CinematicMedia item={item} nextItem={nextItem} sceneKey={scene} motionIndex={scene} playing={playing && (!audioUrl || voiceStarted)} duration={targetSceneSeconds} className="absolute inset-0" imageClassName={`editor-image-${styleSlug(style)}`} /><div className="pointer-events-none absolute inset-0 photo-shade" /></>}
+    {mediaReady && item && !end && <><CinematicMedia item={item} nextItem={nextItem} followingItem={items[scene + 2]} sceneKey={scene} motionIndex={scene} playing={playing && (!audioUrl || voiceStarted)} duration={targetSceneSeconds} className="absolute inset-0" imageClassName={`editor-image-${styleSlug(style)}`} /><div className="pointer-events-none absolute inset-0 photo-shade" /></>}
     {scene === -1 && <div className="cinematic-intro absolute inset-0 flex flex-col items-center justify-center px-7 text-center"><div className="cinematic-glow absolute inset-0" /><div className="relative"><div className="eyebrow mb-6 text-foreground/55">FOR</div><h1 className="display px-6 text-[clamp(58px,17vw,82px)] uppercase">{name}</h1><div className="mx-auto mt-8 h-px w-10 bg-accent/65" /><p className="mt-7 text-xs tracking-wide text-muted-foreground">from {from} · {year}{subtitle ? ` · ${subtitle}` : ""}</p></div></div>}
-    {end && !recipient && <div className="cinematic-ending absolute inset-0 flex flex-col items-center justify-center px-8 text-center"><div className="cinematic-glow absolute inset-0" /><div className="relative"><div className="mx-auto mb-10 h-px w-10 bg-accent/65" /><h1 className="display text-[clamp(46px,12vw,60px)]">Some things are<br />worth keeping.</h1><p className="mx-auto mt-7 max-w-64 text-sm leading-6 text-muted-foreground">{recipient ? "This one is yours." : "Your Keep is ready."}</p><div className="mt-12 flex w-full max-w-65 flex-col gap-3"><Button variant="keep" size="touch" onClick={recipient && onFinish ? onFinish : replay}>{recipient ? "Keep this close" : <><RotateCcw /> Replay</>}</Button>{recipient ? <Button variant="quiet" size="touch" onClick={replay}><RotateCcw /> Replay</Button> : <><Button variant="quiet" size="touch" onClick={onExit}>Make Changes</Button><Button variant="bare" size="touch" onClick={onFinish}>Finish Keep →</Button></>}</div></div></div>}
     {blocked && !end && <div className="absolute inset-x-0 bottom-24 z-40 flex justify-center px-6">
       <Button variant="keep" size="touch" onClick={resumeAudio}><Volume2 /> Tap to start your Keep</Button>
     </div>}
