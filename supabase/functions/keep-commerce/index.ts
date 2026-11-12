@@ -125,15 +125,24 @@ Deno.serve(async (req: Request) => {
     // Retry after a lost response is safe; reserve never grants more than one creation per paid unit.
     const existing = visible.find(p => p.keep_id === body.keepId && p.owner_id === user.id && ["reserved", "approved"].includes(p.status));
     if (existing) return respond({ reserved: true });
-    for (const available of unclaimed) {
-      const { data, error: reserveError } = await admin.from("keep_purchases")
-        .update({ owner_id: user.id, keep_id: body.keepId, status: "reserved", updated_at: new Date().toISOString() })
-        .eq("id", available.id).is("keep_id", null).eq("status", "paid")
-        .select("id").maybeSingle();
-      if (reserveError) return respond({ error: "Unable to reserve your Keep. Try again." }, 503);
-      if (data) return respond({ reserved: true });
+    if (!unclaimed.length)
+      return respond({ error: "This account has no unused paid Keep. Purchase another card to create a new one." }, 402);
+    // Create the draft record first so the reservation's foreign key is valid.
+    // Every attempt uses a fresh Keep ID, never overwrites an existing project.
+    const { error: createError } = await admin.from("keeps").insert({
+      id: body.keepId, owner_id: user.id, recipient_name: "", status: "draft",
+    });
+    if (createError) return respond({ error: "Couldn't initialize your Keep. Please try again." }, 409);
+    const available = unclaimed[0];
+    const { data, error: reserveError } = await admin.from("keep_purchases")
+      .update({ owner_id: user.id, keep_id: body.keepId, status: "reserved", updated_at: new Date().toISOString() })
+      .eq("id", available.id).is("keep_id", null).eq("status", "paid")
+      .select("id").maybeSingle();
+    if (reserveError || !data) {
+      await admin.from("keeps").delete().eq("id", body.keepId).eq("owner_id", user.id).eq("status", "draft");
+      return respond({ error: "Unable to reserve your purchased Keep. Please try again." }, 409);
     }
-    return respond({ error: "This account has no unused paid Keep. Purchase another card to create a new one." }, 402);
+    return respond({ reserved: true });
   } catch (error) {
     console.error("Keep commerce request failed", error instanceof Error ? error.message : "Unknown error");
     return respond({ error: "Could not complete the request." }, 500);
