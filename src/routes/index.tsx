@@ -1043,11 +1043,14 @@ function KeepApp() {
     setPublishError("");
     setPublishStatus("Saving your Keep…");
     const publicationId = current.publicationId || crypto.randomUUID();
-    const next = { ...current, publicationId, stage: "success" };
+    // Keep the in-progress screen until publication succeeds. Persist the ID
+    // before uploading so network retries never accidentally create a new link.
+    const next = { ...current, publicationId };
+    setProject((previous) => ({ ...previous, publicationId }));
     saveDraft(next);
     try {
       const result = await publishKeep(next, publicationId, setPublishStatus);
-      const complete = { ...next, publicationId: result.keepId, publicationToken: result.token };
+      const complete = { ...next, stage: "success", publicationId: result.keepId, publicationToken: result.token };
       setProject(complete);
       saveDraft(complete);
       // The permanent link is updated before we display the success screen.
