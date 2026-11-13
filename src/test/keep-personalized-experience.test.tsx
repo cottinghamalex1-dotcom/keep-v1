@@ -25,7 +25,7 @@ it("persists the matching digital opening and card inscription with the publishe
   expect(publicationSettings({ ...project, openingMessage: "", engraveOpeningMessage: false }).engraveOpeningMessage).toBe(false);
 });
 
-it("offers a premium Listen & Read mode with the full transcript and no photos", () => {
+it("offers hands-free Listen & Read with centered timed words instead of a scrolled transcript", () => {
   const props = {
     name: "Andi", from: "Dad & Mom", year: "2026",
     creatorPreview: true, persistVisit: false,
@@ -33,8 +33,8 @@ it("offers a premium Listen & Read mode with the full transcript and no photos",
     media: [{ url: "/memory.jpg", kind: "image" as const }],
   };
   render(<KeepRecipientExperience {...props} initialExperience="listen" />);
-  expect(screen.getByText("We remember that day.")).toBeTruthy();
-  expect(screen.getByText("You are deeply loved.")).toBeTruthy();
+  expect(screen.queryByText("We remember that day.")).toBeNull();
+  expect(screen.getByText("Some words deserve to be heard.")).toBeTruthy();
   expect(screen.getByRole("button", { name: "Play narration" })).toBeTruthy();
   expect(screen.queryByAltText(/Memory/)).toBeNull();
 });
