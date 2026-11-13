@@ -216,7 +216,7 @@ export function KeepRecipientExperience({
       <section className="min-h-dvh bg-[#F7F5F2] text-[#25201D]" aria-label={`Listen and read the Keep for ${name}`}>
         <header className="mx-auto flex h-[82px] max-w-3xl items-center justify-between border-b border-[#DFD7CF] px-6">
           <button type="button" onClick={backToChoose} aria-label="Back to experiences" className="flex size-11 items-center justify-center rounded-full border border-[#DCCFC0]"><ArrowLeft className="size-5" /></button>
-          <span className="font-display text-[29px] tracking-[-.055em]">Keep</span><span className="size-11" />
+          <span className="keep-wordmark !text-[29px]">Keep</span><span className="size-11" />
         </header>
         <div className="mx-auto max-w-[650px] px-6 pb-[max(100px,env(safe-area-inset-bottom))]">
           <div className="pb-9 pt-12 text-center">
@@ -299,7 +299,7 @@ export function KeepRecipientExperience({
     return <main className="app-shell">
       <section className="relative flex min-h-dvh flex-col overflow-hidden bg-[#F7F5F2] text-[#25201D]">
         <header className="mx-auto flex w-full max-w-[640px] items-center justify-center px-7 pt-[max(40px,env(safe-area-inset-top))]">
-          <span className="font-display text-[32px] tracking-[-.055em]">Keep</span>
+          <span className="keep-wordmark !text-[32px]">Keep</span>
         </header>
         <div className="mx-auto flex w-full max-w-[640px] flex-1 flex-col items-center justify-center px-7 py-14 text-center">
           <div className="mb-9 flex items-center gap-4" aria-hidden="true"><span className="h-px w-8 bg-[#B79F88]" /><span className="font-display text-lg text-[#9E8166]">✦</span><span className="h-px w-8 bg-[#B79F88]" /></div>
