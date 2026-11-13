@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, ArrowRight, BookOpen, Headphones, Images, Pause, Play, RotateCcw, Volume2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { KeepPlayer, memoryImages, type PlayerMedia } from "@/components/keep-player";
+import { KeepPlayer, type PlayerMedia } from "@/components/keep-player";
 import { KeepFirstPlayReveal } from "@/components/keep-first-play-reveal";
 import type { AudioMix, CaptionCue } from "@/lib/keep-project";
 import { createKeepVoiceMix, KEEP_MUSIC_LEAD_SECONDS, KEEP_MUSIC_TAIL_SECONDS, type MusicBalance } from "@/lib/keep-audio";
@@ -53,7 +53,6 @@ export function KeepRecipientExperience({
   subtitle,
   openingMessage,
   media,
-  readMedia,
   audioUrl,
   audioDuration = 150,
   messageParagraphs,
@@ -87,8 +86,6 @@ export function KeepRecipientExperience({
   const listenMix = useRef<ReturnType<typeof createKeepVoiceMix>>(null);
   const listenIntroTimer = useRef<number | null>(null);
   const listenHasStarted = useRef(false);
-  const items = media?.length ? media : memoryImages.map((url) => ({ url, kind: "image" as const }));
-  const readItems = readMedia?.length ? readMedia : items;
   const paragraphs = messageParagraphs?.length ? messageParagraphs : demoMessage;
 
   useEffect(() => {
@@ -211,45 +208,50 @@ export function KeepRecipientExperience({
     const elapsed = Math.min(total, (listenProgress / 100) * total);
     const stamp = (seconds: number) => `${Math.floor(seconds / 60)}:${String(Math.floor(seconds % 60)).padStart(2, "0")}`;
     return <main className="app-shell">
-      <section className="keep-listen min-h-dvh text-[#F7F5F2]" aria-label={`Listen to the Keep for ${name}`}>
-        <header className="keep-listen__header">
-          <button type="button" onClick={backToChoose} aria-label="Back to experiences" className="keep-listen__back"><ArrowLeft className="size-5" /></button>
-          <img src="/brand/keep-wordmark-ivory.svg" alt="Keep" className="h-9 w-24 object-contain" />
-          <span className="size-11" aria-hidden="true" />
+      <section className="min-h-dvh bg-[#F7F5F2] text-[#25201D]" aria-label={`Listen and read the Keep for ${name}`}>
+        <header className="mx-auto flex h-[82px] max-w-3xl items-center justify-between border-b border-[#DFD7CF] px-6">
+          <button type="button" onClick={backToChoose} aria-label="Back to experiences" className="flex size-11 items-center justify-center rounded-full border border-[#DCCFC0]"><ArrowLeft className="size-5" /></button>
+          <span className="font-display text-[29px] tracking-[-.055em]">Keep</span><span className="size-11" />
         </header>
-        <div className="keep-listen__inner">
-          <div className="keep-listen__details">
-            <p className="keep-listen__eyebrow">A KEEP FOR</p>
-            <h1 className="keep-listen__name">{name}</h1>
-            <p className="keep-listen__signature">{[from ? `from ${from}` : "", year].filter(Boolean).join(" · ")}</p>
+        <div className="mx-auto max-w-[650px] px-6 pb-[max(100px,env(safe-area-inset-bottom))]">
+          <div className="pb-9 pt-12 text-center">
+            <p className="text-[10px] font-semibold uppercase tracking-[.23em] text-[#937D68]">LISTEN &amp; READ · A PERSONAL KEEP</p>
+            <h1 className="mt-5 font-display text-[clamp(54px,12vw,82px)] leading-none tracking-[-.055em]">{name}</h1>
+            <p className="mt-4 text-xs tracking-[.05em] text-[#807367]">{[from ? `from ${from}` : "", year].filter(Boolean).join(" · ")}</p>
           </div>
           {audioUrl && <audio ref={audio} crossOrigin="anonymous" src={audioUrl} preload="metadata"
-            onLoadedMetadata={(event) => { const d = event.currentTarget.duration; if (Number.isFinite(d) && d > 0) setListenDuration(d); }}
+            onLoadedMetadata={e => { const d = e.currentTarget.duration; if (Number.isFinite(d) && d > 0) setListenDuration(d); }}
             onPlay={() => { listenHasStarted.current = true; setListening(true); }}
             onPause={() => { if (!listenIntroTimer.current) setListening(false); }}
-            onEnded={() => { setListening(false); timer.current = window.setTimeout(finishExperience, KEEP_MUSIC_TAIL_SECONDS * 1000); }}
-            onTimeUpdate={(event) => { const a = event.currentTarget; const d = Number.isFinite(a.duration) && a.duration > 0 ? a.duration : audioDuration; setListenProgress(Math.min(100, (a.currentTime / d) * 100)); }}
+            onEnded={() => { setListening(false); timer.current = window.setTimeout(() => { void listenMix.current?.pause(); }, KEEP_MUSIC_TAIL_SECONDS * 1000); }}
+            onTimeUpdate={e => { const el = e.currentTarget; const d = Number.isFinite(el.duration) && el.duration > 0 ? el.duration : audioDuration; setListenProgress(Math.min(100, (el.currentTime / d) * 100)); }}
           />}
-          <div className="keep-listen__controls">
-            <div className="keep-listen__progress">
-              <input type="range" min="0" max="100" step=".1" value={listenProgress}
-                aria-label="Audio playback position"
-                onChange={(event) => {
-                  const pct = Number(event.target.value);
-                  setListenProgress(pct);
-                  if (audio.current && Number.isFinite(audio.current.duration) && audio.current.duration > 0) audio.current.currentTime = pct / 100 * audio.current.duration;
-                }}
-                className="keep-listen__range"
-                style={{ background: `linear-gradient(to right, #DDCAB5 ${listenProgress}%, rgba(247,245,242,.20) ${listenProgress}%)` }}
-              />
-              <div className="keep-listen__times"><span>{stamp(elapsed)}</span><span>{stamp(total)}</span></div>
+          <div className="sticky top-3 z-20 rounded-[22px] border border-[#D6C7B8] bg-[#FFFCF7]/95 p-5 shadow-[0_14px_40px_rgba(43,30,18,.10)] backdrop-blur-xl">
+            <div className="flex items-center justify-between gap-4">
+              <div><p className="text-[10px] font-semibold uppercase tracking-[.16em] text-[#907B68]">THE ORIGINAL VOICES</p>
+                <p className="mt-1 font-display text-[clamp(19px,5vw,24px)] text-[#302922]">{listening ? "Listen to their words." : listenProgress >= 99 ? "Their message is yours." : "Read along, at your pace."}</p>
+              </div>
+              <button type="button" aria-label={listening ? "Pause narration" : "Play narration"} onClick={toggleListen} className="flex size-14 shrink-0 items-center justify-center rounded-full bg-[#25201D] text-[#F7F5F2] shadow-sm active:scale-95">
+                {listening ? <Pause className="size-6" fill="currentColor" /> : <Play className="ml-1 size-6" fill="currentColor" />}
+              </button>
             </div>
-            <button type="button" className="keep-listen__play" aria-label={listening ? "Pause narration" : "Play narration"} onClick={toggleListen}>
-              {listening ? <Pause className="size-7" fill="currentColor" /> : <Play className="ml-1 size-7" fill="currentColor" />}
-            </button>
-            <p className="keep-listen__hint">{listening ? "Playing your Keep" : "Press play when you're ready"}</p>
+            <input type="range" min="0" max="100" step=".1" value={listenProgress} aria-label="Audio playback position"
+              onChange={e => {const pct = Number(e.target.value);setListenProgress(pct);if(audio.current && Number.isFinite(audio.current.duration) && audio.current.duration > 0)audio.current.currentTime=pct/100*audio.current.duration;}}
+              className="mt-5 h-1.5 w-full cursor-pointer accent-[#7D6753]" />
+            <div className="mt-1.5 flex justify-between text-[10px] tabular-nums text-[#817365]"><span>{stamp(elapsed)}</span><span>{stamp(total)}</span></div>
           </div>
-          <div className="keep-listen__footer"><div className="mx-auto mb-5 h-px w-12 bg-[#C4AD91]/50" /><p>Some things are worth listening to.</p></div>
+          <div className="mx-auto mt-12 h-10 w-px bg-gradient-to-b from-transparent via-[#B7A58F] to-transparent" aria-hidden="true" />
+          <article className="mx-auto max-w-[580px]">
+            <p className="mb-8 text-center text-[10px] font-semibold uppercase tracking-[.18em] text-[#9A8775]">THE WORDS THEY WANTED YOU TO HEAR</p>
+            <div className="space-y-10">{paragraphs.map((paragraph, i) => <section key={i}>
+              {speakerNames?.[i] && <p className="mb-3 text-[10px] font-semibold uppercase tracking-[.18em] text-[#8C7660]">{speakerNames[i]}</p>}
+              <p className="whitespace-pre-wrap font-display text-[clamp(22px,5.6vw,30px)] leading-[1.58] tracking-[-.012em] text-[#302922]">{paragraph}</p>
+            </section>)}</div>
+          </article>
+          <footer className="mt-16 border-t border-[#D8CBBE] pt-9 text-center">
+            <p className="font-display text-[29px] italic text-[#544535]">Some things are worth keeping.</p>
+            <button type="button" onClick={finishExperience} className="mt-7 inline-flex min-h-12 items-center gap-2 rounded-full border border-[#BBA994] px-6 text-xs font-semibold text-[#5C4938]">Finish this experience <ArrowRight className="size-4" /></button>
+          </footer>
         </div>
       </section>
     </main>;
