@@ -4,7 +4,7 @@ import { ArrowLeft, Volume2, VolumeX, Pause, Play } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { createKeepVoiceMix, KEEP_MUSIC_LEAD_SECONDS, KEEP_MUSIC_TAIL_SECONDS, type MusicBalance } from "@/lib/keep-audio";
 import type { AudioMix, CaptionCue } from "@/lib/keep-project";
-import { captionAtTime } from "@/lib/keep-caption-timing";
+import { captionAtTime, recoverCaptionTiming } from "@/lib/keep-caption-timing";
 import { sceneDuration, sceneElapsed as filmSceneElapsed, sceneIndexAt } from "@/lib/keep-film-timing";
 import couple from "@/assets/memory-couple.jpg";
 import home from "@/assets/memory-home.jpg";
@@ -32,6 +32,7 @@ export function KeepPlayer({ name, from, year, onExit, onFinish, recipient = fal
   const [audioTime, setAudioTime] = useState(0);
   const [masterDuration, setMasterDuration] = useState(audioDuration);
   const [voiceStarted, setVoiceStarted] = useState(false);
+  const [voiceEnded, setVoiceEnded] = useState(false);
   const [controlsVisible, setControlsVisible] = useState(true);
   const [mediaReady, setMediaReady] = useState(false);
   const controlsTimer = useRef<number | null>(null);
@@ -47,6 +48,9 @@ export function KeepPlayer({ name, from, year, onExit, onFinish, recipient = fal
   const mediaFingerprint = JSON.stringify(media ?? []);
   const items: PlayerMedia[] = useMemo(() => media?.length ? media : memoryImages.map((url) => ({ url, kind: "image" as const })), [mediaFingerprint]);
   const words = lines?.length ? lines : defaultLines;
+  // Older published Keeps may have provider timestamps that are in range but unusable.
+  // Fix playback timing without changing their narration or caption text.
+  const playbackCues = useMemo(() => recoverCaptionTiming([], captionCues, masterDuration || audioDuration || 0).cues, [captionCues, masterDuration, audioDuration]);
   const end = !audioUrl && scene >= 5;
 
   // Decode the opening frame before starting the music/voice timeline.
@@ -247,15 +251,16 @@ export function KeepPlayer({ name, from, year, onExit, onFinish, recipient = fal
   };
   const item = scene >= 0 ? items[Math.min(scene, items.length - 1)] : undefined;
   const nextItem = scene >= 0 ? items[scene + 1] : undefined;
-  const activeCue = captionAtTime(captionCues, audioTime);
-  const captionText = audioUrl && !voiceStarted ? "" : (activeCue?.text || (!captionCues.length && scene >= 0 ? words[scene % words.length] : ""));
+  const activeCue = captionAtTime(playbackCues, audioTime);
+  // A real recording must never display demo captions as a fallback.
+  const captionText = audioUrl ? (voiceStarted && !voiceEnded ? activeCue?.text ?? "" : "") : (scene >= 0 ? words[scene % words.length] : "");
 
   return <div className="relative keep-h-screen min-h-0 w-full overflow-hidden bg-[#F7F5F2] text-foreground" onClick={(event) => {
     if ((event.target as HTMLElement).closest("button")) return;
     if (controlsVisible) setControlsVisible(false);
     else showControls();
   }}>
-    {audioUrl && <audio ref={audio} crossOrigin="anonymous" src={audioUrl} playsInline preload="auto" onLoadedMetadata={(event) => { const duration = event.currentTarget.duration; if (Number.isFinite(duration) && duration > 0) setMasterDuration(duration); }} onEnded={() => { if (endingTimer.current) window.clearTimeout(endingTimer.current); endingTimer.current = window.setTimeout(() => { if (!finishSent.current) { finishSent.current = true; onFinish?.(); } }, KEEP_MUSIC_TAIL_SECONDS * 1000); }} onTimeUpdate={(e) => { const a = e.currentTarget; const d = Number.isFinite(a.duration) && a.duration > 0 ? a.duration : audioDuration || 1; setAudioTime(a.currentTime); setScene((current) => { const index = sceneIndexAt(items, a.currentTime, d); return current < 0 || current === index ? current : index; }); }} />}
+    {audioUrl && <audio ref={audio} crossOrigin="anonymous" src={audioUrl} playsInline preload="auto" onPlay={() => setVoiceEnded(false)} onLoadedMetadata={(event) => { const duration = event.currentTarget.duration; if (Number.isFinite(duration) && duration > 0) setMasterDuration(duration); }} onEnded={() => { setVoiceEnded(true); if (endingTimer.current) window.clearTimeout(endingTimer.current); endingTimer.current = window.setTimeout(() => { if (!finishSent.current) { finishSent.current = true; onFinish?.(); } }, KEEP_MUSIC_TAIL_SECONDS * 1000); }} onTimeUpdate={(e) => { const a = e.currentTarget; const d = Number.isFinite(a.duration) && a.duration > 0 ? a.duration : audioDuration || 1; setAudioTime(a.currentTime); setScene((current) => { const index = sceneIndexAt(items, a.currentTime, d); return current < 0 || current === index ? current : index; }); }} />}
     {item && !end && <><CinematicMedia item={item} nextItem={nextItem} followingItem={items[scene + 2]} sceneKey={scene} motionIndex={scene} playing={playing} duration={targetSceneSeconds}
       sceneElapsed={audioUrl && voiceStarted && scene > 0
         ? filmSceneElapsed(items, scene, audioTime, masterDuration || audioDuration)
