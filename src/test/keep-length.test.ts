@@ -2,11 +2,11 @@ import { expect, it } from "vitest";
 import { countKeepWords, estimateKeepSeconds, formatKeepTime, getKeepLengthFeedback, KEEP_TARGET_MIN_WORDS, KEEP_TARGET_MAX_WORDS } from "@/lib/keep-length";
 
 it("keeps the natural writing target in the two-to-three-minute window", () => {
-  expect(KEEP_TARGET_MIN_WORDS).toBe(280);
-  expect(KEEP_TARGET_MAX_WORDS).toBe(420);
-  expect(formatKeepTime(estimateKeepSeconds(280))).toBe("2:00");
-  expect(formatKeepTime(estimateKeepSeconds(420))).toBe("3:00");
-  expect(formatKeepTime(estimateKeepSeconds(350))).toBe("2:30");
+  expect(KEEP_TARGET_MIN_WORDS).toBe(340);
+  expect(KEEP_TARGET_MAX_WORDS).toBe(390);
+  expect(formatKeepTime(estimateKeepSeconds(340))).toBe("2:00");
+  expect(formatKeepTime(estimateKeepSeconds(390))).toBe("2:18");
+  expect(formatKeepTime(estimateKeepSeconds(350))).toBe("2:04");
 });
 
 it("counts words across multiline uploaded and edited text", () => {
