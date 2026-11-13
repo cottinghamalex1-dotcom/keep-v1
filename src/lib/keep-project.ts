@@ -68,6 +68,8 @@ export type KeepProject = {
   contributors?: KeepContributor[];
   paragraphSpeakers?: string[];
   voiceParts?: KeepVoicePart[];
+  /** Snapshot of the script and parts used to build the final narration. */
+  groupVoiceSignature?: string;
   finalVoiceRecording: VoiceRecording | null;
   captionTranscript: string;
   captionCues: CaptionCue[];
