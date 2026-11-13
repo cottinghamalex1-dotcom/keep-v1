@@ -26,7 +26,7 @@ describe("shared recording teleprompter", () => {
     expect(screen.getByLabelText("Recording paused")).toHaveTextContent("PAUSED");
   });
 
-  it("keeps the scripture scrollable by hand and offers a way back to auto-scroll", () => {
+  it("keeps the script scrollable by hand and offers a way back to auto-scroll", () => {
     render(<KeepTeleprompter {...props} isRecording />);
     const viewport = screen.getByLabelText("Teleprompter script. Swipe to adjust your reading position.");
     fireEvent.touchStart(viewport);
