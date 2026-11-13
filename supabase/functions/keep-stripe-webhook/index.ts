@@ -5,7 +5,7 @@ import { createClient } from "@supabase/supabase-js";
  *
  * This function accepts server-to-server webhooks only. It NEVER trusts
  * the success-page URL, customer-provided checkout IDs, or client flags.
- * Configure its Stripe signing secret and exact Payment Link ID privately.
+ * Configure its Stripe signing secret and all three exact Payment Link IDs privately.
  *
  * NOTE: Do not deploy until the additive Stripe migration has been applied.
  */
@@ -90,16 +90,27 @@ async function verifyStripeSignature(payload: string, signature: string) {
 }
 
 async function recordSale(session: StripeSession, event: StripeEvent) {
-  const allowedLink = Deno.env.get("KEEP_STRIPE_PAYMENT_LINK_ID") ?? "";
-  if (!/^plink_[a-zA-Z0-9]+$/.test(allowedLink)) return respond({ error: "Stripe checkout not configured" }, 503);
-  if (session.payment_link !== allowedLink) return respond({ ignored: true });
+  // A signed Stripe event is not enough: only the three dedicated links below
+  // may grant one digital Keep. The package determines the physical card count.
+  const availableLinks = [
+    { tier: "basic", link: Deno.env.get("KEEP_STRIPE_BASIC_PAYMENT_LINK_ID") ?? "", amount: 6900, cards: 1 },
+    { tier: "signature", link: Deno.env.get("KEEP_STRIPE_SIGNATURE_PAYMENT_LINK_ID") ?? Deno.env.get("KEEP_STRIPE_PAYMENT_LINK_ID") ?? "", amount: 9900, cards: 1 },
+    { tier: "deluxe", link: Deno.env.get("KEEP_STRIPE_DELUXE_PAYMENT_LINK_ID") ?? "", amount: 12900, cards: 2 },
+  ] as const;
+  if (!availableLinks.some(p => /^plink_[a-zA-Z0-9]+$/.test(p.link)))
+    return respond({ error: "Stripe checkout not configured" }, 503);
+  const packageChoice = availableLinks.find(p =>
+    /^plink_[a-zA-Z0-9]+$/.test(p.link) && p.link === session.payment_link,
+  );
+  if (!packageChoice) return respond({ ignored: "unrecognized_payment_link" });
   if (!/^cs_(?:live|test)_[a-zA-Z0-9]+$/.test(session.id ?? "")) return respond({ error: "Missing Stripe session ID" }, 400);
   if (session.mode !== "payment" || session.payment_status !== "paid") return respond({ ignored: true });
 
-  // Signature, selected Payment Link ID and fixed product amount are all required.
+  // Signature, exact tier-specific Payment Link ID and fixed product amount are all required.
   // Payment Link quantity adjustment and promotion codes MUST remain disabled.
   if (session.currency?.toLowerCase() !== "usd" ||
-      session.amount_subtotal !== 9900 || (session.amount_total ?? 0) < 9900 ||
+      session.amount_subtotal !== packageChoice.amount ||
+      (session.amount_total ?? 0) < packageChoice.amount ||
       (session.total_details?.amount_discount ?? 0) !== 0 ||
       (session.total_details?.amount_shipping ?? 0) !== 0)
     return respond({ error: "Unexpected price, currency, discount or shipping" }, 422);
@@ -107,7 +118,7 @@ async function recordSale(session: StripeSession, event: StripeEvent) {
   const email = cleanEmail(session.customer_details?.email || session.customer_email);
   const shipping = session.collected_information?.shipping_details ?? session.shipping_details;
   const address = shipping?.address;
-  // Keep's $99 offer includes delivery in the US; don't silently accept missing addresses.
+  // All three packages include US delivery; don't silently accept missing addresses.
   if (!email || !email.includes("@") || !address || address.country !== "US" ||
       !address.line1 || !address.city || !address.state || !address.postal_code)
     return respond({ error: "Verified purchaser email and US shipping address required" }, 422);
@@ -123,9 +134,11 @@ async function recordSale(session: StripeSession, event: StripeEvent) {
     payment_provider: "stripe",
     stripe_checkout_session_id: session.id,
     stripe_payment_intent_id: paymentIntentId,
-    stripe_payment_link_id: allowedLink,
+    stripe_payment_link_id: packageChoice.link,
     stripe_amount_total: session.amount_total,
     stripe_currency: "usd",
+    package_tier: packageChoice.tier,
+    included_card_count: packageChoice.cards,
     stripe_shipping_details: {
       name: shipping?.name?.slice(0, 180) ?? null,
       phone: shipping?.phone?.slice(0, 40) ?? null,
