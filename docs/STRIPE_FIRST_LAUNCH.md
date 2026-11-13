@@ -1,3 +1,45 @@
+# Three-package Keep catalog — November 13, 2026
+
+All packages are **products in the verified Keep live Stripe account** (`acct_1JQdAcB5i8TaAgYD`), but **all Stripe Payment Links are inactive** until launch readiness. Each purchase unlocks **one digital Keep experience**.
+
+| Package | USD price | Included physical cards | Engraving | Product ID | Price ID | Payment Link ID |
+| --- | ---: | ---: | --- | --- | --- | --- |
+| Basic | $69 | 1 | Keep logo only; no custom engraving | `prod_VccYU0bRhgC4Xr` | `price_1UbNJXB5i8TaAgYDA1oB6BcU` | `plink_1UbNJvB5i8TaAgYDen9nvse7` |
+| Signature | $99 | 1 | Keep logo plus custom front laser-engraved message | `prod_Vcanm4OJMmYA3Z` | `price_1UbLcIB5i8TaAgYDZIWzpiYJ` | `plink_1UbLd8B5i8TaAgYDO97wCkDB` |
+| Deluxe | $129 | 2 | Keep logo and separate custom front engraving on each card | `prod_VccYIBwR8PtxEu` | `price_1UbNJYB5i8TaAgYDPx4E1zUj` | `plink_1UbNJyB5i8TaAgYDbRRzFcwG` |
+
+Payment Links:
+- Basic `https://buy.stripe.com/00wbJ09b71J84Vn0tN9ws01`
+- Signature `https://buy.stripe.com/cNi14m2MJ5Zo9bD3FZ9ws00`
+- Deluxe `https://buy.stripe.com/28E4gy2MJfzYdrT2BV9ws02`
+
+**Assumptions needing product approval before public launch:**
+- Deluxe includes exactly **two** cards at $129; additional cards cost extra and need their own price.
+- One digital memory experience is shared across the cards in a Deluxe order; if separate memories are desired, update the pricing and entitlements before enabling checkout.
+- The creation app must allow Deluxe customers to customize and approve **two separate card engravings**; Basic customers should not see engraving controls; Signature gets one engraving.
+- Each price excludes sales tax; US standard shipping included; shipping address collection US-only; no Georgia tax registration on Stripe yet.
+- A three-column pricing section exists on the **staged Vercel /shop** branch, **not yet on the private official OpenAI Sites website**.
+
+The staged webhook now matches three exact Payment Link IDs and amounts, and stores `package_tier` plus `included_card_count`; this code and migration are **not deployed**. Private Edge environment must be configured with:
+
+```text
+KEEP_STRIPE_BASIC_PAYMENT_LINK_ID=plink_1UbNJvB5i8TaAgYDen9nvse7
+KEEP_STRIPE_SIGNATURE_PAYMENT_LINK_ID=plink_1UbLd8B5i8TaAgYDO97wCkDB
+KEEP_STRIPE_DELUXE_PAYMENT_LINK_ID=plink_1UbNJyB5i8TaAgYDbRRzFcwG
+```
+
+The client preview uses:
+```text
+VITE_KEEP_STRIPE_BASIC_PAYMENT_LINK_URL=https://buy.stripe.com/00wbJ09b71J84Vn0tN9ws01
+VITE_KEEP_STRIPE_PAYMENT_LINK_URL=https://buy.stripe.com/cNi14m2MJ5Zo9bD3FZ9ws00
+VITE_KEEP_STRIPE_DELUXE_PAYMENT_LINK_URL=https://buy.stripe.com/28E4gy2MJfzYdrT2BV9ws02
+VITE_KEEP_STRIPE_CHECKOUT_READY=false
+```
+
+Keep all checkout links inactive and this flag false until Stripe webhook delivery, one-per-order entitlements, partial/refund events, two-card engraving workflow, Georgia tax registration, and card fulfillment have passed tests.
+
+---
+
 # Stripe objects now created in the Keep account (November 13, 2026)
 
 - Account: `acct_1JQdAcB5i8TaAgYD` — display name verified as Keep.
