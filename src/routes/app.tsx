@@ -1,6 +1,7 @@
 import { viewingLink } from "@/lib/keep-publish";
 import { KeepLibraryCard } from "@/components/keep-library-card";
 import { KeepCreateCTA } from "@/components/keep-create-cta";
+import { KeepCollectionCard } from "@/components/keep-collection-card";
 import { KeepAccountDashboard } from "@/components/keep-account-dashboard";
 import { deleteOwnedKeep, keepDeleteConfirmation } from "@/lib/keep-delete";
 import { clearDraft, loadDraft, projectBlobIds } from "@/lib/keep-project";
@@ -191,8 +192,10 @@ function KeepDashboard() {
               onDelete={()=>void removeKeep(keep)}/>)}
           </div>
         </section>}
-        <div className="grid grid-cols-2 gap-3"><button className={secondary} onClick={() => setTab("given")}><Gift className="mb-3 text-[#6A5849]" />Given Keeps <span className="block pt-1 text-2xl">{cards.filter(c => c.creator_id === session.user.id).length}</span></button><button className={secondary} onClick={() => setTab("received")}><Heart className="mb-3 text-[#6A5849]" />Received Keeps <span className="block pt-1 text-2xl">{cards.filter(c => c.recipient_id === session.user.id).length}</span></button></div>
-        <a href="/?create=1" className="keep-editorial-surface flex items-center justify-between px-5 py-4 text-foreground"><span><strong className="block text-sm font-medium">Create another Keep</strong><small className="mt-1 block text-xs text-muted-foreground">Start a new story</small></span><Plus className="size-5 text-[#6A5849]" /></a>
+        <div className="grid grid-cols-2 gap-3">
+          <KeepCollectionCard kind="given" count={cards.filter(c => c.creator_id === session.user.id).length} onClick={() => setTab("given")} />
+          <KeepCollectionCard kind="received" count={cards.filter(c => c.recipient_id === session.user.id).length} onClick={() => setTab("received")} />
+        </div>
       </div>}
       {(tab === "given" || tab === "received") && <div className="space-y-3">{cards.filter(c => tab === "given" ? c.creator_id === session.user.id : c.recipient_id === session.user.id).length ? cards.filter(c => tab === "given" ? c.creator_id === session.user.id : c.recipient_id === session.user.id).map(card => <div key={card.id} className="rounded-xl border border-border/80 p-5"><div className="flex items-center gap-4"><div className="flex h-20 w-14 items-center justify-center rounded-lg bg-secondary"><CreditCard className="text-[#6A5849]" /></div><div><strong className="block">{card.recipient_label || "Physical Keep"}</strong><span className="mt-1 block text-xs capitalize text-muted-foreground">{card.status}</span><span className="mt-2 block text-xs text-muted-foreground">Card ending {card.card_code.slice(-4)}</span></div></div><div className="mt-4 border-t border-border/80 pt-3 text-xs text-muted-foreground"><ShieldCheck className="mr-2 inline size-4" />Card management · Playback requires the physical card</div></div>) : <div className="rounded-xl border border-dashed border-border/80 p-9 text-center"><CreditCard className="mx-auto mb-4 text-[#6A5849]" /><h2 className="font-display text-2xl">Nothing here yet.</h2><p className="mt-3 text-sm leading-6 text-muted-foreground">Your keepsakes will appear here.</p></div>}</div>}
       {tab === "account" && <KeepAccountDashboard key={session.user.id + ":" + displayName}
