@@ -251,7 +251,7 @@ export function KeepPlayer({ name, from, year, onExit, onFinish, recipient = fal
   };
   const item = scene >= 0 ? items[Math.min(scene, items.length - 1)] : undefined;
   const nextItem = scene >= 0 ? items[scene + 1] : undefined;
-  const activeCue = captionAtTime(playbackCues, audioTime);
+  const activeCue = captionAtTime(playbackCues, audioTime, masterDuration || audioDuration);
   // A real recording must never display demo captions as a fallback.
   const captionText = audioUrl ? (voiceStarted && !voiceEnded ? activeCue?.text ?? "" : "") : (scene >= 0 ? words[scene % words.length] : "");
 
