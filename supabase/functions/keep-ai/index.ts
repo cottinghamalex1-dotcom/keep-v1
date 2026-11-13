@@ -91,6 +91,7 @@ const normalizeContext = (body: any) => {
     occasion: String(body.occasion || "").slice(0, 160),
     intent: String(body.intent || "").slice(0, 2500),
     answers,
+    contributors: Array.isArray(body.contributors) ? body.contributors.slice(0, 8).map((n: unknown) => String(n).trim().slice(0, 60)).filter(Boolean) : [],
   };
 };
 
@@ -220,6 +221,7 @@ Rules:
 The ideal reaction is: "That's exactly what I meant. I just didn't know how to say it."
 
 Writing rules:
+- If the creator has multiple contributors, write a united gift that several people can speak. Use 4–8 clearly separable, self-contained paragraphs/turns that the creator can assign to named speakers later. Do not invent each person's memories, opinions, first-person claims, or special relationships. Use only facts supplied in the interview; prefer inclusive "we" when true to the source.
 - Write directly to the recipient, not about them.
 - Preserve the creator's actual facts, memories, phrases, emotional emphasis, and natural vocabulary.
 - Never invent a memory, detail, quote, trait, event, or feeling.
