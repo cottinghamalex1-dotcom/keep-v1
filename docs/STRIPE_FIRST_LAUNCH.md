@@ -1,3 +1,21 @@
+# Stripe objects now created in the Keep account (November 13, 2026)
+
+- Account: `acct_1JQdAcB5i8TaAgYD` — display name verified as Keep.
+- Product: `prod_Vcanm4OJMmYA3Z`, **Keep — Signature Card** (physical card and digital experience), tax code `txcd_99999999` (general tangible goods; confirm bundled offer classification with tax adviser).
+- One-time Price: `price_1UbLcIB5i8TaAgYDZIWzpiYJ` — USD $99, tax exclusive.
+- Stripe live Payment Link: `plink_1UbLd8B5i8TaAgYDO97wCkDB`; public URL `https://buy.stripe.com/cNi14m2MJ5Zo9bD3FZ9ws00`.
+- **Payment Link is INACTIVE** — never enable until signed webhook, customer account handoff, GA registration, and shipping testing pass.
+- Payment Link has quantity fixed at 1, promotions disabled, US shipping address required, no shipping fee, Stripe Tax automatic enabled, redirects to `https://keep-v1.vercel.app/start` after checkout (not live yet).
+- Stripe Tax settings `active`, but **there are zero tax registrations**. State tax registration with Georgia DOR must be completed by the owner before `PostTaxRegistrations` may be used. Stripe does not register with Georgia DOR.
+- Vercel Preview branch environment variables configured:
+  - `VITE_KEEP_STRIPE_PAYMENT_LINK_URL` = link above
+  - `VITE_KEEP_STRIPE_CHECKOUT_READY` = `false`
+  Neither is set in production. Production creator app remains unchanged.
+- The private Sites website has NOT yet been published with the Stripe checkout link.
+- No Shopify money or store change performed during Stripe launch.
+
+---
+
 # Keep — Stripe-first purchase flow (draft implementation)
 
 ## Product and launch position
