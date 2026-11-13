@@ -21,8 +21,8 @@ export function captionTimingIsBroken(words: CaptionWord[], cues: CaptionCue[], 
   if (stretched) return true;
   const reversed = cues.slice(1).some((cue, index) => cue.start + 0.05 < cues[index]!.start);
   if (reversed) return true;
-  const deadTime = cues.reduce((gap, cue, index) => gap + Math.max(0, cue.start - (index ? cues[index-1]!.end : 0)), 0);
-  if (deadTime > Math.max(10, duration * 0.13)) return true;
+  // Silence between phrases is not, on its own, an invalid timestamp.
+  // The player keeps the prior phrase visible until the next one starts.
 
   const tinyCues = cues.filter((cue) => cue.end - cue.start < 0.18).length;
   const delay = cues[0]!.start;
@@ -61,12 +61,37 @@ export function recoverCaptionTiming(
 ): { words: CaptionWord[]; cues: CaptionCue[]; repaired: boolean } {
   if (!captionTimingIsBroken(words, cues, duration)) return { words, cues, repaired: false };
 
-  // Preserve original caption wording (including any creator edits) and audio.
-  // Timing is estimated across the known recording duration, not claimed to
-  // be word-accurate; the editor still supports individual timing adjustment.
   const safeDuration = Math.max(0.5, duration);
-  const correctedWords = spreadByWords(words, safeDuration, (w) => w.word, (w, start, end) => ({ ...w, start, end }));
-  const correctedCues = spreadByWords(cues, safeDuration, (c) => c.text, (c, start, end) => ({ ...c, start, end }));
+  const tinyWords = words.length ? words.filter(w => !valid(w.start) || !valid(w.end) || w.end - w.start <= 0.045).length / words.length : 0;
+  const repeatedWords = words.length > 1 ? words.slice(1).filter((w,i) => Math.abs(w.start - words[i]!.start) < 0.03).length / (words.length - 1) : 0;
+  const tinyCues = cues.filter(c => c.end - c.start < 0.18).length;
+  const reversedCues = cues.slice(1).some((cue,i) => cue.start + 0.05 < cues[i]!.start);
+  const invalidCues = cues.some(c => !valid(c.start) || !valid(c.end) || c.end <= c.start || c.end > duration + 2);
+  const fullyCollapsed = tinyWords > 0.22 || repeatedWords > 0.19 ||
+    tinyCues >= Math.max(3, Math.ceil(cues.length * 0.24)) || reversedCues || invalidCues;
+
+  // For a widespread collapse of provider timestamps there are no trustworthy
+  // anchors left. Spread the existing words across the voice recording.
+  if (fullyCollapsed) {
+    const correctedWords = spreadByWords(words, safeDuration, w => w.word, (w, start, end) => ({ ...w, start, end }));
+    const correctedCues = spreadByWords(cues, safeDuration, c => c.text, (c, start, end) => ({ ...c, start, end }));
+    return { words: correctedWords, cues: correctedCues, repaired: true };
+  }
+
+  // A few abnormally long phrases are a different failure: most timestamps
+  // remain credible. Keep their exact starts and all later good alignment.
+  // Never globally re-time an entire Keep because one phrase stretched.
+  const correctedCues = cues.map(c => {
+    const start = Math.max(0, Math.min(safeDuration - 0.08, c.start));
+    const maxSpan = Math.max(7, spokenWords(c.text) * 1.25 + 1.5);
+    const end = Math.min(safeDuration, Math.max(start + 0.08, Math.min(c.end, start + maxSpan - 0.03)));
+    return { ...c, start, end };
+  });
+  const correctedWords = words.map(w => {
+    const start = Math.max(0, Math.min(safeDuration - 0.08, w.start));
+    const end = Math.min(safeDuration, Math.max(start + 0.08, Math.min(w.end, start + 2.5)));
+    return { ...w, start, end };
+  });
   return { words: correctedWords, cues: correctedCues, repaired: true };
 }
 
