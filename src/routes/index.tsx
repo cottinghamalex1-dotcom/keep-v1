@@ -7,6 +7,7 @@ import { publishKeep } from "@/lib/keep-publish";
 import { KeepCaptionEditor } from "@/components/keep-caption-editor";
 import { KeepMusicEditor } from "@/components/keep-music-editor";
 import { KeepVoiceEditor } from "@/components/keep-voice-editor";
+import { KeepTeleprompter } from "@/components/keep-teleprompter";
 import { KeepStyleEditor } from "@/components/keep-style-editor";
 import { KeepFinishingChoices } from "@/components/keep-finishing-choices";
 import { KeepAskAIModal, KeepWordChanges } from "@/components/keep-ask-ai-modal";
@@ -203,10 +204,6 @@ function KeepApp() {
   const [publishError, setPublishError] = useState("");
   const publishingLock = useRef(false);
   const [setting, setSetting] = useState("");
-  const [scroll, setScroll] = useState(0);
-  const [scrollPaused, setScrollPaused] = useState(false);
-  const [teleprompterSpeed, setTeleprompterSpeed] = useState(1);
-  const [rehearsing, setRehearsing] = useState(false);
   const [voicePlaying, setVoicePlaying] = useState(false);
   const [voiceTime, setVoiceTime] = useState(0);
   const [captionSyncing, setCaptionSyncing] = useState(false);
@@ -227,7 +224,6 @@ function KeepApp() {
   const dictationRef = useRef<any>(null);
   const dictationTargetRef = useRef<"write" | "intent">("write");
   const recorder = useRecorder();
-  const lastElapsed = useRef(0);
   const addInput = useRef<HTMLInputElement>(null);
   const draftInput = useRef<HTMLInputElement>(null);
   const replaceInput = useRef<HTMLInputElement>(null);
@@ -355,21 +351,6 @@ function KeepApp() {
     setVoiceTime(0);
   }, [screen]);
   useEffect(() => { if (screen !== "write" && screen !== "intent" && dictationRef.current) { dictationRef.current.stop(); dictationRef.current = null; setDictating(false); } }, [screen]);
-  useEffect(() => { const d = recorder.elapsed - lastElapsed.current; lastElapsed.current = recorder.elapsed; if (screen === "record" && d > 0 && d < 2 && !scrollPaused) setScroll((s) => s + d * 15 * teleprompterSpeed); }, [recorder.elapsed, screen, scrollPaused, teleprompterSpeed]);
-  useEffect(() => {
-    if (screen !== "record" || !rehearsing) return;
-    let frame = 0;
-    let last = performance.now();
-    const tick = (now: number) => {
-      const delta = Math.min((now - last) / 1000, 0.12);
-      last = now;
-      if (!scrollPaused) setScroll((value) => value + delta * 15 * teleprompterSpeed);
-      frame = window.requestAnimationFrame(tick);
-    };
-    frame = window.requestAnimationFrame(tick);
-    return () => window.cancelAnimationFrame(frame);
-  }, [screen, rehearsing, scrollPaused, teleprompterSpeed]);
-  useEffect(() => { if (screen !== "record") setRehearsing(false); }, [screen]);
   useEffect(() => {
     if (screen === "editor" && returnToEditorAfterRecording) setReturnToEditorAfterRecording(false);
   }, [screen, returnToEditorAfterRecording]);
@@ -698,7 +679,7 @@ function KeepApp() {
     setRehearsing(false);
     window.scrollTo(0, 0);
   };
-  const startFinal = async () => { setRehearsing(false); setScroll(0); setScrollPaused(false); lastElapsed.current = 0; const ok = await recorder.start(); if (!ok) toast.error("The microphone isn't available right now."); };
+  const startFinal = async () => { const ok = await recorder.start(); if (!ok) toast.error("The microphone isn't available right now."); };
 
   const syncFinalCaptions = async (blob: Blob, mimeType?: string, recordedDuration = rec?.durationSec ?? 0, sourceAudioId?: string) => {
     const request = ++captionSyncToken.current;
@@ -855,6 +836,8 @@ function KeepApp() {
   // ---- Memories ----
   const [styleTouched, setStyleTouched] = useState(false);
   const personalMedia = project.memories.filter((m) => m.source !== "text");
+  const photoCount = personalMedia.filter(m => m.kind === "image").length;
+  const videoCount = personalMedia.filter(m => m.kind === "video").length;
   // Narration-first photo guidance: use the real voice recording when available,
   // otherwise estimate speaking time from the current message (~140 words/minute).
   const narrationWordCount = countKeepWords(project.messageParagraphs.join(" "));
@@ -1601,47 +1584,81 @@ function KeepApp() {
         </div>
       </section>
     </div>}
-    {(screen === "record" || screen === "recordPrep") && <div inert={screen === "recordPrep"} aria-hidden={screen === "recordPrep"} className="relative grid keep-h-screen min-h-0 grid-rows-[auto_auto_minmax(0,1fr)_auto] overflow-hidden px-7 pb-[max(18px,env(safe-area-inset-bottom))]">{top()}<div className="px-1 pb-3 pt-1 text-center"><h1 className="display text-[clamp(38px,10.5vw,50px)] leading-[0.98]">Now say it in your own voice.</h1><p className="mt-3 text-xs leading-5 text-muted-foreground">These are your words. They should sound like you. <span className="whitespace-nowrap">~{intendedSpeakingTime} to read.</span></p></div><div className="script-fade min-h-0 overflow-hidden py-2"><div className="space-y-8 pt-8 text-center transition-transform duration-300 ease-linear" style={{ transform: `translateY(-${scroll}px)` }}>{project.messageParagraphs.map((p, i) => <p key={i} className={`font-display text-3xl leading-[1.35] ${isRecording || rehearsing ? "text-foreground" : i === 0 ? "text-foreground" : "text-muted-foreground"}`}>{p}</p>)}</div></div><div className="border-t border-border/60 bg-background/95 pt-3 text-center backdrop-blur-sm">
-      <div className="mb-2 flex items-center gap-2">
-        <Button variant="quiet" size="sm" className="flex-1" disabled={teleprompterSpeed <= 0.2} onClick={() => setTeleprompterSpeed((v) => Math.max(0.2, Math.round((v - 0.2) * 10) / 10))}>Slower</Button>
-        <div className="min-w-[96px] text-center"><span className="block text-[10px] tracking-widest text-muted-foreground">TELEPROMPTER</span><span className="mt-1 block text-sm tabular-nums text-foreground">{teleprompterSpeed.toFixed(1)}×</span></div>
-        <Button variant="quiet" size="sm" className="flex-1" disabled={teleprompterSpeed >= 3} onClick={() => setTeleprompterSpeed((v) => Math.min(3, Math.round((v + 0.2) * 10) / 10))}>Faster</Button>
+    {(screen === "record" || screen === "recordPrep") && <div inert={screen === "recordPrep"} aria-hidden={screen === "recordPrep"} className="flex h-[100dvh] min-h-0 flex-col overflow-hidden">
+      <div className="shrink-0">{top()}</div>
+      <div className="mx-auto flex min-h-0 w-full max-w-[650px] flex-1 flex-col px-5 pb-[max(12px,env(safe-area-inset-bottom))] pt-3 sm:px-7">
+        <div className="shrink-0 pb-3 text-center">
+          <p className="text-[10px] font-semibold uppercase tracking-[.17em] text-[#7C6752]">YOUR VOICE · YOUR WORDS</p>
+          <h1 className="mt-1 font-display text-[clamp(28px,7.2vw,40px)] leading-[1.05] tracking-[-.025em]">Now say it in your own voice.</h1>
+          {!isRecording && <p className="mt-1.5 text-[12px] leading-5 text-muted-foreground">Read naturally. The words will scroll for you.</p>}
+        </div>
+        <KeepTeleprompter text={project.messageParagraphs.join("\n\n")} label="YOUR MESSAGE" speaker="Your voice" isRecording={isRecording} isPaused={recorder.status === "paused"} elapsed={recorder.elapsed} />
+        <div className="shrink-0 pt-3">
+          {micUnavailable ? <>
+            <p role="alert" className="mb-2 text-center text-xs text-destructive">{micMessage}</p>
+            <Button variant="keep" size="touch" className="w-full" onClick={useDemoRecording}>Use demo recording (2:30)</Button>
+          </> : !isRecording ? (
+            <Button variant="keep" size="touch" className="w-full" disabled={recorder.status === "requesting" || recorder.supported !== true} onClick={() => void startFinal()}>
+              {recorder.status === "requesting" ? <Loader2 className="size-5 animate-spin" /> : <Mic className="size-5" />}
+              {recorder.status === "requesting" ? "Waiting for microphone…" : "Start recording"}
+            </Button>
+          ) : (
+            <div className="flex gap-2">
+              {recorder.canPause && <Button variant="quiet" size="touch" className="flex-1" onClick={() => recorder.status === "paused" ? recorder.resume() : recorder.pause()}>
+                {recorder.status === "paused" ? <Play className="size-4" /> : <Pause className="size-4" />}
+                {recorder.status === "paused" ? "Resume" : "Pause"}
+              </Button>}
+              <Button variant="keep" size="touch" className="flex-1" onClick={() => void finishFinal()}><Check className="size-4" /> Finish recording</Button>
+            </div>
+          )}
+        </div>
       </div>
-
-      {!isRecording && <div className="mb-3">
-        <Button variant="quiet" size="touch" className="w-full" onClick={() => { setScrollPaused(false); setRehearsing((value) => !value); }}>{rehearsing ? <Pause /> : <Play />}{rehearsing ? "Pause rehearsal" : scroll > 0 ? "Continue rehearsal" : "Rehearse teleprompter"}</Button>
-        {scroll > 0 && <Button variant="bare" size="sm" className="mt-1 text-muted-foreground" onClick={() => { setRehearsing(false); setScroll(0); setScrollPaused(false); }}><RotateCcw /> Restart rehearsal</Button>}
-      </div>}
-
-      {isRecording && <div className="mb-2 text-sm tabular-nums text-accent" role="status">● {fmt(recorder.elapsed)}</div>}
-      {micUnavailable ? <><p className="mt-4 text-xs leading-5 text-muted-foreground">{micMessage}</p><Button variant="keep" size="touch" className="mt-4 w-full" onClick={useDemoRecording}>Use demo recording (2:30)</Button></> : <div className="mt-3 flex gap-2">{!isRecording ? <Button variant="keep" size="touch" className="w-full" disabled={recorder.status === "requesting" || recorder.supported === null} onClick={() => void startFinal()}><Mic /> {recorder.status === "requesting" ? "Waiting for microphone…" : "Start Recording"}</Button> : <>{recorder.canPause ? <Button variant="quiet" size="touch" className="flex-1" onClick={() => (recorder.status === "paused" ? recorder.resume() : recorder.pause())}>{recorder.status === "paused" ? <Play /> : <Pause />}{recorder.status === "paused" ? "Resume" : "Pause"}</Button> : <Button variant="quiet" size="touch" className="flex-1" onClick={() => setScrollPaused(!scrollPaused)}>{scrollPaused ? <Play /> : <Pause />}{scrollPaused ? "Resume script" : "Pause script"}</Button>}<Button variant="keep" size="touch" className="flex-1" onClick={() => void finishFinal()}><Check /> Finish</Button></>}</div>}
-    </div></div>}
-    {screen === "groupRecord" && <>{top()}<div className="mx-auto max-w-[650px] px-6 pb-[max(32px,env(safe-area-inset-bottom))] pt-5">
-      <p className="mb-3 text-[11px] font-semibold uppercase tracking-[.16em] text-[#7C6752]">CREATE TOGETHER · {readyCount} OF {project.messageParagraphs.length} PARTS SAVED</p>
-      <h1 className="font-display text-[clamp(38px,10vw,53px)] leading-[1.08]">Every voice matters.</h1>
-      <p className="mt-3 text-sm leading-6 text-muted-foreground">Record one part at a time. Pass the phone to the next person when you're done. Your recordings are saved as you go.</p>
-      <div className="mt-6 flex flex-wrap gap-2" role="group" aria-label="Choose a recording part">
-        {project.messageParagraphs.map((p,i)=><button type="button" key={i} disabled={isRecording || groupBusy} aria-pressed={groupPartIndex===i} aria-label={`Part ${i+1} for ${speakerName(i)}`} onClick={()=>setGroupPartIndex(i)} className={`flex items-center gap-1.5 rounded-full border px-3 py-2 text-xs font-medium disabled:opacity-50 ${groupPartIndex===i?"border-[#AE9478] bg-[#EDE2D3] text-[#4A382B]":"border-border bg-card text-foreground"}`}>{readyPart(i) ? <Check className="size-3.5 text-[#6A8462]"/> : <Mic className="size-3.5"/>} {i+1}. {speakerName(i)}</button>)}
+    </div>}
+    {screen === "groupRecord" && <div className="flex h-[100dvh] min-h-0 flex-col overflow-hidden">
+      <div className="shrink-0">{top()}</div>
+      <div className="mx-auto flex min-h-0 w-full max-w-[650px] flex-1 flex-col px-5 pb-[max(12px,env(safe-area-inset-bottom))] pt-3 sm:px-7">
+        <div className="shrink-0 pb-3">
+          <p className="text-[10px] font-semibold uppercase tracking-[.16em] text-[#7C6752]">CREATE TOGETHER · {readyCount} OF {project.messageParagraphs.length} PARTS SAVED</p>
+          <h1 className="mt-1 font-display text-[clamp(29px,7.5vw,42px)] leading-[1.07] tracking-[-.025em]">Every voice matters.</h1>
+          {!isRecording && <p className="mt-1.5 text-[12px] leading-5 text-muted-foreground">Each person reads their turn. Pass the phone when you're done.</p>}
+        </div>
+        <div className="mb-3 flex shrink-0 gap-2 overflow-x-auto pb-1" role="group" aria-label="Choose a recording part">
+          {project.messageParagraphs.map((p,i) => <button type="button" key={i} disabled={isRecording || groupBusy} aria-pressed={groupPartIndex === i} aria-label={"Part " + (i+1) + " for " + speakerName(i)} onClick={() => setGroupPartIndex(i)}
+            className={groupPartIndex === i ? "flex min-h-10 shrink-0 items-center gap-1.5 rounded-full border border-[#AE9478] bg-[#EDE2D3] px-3 text-xs font-medium text-[#4A382B] disabled:opacity-65" : "flex min-h-10 shrink-0 items-center gap-1.5 rounded-full border border-[#DDD2C6] bg-card px-3 text-xs text-foreground disabled:opacity-65"}>
+            {readyPart(i) ? <Check className="size-3.5 text-[#6A8462]" /> : <Mic className="size-3.5" />} {i+1}. {speakerName(i)}
+          </button>)}
+        </div>
+        <KeepTeleprompter key={groupPartIndex} text={project.messageParagraphs[groupPartIndex] ?? ""} label={"PART " + (groupPartIndex+1) + " OF " + project.messageParagraphs.length}
+          speaker={speakerName(groupPartIndex)} isRecording={isRecording} isPaused={recorder.status === "paused"} elapsed={recorder.elapsed} />
+        <div className="shrink-0 space-y-2 pt-2.5">
+          {!isRecording && readyPart(groupPartIndex)?.audioUrl && <audio src={readyPart(groupPartIndex)!.audioUrl} controls preload="none" className="h-10 w-full" aria-label={"Review " + speakerName(groupPartIndex) + "'s saved recording"} />}
+          {micUnavailable && <p role="alert" className="text-center text-xs text-destructive">{micMessage} A real voice recording is needed for each part.</p>}
+          {!isRecording ? (
+            <Button variant="keep" size="touch" className="w-full" disabled={groupBusy || micUnavailable || recorder.status === "requesting" || recorder.supported !== true} onClick={() => void startFinal()}>
+              {recorder.status === "requesting" ? <Loader2 className="size-4 animate-spin" /> : <Mic className="size-4" />}
+              {readyPart(groupPartIndex) ? "Re-record this part" : "Record " + speakerName(groupPartIndex) + "'s part"}
+            </Button>
+          ) : (
+            <div className="flex gap-2">
+              {recorder.canPause && <Button variant="quiet" size="touch" className="flex-1" onClick={() => recorder.status === "paused" ? recorder.resume() : recorder.pause()}>
+                {recorder.status === "paused" ? <Play className="size-4" /> : <Pause className="size-4" />}
+                {recorder.status === "paused" ? "Resume" : "Pause"}
+              </Button>}
+              <Button variant="keep" size="touch" className="flex-1" disabled={groupBusy} onClick={() => void finishGroupPart()}>
+                {groupBusy ? <Loader2 className="size-4 animate-spin" /> : <Check className="size-4" />}
+                {groupBusy ? "Saving part…" : "Save this part"}
+              </Button>
+            </div>
+          )}
+          {groupReady && !isRecording && <Button variant="keep" size="touch" className="w-full" disabled={groupBusy} onClick={() => void combineGroupVoices()}>
+            {groupBusy ? <Loader2 className="size-4 animate-spin" /> : <ArrowRight className="size-4" />}
+            {groupBusy ? "Preparing voices…" : "Bring all voices together"}
+          </Button>}
+          {!groupReady && !isRecording && <p className="text-center text-[11px] text-muted-foreground">Record all {project.messageParagraphs.length} parts to combine your voices.</p>}
+          {!isRecording && <button type="button" disabled={groupBusy} className="block min-h-8 w-full text-center text-[11px] text-[#806B57] disabled:opacity-50" onClick={() => go("message")}>Edit who says what</button>}
+        </div>
       </div>
-      <div className="mt-6 rounded-[24px] border border-[#D7C8B8] bg-[#FAF6EF] p-6 text-[#211D19] shadow-sm">
-        <div className="flex items-center justify-between gap-3"><span className="text-[11px] font-semibold uppercase tracking-[.12em] text-[#8A6D52]">PART {groupPartIndex+1} OF {project.messageParagraphs.length}</span><span className="rounded-full bg-[#E8DAC8] px-3 py-1 text-xs font-medium">{speakerName(groupPartIndex)}</span></div>
-        <p className="mt-5 whitespace-pre-wrap font-display text-[clamp(22px,6vw,30px)] leading-[1.42]">{project.messageParagraphs[groupPartIndex]}</p>
-        {readyPart(groupPartIndex)?.audioUrl && !isRecording && <div className="mt-6 border-t border-[#DCCFC1] pt-4">
-          <p className="mb-2 text-xs text-[#6D5B4A]">Saved recording · {fmt(readyPart(groupPartIndex)!.durationSec)}</p>
-          <audio src={readyPart(groupPartIndex)!.audioUrl} controls preload="none" className="h-10 w-full" aria-label={`Listen to ${speakerName(groupPartIndex)}'s recording`}/>
-        </div>}
-      </div>
-      {isRecording && <p className="mt-5 text-center text-sm tabular-nums text-[#9F483F]" role="status">● Recording {speakerName(groupPartIndex)} · {fmt(recorder.elapsed)}</p>}
-      {micUnavailable && <p className="mt-5 text-sm text-destructive" role="alert">{micMessage} Each person needs a real voice recording to finish this Keep.</p>}
-      <div className="mt-6 space-y-3">
-        {!isRecording ? <Button variant="keep" size="touch" className="w-full" disabled={groupBusy || micUnavailable || recorder.supported !== true} onClick={()=>void startFinal()}><Mic className="size-5"/>{readyPart(groupPartIndex)?"Re-record this part":`Record ${speakerName(groupPartIndex)}'s part`}</Button> :
-          <div className="flex gap-2">{recorder.canPause && <Button variant="quiet" size="touch" className="flex-1" onClick={()=>recorder.status==="paused"?recorder.resume():recorder.pause()}>{recorder.status==="paused"?"Resume":"Pause"}</Button>}
-            <Button variant="keep" size="touch" className="flex-1" disabled={groupBusy} onClick={()=>void finishGroupPart()}><Check className="size-4"/> Save this part</Button></div>}
-        <Button variant={groupReady ? "keep" : "quiet"} size="touch" className="w-full" disabled={!groupReady || isRecording || groupBusy} onClick={()=>void combineGroupVoices()}>{groupBusy ? <Loader2 className="size-4 animate-spin"/> : <ArrowRight className="size-4"/>}{groupBusy ? "Preparing voices…" : "Bring all voices together"}</Button>
-        <p className="text-center text-[11px] leading-5 text-muted-foreground">The final Keep will play everyone's recordings as one smooth message, with a short natural pause between parts.</p>
-        <Button variant="bare" size="sm" className="w-full text-muted-foreground" disabled={isRecording || groupBusy} onClick={()=>go("message")}>Edit who says what</Button>
-      </div>
-    </div></>}
+    </div>}
     {screen === "recorded" && <>{top()}<div className="relative flex keep-min-screen-minus-90 flex-col overflow-hidden px-7 pb-[max(36px,env(safe-area-inset-bottom))] pt-8">
       <div className="pointer-events-none absolute left-1/2 top-[31%] h-80 w-80 -translate-x-1/2 rounded-full bg-accent/[0.07] blur-3xl" />
       <div className="relative z-10 text-center">
@@ -1704,14 +1721,16 @@ function KeepApp() {
       </div>
     </div></>}
     {screen === "memories" && <>{top()}<div className="px-7 pb-10 pt-9">
-      {title("YOUR MOMENTS", "Add photos & videos.", "Choose the moments that bring your story to life.")}
+      {title("YOUR MOMENTS", "Add photos & videos.", "Let photos tell most of the story, with a few meaningful video moments mixed in.")}
       <div className="keep-editorial-surface mb-7 px-5 py-5" aria-live="polite">
         <div className="flex items-center justify-between gap-3"><p className="text-[11px] font-medium uppercase tracking-[.14em] text-[#6A5849]">Suggested moments</p>{guidanceSeconds > 0 && <span className="text-[11px] text-muted-foreground">{narrationLengthText}</span>}</div>
         {guidanceSeconds > 0 ? <>
-          <p className="mt-3 font-display text-[33px] leading-none text-foreground">{minRecommendedMoments}–{maxRecommendedMoments} <span className="text-[23px]">photos or videos</span></p>
-          <p className="mt-3 text-xs leading-6 text-muted-foreground">We suggest a new photo or video about every 3–5 seconds of narration. {recordedNarrationSec ? "This is based on your recording." : "This is estimated from your message length."} Around {idealRecommendedMoments} is a great starting point.</p>
-          <p className="mt-3 text-xs text-[#6A5849]">{personalMedia.length} added{personalMedia.length >= minRecommendedMoments && personalMedia.length <= maxRecommendedMoments ? " · In the suggested range" : personalMedia.length < minRecommendedMoments ? ` · ${minRecommendedMoments - personalMedia.length} more to reach the range` : " · More than suggested is okay"}</p>
-        </> : <p className="mt-3 text-sm leading-6 text-muted-foreground">Add a message or record your voice to see a personalized photo recommendation. For a 2–3 minute Keep, start with about 30–45 photos, but add as many or as few as you like.</p>}
+          <p className="mt-3 font-display text-[33px] leading-none text-foreground">{minRecommendedMoments}–{maxRecommendedMoments} <span className="text-[23px]">moments</span></p>
+          <p className="mt-2 text-[11px] font-semibold uppercase tracking-[.1em] text-[#79654F]">Mostly photos · a few short videos</p>
+          <p className="mt-3 text-xs leading-6 text-muted-foreground">We recommend mostly <strong>photos</strong>, changing about every 3–5 seconds of narration. Sprinkle in a few <strong>short video clips</strong> when movement adds something special. Photos load faster and keep the viewing experience smooth. {recordedNarrationSec ? "This is based on your recording." : "This is estimated from your message length."} Around {idealRecommendedMoments} total moments is a great starting point.</p>
+          <p className="mt-3 text-xs text-[#6A5849]">{photoCount} photos · {videoCount} videos · {personalMedia.length} total{personalMedia.length >= minRecommendedMoments && personalMedia.length <= maxRecommendedMoments ? " · In the suggested range" : personalMedia.length < minRecommendedMoments ? " · " + (minRecommendedMoments - personalMedia.length) + " more to reach the range" : " · More than suggested is okay"}</p>
+          {videoCount > photoCount && videoCount >= 3 && <p className="mt-2 text-[11px] leading-5 text-[#806B57]">Tip: add more photos if you can. A photo-first Keep will usually upload and play more smoothly.</p>}
+        </> : <p className="mt-3 text-sm leading-6 text-muted-foreground">Add a message or record your voice to see a personalized recommendation. For a 2–3 minute Keep, start with about 30–45 photos, and sprinkle in a few short videos if you wish.</p>}
         <p className="mt-3 border-t border-border/50 pt-3 text-[11px] leading-5 text-muted-foreground">Just a guide — use as many or as few moments as you'd like. You can always add more later.</p>
       </div>
       <aside aria-label="iPhone photo upload tip" className="mb-5 flex items-start gap-3 rounded-xl border border-[#DAD0C5] bg-[#F0EAE2]/65 px-4 py-4">
