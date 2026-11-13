@@ -1,7 +1,7 @@
 /** Keep's preferred spoken length is a flexible guideline, never a limit. */
-export const KEEP_WORDS_PER_MINUTE = 140;
-export const KEEP_TARGET_MIN_WORDS = 280;
-export const KEEP_TARGET_MAX_WORDS = 420;
+export const KEEP_WORDS_PER_MINUTE = 170;
+export const KEEP_TARGET_MIN_WORDS = 340;
+export const KEEP_TARGET_MAX_WORDS = 390;
 
 export function countKeepWords(text: string): number {
   return (text.trim().match(/\S+/gu) ?? []).length;
@@ -18,7 +18,7 @@ export function formatKeepTime(seconds: number): string {
 
 export function getKeepLengthFeedback(wordCount: number): string {
   if (!wordCount) return "Start with what matters most. There is no required length.";
-  if (wordCount < KEEP_TARGET_MIN_WORDS) return "A shorter Keep can be just as meaningful. Add a memory or two if you'd like.";
+  if (wordCount < KEEP_TARGET_MIN_WORDS) return "A shorter Keep can be just as meaningful. Consider adding another specific memory or what this person means to you.";
   if (wordCount > KEEP_TARGET_MAX_WORDS) return "A little longer than the sweet spot. Trim if you'd like—or keep every word.";
   return "Right in the sweet spot for a two-to-three-minute Keep.";
 }
