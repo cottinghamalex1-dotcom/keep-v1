@@ -973,3 +973,35 @@ body:has(.keep-studio) {
 @media (prefers-reduced-motion: reduce) {
   .keep-immersive-caption { animation: none; }
 }
+
+/* Premium, singular hero action: deliberately restrained, tactile and legible. */
+.keep-home-create-cta {
+  isolation: isolate;
+  background: radial-gradient(ellipse at 96% 0%, rgba(179,149,111,.18), transparent 47%),
+              linear-gradient(120deg, #171613 0%, #24201c 62%, #2c261f 100%);
+  border: 1px solid rgba(133,112,89,.66);
+  box-shadow: 0 16px 34px rgba(42,32,22,.15), 0 2px 5px rgba(39,27,18,.08),
+              inset 0 1px rgba(255,251,246,.15);
+  transition: transform 250ms ease, box-shadow 250ms ease, border-color 250ms ease;
+}
+.keep-home-create-cta::before {
+  content: "";
+  position: absolute;
+  inset: 6px;
+  border: 1px solid rgba(241,226,206,.13);
+  border-radius: 14px;
+  pointer-events: none;
+}
+.keep-home-create-cta:hover {
+  transform: translateY(-2px);
+  border-color: rgba(173,145,114,.9);
+  box-shadow: 0 20px 39px rgba(42,32,22,.20), 0 3px 6px rgba(39,27,18,.08),
+              inset 0 1px rgba(255,251,246,.15);
+}
+.keep-home-create-cta:active {
+  transform: translateY(0);
+}
+@media (prefers-reduced-motion: reduce) {
+  .keep-home-create-cta { transition: none; }
+  .keep-home-create-cta:hover, .keep-home-create-cta:active { transform: none; }
+}
