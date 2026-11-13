@@ -46,3 +46,47 @@ it("prefers the newest cue during a short transition overlap", () => {
   expect(captionAtTime(cues, 2.1)?.text).toBe("second");
   expect(captionAtTime(cues, 4.5)).toBeUndefined();
 });
+
+
+it("detects a short phrase stretched across 13 seconds in a 98-second Keep", () => {
+  // Representative timing shape only; sample text is synthetic.
+  const cues: CaptionCue[] = [
+    { text: "One", start: 1.87, end: 2.50 },
+    { text: "A lovely day together", start: 6.41, end: 7.46 },
+    { text: "We made a new memory today", start: 9.07, end: 22.52 },
+    { text: "It was a wonderful afternoon", start: 23.03, end: 29.98 },
+    ...Array.from({ length: 48 }, (_, i) => ({
+      text: "Another moment worth remembering together",
+      start: 30 + i * 1.4,
+      end: 31.2 + i * 1.4,
+    })),
+  ];
+  expect(captionTimingIsBroken([], cues, 98.41)).toBe(true);
+  const repaired = recoverCaptionTiming([], cues, 98.41);
+  expect(repaired.repaired).toBe(true);
+  expect(repaired.cues.map(c => c.text)).toEqual(cues.map(c => c.text));
+  // Preserve healthy provider anchors rather than shifting all later captions.
+  expect(repaired.cues[0]!.start).toBeCloseTo(1.87, 2);
+  expect(repaired.cues[4]!.start).toBeCloseTo(30, 2);
+  expect(repaired.cues.at(-1)!.end).toBeCloseTo(97, 2);
+  expect(repaired.cues[2]!.end - repaired.cues[2]!.start).toBeLessThan(9.1);
+  for (let i = 0; i < repaired.cues.length; i++) {
+    const cue = repaired.cues[i]!;
+    expect(cue.end).toBeGreaterThan(cue.start);
+    expect(captionAtTime(repaired.cues, cue.start + 0.05, 98.41)?.text).toBe(cue.text);
+  }
+  expect(recoverCaptionTiming([], repaired.cues, 98.41).repaired).toBe(false);
+});
+
+it("holds a real caption between timestamp gaps, but not after narration ends", () => {
+  const cues: CaptionCue[] = [
+    { text: "First spoken phrase", start: 2, end: 3 },
+    { text: "Second spoken phrase", start: 8, end: 9 },
+  ];
+  expect(captionAtTime(cues, 1.0, 10)?.text).toBe("First spoken phrase");
+  expect(captionAtTime(cues, 5.0, 10)?.text).toBe("First spoken phrase");
+  expect(captionAtTime(cues, 8.4, 10)?.text).toBe("Second spoken phrase");
+  expect(captionAtTime(cues, 9.7, 10)?.text).toBe("Second spoken phrase");
+  expect(captionAtTime(cues, 10.5, 10)).toBeUndefined();
+  expect(captionAtTime(cues, 10.5)).toBeUndefined();
+});

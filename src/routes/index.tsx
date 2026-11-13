@@ -211,6 +211,7 @@ function KeepApp() {
   const [voiceTime, setVoiceTime] = useState(0);
   const [captionSyncing, setCaptionSyncing] = useState(false);
   const [captionSyncError, setCaptionSyncError] = useState(false);
+  const captionSyncToken = useRef(0);
   const [musicSampling, setMusicSampling] = useState("");
   const musicSampleTimer = useRef<number | null>(null);
   const voicePlaybackRef = useRef<HTMLAudioElement>(null);
@@ -699,7 +700,8 @@ function KeepApp() {
   };
   const startFinal = async () => { setRehearsing(false); setScroll(0); setScrollPaused(false); lastElapsed.current = 0; const ok = await recorder.start(); if (!ok) toast.error("The microphone isn't available right now."); };
 
-  const syncFinalCaptions = async (blob: Blob, mimeType?: string, recordedDuration = rec?.durationSec ?? 0) => {
+  const syncFinalCaptions = async (blob: Blob, mimeType?: string, recordedDuration = rec?.durationSec ?? 0, sourceAudioId?: string) => {
+    const request = ++captionSyncToken.current;
     setCaptionSyncing(true);
     setCaptionSyncError(false);
     try {
@@ -711,13 +713,19 @@ function KeepApp() {
       // words can pile up at one instant, leaving long stretches with no captions.
       // Preserve every recognized word and reconstruct estimated cue timing.
       const corrected = recoverCaptionTiming(timed.words, cues, recordedDuration);
-      setProject((o) => ({ ...o, captionTranscript: timed.transcript, captionWords: corrected.words, captionCues: corrected.cues, captionTimingEstimated: corrected.repaired }));
-      if (corrected.repaired) toast.info("Captions were placed across your recording. Check the timing in the editor.");
+      // A finished transcription must never overwrite a newer recording.
+      if (request !== captionSyncToken.current) return;
+      setProject((o) => sourceAudioId && o.finalVoiceRecording?.audioId !== sourceAudioId ? o : ({
+        ...o, captionTranscript: timed.transcript, captionWords: corrected.words,
+        captionCues: corrected.cues, captionTimingEstimated: corrected.repaired,
+      }));
+      if (corrected.repaired) toast.info("Some caption timing was unreliable, so we spaced the phrases across your recording. Please review.");
     } catch {
+      if (request !== captionSyncToken.current) return;
       setCaptionSyncError(true);
-      toast.error("Caption syncing failed. You can retry from the editor without recording again.");
+      toast.error("Captions couldn't sync. Please retry before sharing your Keep.");
     } finally {
-      setCaptionSyncing(false);
+      if (request === captionSyncToken.current) setCaptionSyncing(false);
     }
   };
 
@@ -727,6 +735,7 @@ function KeepApp() {
     const id = newId("voice");
     const stored = await putBlob(id, r.blob);
     if (rec) { releaseUrls([rec.audioUrl]); if (rec.audioId) void deleteBlobs([rec.audioId]); }
+    captionSyncToken.current++;
     const audioUrl = URL.createObjectURL(r.blob);
     setProject((o) => ({
       ...o,
@@ -737,7 +746,7 @@ function KeepApp() {
       captionTimingEstimated: false,
     }));
     go("recorded");
-    void syncFinalCaptions(r.blob, r.mimeType, r.durationSec);
+    void syncFinalCaptions(r.blob, r.mimeType, r.durationSec, stored ? id : undefined);
   };
 
   const finishGroupPart = async () => {
@@ -782,9 +791,10 @@ function KeepApp() {
       const id = newId("voice");
       if (!(await putBlob(id,joined.blob))) throw new Error("Not enough device storage to save the combined recording.");
       if (rec) { releaseUrls([rec.audioUrl]); if (rec.audioId) void deleteBlobs([rec.audioId]); }
+      captionSyncToken.current++;
       setProject(old=>({...old,finalVoiceRecording:{audioId:id,audioUrl:URL.createObjectURL(joined.blob),durationSec:joined.durationSec,mimeType:"audio/wav",demo:false},groupVoiceSignature:groupSignature,captionTranscript:"",captionCues:[],captionWords:[],captionTimingEstimated:false}));
       go("recorded");
-      void syncFinalCaptions(joined.blob, "audio/wav", joined.durationSec);
+      void syncFinalCaptions(joined.blob, "audio/wav", joined.durationSec, id);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "The recordings couldn't be combined. Your individual parts are saved.");
     } finally {
@@ -797,7 +807,7 @@ function KeepApp() {
     try {
       const response = await fetch(rec.audioUrl);
       const blob = await response.blob();
-      await syncFinalCaptions(blob, rec.mimeType, rec.durationSec);
+      await syncFinalCaptions(blob, rec.mimeType, rec.durationSec, rec.audioId);
     } catch {
       setCaptionSyncError(true);
       setCaptionSyncing(false);
@@ -1281,7 +1291,16 @@ function KeepApp() {
   // A published Keep is always republished under its original ID/token.
   const finishAndShare = async (updated?: KeepProject) => {
     if (publishingLock.current) return;
-    const current = updated ?? project;
+    const original = updated ?? project;
+    if (captionSyncing) { setPublishError("Keep is still syncing your captions. Finish that step before sharing."); return; }
+    if (original.captionStyle !== "None" && original.finalVoiceRecording && !original.finalVoiceRecording.demo && !original.captionCues.length) {
+      setPublishError("Your captions are missing. Return to the editor, open Captions, and retry syncing before sharing.");
+      return;
+    }
+    const recovered = recoverCaptionTiming(original.captionWords ?? [], original.captionCues, original.finalVoiceRecording?.durationSec ?? 0);
+    const current = recovered.repaired ? {
+      ...original, captionCues: recovered.cues, captionWords: recovered.words, captionTimingEstimated: true,
+    } : original;
     if (current.restoreIncomplete) {
       setPublishError("Finish restoring your saved memories before publishing.");
       return;
@@ -1662,7 +1681,7 @@ function KeepApp() {
                 <p className="mt-2 text-xs leading-5 text-muted-foreground">{fmt(rec.durationSec)} of your voice, saved with this Keep.</p>
                 <p className="mt-2 text-[11px] leading-5 text-muted-foreground">{rec.durationSec >= 120 && rec.durationSec <= 180 ? "Beautiful — right around the 2–3 minute sweet spot." : "Two to three minutes is a great guide, but your message can be shorter or longer."}</p>
                 {!rec.demo && <div className="mt-4">
-                  {captionSyncing ? <p className="flex items-center justify-center gap-2 text-[11px] text-accent"><Sparkles className="size-3.5 animate-pulse" /> Syncing captions to your voice…</p> : captionSyncError ? <div><p className="text-[11px] leading-5 text-muted-foreground">Caption timing needs another pass.</p><Button variant="bare" size="sm" className="mt-1 text-accent" onClick={() => void retryCaptionSync()}><RotateCcw /> Retry sync</Button></div> : project.captionCues.length ? <p className="flex items-center justify-center gap-2 text-[11px] text-muted-foreground"><Check className="size-3.5 text-accent" /> Captions synced to your recording</p> : null}
+                  {captionSyncing ? <p className="flex items-center justify-center gap-2 text-[11px] text-accent"><Sparkles className="size-3.5 animate-pulse" /> Syncing captions to your voice…</p> : captionSyncError ? <div><p className="text-[11px] leading-5 text-muted-foreground">Caption timing needs another pass.</p><Button variant="bare" size="sm" className="mt-1 text-accent" onClick={() => void retryCaptionSync()}><RotateCcw /> Retry sync</Button></div> : project.captionCues.length ? <p className="flex items-center justify-center gap-2 text-[11px] text-muted-foreground"><Check className="size-3.5 text-accent" /> {project.captionTimingEstimated ? "Captions placed with estimated timing — please review" : "Captions synced to your recording"}</p> : null}
                 </div>}
               </div>
             </div>
