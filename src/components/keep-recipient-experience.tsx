@@ -19,6 +19,7 @@ type Props = {
   audioUrl?: string | undefined;
   audioDuration?: number | undefined;
   messageParagraphs?: string[] | undefined;
+  speakerNames?: string[] | undefined;
   style?: string | undefined;
   captions?: string | undefined;
   lines?: string[] | undefined;
@@ -56,6 +57,7 @@ export function KeepRecipientExperience({
   audioUrl,
   audioDuration = 150,
   messageParagraphs,
+  speakerNames,
   style = "Natural",
   captions = "Reel",
   lines,
@@ -270,6 +272,7 @@ export function KeepRecipientExperience({
           </div>
           <div className="keep-read__story">{paragraphs.map((paragraph, i) => (
             <section key={i} className="keep-read__passage">
+              {speakerNames?.[i] && <p className="mb-3 text-[11px] font-semibold uppercase tracking-[.16em] text-muted-foreground">{speakerNames[i]}</p>}
               <p className={i === 0 ? "keep-read__paragraph keep-read__paragraph--opening" : "keep-read__paragraph"}>{paragraph}</p>
               {i < 4 && readItems[i] && <figure className="keep-read__figure">
                 {readItems[i]!.kind === "video"

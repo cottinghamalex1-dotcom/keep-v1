@@ -29,6 +29,7 @@ import { checkKeepVideo, KEEP_VIDEO_MAX_BYTES, KEEP_VIDEO_MAX_SOURCE_BYTES, KEEP
 import { compressKeepVideo, keepCompressedSizeText, shouldCompressKeepVideo } from "@/lib/keep-video-compression";
 import { countKeepWords, estimateKeepSeconds, formatKeepTime } from "@/lib/keep-length";
 import { useRecorder } from "@/hooks/use-recorder";
+import { joinKeepVoiceParts } from "@/lib/keep-collaborative-audio";
 import { deleteBlobs, getBlob, putBlob } from "@/lib/keep-media-store";
 import { createKeepVoiceMix, playMusicSample, stopMusicSample, type MusicBalance } from "@/lib/keep-audio";
 import { fetchDraft, fetchNextQuestion, fetchRevision, keepAiAvailable, transcribeAudio, transcribeTimedAudio, type TimedWord } from "@/lib/keep-ai";
@@ -46,9 +47,9 @@ export const Route = createFileRoute("/")({
   component: KeepRoute,
 });
 
-type Screen = "home" | "you" | "detail" | "recipient" | "occasion" | "intent" | "path" | "interview" | "summary" | "messageGenerating" | "write" | "message" | "recordPrep" | "record" | "recorded" | "memories" | "storyStyle" | "generating" | "editor" | "preview" | "recipientReveal" | "recipientPreview" | "giveReady" | "card" | "success";
+type Screen = "home" | "you" | "detail" | "recipient" | "occasion" | "voices" | "intent" | "path" | "interview" | "summary" | "messageGenerating" | "write" | "message" | "recordPrep" | "record" | "groupRecord" | "recorded" | "memories" | "storyStyle" | "generating" | "editor" | "preview" | "recipientReveal" | "recipientPreview" | "giveReady" | "card" | "success";
 type Mode = "Memories" | "Music" | "Captions" | "Style" | "Voice";
-const creationScreens: Screen[] = ["recipient", "occasion", "intent", "path", "interview", "summary", "messageGenerating", "write", "message", "recordPrep", "record", "recorded", "memories", "storyStyle", "generating", "editor", "preview", "recipientPreview", "card", "success"];
+const creationScreens: Screen[] = ["recipient", "occasion", "voices", "intent", "path", "interview", "summary", "messageGenerating", "write", "message", "recordPrep", "record", "groupRecord", "recorded", "memories", "storyStyle", "generating", "editor", "preview", "recipientPreview", "card", "success"];
 const resumeScreen = (s: Screen): Screen => (s === "messageGenerating" ? "summary" : s === "generating" ? "memories" : s === "preview" || s === "recipientPreview" ? "editor" : s);
 const occasions = ["Birthday", "Anniversary", "Wedding", "New Baby", "Mother's Day", "Father's Day", "Graduation", "Thank You", "Trip / Adventure", "Milestone", "Celebration of Life", "Family Memories", "Just Because", "Other"];
 const relationships = ["Spouse / Partner", "Mom", "Dad", "Child", "Grandparent", "Sibling", "Friend", "Myself", "Someone else"];
@@ -121,6 +122,25 @@ const takeSnapshot = (p: KeepProject): EditSnapshot => Object.fromEntries(EDIT_K
 const sameSnapshot = (a: EditSnapshot, b: EditSnapshot) => EDIT_KEYS.every((k) => a[k] === b[k]);
 const styleSlug = (name: string) => name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 const withName = (t: string, name: string) => t.split("Hanna").join(name || "them");
+/** Divide a long typed message into sentence groups for separate readers. */
+const splitForVoices = (text: string, people: number): string[] => {
+  const sentences = (text.trim().match(/[^.!?]+[.!?]+(?:\s+|$)|[^.!?]+$/gu) ?? []).map(x=>x.trim()).filter(Boolean);
+  if (sentences.length < 2) {
+    const words = text.trim().split(/\s+/u).filter(Boolean);
+    if (words.length < 30) return [text.trim()];
+    const perPart = Math.max(15,Math.ceil(words.length/Math.max(people,2)));
+    return Array.from({length:Math.ceil(words.length/perPart)},(_,i)=>words.slice(i*perPart,(i+1)*perPart).join(" "));
+  }
+  const target = Math.max(18,Math.ceil(text.trim().split(/\s+/u).length/Math.max(people,2)));
+  const result: string[] = [];
+  let part = "";
+  for (const sentence of sentences) {
+    if (part && (part+" "+sentence).split(/\s+/u).length>target && result.length<98) { result.push(part); part=sentence; }
+    else part = part ? part+" "+sentence : sentence;
+  }
+  if (part) result.push(part);
+  return result;
+};
 const releaseUrls = (urls: (string | undefined)[]) => urls.forEach((u) => { if (u && u.startsWith("blob:")) URL.revokeObjectURL(u); });
 
 function KeepRoute() {
@@ -171,6 +191,8 @@ function KeepApp() {
   const [readArrangeOpen, setReadArrangeOpen] = useState(false);
   const [readArrangeIndex, setReadArrangeIndex] = useState(0);
   const [returnToEditorAfterRecording, setReturnToEditorAfterRecording] = useState(false);
+  const [groupPartIndex, setGroupPartIndex] = useState(0);
+  const [groupBusy, setGroupBusy] = useState(false);
   const [frame, setFrame] = useState(0);
   const [editorPlaying, setEditorPlaying] = useState(false);
   const [editorTime, setEditorTime] = useState(0);
@@ -323,7 +345,7 @@ function KeepApp() {
     return () => window.clearTimeout(timer);
   }, [project, hydrated, cloudSyncAllowed]);
   useEffect(() => { if (project.active && !viewingDemo && creationScreens.includes(screen)) setProject((o) => (o.stage === resumeScreen(screen) ? o : { ...o, stage: resumeScreen(screen) })); }, [screen]);
-  useEffect(() => { if (screen !== "interview" && screen !== "record") recorder.cancel(); }, [screen]);
+  useEffect(() => { if (screen !== "interview" && screen !== "record" && screen !== "groupRecord") recorder.cancel(); }, [screen]);
   useEffect(() => {
     if (screen === "recorded") return;
     const audio = voicePlaybackRef.current;
@@ -435,6 +457,7 @@ function KeepApp() {
   const aiReady = keepAiAvailable();
   const aiContext = (list: InterviewAnswer[] = project.interviewAnswers) => ({
     recipientName: project.recipientName, relationship: project.relationship, occasion: project.occasion, intent: project.intent,
+    contributors: project.voiceMode === "together" ? (project.contributors ?? []).map(c => c.name) : [],
     answers: list.filter((a) => a.transcript?.trim()).map((a) => ({ question: a.question, transcript: (a.transcript ?? "").trim() })),
   });
   const runAi = async (kind: "start" | "transcribe" | "next" | "draft", fn: () => Promise<void>) => {
@@ -478,7 +501,7 @@ function KeepApp() {
     go("messageGenerating");
     void runAi("draft", async () => {
       const paragraphs = await fetchDraft(aiContext());
-      patch({ messageParagraphs: paragraphs, messageSource: "ai" });
+      patch({ messageParagraphs: paragraphs, messageSource: "ai", paragraphSpeakers: paragraphs.map((_,i) => project.contributors?.[i % Math.max(1,project.contributors.length)]?.id ?? "") });
       setActiveParagraph(0);
       setScreen("message");
       window.scrollTo(0, 0);
@@ -518,7 +541,7 @@ function KeepApp() {
     if (!changedIndexes.length) { toast.info("No changes were made to your message."); return; }
     setAppliedAiOriginal({ before: [...project.messageParagraphs], changedIndexes });
     setEditingAiParagraph(null);
-    patch({ messageParagraphs: askSuggestion.paragraphs });
+    patch({ messageParagraphs: askSuggestion.paragraphs, paragraphSpeakers: askSuggestion.paragraphs.map((_,i) => project.paragraphSpeakers?.[i] || project.contributors?.[i % Math.max(1,project.contributors.length)]?.id || "") });
     setActiveParagraph(changedIndexes[0] ?? activeParagraph);
     setAskOpen(false);
     setAskSuggestion(null);
@@ -648,6 +671,14 @@ function KeepApp() {
 
   // ---- Final voice recording ----
   const rec = project.finalVoiceRecording;
+  const isTogether = project.voiceMode === "together" && (project.contributors?.length ?? 0) > 1;
+  const speakerFor = (i: number) => project.paragraphSpeakers?.[i] || project.contributors?.[i % Math.max(1,project.contributors.length)]?.id || "";
+  const speakerName = (i: number) => project.contributors?.find(c => c.id === speakerFor(i))?.name || "Contributor";
+  const readyPart = (i: number) => (project.voiceParts ?? []).find(part => part.paragraphIndex === i && part.contributorId === speakerFor(i) && part.textFingerprint === (project.messageParagraphs[i] ?? "").trim() && !!part.audioId);
+  const readyCount = project.messageParagraphs.filter((p,i) => p.trim() && readyPart(i)).length;
+  const groupReady = project.messageParagraphs.length > 1 && readyCount === project.messageParagraphs.length;
+  const groupSignature = project.messageParagraphs.map((p,i)=>[speakerFor(i),p.trim(),readyPart(i)?.audioId ?? ""].join("::")).join("\n");
+  const giverNames = isTogether ? (project.contributors ?? []).map(c => c.name.trim()).filter(Boolean).join(" & ") : "Alex";
   const editWordsFromEditor = () => {
     setEditorPanel(null);
     setReturnToEditorAfterRecording(true);
@@ -659,7 +690,8 @@ function KeepApp() {
     setEditorPanel(null);
     setReturnToEditorAfterRecording(true);
     setHistory((h) => [...h, "editor"]);
-    setScreen("record");
+    setScreen(isTogether ? "groupRecord" : "record");
+    setGroupPartIndex(0);
     setScroll(0);
     setScrollPaused(false);
     setRehearsing(false);
@@ -706,6 +738,58 @@ function KeepApp() {
     }));
     go("recorded");
     void syncFinalCaptions(r.blob, r.mimeType, r.durationSec);
+  };
+
+  const finishGroupPart = async () => {
+    if (groupBusy) return;
+    setGroupBusy(true);
+    try {
+      const r = await recorder.stop();
+      if (!r || r.durationSec < 0.25) throw new Error("That recording was too short. Try again.");
+      const index = groupPartIndex;
+      const id = newId("voice-part");
+      if (!(await putBlob(id,r.blob))) throw new Error("Your device could not save this recording. Please free some storage and try again.");
+      const currentParts = project.voiceParts ?? [];
+      const oldPart = currentParts.find(p => p.paragraphIndex === index);
+      const nextParts = [...currentParts.filter(p => p.paragraphIndex !== index), {
+        paragraphIndex:index, contributorId:speakerFor(index), textFingerprint:(project.messageParagraphs[index] ?? "").trim(),
+        audioId:id, audioUrl:URL.createObjectURL(r.blob), durationSec:r.durationSec, mimeType:r.mimeType,
+      }];
+      setProject(old=>({...old,voiceParts:nextParts,finalVoiceRecording:null,groupVoiceSignature:undefined,captionTranscript:"",captionCues:[],captionWords:[],captionTimingEstimated:false}));
+      if (oldPart) { releaseUrls([oldPart.audioUrl]); if (oldPart.audioId) void deleteBlobs([oldPart.audioId]); }
+      const nextIndex = project.messageParagraphs.findIndex((p,i) => p.trim() && !nextParts.some(part => part.paragraphIndex === i && part.contributorId === speakerFor(i) && part.textFingerprint === p.trim()));
+      if (nextIndex >= 0) setGroupPartIndex(nextIndex);
+      toast.success(nextIndex >= 0 ? "Part saved. Hand the phone to the next speaker." : "All voices recorded. Ready to bring them together.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "The recording couldn't be saved.");
+    } finally {
+      setGroupBusy(false);
+    }
+  };
+  const combineGroupVoices = async () => {
+    if (groupBusy || !groupReady) return;
+    setGroupBusy(true);
+    try {
+      const blobs: Blob[] = [];
+      for (let i = 0; i < project.messageParagraphs.length; i++) {
+        const part = readyPart(i);
+        const blob = part?.audioId ? await getBlob(part.audioId) : null;
+        if (!blob) throw new Error("A voice is missing. Please record that part again.");
+        blobs.push(blob);
+      }
+      const joined = await joinKeepVoiceParts(blobs);
+      if (joined.blob.size > 19 * 1024 * 1024) throw new Error("This combined message is too long. Make the parts a little shorter.");
+      const id = newId("voice");
+      if (!(await putBlob(id,joined.blob))) throw new Error("Not enough device storage to save the combined recording.");
+      if (rec) { releaseUrls([rec.audioUrl]); if (rec.audioId) void deleteBlobs([rec.audioId]); }
+      setProject(old=>({...old,finalVoiceRecording:{audioId:id,audioUrl:URL.createObjectURL(joined.blob),durationSec:joined.durationSec,mimeType:"audio/wav",demo:false},groupVoiceSignature:groupSignature,captionTranscript:"",captionCues:[],captionWords:[],captionTimingEstimated:false}));
+      go("recorded");
+      void syncFinalCaptions(joined.blob, "audio/wav", joined.durationSec);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "The recordings couldn't be combined. Your individual parts are saved.");
+    } finally {
+      setGroupBusy(false);
+    }
   };
 
   const retryCaptionSync = async () => {
@@ -765,7 +849,7 @@ function KeepApp() {
   // otherwise estimate speaking time from the current message (~140 words/minute).
   const narrationWordCount = countKeepWords(project.messageParagraphs.join(" "));
   const intendedSpeakingTime = formatKeepTime(estimateKeepSeconds(narrationWordCount));
-  const estimatedNarrationSec = narrationWordCount ? Math.max(1, Math.round(narrationWordCount / 140 * 60)) : 0;
+  const estimatedNarrationSec = narrationWordCount ? estimateKeepSeconds(narrationWordCount) : 0;
   const recordedNarrationSec = rec && !rec.demo && rec.durationSec > 0 ? rec.durationSec : 0;
   const guidanceSeconds = recordedNarrationSec || estimatedNarrationSec;
   const minRecommendedMoments = guidanceSeconds ? Math.ceil(guidanceSeconds / 5) : 0;
@@ -1202,6 +1286,10 @@ function KeepApp() {
       setPublishError("Finish restoring your saved memories before publishing.");
       return;
     }
+    if (current.voiceMode === "together" && (!groupReady || current.groupVoiceSignature !== groupSignature)) {
+      setPublishError("Your shared script has changed. Re-record any updated parts and combine your voices again.");
+      return;
+    }
     publishingLock.current = true;
     setPublishing(true);
     setPublishError("");
@@ -1281,9 +1369,32 @@ function KeepApp() {
     {screen === "you" && <>{top()}<div className="px-7 pt-8">{title("Your space", "Alex.", "The things worth keeping, all in one place.")}<div className="mt-12 border-t border-border">{[{ label: "What is Keep?", Icon: Sparkles }, { label: "My cards", Icon: Radio }, { label: "Downloads & backups", Icon: Download }, { label: "Privacy", Icon: LockKeyhole }, { label: "Help", Icon: CircleHelp }].map(({ label, Icon }) => <Button key={label} variant="bare" className="flex h-17 w-full justify-between border-b border-border px-0 text-sm font-normal" onClick={() => (label === "What is KEEP?" ? window.location.assign("/about") : setSetting(label))}><span className="flex items-center gap-4"><Icon className="size-4 text-accent" />{label}</span><ChevronRight className="size-4 text-muted-foreground" /></Button>)}{project.active && <Button variant="bare" className="flex h-17 w-full justify-between border-b border-border px-0 text-sm font-normal text-destructive" onClick={() => { if (!window.confirm("Delete your draft Keep? Recordings and photos added to it will be removed from this device.")) return; discard(project); setProject(newProject()); toast.success("Draft deleted"); }}><span className="flex items-center gap-4"><Trash2 className="size-4" />Delete draft Keep</span></Button>}</div><p className="mt-9 text-xs leading-6 text-muted-foreground">Your Keeps are private.</p></div>{setting && sheet(setting, () => setSetting(""), <><p className="mt-5 text-sm leading-7 text-muted-foreground">{setting === "Privacy" ? "Your Keeps are private by default. In this MVP, drafts, recordings and photos stay on this device only. Sharing a card gives its recipient access to that Keep — no account required." : setting === "My cards" ? "HANNA · from Alex · 2026 (sample). Physical card ordering is coming next." : setting === "Downloads & backups" ? "Your draft is saved on this device. Cloud backups and downloads aren't available yet." : "We're here when you need us. Support isn't connected in this preview yet."}</p><Button variant="quiet" className="mt-8 w-full" onClick={() => setSetting("")}>Done</Button></>)}</>}
     {screen === "detail" && <>{top("READY")}<div className="relative mx-4 h-[min(55dvh,520px)] overflow-hidden"><img src={memoryImages[0]} alt="Couple at the coast, illustrative prototype photograph" className="h-full w-full object-cover" /><div className="absolute inset-0 photo-bottom" /><div className="absolute bottom-8 left-6"><p className="eyebrow text-foreground">ANNIVERSARY · 2026</p><h1 className="display mt-3 text-5xl">HANNA</h1><p className="mt-3 text-sm">from Alex · 2:30</p></div></div><div className="space-y-3 px-6 pt-7">{nextButton("Play Keep", () => { setViewingDemo(true); go("preview"); })}<Button variant="quiet" size="touch" className="w-full" onClick={editDemoCopy}><Settings2 /> Edit a copy</Button><Button variant="bare" size="touch" className="w-full" asChild><Link to="/recipient" search={{ keep: "" }}><Radio /> View as recipient</Link></Button></div></>}
     {screen === "recipient" && <>{top("01 / 04")}<div className="px-7 pt-11">{title("Begin with someone", "Who is this Keep for?")}<div className="grid grid-cols-2 gap-3" role="group" aria-label="Who is this Keep for?">{relationships.map((r) => <Button key={r} type="button" aria-pressed={project.relationship === r} variant="quiet" className={`keep-choice-bubble ${project.relationship === r ? "keep-choice-bubble--selected" : ""}`} onClick={() => { patch({ relationship: r, ...(r === "Myself" ? { recipientName: "Myself" } : project.relationship === "Myself" ? { recipientName: "" } : {}) }); if (r !== "Someone else") setOtherRelationship(""); }}><span className="min-w-0 flex-1 text-left">{r}</span>{project.relationship === r && <span className="keep-choice-check"><Check className="!size-3.5" strokeWidth={2.7} /></span>}</Button>)}</div>{project.relationship === "Someone else" && <div className="mt-8 page-enter"><label htmlFor="other-relationship" className="eyebrow">WHO ARE THEY TO YOU?</label><input id="other-relationship" value={otherRelationship} onChange={(e) => setOtherRelationship(e.target.value.slice(0, 50))} placeholder="My coach" autoComplete="off" className="mt-3 w-full border-0 border-b border-border bg-transparent pb-4 font-display text-3xl outline-none focus:border-accent" /><p className="mt-3 text-xs text-muted-foreground"></p></div>}{project.relationship && project.relationship !== "Myself" && <div className="mt-9 page-enter"><label htmlFor="recipient-name" className="eyebrow">NAME(S)</label><input id="recipient-name" value={name} onChange={(e) => patch({ recipientName: e.target.value.slice(0, 60) })} placeholder="Gigi & Pops" autoComplete="off" className="mt-3 w-full border-0 border-b border-border bg-transparent pb-4 font-display text-3xl outline-none focus:border-accent" /><p className="mt-3 text-xs text-muted-foreground"></p></div>}<div className="mt-10">{nextButton("Continue", () => { if (project.relationship === "Someone else") patch({ relationship: otherRelationship.trim() }); go("occasion"); }, !project.relationship || (project.relationship !== "Myself" && !name.trim()) || (project.relationship === "Someone else" && !otherRelationship.trim()))}</div></div></>}
-    {screen === "occasion" && <>{top("02 / 04")}<div className="px-7 pt-11">{title("Give it a moment", "What are you keeping?", "Choose an occasion or moment.")}<div className="grid grid-cols-2 gap-3" role="group" aria-label="Choose an occasion or moment">{occasions.map((o) => <Button key={o} type="button" aria-pressed={project.occasion === o} variant="quiet" className={`keep-choice-bubble ${project.occasion === o ? "keep-choice-bubble--selected" : ""}`} onClick={() => { patch({ occasion: o }); if (o !== "Other") setOtherOccasion(""); }}><span className="min-w-0 flex-1 text-left">{o}</span>{project.occasion === o && <span className="keep-choice-check"><Check className="!size-3.5" strokeWidth={2.7} /></span>}</Button>)}</div>{project.occasion === "Other" && <div className="mt-8 page-enter"><label className="eyebrow" htmlFor="other-occasion">TELL US WHAT IT'S FOR</label><input id="other-occasion" value={otherOccasion} onChange={(e) => setOtherOccasion(e.target.value.slice(0, 80))} placeholder="Our family Disney trip with Gigi & Pops" className="mt-3 w-full border-0 border-b border-border bg-transparent pb-4 font-display text-3xl outline-none focus:border-accent" /><p className="mt-3 text-xs text-muted-foreground"></p></div>}<div className="mt-12">{nextButton("Continue", () => { if (project.occasion === "Other") patch({ occasion: otherOccasion.trim() }); go("intent"); }, project.occasion === "Other" && !otherOccasion.trim())}</div></div></>}
-    {screen === "intent" && <>{top("03 / 04")}<div className="px-7 pt-11">{title("The reason behind it", "Why does this Keep matter to you?", "What would you like them to remember?")}<textarea value={project.intent} onChange={(e) => patch({ intent: e.target.value.slice(0, 500) })} placeholder="I want Gigi & Pops to know how special it was watching them experience Disney through our kids' eyes, and I want our family to always remember this trip together." className="min-h-44 w-full resize-none rounded-sm border border-border bg-transparent p-4 text-sm leading-7 outline-none focus:border-accent" /><div className="mt-4 grid grid-cols-2 gap-2"><Button variant={dictating && dictationTargetRef.current === "intent" ? "selected" : "quiet"} className="h-12" onClick={() => toggleDictation("intent")}>{dictating && dictationTargetRef.current === "intent" ? <Square className="mr-2 size-4" fill="currentColor" /> : <Mic className="mr-2 size-4" />}{dictating && dictationTargetRef.current === "intent" ? "Stop" : "Speak"}</Button><Button variant="quiet" className="h-12" onClick={() => document.querySelector<HTMLTextAreaElement>('textarea')?.focus()}><Keyboard aria-hidden="true" className="mr-2 size-4" />Type</Button></div>{dictating && dictationTargetRef.current === "intent" && <p className="mt-3 text-xs leading-5 text-muted-foreground">Speak naturally. Your words will appear above as you talk. Tap Stop when you're finished.</p>}<div className="mt-10">{nextButton("Continue", () => go("path"), !project.intent.trim())}</div></div></>}
-    {screen === "path" && <>{top("04 / 04")}<div className="px-7 pt-11">
+    {screen === "occasion" && <>{top("02 / 04")}<div className="px-7 pt-11">{title("Give it a moment", "What are you keeping?", "Choose an occasion or moment.")}<div className="grid grid-cols-2 gap-3" role="group" aria-label="Choose an occasion or moment">{occasions.map((o) => <Button key={o} type="button" aria-pressed={project.occasion === o} variant="quiet" className={`keep-choice-bubble ${project.occasion === o ? "keep-choice-bubble--selected" : ""}`} onClick={() => { patch({ occasion: o }); if (o !== "Other") setOtherOccasion(""); }}><span className="min-w-0 flex-1 text-left">{o}</span>{project.occasion === o && <span className="keep-choice-check"><Check className="!size-3.5" strokeWidth={2.7} /></span>}</Button>)}</div>{project.occasion === "Other" && <div className="mt-8 page-enter"><label className="eyebrow" htmlFor="other-occasion">TELL US WHAT IT'S FOR</label><input id="other-occasion" value={otherOccasion} onChange={(e) => setOtherOccasion(e.target.value.slice(0, 80))} placeholder="Our family Disney trip with Gigi & Pops" className="mt-3 w-full border-0 border-b border-border bg-transparent pb-4 font-display text-3xl outline-none focus:border-accent" /><p className="mt-3 text-xs text-muted-foreground"></p></div>}<div className="mt-12">{nextButton("Continue", () => { if (project.occasion === "Other") patch({ occasion: otherOccasion.trim() }); go("voices"); }, project.occasion === "Other" && !otherOccasion.trim())}</div></div></>}
+    {screen === "voices" && <>{top("03 / 05")}<div className="mx-auto max-w-[620px] px-7 pb-12 pt-9">
+      {title("The voices behind it", "Will anyone create this Keep with you?", "Most Keeps are made by one person. You can also bring several voices together in one gift.")}
+      <div className="grid gap-3 sm:grid-cols-2" role="group" aria-label="Choose how many voices">
+        <button type="button" aria-pressed={project.voiceMode !== "together"} onClick={() => patch({voiceMode:"solo"})} className={`min-h-[140px] rounded-2xl border p-5 text-left transition-colors ${project.voiceMode !== "together" ? "border-[#B49B7F] bg-[#F3EADD]" : "border-border bg-card"}`}>
+          <Mic className="mb-5 size-6 text-[#78634E]" /><span className="block font-display text-2xl">Just me</span><span className="mt-2 block text-xs leading-5 text-muted-foreground">One voice, one heartfelt message.</span>
+        </button>
+        <button type="button" aria-pressed={project.voiceMode === "together"} onClick={() => patch({voiceMode:"together",contributors:(project.contributors?.length ?? 0) >= 2 ? project.contributors : [{id:newId("speaker"),name:""},{id:newId("speaker"),name:""}]})} className={`min-h-[140px] rounded-2xl border p-5 text-left transition-colors ${project.voiceMode === "together" ? "border-[#B49B7F] bg-[#F3EADD]" : "border-border bg-card"}`}>
+          <span className="mb-5 block text-2xl text-[#78634E]">♡</span><span className="block font-display text-2xl">Create together</span><span className="mt-2 block text-xs leading-5 text-muted-foreground">Different voices. One beautiful Keep.</span>
+        </button>
+      </div>
+      {project.voiceMode === "together" && <div className="mt-6 rounded-2xl border border-border bg-white/40 p-5">
+        <h2 className="font-display text-2xl">Who will speak?</h2>
+        <p className="mt-2 text-xs leading-5 text-muted-foreground">Add each person's first name. Later you'll choose who says each part and pass the phone around to record.</p>
+        <div className="mt-5 space-y-3">{(project.contributors ?? []).map((person,i) => <div key={person.id} className="flex items-center gap-2">
+          <label className="min-w-0 flex-1"><span className="mb-1 block text-[10px] font-medium uppercase tracking-widest text-muted-foreground">Voice {i+1}</span>
+            <input aria-label={`Voice ${i+1} name`} placeholder={i===0?"Your name":i===1?"Second person's name":"Contributor name"} maxLength={60} value={person.name} onChange={event=>patch({contributors:(project.contributors ?? []).map(p=>p.id===person.id?{...p,name:event.target.value}:p)})} className="w-full rounded-lg border border-border bg-background px-4 py-3 text-base outline-none focus:border-accent"/></label>
+          {(project.contributors?.length ?? 0) > 2 && <button type="button" aria-label={`Remove ${person.name || `voice ${i+1}`}`} className="mt-5 rounded-lg border border-border p-3 text-muted-foreground" onClick={()=>patch({contributors:(project.contributors ?? []).filter(p=>p.id!==person.id)})}><Trash2 className="size-4"/></button>}
+        </div>)}</div>
+        {(project.contributors?.length ?? 0) < 8 && <Button variant="bare" size="sm" className="mt-3" onClick={()=>patch({contributors:[...(project.contributors ?? []),{id:newId("speaker"),name:""}]})}><Plus className="size-4"/> Add another voice</Button>}
+        <p className="mt-5 text-xs leading-5 text-muted-foreground">Everyone records separately on this device. Keep brings the recordings together with the music, photos and captions.</p>
+      </div>}
+      <div className="mt-8">{nextButton("Continue",()=>go("intent"),project.voiceMode === "together" && ((project.contributors?.length ?? 0)<2 || (project.contributors ?? []).some(p=>!p.name.trim()) || new Set((project.contributors ?? []).map(p=>p.name.trim().toLowerCase())).size !== (project.contributors?.length ?? 0)))}</div>
+    </div></>}
+    {screen === "intent" && <>{top("04 / 05")}<div className="px-7 pt-11">{title("The reason behind it", "Why does this Keep matter to you?", "What would you like them to remember?")}<textarea value={project.intent} onChange={(e) => patch({ intent: e.target.value.slice(0, 500) })} placeholder="I want Gigi & Pops to know how special it was watching them experience Disney through our kids' eyes, and I want our family to always remember this trip together." className="min-h-44 w-full resize-none rounded-sm border border-border bg-transparent p-4 text-sm leading-7 outline-none focus:border-accent" /><div className="mt-4 grid grid-cols-2 gap-2"><Button variant={dictating && dictationTargetRef.current === "intent" ? "selected" : "quiet"} className="h-12" onClick={() => toggleDictation("intent")}>{dictating && dictationTargetRef.current === "intent" ? <Square className="mr-2 size-4" fill="currentColor" /> : <Mic className="mr-2 size-4" />}{dictating && dictationTargetRef.current === "intent" ? "Stop" : "Speak"}</Button><Button variant="quiet" className="h-12" onClick={() => document.querySelector<HTMLTextAreaElement>('textarea')?.focus()}><Keyboard aria-hidden="true" className="mr-2 size-4" />Type</Button></div>{dictating && dictationTargetRef.current === "intent" && <p className="mt-3 text-xs leading-5 text-muted-foreground">Speak naturally. Your words will appear above as you talk. Tap Stop when you're finished.</p>}<div className="mt-10">{nextButton("Continue", () => go("path"), !project.intent.trim())}</div></div></>}
+    {screen === "path" && <>{top("05 / 05")}<div className="px-7 pt-11">
       {title("The heart of it", "What do you want to say?")}
       <div className="keep-creator-path-options grid grid-cols-1 gap-3">
         <Button variant="quiet" className="keep-editorial-surface relative h-auto min-h-[190px] w-full !items-start !justify-start p-6 pr-14 text-left whitespace-normal" onClick={startInterview}>
@@ -1389,11 +1500,12 @@ function KeepApp() {
         {aiError?.kind === "draft" && <div className="mt-10 w-full max-w-sm border-l border-accent pl-4 text-left page-enter" role="alert"><p className="text-sm leading-6 text-foreground/85">{aiErrorText}</p><div className="mt-3 flex gap-4"><Button variant="bare" size="sm" className="px-0 text-accent" onClick={aiError.retry}><RotateCcw /> Try again</Button><Button variant="bare" size="sm" className="px-0 text-muted-foreground" onClick={back}>Back</Button></div></div>}
       </div>
     </div>}
-    {screen === "write" && <>{top("04 / 04")}<div className="px-7 pb-12 pt-9">{title("In your own words", "Bring us what you want to say.", "Speak it, type it, or upload something you've already written. Aim for 2–3 minutes, but make it yours.")}<div className="mb-5 grid grid-cols-3 gap-2"><Button variant={writeInputMode === "speak" ? "selected" : "quiet"} className="h-20 flex-col px-2" onClick={() => { setWriteInputMode("speak"); toggleDictation("write"); }}>{dictating && writeInputMode === "speak" ? <Square fill="currentColor" /> : <Mic />}{dictating && writeInputMode === "speak" ? "Stop" : "Speak"}</Button><Button variant={writeInputMode === "type" ? "selected" : "quiet"} className="h-20 flex-col px-2" onClick={() => { setWriteInputMode("type"); if (dictationRef.current && dictating) dictationRef.current.stop(); window.setTimeout(() => document.querySelector<HTMLTextAreaElement>('textarea[aria-label="Your message"]')?.focus(), 0); }}><MessageCircle />Type</Button><Button variant={writeInputMode === "upload" ? "selected" : "quiet"} className="h-20 flex-col px-2" disabled={busy} onClick={() => draftInput.current?.click()}><FileUp />{busy ? "Reading…" : "Upload"}</Button></div>{dictating && writeInputMode === "speak" && <div className="mb-4 rounded-sm border border-accent/40 p-4 text-center page-enter"><div className="mb-2 flex items-center justify-center gap-2 text-sm text-accent"><span className="size-2 animate-pulse rounded-full bg-accent" />Listening</div><p className="text-xs leading-5 text-muted-foreground">Speak naturally. Your words will appear below as you talk. Tap Stop when you're finished.</p></div>}{uploadedDraftName && writeInputMode === "upload" && <div className="mb-4 flex items-center justify-between rounded-sm border border-border px-4 py-3 page-enter"><span className="min-w-0"><span className="eyebrow block">IMPORTED</span><span className="mt-1 block truncate text-xs text-muted-foreground">{uploadedDraftName}</span></span><Button variant="bare" size="sm" className="shrink-0 text-muted-foreground" onClick={() => draftInput.current?.click()}>Replace</Button></div>}<KeepLengthGuide text={project.writtenText} className="mb-4" /><textarea aria-label="Your message" value={project.writtenText} onChange={(e) => { setWriteInputMode("type"); patch({ writtenText: e.target.value }); }} placeholder="Start here…" rows={12} className="min-h-[320px] w-full resize-y rounded-sm border border-border bg-transparent p-4 font-display text-[22px] leading-[1.35] outline-none focus:border-accent" /><div className="mt-3 flex items-center justify-between"><Button variant="bare" size="sm" className="text-muted-foreground" onClick={() => { patch({ writtenText: "" }); setUploadedDraftName(""); setWriteInputMode("type"); }}>Clear</Button><span className="text-[10px] tracking-wide text-muted-foreground">DOCX · PDF · TXT · MD · RTF</span></div><div className="mt-8">{nextButton("Continue", () => { const paras = project.writtenText.split(/\n\s*\n/).map((p) => p.trim()).filter(Boolean); patch({ messageParagraphs: paras, messageSource: "own" }); setActiveParagraph(0); go("message"); }, !project.writtenText.trim())}</div></div></>}
+    {screen === "write" && <>{top("05 / 05")}<div className="px-7 pb-12 pt-9">{title("In your own words", "Bring us what you want to say.", "Speak it, type it, or upload something you've already written. Aim for 2–3 minutes, but make it yours.")}<div className="mb-5 grid grid-cols-3 gap-2"><Button variant={writeInputMode === "speak" ? "selected" : "quiet"} className="h-20 flex-col px-2" onClick={() => { setWriteInputMode("speak"); toggleDictation("write"); }}>{dictating && writeInputMode === "speak" ? <Square fill="currentColor" /> : <Mic />}{dictating && writeInputMode === "speak" ? "Stop" : "Speak"}</Button><Button variant={writeInputMode === "type" ? "selected" : "quiet"} className="h-20 flex-col px-2" onClick={() => { setWriteInputMode("type"); if (dictationRef.current && dictating) dictationRef.current.stop(); window.setTimeout(() => document.querySelector<HTMLTextAreaElement>('textarea[aria-label="Your message"]')?.focus(), 0); }}><MessageCircle />Type</Button><Button variant={writeInputMode === "upload" ? "selected" : "quiet"} className="h-20 flex-col px-2" disabled={busy} onClick={() => draftInput.current?.click()}><FileUp />{busy ? "Reading…" : "Upload"}</Button></div>{dictating && writeInputMode === "speak" && <div className="mb-4 rounded-sm border border-accent/40 p-4 text-center page-enter"><div className="mb-2 flex items-center justify-center gap-2 text-sm text-accent"><span className="size-2 animate-pulse rounded-full bg-accent" />Listening</div><p className="text-xs leading-5 text-muted-foreground">Speak naturally. Your words will appear below as you talk. Tap Stop when you're finished.</p></div>}{uploadedDraftName && writeInputMode === "upload" && <div className="mb-4 flex items-center justify-between rounded-sm border border-border px-4 py-3 page-enter"><span className="min-w-0"><span className="eyebrow block">IMPORTED</span><span className="mt-1 block truncate text-xs text-muted-foreground">{uploadedDraftName}</span></span><Button variant="bare" size="sm" className="shrink-0 text-muted-foreground" onClick={() => draftInput.current?.click()}>Replace</Button></div>}<KeepLengthGuide text={project.writtenText} className="mb-4" /><textarea aria-label="Your message" value={project.writtenText} onChange={(e) => { setWriteInputMode("type"); patch({ writtenText: e.target.value }); }} placeholder="Start here…" rows={12} className="min-h-[320px] w-full resize-y rounded-sm border border-border bg-transparent p-4 font-display text-[22px] leading-[1.35] outline-none focus:border-accent" /><div className="mt-3 flex items-center justify-between"><Button variant="bare" size="sm" className="text-muted-foreground" onClick={() => { patch({ writtenText: "" }); setUploadedDraftName(""); setWriteInputMode("type"); }}>Clear</Button><span className="text-[10px] tracking-wide text-muted-foreground">DOCX · PDF · TXT · MD · RTF</span></div><div className="mt-8">{nextButton("Continue", () => { const paras = project.writtenText.split(/\n\s*\n/).map((p) => p.trim()).filter(Boolean); patch({ messageParagraphs: paras, messageSource: "own", paragraphSpeakers: paras.map((_,i)=>project.contributors?.[i % Math.max(1,project.contributors?.length ?? 0)]?.id ?? "") }); setActiveParagraph(0); go("message"); }, !project.writtenText.trim())}</div></div></>}
     {screen === "message" && <>{top()}
       <div className="mx-auto max-w-[650px] px-7 pb-32 pt-9">
         {title("", project.messageSource === "own" ? "Your message." : "Your message is ready.", "These are your words. Make them yours, or let Keep help you shape them.")}
         <KeepLengthGuide text={project.messageParagraphs.join(" ")} className="mb-6" />
+        {isTogether && <div className="mb-6 rounded-xl border border-[#D0BDA4] bg-[#F1E7D9] p-4 text-[#453B31]"><h2 className="font-display text-[23px]">A Keep from all of you.</h2><p className="mt-2 text-xs leading-5">Choose whose voice reads each paragraph. Add or split paragraphs wherever the speaker changes, then record each turn separately.</p></div>}
         {appliedAiOriginal && appliedAiOriginal.changedIndexes.length > 0 && <div className="mb-5 flex items-start gap-3 rounded-xl border border-[#C9B092] bg-[#F3E9DB] px-4 py-3">
           <span className="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full bg-[#44382B] text-white"><Check className="size-3.5" /></span>
           <p className="text-[12px] leading-5 text-[#554639]"><strong className="font-semibold">Keep AI updated your message.</strong> The revised wording is highlighted below. Tap any highlighted paragraph to edit it yourself.</p>
@@ -1411,10 +1523,12 @@ function KeepApp() {
                   if (appliedAiOriginal?.changedIndexes.includes(i)) setAppliedAiOriginal((old) => old ? { ...old, changedIndexes: old.changedIndexes.filter((j) => j !== i) } : null);
                 }}
                 className="w-full resize-y bg-transparent p-4 font-display text-[22px] leading-[1.42] text-foreground outline-none focus:ring-1 focus:ring-[#9D856D]" />}
+              {isTogether && <label className="flex items-center justify-between gap-3 border-t border-[#E4DDD4] px-4 py-3 text-xs text-[#6A5849]"><span className="font-medium">Read by</span><select aria-label={`Speaker for paragraph ${i+1}`} value={speakerFor(i)} onChange={event=>patch({paragraphSpeakers:project.messageParagraphs.map((_,j)=>j===i?event.target.value:speakerFor(j))})} className="min-w-0 max-w-[70%] rounded-lg border border-[#D2C3B2] bg-[#FFFDF9] px-3 py-2 text-sm text-[#30271F]">{(project.contributors ?? []).map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select></label>}
             </div>;
           })}
         </div>
-        <Button variant="bare" size="sm" className="mt-4 text-[#786B5D]" onClick={() => { patch({ messageParagraphs: [...project.messageParagraphs, ""] }); setActiveParagraph(project.messageParagraphs.length); }}>
+        {isTogether && project.messageParagraphs.length===1 && <Button variant="quiet" size="touch" className="mt-4 w-full" onClick={()=>{ const paragraphs=splitForVoices(project.messageParagraphs[0]??"",(project.contributors??[]).length); if(paragraphs.length<2){toast.info("Add another paragraph to give someone else a turn.");return;} patch({messageParagraphs:paragraphs,paragraphSpeakers:paragraphs.map((_,i)=>project.contributors?.[i%(project.contributors?.length??1)]?.id??"")}); }}>Split this message into speaking parts <ArrowRight className="size-4"/></Button>}
+        <Button variant="bare" size="sm" className="mt-4 text-[#786B5D]" onClick={() => { patch({ messageParagraphs: [...project.messageParagraphs, ""], paragraphSpeakers: [...project.messageParagraphs.map((_,i)=>speakerFor(i)),project.contributors?.[project.messageParagraphs.length % Math.max(1,project.contributors?.length ?? 0)]?.id ?? ""] }); setActiveParagraph(project.messageParagraphs.length); }}>
           <Plus className="size-4"/> Add paragraph
         </Button>
         <button type="button" onClick={openAskKeep} className="group mt-8 flex min-h-[82px] w-full items-center gap-4 rounded-2xl border border-[#C5B6A1] bg-[#28231F] px-5 text-left text-[#FAF8F5] shadow-[0_10px_26px_rgba(38,31,25,.13)] transition-transform active:scale-[.99]">
@@ -1422,11 +1536,12 @@ function KeepApp() {
           <span className="flex min-w-0 flex-1 flex-col gap-1"><strong className="text-[15px] font-medium">Ask Keep AI</strong><small className="text-[11px] leading-4 text-[#C8BCAD]">Make your message more personal, emotional or polished</small></span>
           <ArrowRight className="size-5 shrink-0 text-[#D9C6AA] transition-transform group-hover:translate-x-1"/>
         </button>
-        <div className="mt-5">{nextButton("Record Your Keep", () => {
-          patch({ messageParagraphs: project.messageParagraphs.filter((p) => p.trim()) });
+        {isTogether && project.messageParagraphs.filter(p=>p.trim()).length < 2 && <p className="mt-4 text-xs text-[#806B57]">Create at least two speaking parts so everyone can take a turn.</p>}
+        <div className="mt-5">{nextButton(isTogether ? "Record together" : "Record Your Keep", () => {
+          patch({ messageParagraphs: project.messageParagraphs.filter((p) => p.trim()), paragraphSpeakers: project.messageParagraphs.map((p,i)=>p.trim()?speakerFor(i):"").filter(Boolean) });
           setAppliedAiOriginal(null);
           go("recordPrep");
-        }, !project.messageParagraphs.some((p) => p.trim()))}</div>
+        }, !project.messageParagraphs.some((p) => p.trim()) || (isTogether && project.messageParagraphs.filter(p=>p.trim()).length < 2))}</div>
       </div>
       {askOpen && <KeepAskAIModal
         paragraphs={project.messageParagraphs}
@@ -1447,7 +1562,7 @@ function KeepApp() {
         <div className="min-h-0 overflow-y-auto px-7 pt-7 sm:px-9 sm:pt-9">
           <div className="mb-6 flex size-11 items-center justify-center rounded-full border border-[#D8C5AC] bg-[#EAE1D7]"><Mic className="size-5 text-[#6A5849]" strokeWidth={1.65} /></div>
           <h2 id="record-tips-title" className="font-display text-[clamp(35px,9vw,44px)] leading-[1.04] tracking-[-.035em]">Before you record.</h2>
-          <p id="record-tips-intro" className="mt-4 max-w-[34ch] text-[14px] leading-6 text-[#746E67]">It doesn't need to sound perfect. It just needs to sound like you.</p>
+          <p id="record-tips-intro" className="mt-4 max-w-[34ch] text-[14px] leading-6 text-[#746E67]">{isTogether ? "Each person records their own section. Pass the phone around, and Keep will combine your voices." : "It doesn't need to sound perfect. It just needs to sound like you."}</p>
           <p className="mt-3 text-[12px] leading-5 text-[#746E67]">Your message is about {intendedSpeakingTime} when read naturally. Two to three minutes is a great guide, not a rule.</p>
           <div className="mt-7 divide-y divide-[#DDD5CB] border-y border-[#DDD5CB]">
             {([
@@ -1462,7 +1577,7 @@ function KeepApp() {
           </div>
         </div>
         <div className="shrink-0 bg-[#F7F5F2] px-7 pb-7 pt-5 sm:px-9 sm:pb-9">
-          <Button autoFocus variant="keep" size="touch" className="keep-premium-action w-full justify-between" onClick={() => { setScreen("record"); resetPageScroll(); }}>I'm ready <ArrowRight className="size-5" /></Button>
+          <Button autoFocus variant="keep" size="touch" className="keep-premium-action w-full justify-between" onClick={() => { setGroupPartIndex(0); setScreen(isTogether ? "groupRecord" : "record"); resetPageScroll(); }}>I'm ready <ArrowRight className="size-5" /></Button>
           <p className="mt-3 text-center text-[11px] leading-5 text-[#746E67]">Recording begins only when you tap Start Recording.</p>
         </div>
       </section>
@@ -1482,12 +1597,38 @@ function KeepApp() {
       {isRecording && <div className="mb-2 text-sm tabular-nums text-accent" role="status">● {fmt(recorder.elapsed)}</div>}
       {micUnavailable ? <><p className="mt-4 text-xs leading-5 text-muted-foreground">{micMessage}</p><Button variant="keep" size="touch" className="mt-4 w-full" onClick={useDemoRecording}>Use demo recording (2:30)</Button></> : <div className="mt-3 flex gap-2">{!isRecording ? <Button variant="keep" size="touch" className="w-full" disabled={recorder.status === "requesting" || recorder.supported === null} onClick={() => void startFinal()}><Mic /> {recorder.status === "requesting" ? "Waiting for microphone…" : "Start Recording"}</Button> : <>{recorder.canPause ? <Button variant="quiet" size="touch" className="flex-1" onClick={() => (recorder.status === "paused" ? recorder.resume() : recorder.pause())}>{recorder.status === "paused" ? <Play /> : <Pause />}{recorder.status === "paused" ? "Resume" : "Pause"}</Button> : <Button variant="quiet" size="touch" className="flex-1" onClick={() => setScrollPaused(!scrollPaused)}>{scrollPaused ? <Play /> : <Pause />}{scrollPaused ? "Resume script" : "Pause script"}</Button>}<Button variant="keep" size="touch" className="flex-1" onClick={() => void finishFinal()}><Check /> Finish</Button></>}</div>}
     </div></div>}
+    {screen === "groupRecord" && <>{top()}<div className="mx-auto max-w-[650px] px-6 pb-[max(32px,env(safe-area-inset-bottom))] pt-5">
+      <p className="mb-3 text-[11px] font-semibold uppercase tracking-[.16em] text-[#7C6752]">CREATE TOGETHER · {readyCount} OF {project.messageParagraphs.length} PARTS SAVED</p>
+      <h1 className="font-display text-[clamp(38px,10vw,53px)] leading-[1.08]">Every voice matters.</h1>
+      <p className="mt-3 text-sm leading-6 text-muted-foreground">Record one part at a time. Pass the phone to the next person when you're done. Your recordings are saved as you go.</p>
+      <div className="mt-6 flex flex-wrap gap-2" role="group" aria-label="Choose a recording part">
+        {project.messageParagraphs.map((p,i)=><button type="button" key={i} disabled={isRecording || groupBusy} aria-pressed={groupPartIndex===i} aria-label={`Part ${i+1} for ${speakerName(i)}`} onClick={()=>setGroupPartIndex(i)} className={`flex items-center gap-1.5 rounded-full border px-3 py-2 text-xs font-medium disabled:opacity-50 ${groupPartIndex===i?"border-[#AE9478] bg-[#EDE2D3] text-[#4A382B]":"border-border bg-card text-foreground"}`}>{readyPart(i) ? <Check className="size-3.5 text-[#6A8462]"/> : <Mic className="size-3.5"/>} {i+1}. {speakerName(i)}</button>)}
+      </div>
+      <div className="mt-6 rounded-[24px] border border-[#D7C8B8] bg-[#FAF6EF] p-6 text-[#211D19] shadow-sm">
+        <div className="flex items-center justify-between gap-3"><span className="text-[11px] font-semibold uppercase tracking-[.12em] text-[#8A6D52]">PART {groupPartIndex+1} OF {project.messageParagraphs.length}</span><span className="rounded-full bg-[#E8DAC8] px-3 py-1 text-xs font-medium">{speakerName(groupPartIndex)}</span></div>
+        <p className="mt-5 whitespace-pre-wrap font-display text-[clamp(22px,6vw,30px)] leading-[1.42]">{project.messageParagraphs[groupPartIndex]}</p>
+        {readyPart(groupPartIndex)?.audioUrl && !isRecording && <div className="mt-6 border-t border-[#DCCFC1] pt-4">
+          <p className="mb-2 text-xs text-[#6D5B4A]">Saved recording · {fmt(readyPart(groupPartIndex)!.durationSec)}</p>
+          <audio src={readyPart(groupPartIndex)!.audioUrl} controls preload="none" className="h-10 w-full" aria-label={`Listen to ${speakerName(groupPartIndex)}'s recording`}/>
+        </div>}
+      </div>
+      {isRecording && <p className="mt-5 text-center text-sm tabular-nums text-[#9F483F]" role="status">● Recording {speakerName(groupPartIndex)} · {fmt(recorder.elapsed)}</p>}
+      {micUnavailable && <p className="mt-5 text-sm text-destructive" role="alert">{micMessage} Each person needs a real voice recording to finish this Keep.</p>}
+      <div className="mt-6 space-y-3">
+        {!isRecording ? <Button variant="keep" size="touch" className="w-full" disabled={groupBusy || micUnavailable || recorder.supported !== true} onClick={()=>void startFinal()}><Mic className="size-5"/>{readyPart(groupPartIndex)?"Re-record this part":`Record ${speakerName(groupPartIndex)}'s part`}</Button> :
+          <div className="flex gap-2">{recorder.canPause && <Button variant="quiet" size="touch" className="flex-1" onClick={()=>recorder.status==="paused"?recorder.resume():recorder.pause()}>{recorder.status==="paused"?"Resume":"Pause"}</Button>}
+            <Button variant="keep" size="touch" className="flex-1" disabled={groupBusy} onClick={()=>void finishGroupPart()}><Check className="size-4"/> Save this part</Button></div>}
+        <Button variant={groupReady ? "keep" : "quiet"} size="touch" className="w-full" disabled={!groupReady || isRecording || groupBusy} onClick={()=>void combineGroupVoices()}>{groupBusy ? <Loader2 className="size-4 animate-spin"/> : <ArrowRight className="size-4"/>}{groupBusy ? "Preparing voices…" : "Bring all voices together"}</Button>
+        <p className="text-center text-[11px] leading-5 text-muted-foreground">The final Keep will play everyone's recordings as one smooth message, with a short natural pause between parts.</p>
+        <Button variant="bare" size="sm" className="w-full text-muted-foreground" disabled={isRecording || groupBusy} onClick={()=>go("message")}>Edit who says what</Button>
+      </div>
+    </div></>}
     {screen === "recorded" && <>{top()}<div className="relative flex keep-min-screen-minus-90 flex-col overflow-hidden px-7 pb-[max(36px,env(safe-area-inset-bottom))] pt-8">
       <div className="pointer-events-none absolute left-1/2 top-[31%] h-80 w-80 -translate-x-1/2 rounded-full bg-accent/[0.07] blur-3xl" />
       <div className="relative z-10 text-center">
         
-        <h1 className="display mx-auto mt-5 max-w-sm text-[clamp(50px,13vw,68px)] leading-[0.96]">Your voice is ready.</h1>
-        <p className="mx-auto mt-5 max-w-xs text-sm leading-6 text-muted-foreground">Not polished. Not performed. Just you — exactly how they should hear it.</p>
+        <h1 className="display mx-auto mt-5 max-w-sm text-[clamp(50px,13vw,68px)] leading-[0.96]">{isTogether ? "Your voices are ready." : "Your voice is ready."}</h1>
+        <p className="mx-auto mt-5 max-w-xs text-sm leading-6 text-muted-foreground">{isTogether ? "Different people, one heartfelt message. Just the way you wanted them to hear it." : "Not polished. Not performed. Just you — exactly how they should hear it."}</p>
       </div>
 
       <div className="relative z-10 flex flex-1 flex-col items-center justify-center py-7">
@@ -1540,7 +1681,7 @@ function KeepApp() {
             go("memories");
           }
         }, !rec || captionSyncing || (!!rec && !rec.demo && project.captionCues.length === 0))}
-        <Button variant="bare" size="touch" className="w-full text-muted-foreground" onClick={() => go("record")}><RotateCcw /> Record again</Button>
+        <Button variant="bare" size="touch" className="w-full text-muted-foreground" onClick={() => {setGroupPartIndex(0);go(isTogether ? "groupRecord" : "record");}}><RotateCcw /> Record again</Button>
       </div>
     </div></>}
     {screen === "memories" && <>{top()}<div className="px-7 pb-10 pt-9">
@@ -1801,10 +1942,10 @@ function KeepApp() {
     </div>}
     {screen === "preview" && (viewingDemo
       ? <KeepPlayer name="HANNA" from="Alex" year="2026" onExit={back} onFinish={home} />
-      : <KeepPlayer name={(name || "Your Keep").toUpperCase()} from="Alex" year="2026" subtitle={project.occasion} onExit={back} onFinish={() => { setScreen("editor"); resetPageScroll(); }} style={project.visualStyle} captions={project.captionStyle} media={frames.length ? frames.map((m) => ({ url: m.url, kind: m.kind, displayDurationSec: m.displayDurationSec ?? 7, focusX: m.focusX, focusY: m.focusY, zoom: m.zoom, motion: m.motion, transition: m.transition })) : undefined} audioUrl={rec && !rec.demo ? rec.audioUrl : undefined} audioDuration={rec?.durationSec} lines={captionLines} captionCues={project.captionCues} musicMood={project.musicMood} voiceMusicBalance={project.voiceMusicBalance} voiceVolume={project.voiceVolume} musicVolume={project.musicVolume} captionPosition={project.captionPosition} captionLines={project.captionLines} audioMix={mix} />)}
+      : <KeepPlayer name={(name || "Your Keep").toUpperCase()} from={giverNames} year="2026" subtitle={project.occasion} onExit={back} onFinish={() => { setScreen("editor"); resetPageScroll(); }} style={project.visualStyle} captions={project.captionStyle} media={frames.length ? frames.map((m) => ({ url: m.url, kind: m.kind, displayDurationSec: m.displayDurationSec ?? 7, focusX: m.focusX, focusY: m.focusY, zoom: m.zoom, motion: m.motion, transition: m.transition })) : undefined} audioUrl={rec && !rec.demo ? rec.audioUrl : undefined} audioDuration={rec?.durationSec} lines={captionLines} captionCues={project.captionCues} musicMood={project.musicMood} voiceMusicBalance={project.voiceMusicBalance} voiceVolume={project.voiceVolume} musicVolume={project.musicVolume} captionPosition={project.captionPosition} captionLines={project.captionLines} audioMix={mix} />)}
     {screen === "recipientPreview" && <KeepRecipientExperience
       name={(name || engraving[0] || "You").trim()}
-      from={(engraving[1]?.replace(/^FROM\s+/i, "") || "Alex").trim()}
+      from={isTogether ? giverNames : (engraving[1]?.replace(/^FROM\s+/i, "") || "Alex").trim()}
       year={(engraving[2] || "2026").trim()}
       subtitle={project.occasion}
       openingMessage={project.openingMessage}
@@ -1813,6 +1954,7 @@ function KeepApp() {
       audioUrl={rec && !rec.demo ? rec.audioUrl : undefined}
       audioDuration={rec?.durationSec}
       messageParagraphs={project.messageParagraphs.length ? project.messageParagraphs : initialMessage.map((p) => withName(p, name))}
+      speakerNames={isTogether ? project.messageParagraphs.map((_,i)=>speakerName(i)) : undefined}
       style={project.visualStyle}
       captions={project.captionStyle}
       lines={captionLines}
@@ -1827,7 +1969,7 @@ function KeepApp() {
     />}
     {screen === "recipientReveal" && <KeepRecipientExperience
       name={(name || engraving[0] || "You").trim()}
-      from={(engraving[1]?.replace(/^FROM\s+/i, "") || "").trim()}
+      from={isTogether ? giverNames : (engraving[1]?.replace(/^FROM\s+/i, "") || "").trim()}
       year={(engraving[2] || "").trim()}
       openingMessage={project.openingMessage}
       subtitle={project.occasion}
@@ -1836,6 +1978,7 @@ function KeepApp() {
       audioUrl={rec && !rec.demo ? rec.audioUrl : undefined}
       audioDuration={rec?.durationSec}
       messageParagraphs={project.messageParagraphs}
+      speakerNames={isTogether ? project.messageParagraphs.map((_,i)=>speakerName(i)) : undefined}
       style={project.visualStyle} captions={project.captionStyle} lines={captionLines} captionCues={project.captionCues}
       musicMood={project.musicMood} voiceMusicBalance={project.voiceMusicBalance} voiceVolume={project.voiceVolume} musicVolume={project.musicVolume}
       captionPosition={project.captionPosition} captionLines={project.captionLines} audioMix={mix}

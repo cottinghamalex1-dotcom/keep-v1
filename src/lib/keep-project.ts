@@ -36,6 +36,8 @@ export type InterviewAnswer = {
   transcript?: string | undefined; // set only by a real transcription service (none connected yet)
 };
 
+export type KeepContributor = { id: string; name: string };
+export type KeepVoicePart = { paragraphIndex: number; contributorId: string; textFingerprint: string; audioId: string; audioUrl?: string; durationSec: number; mimeType?: string };
 export type VoiceRecording = { audioId?: string | undefined; audioUrl?: string | undefined; durationSec: number; mimeType?: string | undefined; demo: boolean };
 export type CaptionCue = { text: string; start: number; end: number };
 export type CaptionWord = { word: string; start: number; end: number };
@@ -61,6 +63,13 @@ export type KeepProject = {
   interviewSummary: string;
   writtenText: string;
   messageParagraphs: string[];
+  /** Optional collaborative recording; existing Keeps remain single-voice. */
+  voiceMode?: "solo" | "together";
+  contributors?: KeepContributor[];
+  paragraphSpeakers?: string[];
+  voiceParts?: KeepVoicePart[];
+  /** Snapshot of the script and parts used to build the final narration. */
+  groupVoiceSignature?: string;
   finalVoiceRecording: VoiceRecording | null;
   captionTranscript: string;
   captionCues: CaptionCue[];
@@ -96,13 +105,13 @@ export const sampleMemories = (): MediaItem[] =>
 export function newProject(): KeepProject {
   return {
     active: false, stage: "recipient", recipientName: "", openingMessage: "Made just for you.", relationship: "", occasion: "Anniversary", intent: "", questionIndex: 0, interviewQuestion: "", interviewSummary: "",
-    interviewAnswers: [], messageSource: null, writtenText: "", messageParagraphs: [], finalVoiceRecording: null, captionTranscript: "", captionCues: [], captionWords: [], captionWordsPerCue: 5, captionLines: 2, captionPosition: "bottom", creationStyle: "memories", memories: [], readMemoryOrder: [],
+    interviewAnswers: [], messageSource: null, writtenText: "", messageParagraphs: [], voiceMode: "solo", contributors: [], paragraphSpeakers: [], voiceParts: [], finalVoiceRecording: null, captionTranscript: "", captionCues: [], captionWords: [], captionWordsPerCue: 5, captionLines: 2, captionPosition: "bottom", creationStyle: "memories", memories: [], readMemoryOrder: [],
     musicMood: "Warm + Nostalgic", voiceMusicBalance: "Balanced", musicMix: 50, voiceVolume: 60, musicVolume: 60, audioMixVersion: 2, captionStyle: "Reel", visualStyle: "Natural", cardEngraving: ["", "FROM ALEX", "2026"],
   };
 }
 
 export const stageLabels: Record<string, string> = {
-  recipient: "Choosing who it's for", occasion: "Choosing the occasion", path: "Finding the words", interview: "In the interview",
+  recipient: "Choosing who it's for", occasion: "Choosing the occasion", voices: "Choosing the voices", groupRecord: "Recording together", path: "Finding the words", interview: "In the interview",
   summary: "Story gathered", write: "Writing the message", message: "Shaping the message", recordPrep: "Getting ready to record", record: "Recording your voice",
   recorded: "Voice recorded", memories: "Adding memories", editor: "In the editor", card: "Designing the card", success: "Ready",
 };
@@ -115,6 +124,7 @@ export function saveDraft(p: KeepProject) {
       memories: p.memories.filter((m) => m.source === "sample" || m.source === "text" || m.persisted).map((m) => ({ ...m, url: m.source === "text" ? m.url : "" })),
       interviewAnswers: p.interviewAnswers.map(({ audioUrl: _a, ...a }) => a),
       finalVoiceRecording: p.finalVoiceRecording ? { ...p.finalVoiceRecording, audioUrl: undefined } : null,
+      voiceParts: p.voiceParts?.map(({ audioUrl: _url, ...part }) => part),
     };
     localStorage.setItem(DRAFT_KEY, JSON.stringify(lite));
   } catch { /* storage full or blocked — draft stays session-only */ }
@@ -159,7 +169,8 @@ export async function hydrateDraftMedia(p: KeepProject) {
   const interviewAnswers = await Promise.all(p.interviewAnswers.map(async (a) => ({ ...a, audioUrl: await blobUrl(a.audioId) })));
   const f = p.finalVoiceRecording;
   const finalVoiceRecording = f ? (f.demo ? f : { ...f, audioUrl: await blobUrl(f.audioId) }) : null;
-  return { memories, interviewAnswers, finalVoiceRecording };
+  const voiceParts = await Promise.all((p.voiceParts ?? []).map(async (part) => ({ ...part, audioUrl: await blobUrl(part.audioId) })));
+  return { memories, interviewAnswers, finalVoiceRecording, voiceParts };
 }
 
 export function projectBlobIds(p: KeepProject) {
@@ -167,6 +178,7 @@ export function projectBlobIds(p: KeepProject) {
     ...p.memories.filter((m) => m.source === "upload").map((m) => m.id),
     ...p.interviewAnswers.map((a) => a.audioId).filter((x): x is string => !!x),
     ...(p.finalVoiceRecording?.audioId ? [p.finalVoiceRecording.audioId] : []),
+    ...(p.voiceParts ?? []).map((part) => part.audioId),
   ];
 }
 
@@ -175,6 +187,7 @@ export function projectObjectUrls(p: KeepProject) {
     ...p.memories.filter((m) => m.source === "upload").map((m) => m.url),
     ...p.interviewAnswers.map((a) => a.audioUrl),
     p.finalVoiceRecording?.audioUrl,
+    ...(p.voiceParts ?? []).map((part) => part.audioUrl),
   ].filter((x): x is string => !!x && x.startsWith("blob:"));
 }
 
