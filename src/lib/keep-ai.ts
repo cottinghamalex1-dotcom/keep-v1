@@ -54,6 +54,21 @@ export async function transcribeTimedAudio(blob: Blob, mimeType?: string, prompt
   };
 }
 
+/** Three personal, engraving-length lines based on the complete final script. */
+export async function fetchOpeningSuggestions(
+  recipientName: string,
+  occasion: string,
+  messageParagraphs: string[],
+): Promise<string[]> {
+  const r = await post<{ suggestions?: string[] }>(
+    JSON.stringify({ action: "opening_suggestions", recipientName, occasion, messageParagraphs }),
+    true,
+  );
+  const unique = [...new Set((r.suggestions ?? []).map(s => String(s).trim()).filter(s => s.length > 8 && s.length <= 110))];
+  if (unique.length !== 3) throw new Error("The three personal openings could not be generated.");
+  return unique;
+}
+
 export async function fetchDraft(ctx: InterviewContext) {
   const r = await post<{ paragraphs?: string[] }>(JSON.stringify({ action: "draft", ...ctx }), true);
   const paras = (r.paragraphs ?? []).map((p) => String(p).trim()).filter(Boolean);
