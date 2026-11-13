@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { BookOpen, ChevronDown, CircleHelp, Gift, Home, Menu, UserRound } from "lucide-react";
+import { ChevronDown, CircleHelp, Gift, Home, Menu, UserRound } from "lucide-react";
 import { useState } from "react";
 
 export function KeepAccountButton() {
@@ -14,12 +14,9 @@ export function KeepAccountButton() {
       {keepsOpen && <div className="space-y-1 pl-7 text-sm">
         <a href="/?create=1" className="block py-2">+ Create a new Keep</a>
         <Link to="/my-keeps" onClick={() => setOpen(false)} className="block py-2">See all my Keeps</Link>
-        <a href="/app#given" className="block py-2">Keeps given</a>
-        <a href="/app#received" className="block py-2">Keeps received</a>
       </div>}
       <div className="my-3 border-t border-border/80" />
       <a href="/app#account" className="flex items-center gap-3 py-3"><UserRound className="size-4 text-[#6A5849]" />Account</a>
-      <a href="/about" className="flex items-center gap-3 py-3"><BookOpen className="size-4 text-[#6A5849]" />What is Keep?</a>
       <a href="mailto:support@keep.com" className="flex items-center gap-3 py-3"><CircleHelp className="size-4 text-[#6A5849]" />Help &amp; Support</a>
     </div>}
   </div>;
