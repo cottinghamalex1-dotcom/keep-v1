@@ -25,6 +25,8 @@ export function KeepOpeningPersonalization({ project, onUpdate, onPreview, disab
   const key = fingerprint(project);
   const isCached = project.openingSuggestionsFor === key && project.openingMessageSuggestions?.length === 3;
   const attempted = useRef("");
+  const updateRef = useRef(onUpdate);
+  updateRef.current = onUpdate;
   const [status, setStatus] = useState<"idle" | "loading" | "error">("idle");
   const [retry, setRetry] = useState(0);
   const selected = !!project.engraveOpeningMessage && !!project.openingMessage?.trim();
@@ -37,12 +39,12 @@ export function KeepOpeningPersonalization({ project, onUpdate, onPreview, disab
     void fetchOpeningSuggestions(project.recipientName, project.occasion, project.messageParagraphs)
       .then(suggestions => {
         if (cancelled) return;
-        onUpdate({ openingMessageSuggestions: suggestions, openingSuggestionsFor: key });
+        updateRef.current({ openingMessageSuggestions: suggestions, openingSuggestionsFor: key });
         setStatus("idle");
       })
       .catch(() => { if (!cancelled) setStatus("error"); });
     return () => { cancelled = true; };
-  }, [isCached, key, retry, project.recipientName, project.occasion, project.messageParagraphs, onUpdate]);
+  }, [isCached, key, retry]);
   const updateEngraving = (index: number, value: string) => onUpdate({
     cardEngraving: project.cardEngraving.map((line, i) => i === index ? value.toUpperCase() : line),
   });
