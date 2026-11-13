@@ -5,7 +5,7 @@ import type { KeepProject, MediaItem } from './keep-project';
 const endpoint = 'https://lwkzhpwugtosbidxvdcr.supabase.co';
 const publicKey = 'sb_publishable_K8_SWJByLhV78h7gY4NySw_4sgjEVTi';
 export const viewingLink = (token: string) => `https://keep-v1.vercel.app/recipient?keep=${encodeURIComponent(token)}`;
-export type PublishedProject = Pick<KeepProject, 'recipientName' | 'openingMessage' | 'occasion' | 'messageParagraphs' | 'readMemoryOrder' | 'musicMood' | 'voiceMusicBalance' | 'voiceVolume' | 'musicVolume' | 'audioMix' | 'captionStyle' | 'captionPosition' | 'captionLines' | 'captionCues' | 'visualStyle' | 'cardEngraving' | 'voiceMode' | 'contributors' | 'paragraphSpeakers'> & {
+export type PublishedProject = Pick<KeepProject, 'recipientName' | 'openingMessage' | 'engraveOpeningMessage' | 'occasion' | 'messageParagraphs' | 'readMemoryOrder' | 'musicMood' | 'voiceMusicBalance' | 'voiceVolume' | 'musicVolume' | 'audioMix' | 'captionStyle' | 'captionPosition' | 'captionLines' | 'captionCues' | 'visualStyle' | 'cardEngraving' | 'voiceMode' | 'contributors' | 'paragraphSpeakers'> & {
   memories: MediaItem[]; voiceUrl?: string; voiceDuration: number;
 };
 export async function publicationRequest(body: unknown, session?: KeepSession | null) {
