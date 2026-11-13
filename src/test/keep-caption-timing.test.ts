@@ -49,13 +49,17 @@ it("prefers the newest cue during a short transition overlap", () => {
 
 
 it("detects a short phrase stretched across 13 seconds in a 98-second Keep", () => {
+  // Representative timing shape only; sample text is synthetic.
   const cues: CaptionCue[] = [
-    { text: "to", start: 1.87, end: 2.50 },
-    { text: "Good job you kids", start: 6.41, end: 7.46 },
-    { text: "You made this trip possible", start: 9.07, end: 22.52 },
-    { text: "Thank you for everything", start: 23.03, end: 29.98 },
-    { text: "And there is so much more", start: 30.83, end: 32.0 },
-    { text: "We will remember.", start: 92, end: 97.86 },
+    { text: "One", start: 1.87, end: 2.50 },
+    { text: "A lovely day together", start: 6.41, end: 7.46 },
+    { text: "We made a new memory today", start: 9.07, end: 22.52 },
+    { text: "It was a wonderful afternoon", start: 23.03, end: 29.98 },
+    ...Array.from({ length: 48 }, (_, i) => ({
+      text: "Another moment worth remembering together",
+      start: 30 + i * 1.4,
+      end: 31.2 + i * 1.4,
+    })),
   ];
   expect(captionTimingIsBroken([], cues, 98.41)).toBe(true);
   const repaired = recoverCaptionTiming([], cues, 98.41);
