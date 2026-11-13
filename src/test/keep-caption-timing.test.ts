@@ -65,8 +65,11 @@ it("detects a short phrase stretched across 13 seconds in a 98-second Keep", () 
   const repaired = recoverCaptionTiming([], cues, 98.41);
   expect(repaired.repaired).toBe(true);
   expect(repaired.cues.map(c => c.text)).toEqual(cues.map(c => c.text));
-  expect(repaired.cues[0]!.start).toBe(0);
-  expect(repaired.cues.at(-1)!.end).toBeCloseTo(98.41, 2);
+  // Preserve healthy provider anchors rather than shifting all later captions.
+  expect(repaired.cues[0]!.start).toBeCloseTo(1.87, 2);
+  expect(repaired.cues[4]!.start).toBeCloseTo(30, 2);
+  expect(repaired.cues.at(-1)!.end).toBeCloseTo(97, 2);
+  expect(repaired.cues[2]!.end - repaired.cues[2]!.start).toBeLessThan(9.1);
   for (let i = 0; i < repaired.cues.length; i++) {
     const cue = repaired.cues[i]!;
     expect(cue.end).toBeGreaterThan(cue.start);
