@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { ArrowLeft, ArrowRight, BookOpen, Headphones, Images, Pause, Play, RotateCcw, Volume2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { KeepPlayer, type PlayerMedia } from "@/components/keep-player";
@@ -98,6 +98,11 @@ export function KeepRecipientExperience({
   useEffect(() => () => {
     if (timer.current) window.clearInterval(timer.current);
   }, []);
+  useEffect(() => {
+    if (stage !== "experience" || experience !== "listen" || listenProgress < 99.8 || !audioUrl) return;
+    const tail = window.setTimeout(() => { void listenMix.current?.pause(); }, KEEP_MUSIC_TAIL_SECONDS * 1000);
+    return () => window.clearTimeout(tail);
+  }, [stage, experience, listenProgress >= 99.8, audioUrl]);
 
   useEffect(() => {
     if (stage !== "experience" || experience !== "listen" || !audioUrl || !audio.current) return;
@@ -310,7 +315,7 @@ export function KeepRecipientExperience({
 type ListenReadProps = {
   name: string; from: string; year: string; paragraphs: string[]; captionCues: CaptionCue[];
   audioUrl?: string | undefined; audioDuration: number; knownDuration: number;
-  audioRef: React.RefObject<HTMLAudioElement | null>;
+  audioRef: RefObject<HTMLAudioElement | null>;
   listening: boolean; progress: number;
   onToggle: () => void; onProgress: (value: number) => void; onDuration: (value: number) => void;
   onListening: (value: boolean) => void; onBack: () => void;
