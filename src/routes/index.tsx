@@ -1585,7 +1585,7 @@ function KeepApp() {
       </section>
     </div>}
     {(screen === "record" || screen === "recordPrep") && <div inert={screen === "recordPrep"} aria-hidden={screen === "recordPrep"} className="flex h-[100dvh] min-h-0 flex-col overflow-hidden">
-      {top()}
+      <div className="shrink-0">{top()}</div>
       <div className="mx-auto flex min-h-0 w-full max-w-[650px] flex-1 flex-col px-5 pb-[max(12px,env(safe-area-inset-bottom))] pt-3 sm:px-7">
         <div className="shrink-0 pb-3 text-center">
           <p className="text-[10px] font-semibold uppercase tracking-[.17em] text-[#7C6752]">YOUR VOICE · YOUR WORDS</p>
@@ -1615,7 +1615,7 @@ function KeepApp() {
       </div>
     </div>}
     {screen === "groupRecord" && <div className="flex h-[100dvh] min-h-0 flex-col overflow-hidden">
-      {top()}
+      <div className="shrink-0">{top()}</div>
       <div className="mx-auto flex min-h-0 w-full max-w-[650px] flex-1 flex-col px-5 pb-[max(12px,env(safe-area-inset-bottom))] pt-3 sm:px-7">
         <div className="shrink-0 pb-3">
           <p className="text-[10px] font-semibold uppercase tracking-[.16em] text-[#7C6752]">CREATE TOGETHER · {readyCount} OF {project.messageParagraphs.length} PARTS SAVED</p>
@@ -1634,7 +1634,7 @@ function KeepApp() {
           {!isRecording && readyPart(groupPartIndex)?.audioUrl && <audio src={readyPart(groupPartIndex)!.audioUrl} controls preload="none" className="h-10 w-full" aria-label={"Review " + speakerName(groupPartIndex) + "'s saved recording"} />}
           {micUnavailable && <p role="alert" className="text-center text-xs text-destructive">{micMessage} A real voice recording is needed for each part.</p>}
           {!isRecording ? (
-            <Button variant="keep" size="touch" className="w-full" disabled={groupBusy || micUnavailable || recorder.supported !== true} onClick={() => void startFinal()}>
+            <Button variant="keep" size="touch" className="w-full" disabled={groupBusy || micUnavailable || recorder.status === "requesting" || recorder.supported !== true} onClick={() => void startFinal()}>
               {recorder.status === "requesting" ? <Loader2 className="size-4 animate-spin" /> : <Mic className="size-4" />}
               {readyPart(groupPartIndex) ? "Re-record this part" : "Record " + speakerName(groupPartIndex) + "'s part"}
             </Button>
