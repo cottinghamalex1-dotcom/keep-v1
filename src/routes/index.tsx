@@ -1541,7 +1541,7 @@ function KeepApp() {
         <div className="min-h-0 overflow-y-auto px-7 pt-7 sm:px-9 sm:pt-9">
           <div className="mb-6 flex size-11 items-center justify-center rounded-full border border-[#D8C5AC] bg-[#EAE1D7]"><Mic className="size-5 text-[#6A5849]" strokeWidth={1.65} /></div>
           <h2 id="record-tips-title" className="font-display text-[clamp(35px,9vw,44px)] leading-[1.04] tracking-[-.035em]">Before you record.</h2>
-          <p id="record-tips-intro" className="mt-4 max-w-[34ch] text-[14px] leading-6 text-[#746E67]">It doesn't need to sound perfect. It just needs to sound like you.</p>
+          <p id="record-tips-intro" className="mt-4 max-w-[34ch] text-[14px] leading-6 text-[#746E67]">{isTogether ? "Each person records their own section. Pass the phone around, and Keep will combine your voices." : "It doesn't need to sound perfect. It just needs to sound like you."}</p>
           <p className="mt-3 text-[12px] leading-5 text-[#746E67]">Your message is about {intendedSpeakingTime} when read naturally. Two to three minutes is a great guide, not a rule.</p>
           <div className="mt-7 divide-y divide-[#DDD5CB] border-y border-[#DDD5CB]">
             {([
@@ -1606,8 +1606,8 @@ function KeepApp() {
       <div className="pointer-events-none absolute left-1/2 top-[31%] h-80 w-80 -translate-x-1/2 rounded-full bg-accent/[0.07] blur-3xl" />
       <div className="relative z-10 text-center">
         
-        <h1 className="display mx-auto mt-5 max-w-sm text-[clamp(50px,13vw,68px)] leading-[0.96]">Your voice is ready.</h1>
-        <p className="mx-auto mt-5 max-w-xs text-sm leading-6 text-muted-foreground">Not polished. Not performed. Just you — exactly how they should hear it.</p>
+        <h1 className="display mx-auto mt-5 max-w-sm text-[clamp(50px,13vw,68px)] leading-[0.96]">{isTogether ? "Your voices are ready." : "Your voice is ready."}</h1>
+        <p className="mx-auto mt-5 max-w-xs text-sm leading-6 text-muted-foreground">{isTogether ? "Different people, one heartfelt message. Just the way you wanted them to hear it." : "Not polished. Not performed. Just you — exactly how they should hear it."}</p>
       </div>
 
       <div className="relative z-10 flex flex-1 flex-col items-center justify-center py-7">
@@ -1921,10 +1921,10 @@ function KeepApp() {
     </div>}
     {screen === "preview" && (viewingDemo
       ? <KeepPlayer name="HANNA" from="Alex" year="2026" onExit={back} onFinish={home} />
-      : <KeepPlayer name={(name || "Your Keep").toUpperCase()} from="Alex" year="2026" subtitle={project.occasion} onExit={back} onFinish={() => { setScreen("editor"); resetPageScroll(); }} style={project.visualStyle} captions={project.captionStyle} media={frames.length ? frames.map((m) => ({ url: m.url, kind: m.kind, displayDurationSec: m.displayDurationSec ?? 7, focusX: m.focusX, focusY: m.focusY, zoom: m.zoom, motion: m.motion, transition: m.transition })) : undefined} audioUrl={rec && !rec.demo ? rec.audioUrl : undefined} audioDuration={rec?.durationSec} lines={captionLines} captionCues={project.captionCues} musicMood={project.musicMood} voiceMusicBalance={project.voiceMusicBalance} voiceVolume={project.voiceVolume} musicVolume={project.musicVolume} captionPosition={project.captionPosition} captionLines={project.captionLines} audioMix={mix} />)}
+      : <KeepPlayer name={(name || "Your Keep").toUpperCase()} from={giverNames} year="2026" subtitle={project.occasion} onExit={back} onFinish={() => { setScreen("editor"); resetPageScroll(); }} style={project.visualStyle} captions={project.captionStyle} media={frames.length ? frames.map((m) => ({ url: m.url, kind: m.kind, displayDurationSec: m.displayDurationSec ?? 7, focusX: m.focusX, focusY: m.focusY, zoom: m.zoom, motion: m.motion, transition: m.transition })) : undefined} audioUrl={rec && !rec.demo ? rec.audioUrl : undefined} audioDuration={rec?.durationSec} lines={captionLines} captionCues={project.captionCues} musicMood={project.musicMood} voiceMusicBalance={project.voiceMusicBalance} voiceVolume={project.voiceVolume} musicVolume={project.musicVolume} captionPosition={project.captionPosition} captionLines={project.captionLines} audioMix={mix} />)}
     {screen === "recipientPreview" && <KeepRecipientExperience
       name={(name || engraving[0] || "You").trim()}
-      from={(engraving[1]?.replace(/^FROM\s+/i, "") || "Alex").trim()}
+      from={isTogether ? giverNames : (engraving[1]?.replace(/^FROM\s+/i, "") || "Alex").trim()}
       year={(engraving[2] || "2026").trim()}
       subtitle={project.occasion}
       openingMessage={project.openingMessage}
@@ -1933,6 +1933,7 @@ function KeepApp() {
       audioUrl={rec && !rec.demo ? rec.audioUrl : undefined}
       audioDuration={rec?.durationSec}
       messageParagraphs={project.messageParagraphs.length ? project.messageParagraphs : initialMessage.map((p) => withName(p, name))}
+      speakerNames={isTogether ? project.messageParagraphs.map((_,i)=>speakerName(i)) : undefined}
       style={project.visualStyle}
       captions={project.captionStyle}
       lines={captionLines}
@@ -1947,7 +1948,7 @@ function KeepApp() {
     />}
     {screen === "recipientReveal" && <KeepRecipientExperience
       name={(name || engraving[0] || "You").trim()}
-      from={(engraving[1]?.replace(/^FROM\s+/i, "") || "").trim()}
+      from={isTogether ? giverNames : (engraving[1]?.replace(/^FROM\s+/i, "") || "").trim()}
       year={(engraving[2] || "").trim()}
       openingMessage={project.openingMessage}
       subtitle={project.occasion}
@@ -1956,6 +1957,7 @@ function KeepApp() {
       audioUrl={rec && !rec.demo ? rec.audioUrl : undefined}
       audioDuration={rec?.durationSec}
       messageParagraphs={project.messageParagraphs}
+      speakerNames={isTogether ? project.messageParagraphs.map((_,i)=>speakerName(i)) : undefined}
       style={project.visualStyle} captions={project.captionStyle} lines={captionLines} captionCues={project.captionCues}
       musicMood={project.musicMood} voiceMusicBalance={project.voiceMusicBalance} voiceVolume={project.voiceVolume} musicVolume={project.musicVolume}
       captionPosition={project.captionPosition} captionLines={project.captionLines} audioMix={mix}
