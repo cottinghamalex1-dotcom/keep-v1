@@ -29,6 +29,7 @@ import { checkKeepVideo, KEEP_VIDEO_MAX_BYTES, KEEP_VIDEO_MAX_SOURCE_BYTES, KEEP
 import { compressKeepVideo, keepCompressedSizeText, shouldCompressKeepVideo } from "@/lib/keep-video-compression";
 import { countKeepWords, estimateKeepSeconds, formatKeepTime } from "@/lib/keep-length";
 import { useRecorder } from "@/hooks/use-recorder";
+import { joinKeepVoiceParts } from "@/lib/keep-collaborative-audio";
 import { deleteBlobs, getBlob, putBlob } from "@/lib/keep-media-store";
 import { createKeepVoiceMix, playMusicSample, stopMusicSample, type MusicBalance } from "@/lib/keep-audio";
 import { fetchDraft, fetchNextQuestion, fetchRevision, keepAiAvailable, transcribeAudio, transcribeTimedAudio, type TimedWord } from "@/lib/keep-ai";
@@ -46,9 +47,9 @@ export const Route = createFileRoute("/")({
   component: KeepRoute,
 });
 
-type Screen = "home" | "you" | "detail" | "recipient" | "occasion" | "intent" | "path" | "interview" | "summary" | "messageGenerating" | "write" | "message" | "recordPrep" | "record" | "recorded" | "memories" | "storyStyle" | "generating" | "editor" | "preview" | "recipientReveal" | "recipientPreview" | "giveReady" | "card" | "success";
+type Screen = "home" | "you" | "detail" | "recipient" | "occasion" | "voices" | "intent" | "path" | "interview" | "summary" | "messageGenerating" | "write" | "message" | "recordPrep" | "record" | "groupRecord" | "recorded" | "memories" | "storyStyle" | "generating" | "editor" | "preview" | "recipientReveal" | "recipientPreview" | "giveReady" | "card" | "success";
 type Mode = "Memories" | "Music" | "Captions" | "Style" | "Voice";
-const creationScreens: Screen[] = ["recipient", "occasion", "intent", "path", "interview", "summary", "messageGenerating", "write", "message", "recordPrep", "record", "recorded", "memories", "storyStyle", "generating", "editor", "preview", "recipientPreview", "card", "success"];
+const creationScreens: Screen[] = ["recipient", "occasion", "voices", "intent", "path", "interview", "summary", "messageGenerating", "write", "message", "recordPrep", "record", "groupRecord", "recorded", "memories", "storyStyle", "generating", "editor", "preview", "recipientPreview", "card", "success"];
 const resumeScreen = (s: Screen): Screen => (s === "messageGenerating" ? "summary" : s === "generating" ? "memories" : s === "preview" || s === "recipientPreview" ? "editor" : s);
 const occasions = ["Birthday", "Anniversary", "Wedding", "New Baby", "Mother's Day", "Father's Day", "Graduation", "Thank You", "Trip / Adventure", "Milestone", "Celebration of Life", "Family Memories", "Just Because", "Other"];
 const relationships = ["Spouse / Partner", "Mom", "Dad", "Child", "Grandparent", "Sibling", "Friend", "Myself", "Someone else"];
@@ -171,6 +172,8 @@ function KeepApp() {
   const [readArrangeOpen, setReadArrangeOpen] = useState(false);
   const [readArrangeIndex, setReadArrangeIndex] = useState(0);
   const [returnToEditorAfterRecording, setReturnToEditorAfterRecording] = useState(false);
+  const [groupPartIndex, setGroupPartIndex] = useState(0);
+  const [groupBusy, setGroupBusy] = useState(false);
   const [frame, setFrame] = useState(0);
   const [editorPlaying, setEditorPlaying] = useState(false);
   const [editorTime, setEditorTime] = useState(0);
@@ -323,7 +326,7 @@ function KeepApp() {
     return () => window.clearTimeout(timer);
   }, [project, hydrated, cloudSyncAllowed]);
   useEffect(() => { if (project.active && !viewingDemo && creationScreens.includes(screen)) setProject((o) => (o.stage === resumeScreen(screen) ? o : { ...o, stage: resumeScreen(screen) })); }, [screen]);
-  useEffect(() => { if (screen !== "interview" && screen !== "record") recorder.cancel(); }, [screen]);
+  useEffect(() => { if (screen !== "interview" && screen !== "record" && screen !== "groupRecord") recorder.cancel(); }, [screen]);
   useEffect(() => {
     if (screen === "recorded") return;
     const audio = voicePlaybackRef.current;
@@ -435,6 +438,7 @@ function KeepApp() {
   const aiReady = keepAiAvailable();
   const aiContext = (list: InterviewAnswer[] = project.interviewAnswers) => ({
     recipientName: project.recipientName, relationship: project.relationship, occasion: project.occasion, intent: project.intent,
+    contributors: project.voiceMode === "together" ? (project.contributors ?? []).map(c => c.name) : [],
     answers: list.filter((a) => a.transcript?.trim()).map((a) => ({ question: a.question, transcript: (a.transcript ?? "").trim() })),
   });
   const runAi = async (kind: "start" | "transcribe" | "next" | "draft", fn: () => Promise<void>) => {
@@ -478,7 +482,7 @@ function KeepApp() {
     go("messageGenerating");
     void runAi("draft", async () => {
       const paragraphs = await fetchDraft(aiContext());
-      patch({ messageParagraphs: paragraphs, messageSource: "ai" });
+      patch({ messageParagraphs: paragraphs, messageSource: "ai", paragraphSpeakers: paragraphs.map((_,i) => project.contributors?.[i % Math.max(1,project.contributors.length)]?.id ?? "") });
       setActiveParagraph(0);
       setScreen("message");
       window.scrollTo(0, 0);
@@ -518,7 +522,7 @@ function KeepApp() {
     if (!changedIndexes.length) { toast.info("No changes were made to your message."); return; }
     setAppliedAiOriginal({ before: [...project.messageParagraphs], changedIndexes });
     setEditingAiParagraph(null);
-    patch({ messageParagraphs: askSuggestion.paragraphs });
+    patch({ messageParagraphs: askSuggestion.paragraphs, paragraphSpeakers: askSuggestion.paragraphs.map((_,i) => project.paragraphSpeakers?.[i] || project.contributors?.[i % Math.max(1,project.contributors.length)]?.id || "") });
     setActiveParagraph(changedIndexes[0] ?? activeParagraph);
     setAskOpen(false);
     setAskSuggestion(null);
@@ -648,6 +652,13 @@ function KeepApp() {
 
   // ---- Final voice recording ----
   const rec = project.finalVoiceRecording;
+  const isTogether = project.voiceMode === "together" && (project.contributors?.length ?? 0) > 1;
+  const speakerFor = (i: number) => project.paragraphSpeakers?.[i] || project.contributors?.[i % Math.max(1,project.contributors.length)]?.id || "";
+  const speakerName = (i: number) => project.contributors?.find(c => c.id === speakerFor(i))?.name || "Contributor";
+  const readyPart = (i: number) => (project.voiceParts ?? []).find(part => part.paragraphIndex === i && part.contributorId === speakerFor(i) && part.textFingerprint === (project.messageParagraphs[i] ?? "").trim() && !!part.audioId);
+  const readyCount = project.messageParagraphs.filter((p,i) => p.trim() && readyPart(i)).length;
+  const groupReady = project.messageParagraphs.length > 1 && readyCount === project.messageParagraphs.length;
+  const giverNames = isTogether ? (project.contributors ?? []).map(c => c.name.trim()).filter(Boolean).join(" & ") : "Alex";
   const editWordsFromEditor = () => {
     setEditorPanel(null);
     setReturnToEditorAfterRecording(true);
@@ -659,7 +670,8 @@ function KeepApp() {
     setEditorPanel(null);
     setReturnToEditorAfterRecording(true);
     setHistory((h) => [...h, "editor"]);
-    setScreen("record");
+    setScreen(isTogether ? "groupRecord" : "record");
+    setGroupPartIndex(0);
     setScroll(0);
     setScrollPaused(false);
     setRehearsing(false);
@@ -706,6 +718,58 @@ function KeepApp() {
     }));
     go("recorded");
     void syncFinalCaptions(r.blob, r.mimeType, r.durationSec);
+  };
+
+  const finishGroupPart = async () => {
+    if (groupBusy) return;
+    setGroupBusy(true);
+    try {
+      const r = await recorder.stop();
+      if (!r || r.durationSec < 0.25) throw new Error("That recording was too short. Try again.");
+      const index = groupPartIndex;
+      const id = newId("voice-part");
+      if (!(await putBlob(id,r.blob))) throw new Error("Your device could not save this recording. Please free some storage and try again.");
+      const currentParts = project.voiceParts ?? [];
+      const oldPart = currentParts.find(p => p.paragraphIndex === index);
+      const nextParts = [...currentParts.filter(p => p.paragraphIndex !== index), {
+        paragraphIndex:index, contributorId:speakerFor(index), textFingerprint:(project.messageParagraphs[index] ?? "").trim(),
+        audioId:id, audioUrl:URL.createObjectURL(r.blob), durationSec:r.durationSec, mimeType:r.mimeType,
+      }];
+      setProject(old=>({...old,voiceParts:nextParts,finalVoiceRecording:null,captionTranscript:"",captionCues:[],captionWords:[],captionTimingEstimated:false}));
+      if (oldPart) { releaseUrls([oldPart.audioUrl]); if (oldPart.audioId) void deleteBlobs([oldPart.audioId]); }
+      const nextIndex = project.messageParagraphs.findIndex((p,i) => p.trim() && !nextParts.some(part => part.paragraphIndex === i && part.contributorId === speakerFor(i) && part.textFingerprint === p.trim()));
+      if (nextIndex >= 0) setGroupPartIndex(nextIndex);
+      toast.success(nextIndex >= 0 ? "Part saved. Hand the phone to the next speaker." : "All voices recorded. Ready to bring them together.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "The recording couldn't be saved.");
+    } finally {
+      setGroupBusy(false);
+    }
+  };
+  const combineGroupVoices = async () => {
+    if (groupBusy || !groupReady) return;
+    setGroupBusy(true);
+    try {
+      const blobs: Blob[] = [];
+      for (let i = 0; i < project.messageParagraphs.length; i++) {
+        const part = readyPart(i);
+        const blob = part?.audioId ? await getBlob(part.audioId) : null;
+        if (!blob) throw new Error("A voice is missing. Please record that part again.");
+        blobs.push(blob);
+      }
+      const joined = await joinKeepVoiceParts(blobs);
+      if (joined.blob.size > 19 * 1024 * 1024) throw new Error("This combined message is too long. Make the parts a little shorter.");
+      const id = newId("voice");
+      if (!(await putBlob(id,joined.blob))) throw new Error("Not enough device storage to save the combined recording.");
+      if (rec) { releaseUrls([rec.audioUrl]); if (rec.audioId) void deleteBlobs([rec.audioId]); }
+      setProject(old=>({...old,finalVoiceRecording:{audioId:id,audioUrl:URL.createObjectURL(joined.blob),durationSec:joined.durationSec,mimeType:"audio/wav",demo:false},captionTranscript:"",captionCues:[],captionWords:[],captionTimingEstimated:false}));
+      go("recorded");
+      void syncFinalCaptions(joined.blob, "audio/wav", joined.durationSec);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "The recordings couldn't be combined. Your individual parts are saved.");
+    } finally {
+      setGroupBusy(false);
+    }
   };
 
   const retryCaptionSync = async () => {
@@ -765,7 +829,7 @@ function KeepApp() {
   // otherwise estimate speaking time from the current message (~140 words/minute).
   const narrationWordCount = countKeepWords(project.messageParagraphs.join(" "));
   const intendedSpeakingTime = formatKeepTime(estimateKeepSeconds(narrationWordCount));
-  const estimatedNarrationSec = narrationWordCount ? Math.max(1, Math.round(narrationWordCount / 140 * 60)) : 0;
+  const estimatedNarrationSec = narrationWordCount ? estimateKeepSeconds(narrationWordCount) : 0;
   const recordedNarrationSec = rec && !rec.demo && rec.durationSec > 0 ? rec.durationSec : 0;
   const guidanceSeconds = recordedNarrationSec || estimatedNarrationSec;
   const minRecommendedMoments = guidanceSeconds ? Math.ceil(guidanceSeconds / 5) : 0;
