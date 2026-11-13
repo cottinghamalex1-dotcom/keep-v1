@@ -154,6 +154,44 @@ Deno.serve(async (req: Request) => {
     const action = String(body.action || "");
     const context = normalizeContext(body);
 
+    if (action === "opening_suggestions") {
+      const transcript = Array.isArray(body.messageParagraphs)
+        ? body.messageParagraphs.slice(0, 100).map((p: unknown) => String(p).trim()).filter(Boolean).join("\n\n").slice(0, 28000)
+        : "";
+      if (transcript.length < 40) return json({ error: "A finished message is needed for personal suggestions." }, 400);
+      const result = await openAIJson({
+        model: "gpt-5-mini",
+        name: "keep_opening_engraving_options",
+        schema: {
+          type: "object", additionalProperties: false,
+          properties: { suggestions: { type: "array", items: { type: "string" } } },
+          required: ["suggestions"],
+        },
+        instructions: `You write deeply personal, elegant dedications for KEEP, a premium engraved NFC keepsake.
+Read the ENTIRE creator-supplied spoken transcript. Generate exactly THREE distinct, emotionally specific opening messages. Each must work BOTH as the intimate first text the recipient sees in a digital Keep AND as a laser-engraving inscription on a matte-black metal card.
+Rules:
+- Each option is 1–2 short sentences and at most 105 characters including punctuation, ideally 50–95.
+- Personalize them around concrete themes, meanings, relationships, or details ACTUALLY expressed in the transcript.
+- Do not invent memories, promises, names, feelings, traits, or incidents not present.
+- Do not simply copy long transcript passages. Synthesize their core emotional message into a memorable one- or two-line dedication.
+- Use three meaningfully different angles rather than near-duplicate wording.
+- Speak naturally to the recipient in second person. No generic sales slogans, emojis, quotation marks, labels, numbering or ellipses.
+- Handle sensitive occasions, especially memorial Keeps, gently and respectfully.
+- If the transcript lacks concrete details, choose truthful warmth rather than inventing any.
+Return three suggestions only.`,
+        input: JSON.stringify({
+          recipientName: String(body.recipientName || "").slice(0, 100),
+          occasion: String(body.occasion || "").slice(0, 100),
+          transcript,
+        }),
+      });
+      const suggestions = Array.isArray(result.suggestions)
+        ? [...new Set(result.suggestions.map((v: unknown) => String(v).trim().replace(/\s+/g, " ").replace(/^["'“”]+|["'“”]+$/g, "")).filter((v: string) => v.length >= 10 && v.length <= 110))].slice(0, 3)
+        : [];
+      if (suggestions.length !== 3) return json({ error: "Could not prepare three engraving-length suggestions. Try again." }, 502);
+      return json({ suggestions });
+    }
+
     if (action === "next_question") {
       // Begin with the heart of the Keep, not a narrow anecdote.
       // The first answer gives the model context for a natural, personal follow-up.

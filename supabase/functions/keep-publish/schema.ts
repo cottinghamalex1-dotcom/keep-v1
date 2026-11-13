@@ -2,7 +2,7 @@ import { z } from 'zod';
 const text = (max: number) => z.string().max(max);
 const number = (min: number,max: number) => z.number().finite().min(min).max(max);
 export const manifestSchema = z.object({
-  recipientName: text(100).min(1), openingMessage: text(160).optional().default('Made just for you.'), occasion: text(100),
+  recipientName: text(100).min(1), openingMessage: text(160).optional().default(''), engraveOpeningMessage: z.boolean().optional().default(false), occasion: text(100),
   messageParagraphs: z.array(text(10000)).min(1).max(100),
   voiceMode: z.enum(['solo','together']).optional(),
   contributors: z.array(z.object({id:text(100),name:text(60)})).max(8).optional(),

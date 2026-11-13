@@ -26,7 +26,7 @@ export function KeepFirstPlayReveal({
   onCreatorExit,
 }: Props) {
   const recipient = name.trim() || "You";
-  const message = (introduction ?? "").trim() || "Some things are worth keeping close.";
+  const message = (introduction ?? "").trim();
   const signature = [from?.trim() ? `from ${from.trim()}` : "", year?.trim() ?? ""].filter(Boolean).join(" · ");
 
   return (
@@ -43,7 +43,7 @@ export function KeepFirstPlayReveal({
         <h1 className="keep-first-play__name">{recipient}</h1>
         {signature && <p className="keep-first-play__signature">{signature}</p>}
         <div className="keep-first-play__rule" aria-hidden="true" />
-        <blockquote className="keep-first-play__message">{message}</blockquote>
+        {message && <blockquote className="keep-first-play__message">{message}</blockquote>}
       </div>
 
       <footer className="keep-first-play__footer">
@@ -52,7 +52,7 @@ export function KeepFirstPlayReveal({
           <ArrowRight size={19} strokeWidth={1.6} aria-hidden="true" />
         </button>
         <button type="button" className="keep-first-play__other" onClick={onOtherFormats}>
-          Or choose to listen or read
+          Or choose another way to experience it
         </button>
         {onCreatorExit && (
           <button type="button" className="keep-first-play__creator-exit" onClick={onCreatorExit}>
