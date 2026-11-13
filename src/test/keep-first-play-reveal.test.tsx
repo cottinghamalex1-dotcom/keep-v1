@@ -21,7 +21,7 @@ it("shows recipient, occasion, personal introduction and sender without a photo 
   );
   expect(screen.getByRole("heading", { name: "Hannah" })).toBeTruthy();
   expect(screen.getByText("I wanted to make sure these words always found you.")).toBeTruthy();
-  expect(screen.getByText("From Alex · 2026")).toBeTruthy();
+  expect(screen.getByText("from Alex · 2026")).toBeTruthy();
   expect(container.querySelector("img, video")).toBeNull();
   fireEvent.click(screen.getByRole("button", { name: /Experience your Keep/i }));
   expect(onOpen).toHaveBeenCalledTimes(1);
