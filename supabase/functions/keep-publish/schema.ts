@@ -4,6 +4,9 @@ const number = (min: number,max: number) => z.number().finite().min(min).max(max
 export const manifestSchema = z.object({
   recipientName: text(100).min(1), openingMessage: text(160).optional().default('Made just for you.'), occasion: text(100),
   messageParagraphs: z.array(text(10000)).min(1).max(100),
+  voiceMode: z.enum(['solo','together']).optional(),
+  contributors: z.array(z.object({id:text(100),name:text(60)})).max(8).optional(),
+  paragraphSpeakers: z.array(text(100)).max(100).optional(),
   cardEngraving: z.array(text(100)).max(3), readMemoryOrder:z.array(text(100)).max(300),
   memories:z.array(z.object({
     id:text(100), kind:z.enum(['image','video']), source:z.enum(['upload','sample','text']), storagePath:text(300),
