@@ -3,6 +3,8 @@ import { ArrowLeft, ArrowRight, BookOpen, Headphones, Images, Pause, Play, Rotat
 import { Button } from "@/components/ui/button";
 import { KeepPlayer, type PlayerMedia } from "@/components/keep-player";
 import { KeepFirstPlayReveal } from "@/components/keep-first-play-reveal";
+import { KeepReadingMusic } from "@/components/keep-reading-music";
+import { frameAtTime, makeReadingFrames } from "@/lib/keep-immersive-reading";
 import type { AudioMix, CaptionCue } from "@/lib/keep-project";
 import { createKeepVoiceMix, KEEP_MUSIC_LEAD_SECONDS, KEEP_MUSIC_TAIL_SECONDS, type MusicBalance } from "@/lib/keep-audio";
 
@@ -209,57 +211,14 @@ export function KeepRecipientExperience({
   }
 
   if (stage === "experience" && experience === "listen") {
-    const total = Math.max(1, listenDuration || audioDuration);
-    const elapsed = Math.min(total, (listenProgress / 100) * total);
-    const stamp = (seconds: number) => `${Math.floor(seconds / 60)}:${String(Math.floor(seconds % 60)).padStart(2, "0")}`;
-    return <main className="app-shell">
-      <section className="min-h-dvh bg-[#F7F5F2] text-[#25201D]" aria-label={`Listen and read the Keep for ${name}`}>
-        <header className="mx-auto flex h-[82px] max-w-3xl items-center justify-between border-b border-[#DFD7CF] px-6">
-          <button type="button" onClick={backToChoose} aria-label="Back to experiences" className="flex size-11 items-center justify-center rounded-full border border-[#DCCFC0]"><ArrowLeft className="size-5" /></button>
-          <span className="keep-wordmark !text-[29px]">Keep</span><span className="size-11" />
-        </header>
-        <div className="mx-auto max-w-[650px] px-6 pb-[max(100px,env(safe-area-inset-bottom))]">
-          <div className="pb-9 pt-12 text-center">
-            <p className="text-[10px] font-semibold uppercase tracking-[.23em] text-[#937D68]">LISTEN &amp; READ · A PERSONAL KEEP</p>
-            <h1 className="mt-5 font-display text-[clamp(54px,12vw,82px)] leading-none tracking-[-.055em]">{name}</h1>
-            <p className="mt-4 text-xs tracking-[.05em] text-[#807367]">{[from ? `from ${from}` : "", year].filter(Boolean).join(" · ")}</p>
-          </div>
-          {audioUrl && <audio ref={audio} crossOrigin="anonymous" src={audioUrl} preload="metadata"
-            onLoadedMetadata={e => { const d = e.currentTarget.duration; if (Number.isFinite(d) && d > 0) setListenDuration(d); }}
-            onPlay={() => { listenHasStarted.current = true; setListening(true); }}
-            onPause={() => { if (!listenIntroTimer.current) setListening(false); }}
-            onEnded={() => { setListening(false); timer.current = window.setTimeout(() => { void listenMix.current?.pause(); }, KEEP_MUSIC_TAIL_SECONDS * 1000); }}
-            onTimeUpdate={e => { const el = e.currentTarget; const d = Number.isFinite(el.duration) && el.duration > 0 ? el.duration : audioDuration; setListenProgress(Math.min(100, (el.currentTime / d) * 100)); }}
-          />}
-          <div className="sticky top-3 z-20 rounded-[22px] border border-[#D6C7B8] bg-[#FFFCF7]/95 p-5 shadow-[0_14px_40px_rgba(43,30,18,.10)] backdrop-blur-xl">
-            <div className="flex items-center justify-between gap-4">
-              <div><p className="text-[10px] font-semibold uppercase tracking-[.16em] text-[#907B68]">THE ORIGINAL VOICES</p>
-                <p className="mt-1 font-display text-[clamp(19px,5vw,24px)] text-[#302922]">{listening ? "Listen to their words." : listenProgress >= 99 ? "Their message is yours." : "Read along, at your pace."}</p>
-              </div>
-              <button type="button" aria-label={listening ? "Pause narration" : "Play narration"} onClick={toggleListen} className="flex size-14 shrink-0 items-center justify-center rounded-full bg-[#25201D] text-[#F7F5F2] shadow-sm active:scale-95">
-                {listening ? <Pause className="size-6" fill="currentColor" /> : <Play className="ml-1 size-6" fill="currentColor" />}
-              </button>
-            </div>
-            <input type="range" min="0" max="100" step=".1" value={listenProgress} aria-label="Audio playback position"
-              onChange={e => {const pct = Number(e.target.value);setListenProgress(pct);if(audio.current && Number.isFinite(audio.current.duration) && audio.current.duration > 0)audio.current.currentTime=pct/100*audio.current.duration;}}
-              className="mt-5 h-1.5 w-full cursor-pointer accent-[#7D6753]" />
-            <div className="mt-1.5 flex justify-between text-[10px] tabular-nums text-[#817365]"><span>{stamp(elapsed)}</span><span>{stamp(total)}</span></div>
-          </div>
-          <div className="mx-auto mt-12 h-10 w-px bg-gradient-to-b from-transparent via-[#B7A58F] to-transparent" aria-hidden="true" />
-          <article className="mx-auto max-w-[580px]">
-            <p className="mb-8 text-center text-[10px] font-semibold uppercase tracking-[.18em] text-[#9A8775]">THE WORDS THEY WANTED YOU TO HEAR</p>
-            <div className="space-y-10">{paragraphs.map((paragraph, i) => <section key={i}>
-              {speakerNames?.[i] && <p className="mb-3 text-[10px] font-semibold uppercase tracking-[.18em] text-[#8C7660]">{speakerNames[i]}</p>}
-              <p className="whitespace-pre-wrap font-display text-[clamp(22px,5.6vw,30px)] leading-[1.58] tracking-[-.012em] text-[#302922]">{paragraph}</p>
-            </section>)}</div>
-          </article>
-          <footer className="mt-16 border-t border-[#D8CBBE] pt-9 text-center">
-            <p className="font-display text-[29px] italic text-[#544535]">Some things are worth keeping.</p>
-            <button type="button" onClick={finishExperience} className="mt-7 inline-flex min-h-12 items-center gap-2 rounded-full border border-[#BBA994] px-6 text-xs font-semibold text-[#5C4938]">Finish this experience <ArrowRight className="size-4" /></button>
-          </footer>
-        </div>
-      </section>
-    </main>;
+    return <KeepListenAndRead
+      name={name} from={from} year={year} paragraphs={paragraphs}
+      captionCues={captionCues} audioUrl={audioUrl} audioDuration={audioDuration}
+      audioRef={audio} listening={listening} progress={listenProgress}
+      knownDuration={listenDuration} onToggle={toggleListen}
+      onProgress={setListenProgress} onDuration={setListenDuration}
+      onListening={setListening} onBack={backToChoose}
+    />;
   }
 
   if (stage === "experience" && experience === "read") {
@@ -275,6 +234,7 @@ export function KeepRecipientExperience({
             <span className="keep-read__eyebrow">A PERSONAL KEEP</span>
             <h1 className="keep-read__name">{name}</h1>
             <p className="keep-read__byline">{[from ? `from ${from}` : "", year].filter(Boolean).join(" · ")}</p>
+            <KeepReadingMusic musicMood={musicMood} />
             <div className="keep-read__rule" aria-hidden="true" />
           </div>
           <div className="keep-read__story">{paragraphs.map((paragraph, i) => (
@@ -346,3 +306,69 @@ export function KeepRecipientExperience({
     />
   </main>;
 }
+
+type ListenReadProps = {
+  name: string; from: string; year: string; paragraphs: string[]; captionCues: CaptionCue[];
+  audioUrl?: string | undefined; audioDuration: number; knownDuration: number;
+  audioRef: React.RefObject<HTMLAudioElement | null>;
+  listening: boolean; progress: number;
+  onToggle: () => void; onProgress: (value: number) => void; onDuration: (value: number) => void;
+  onListening: (value: boolean) => void; onBack: () => void;
+};
+
+function KeepListenAndRead({ name, from, year, paragraphs, captionCues, audioUrl, audioDuration, knownDuration, audioRef,
+  listening, progress, onToggle, onProgress, onDuration, onListening, onBack }: ListenReadProps) {
+  const seconds = Math.max(1, knownDuration || audioDuration);
+  const frames = useMemo(() => makeReadingFrames(captionCues, paragraphs, seconds), [captionCues, paragraphs, seconds]);
+  const elapsed = Math.min(seconds, progress * seconds / 100);
+  const frameIndex = frameAtTime(frames, elapsed);
+  const finished = progress >= 99.8;
+  const started = progress > 0.1 || listening;
+  const shown = started && !finished && frameIndex >= 0 ? frames[frameIndex] : null;
+  const stamp = (value: number) => `${Math.floor(value / 60)}:${String(Math.floor(value % 60)).padStart(2, "0")}`;
+  return <main className="app-shell">
+    <section className="relative flex h-[100dvh] min-h-[500px] flex-col overflow-hidden bg-[#F7F5F2] text-[#28221E]" aria-label={`Listen and read the Keep for ${name}`}>
+      <header className="flex shrink-0 items-center justify-between px-6 pt-[max(20px,env(safe-area-inset-top))] sm:px-10">
+        <button type="button" onClick={onBack} aria-label="Back to experiences" className="flex size-11 items-center justify-center rounded-full border border-[#D9CDC0]"><ArrowLeft className="size-5" /></button>
+        <span className="keep-wordmark !text-[29px]">Keep</span>
+        <span className="size-11" aria-hidden="true" />
+      </header>
+      <div className="shrink-0 px-6 pt-8 text-center">
+        <p className="text-[10px] font-semibold uppercase tracking-[.23em] text-[#917C68]">LISTEN &amp; READ</p>
+        <h1 className="mt-3 truncate font-display text-[clamp(39px,9vw,56px)] leading-none tracking-[-.055em]">{name}</h1>
+        <p className="mt-2 text-xs text-[#8B7D70]">{[from ? `from ${from}` : "", year].filter(Boolean).join(" · ")}</p>
+      </div>
+      {audioUrl && <audio ref={audioRef} src={audioUrl} crossOrigin="anonymous" preload="metadata"
+        onLoadedMetadata={e => {const d=e.currentTarget.duration;if(Number.isFinite(d)&&d>0)onDuration(d);}}
+        onPlay={() => onListening(true)}
+        onPause={() => onListening(false)}
+        onEnded={() => {onListening(false);onProgress(100);}}
+        onTimeUpdate={e => {const el=e.currentTarget;const d=Number.isFinite(el.duration)&&el.duration>0?el.duration:seconds;onProgress(Math.min(100,el.currentTime/d*100));}}
+      />}
+      <div className="relative flex min-h-0 flex-1 items-center justify-center px-7 py-9 text-center">
+        <div className="pointer-events-none absolute inset-x-0 top-[12%] mx-auto h-px w-12 bg-[#D9C9B7]" aria-hidden="true" />
+        {shown ? <div key={frameIndex} className="keep-immersive-caption max-w-[540px]">
+          <p className="line-clamp-4 whitespace-normal font-display text-[clamp(30px,8.2vw,47px)] leading-[1.24] tracking-[-.028em] text-[#29231E]">{shown.text}</p>
+        </div> : <div className="max-w-[360px]">
+          <p className="font-display text-[clamp(30px,7vw,43px)] leading-[1.24] italic tracking-[-.03em] text-[#5D4A3C]">{finished ? "Every word was meant for you." : "Some words deserve to be heard."}</p>
+          {!started && <p className="mt-6 text-xs leading-6 text-[#8C7E70]">Press play and let their message unfold.</p>}
+        </div>}
+        <div className="pointer-events-none absolute inset-x-0 bottom-[12%] mx-auto h-px w-12 bg-[#D9C9B7]" aria-hidden="true" />
+      </div>
+      <footer className="shrink-0 px-8 pb-[max(32px,env(safe-area-inset-bottom))] text-center">
+        <button type="button" onClick={onToggle} aria-label={listening ? "Pause narration" : finished ? "Replay narration" : "Play narration"}
+          className="mx-auto flex size-[76px] items-center justify-center rounded-full bg-[#28221D] text-[#FAF6F0] shadow-[0_14px_35px_rgba(50,36,22,.20)] transition-transform active:scale-95">
+          {listening ? <Pause className="size-7" fill="currentColor" /> : <Play className="ml-1 size-7" fill="currentColor" />}
+        </button>
+        <p className="mt-3 text-[10px] font-semibold uppercase tracking-[.16em] text-[#847260]">{listening ? "NOW PLAYING" : finished ? "EXPERIENCE IT AGAIN" : "LISTEN TO THE MESSAGE"}</p>
+        <div className="mx-auto mt-5 flex max-w-[400px] items-center gap-3 text-[10px] tabular-nums text-[#877869]">
+          <span>{stamp(elapsed)}</span>
+          <input type="range" min="0" max="100" step=".2" value={progress} aria-label="Narration position" onChange={e=>{const pct=Number(e.target.value);onProgress(pct);if(audioRef.current&&Number.isFinite(audioRef.current.duration)&&audioRef.current.duration>0)audioRef.current.currentTime=pct/100*audioRef.current.duration;}}
+            className="h-1 flex-1 cursor-pointer accent-[#79634E]" />
+          <span>{stamp(seconds)}</span>
+        </div>
+      </footer>
+    </section>
+  </main>;
+}
+
