@@ -13,7 +13,11 @@ alter table public.keep_purchases
   add column if not exists stripe_payment_link_id text,
   add column if not exists stripe_amount_total integer check (stripe_amount_total is null or stripe_amount_total >= 0),
   add column if not exists stripe_currency text,
-  add column if not exists stripe_shipping_details jsonb;
+  add column if not exists stripe_shipping_details jsonb,
+  add column if not exists package_tier text
+    check (package_tier is null or package_tier in ('basic', 'signature', 'deluxe')),
+  add column if not exists included_card_count integer
+    check (included_card_count is null or included_card_count in (1, 2));
 
 create unique index if not exists keep_purchases_stripe_pi_uidx
   on public.keep_purchases(stripe_payment_intent_id)
@@ -39,3 +43,8 @@ create table if not exists public.keep_stripe_reversals (
 alter table public.keep_stripe_reversals enable row level security;
 revoke all on public.keep_stripe_reversals from anon, authenticated;
 
+
+comment on column public.keep_purchases.package_tier is
+  'Package variant for product fulfillment: Basic logo-only, Signature engraved, or Deluxe two engraved cards.';
+comment on column public.keep_purchases.included_card_count is
+  'Number of physical cards included at purchase (one for Basic/Signature, two for Deluxe). Each Stripe purchase unlocks one digital Keep.';
