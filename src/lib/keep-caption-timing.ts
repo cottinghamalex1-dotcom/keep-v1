@@ -6,14 +6,23 @@ import type { CaptionCue, CaptionWord } from "./keep-project";
  * in the player even though the narration and transcription are preserved.
  */
 const valid = (n: number) => Number.isFinite(n) && n >= 0;
-const weight = (text: string) => {
-  const length = text.replace(/[^\p{L}\p{N}]/gu, "").length;
-  return Math.max(0.75, Math.min(2.4, length / 4.5)) + (/[.!?]$/.test(text.trim()) ? 0.35 : 0);
-};
+/** Spoken word count is a better timing weight than character count.
+ * In particular, a one-word caption must not last as long as a six-word phrase. */
+const spokenWords = (text: string) => (text.trim().match(/\S+/gu) ?? []).length;
+const weight = (text: string) => Math.max(0.7, spokenWords(text)) + (/[.!?]$/.test(text.trim()) ? 0.2 : 0);
 
 export function captionTimingIsBroken(words: CaptionWord[], cues: CaptionCue[], duration: number): boolean {
   if (!valid(duration) || duration <= 0 || !cues.length) return false;
   if (cues.some((cue) => !valid(cue.start) || !valid(cue.end) || cue.end <= cue.start || cue.end > duration + 2)) return true;
+  // Some timestamp providers assign a handful of words to 10–15 seconds,
+  // while all their values remain finite and technically in range. These are
+  // broken timings, not deliberate slow narration.
+  const stretched = cues.some((cue) => cue.end - cue.start > Math.max(7, spokenWords(cue.text) * 1.25 + 1.5));
+  if (stretched) return true;
+  const reversed = cues.slice(1).some((cue, index) => cue.start + 0.05 < cues[index]!.start);
+  if (reversed) return true;
+  const deadTime = cues.reduce((gap, cue, index) => gap + Math.max(0, cue.start - (index ? cues[index-1]!.end : 0)), 0);
+  if (deadTime > Math.max(10, duration * 0.13)) return true;
 
   const tinyCues = cues.filter((cue) => cue.end - cue.start < 0.18).length;
   const delay = cues[0]!.start;
@@ -33,7 +42,7 @@ export function captionTimingIsBroken(words: CaptionWord[], cues: CaptionCue[], 
 
 function spreadByWords<T>(values: T[], duration: number, content: (item: T) => string, range: (item: T, start: number, end: number) => T): T[] {
   if (!values.length) return [];
-  const usable = Math.max(0.3, duration - 0.25);
+  const usable = Math.max(0.3, duration - 0.1);
   const weights = values.map((v) => weight(content(v)));
   const total = weights.reduce((sum, n) => sum + n, 0) || 1;
   let offset = 0;
@@ -61,11 +70,18 @@ export function recoverCaptionTiming(
   return { words: correctedWords, cues: correctedCues, repaired: true };
 }
 
-/** Later caption wins for the small overlaps around transition boundaries. */
+/** Keep one caption visible through any small silence between phrases.
+ * The playing narration controls when to start/end displaying captions. */
 export function captionAtTime(cues: CaptionCue[], time: number): CaptionCue | undefined {
+  if (!cues.length || !Number.isFinite(time) || time < 0) return undefined;
   for (let i = cues.length - 1; i >= 0; i--) {
     const cue = cues[i]!;
     if (time + 0.015 >= cue.start && time <= cue.end + 0.08) return cue;
   }
-  return undefined;
+  // Hold the preceding caption until the next phrase instead of flashing blank.
+  // Before the first timestamp, show the first phrase once narration starts.
+  for (let i = cues.length - 1; i >= 0; i--) {
+    if (cues[i]!.start <= time + 0.015) return cues[i];
+  }
+  return cues[0];
 }
