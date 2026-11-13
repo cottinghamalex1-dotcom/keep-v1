@@ -124,18 +124,18 @@ const styleSlug = (name: string) => name.toLowerCase().replace(/[^a-z0-9]+/g, "-
 const withName = (t: string, name: string) => t.split("Hanna").join(name || "them");
 /** Divide a long typed message into sentence groups for separate readers. */
 const splitForVoices = (text: string, people: number): string[] => {
-  const sentences = (text.trim().match(/[^.!?]+[.!?]+(?:\\s+|$)|[^.!?]+$/gu) ?? []).map(x=>x.trim()).filter(Boolean);
+  const sentences = (text.trim().match(/[^.!?]+[.!?]+(?:\s+|$)|[^.!?]+$/gu) ?? []).map(x=>x.trim()).filter(Boolean);
   if (sentences.length < 2) {
-    const words = text.trim().split(/\\s+/u).filter(Boolean);
+    const words = text.trim().split(/\s+/u).filter(Boolean);
     if (words.length < 30) return [text.trim()];
     const perPart = Math.max(15,Math.ceil(words.length/Math.max(people,2)));
     return Array.from({length:Math.ceil(words.length/perPart)},(_,i)=>words.slice(i*perPart,(i+1)*perPart).join(" "));
   }
-  const target = Math.max(18,Math.ceil(text.trim().split(/\\s+/u).length/Math.max(people,2)));
+  const target = Math.max(18,Math.ceil(text.trim().split(/\s+/u).length/Math.max(people,2)));
   const result: string[] = [];
   let part = "";
   for (const sentence of sentences) {
-    if (part && (part+" "+sentence).split(/\\s+/u).length>target && result.length<98) { result.push(part); part=sentence; }
+    if (part && (part+" "+sentence).split(/\s+/u).length>target && result.length<98) { result.push(part); part=sentence; }
     else part = part ? part+" "+sentence : sentence;
   }
   if (part) result.push(part);
