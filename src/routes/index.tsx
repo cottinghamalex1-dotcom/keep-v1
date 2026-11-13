@@ -23,7 +23,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { KeepPlayer, memoryImages, memoryLabels } from "@/components/keep-player";
 import { KeepRecipientExperience, type KeepExperienceMode } from "@/components/keep-recipient-experience";
-import { openingMessageIdeas } from "@/lib/keep-opening-message";
+import { KeepOpeningPersonalization } from "@/components/keep-opening-personalization";
 import { KeepErrorBoundary } from "@/components/keep-error-boundary";
 import { KeepLengthGuide } from "@/components/keep-length-guide";
 import { checkKeepVideo, KEEP_VIDEO_MAX_BYTES, KEEP_VIDEO_MAX_SOURCE_BYTES, KEEP_VIDEO_MAX_SECONDS, readKeepVideoDuration } from "@/lib/keep-video-upload";
@@ -2026,24 +2026,7 @@ function KeepApp() {
     />}
     {screen === "card" && <>{top()}<div className="mx-auto max-w-xl px-7 pb-14 pt-7">
       {title("The final touch", "Give it somewhere to live.", "One simple front design for your physical Keep card.")}
-      <KeepCardFront engraving={engraving} />
-      <p className="mt-4 text-center text-[11px] leading-5 text-muted-foreground">Your words are personalized on the front only.</p>
-      <div className="mt-10 space-y-4">
-        {["To / Title", "From (optional)", "Date (optional)"].map((label, i) => <label key={label} className="block">
-          <span className="eyebrow">{label}</span>
-          <input aria-label={`Card ${label}`} maxLength={22} value={engraving[i] ?? ""} onChange={(e) => updateEngraving(i, e.target.value)} className="mt-2 w-full border-0 border-b border-border bg-transparent pb-3 text-sm tracking-widest outline-none focus:border-accent" />
-        </label>)}
-      </div>
-      <div className="mt-9 space-y-3 border-t border-border pt-7">
-        <h2 className="font-display text-2xl">Your opening message</h2>
-        <p className="text-xs leading-5 text-muted-foreground">The first words they'll see when they tap your card. Keep it short and personal.</p>
-        <details className="mt-4 rounded-lg border border-border/75 p-4"><summary className="cursor-pointer text-xs font-medium text-accent">Need inspiration? Explore opening lines</summary><div className="mt-4 space-y-2">{openingMessageIdeas(name, project.occasion).map((idea) => <button key={idea} type="button" className="block w-full rounded-md border border-border/60 px-4 py-3 text-left font-display text-base leading-6 transition-colors hover:border-accent hover:bg-secondary/40" onClick={() => patch({ openingMessage: idea })}>{idea}</button>)}</div></details>
-        <label className="block"><span className="sr-only">Opening message</span><textarea aria-label="Opening message" maxLength={160} rows={3} placeholder="Made just for you." value={project.openingMessage ?? "Made just for you."} onChange={(e) => patch({ openingMessage: e.target.value })} className="mt-2 w-full resize-none rounded-xl border border-border bg-background p-4 font-display text-lg outline-none focus:border-accent" /></label>
-        <div className="flex items-center justify-between">
-          <span className="text-[11px] text-muted-foreground">{(project.openingMessage ?? "Made just for you.").length}/160</span>
-          <Button variant="quiet" size="sm" disabled={publishing} onClick={() => go("recipientReveal")}>Preview opening <ArrowRight className="size-4" /></Button>
-        </div>
-      </div>
+      <KeepOpeningPersonalization project={project} onUpdate={patch} onPreview={() => go("recipientReveal")} disabled={publishing} />
       <div className="mt-10 border-t border-border pt-7">
         <Button variant="keep" size="touch" className="keep-premium-action w-full justify-between" disabled={publishing || !engraving[0]?.trim()} onClick={() => void finishAndShare()}>
           {publishing ? "Saving your Keep…" : "Finish & share"} <ArrowRight className="size-5" />
@@ -2060,7 +2043,7 @@ function KeepApp() {
         <div className="mb-7 flex size-12 items-center justify-center rounded-full border border-[#B8A89A] text-[#6A5849]"><Check className="size-5" /></div>
         <h1 className="keep-editorial-title">Your Keep is ready.</h1>
         <p className="mt-4 text-sm leading-6 text-muted-foreground">A memory worth keeping. Ready to share whenever you are.</p>
-        <div className="mt-9"><KeepCardFront engraving={engraving} /></div>
+        <div className="mt-9"><KeepCardFront engraving={engraving} openingMessage={project.openingMessage} showOpeningMessage={project.engraveOpeningMessage} /></div>
         <p className="mt-4 text-center text-[11px] leading-5 text-muted-foreground">Physical card ordering is coming next. No card has been ordered or shipped.</p>
       </div>
       <div className="mt-11 space-y-3">
