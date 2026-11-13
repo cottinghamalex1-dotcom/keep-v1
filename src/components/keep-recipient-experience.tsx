@@ -276,11 +276,7 @@ export function KeepRecipientExperience({
             <section key={i} className="keep-read__passage">
               {speakerNames?.[i] && <p className="mb-3 text-[11px] font-semibold uppercase tracking-[.16em] text-muted-foreground">{speakerNames[i]}</p>}
               <p className={i === 0 ? "keep-read__paragraph keep-read__paragraph--opening" : "keep-read__paragraph"}>{paragraph}</p>
-              {i < 4 && readItems[i] && <figure className="keep-read__figure">
-                {readItems[i]!.kind === "video"
-                  ? <video src={readItems[i]!.url} controls playsInline preload="metadata" className="keep-read__photo" />
-                  : <img src={readItems[i]!.url} alt={`Memory ${i + 1} in this Keep`} loading="lazy" className="keep-read__photo" />}
-              </figure>}
+              
             </section>
           ))}</div>
           <footer className="keep-read__closing">
@@ -295,10 +291,27 @@ export function KeepRecipientExperience({
   }
 
   if (stage === "ending") {
-    return <main className="app-shell"><div className="flex keep-min-screen flex-col items-center justify-center px-7 text-center">
-      <span className="keep-wordmark mb-20">Keep</span><h1 className="keep-editorial-title">SOME THINGS ARE<br />WORTH KEEPING.</h1><p className="mt-7 max-w-64 text-sm leading-6 text-muted-foreground">This one is yours. Come back whenever you want to experience it again.</p>
-      <div className="mt-14 w-full space-y-3"><Button variant="keep" size="touch" className="w-full" onClick={() => setStage("choose")}><RotateCcw /> Experience it again</Button>{creatorPreview ? <Button variant="quiet" size="touch" className="w-full" onClick={onCreatorExit ?? onCreatorContinue}>Back to editor <ArrowRight /></Button> : null}</div>
-    </div></main>;
+    return <main className="app-shell">
+      <section className="relative flex min-h-dvh flex-col overflow-hidden bg-[#F7F5F2] text-[#25201D]">
+        <header className="mx-auto flex w-full max-w-[640px] items-center justify-center px-7 pt-[max(40px,env(safe-area-inset-top))]">
+          <span className="font-display text-[32px] tracking-[-.055em]">Keep</span>
+        </header>
+        <div className="mx-auto flex w-full max-w-[640px] flex-1 flex-col items-center justify-center px-7 py-14 text-center">
+          <div className="mb-9 flex items-center gap-4" aria-hidden="true"><span className="h-px w-8 bg-[#B79F88]" /><span className="font-display text-lg text-[#9E8166]">✦</span><span className="h-px w-8 bg-[#B79F88]" /></div>
+          <p className="mb-6 text-[10px] font-semibold uppercase tracking-[.23em] text-[#907762]">MADE TO BE REMEMBERED</p>
+          <h1 className="max-w-[530px] font-display text-[clamp(43px,10.5vw,67px)] leading-[1.12] tracking-[-.055em]">
+            Some things are<br /><span className="italic font-normal">worth keeping.</span>
+          </h1>
+          <div className="my-9 h-px w-16 bg-[#C9B9A8]" aria-hidden="true" />
+          <p className="max-w-[305px] text-[13px] leading-7 text-[#796E63]">A little piece of someone's heart, made especially for {name}. Here whenever you want to experience it again.</p>
+          <p className="mt-6 font-display text-[17px] italic text-[#8D7763]">{from ? `With love, ${from}` : "With love"}{year ? ` · ${year}` : ""}</p>
+        </div>
+        <footer className="mx-auto w-full max-w-[540px] space-y-3 px-7 pb-[max(46px,env(safe-area-inset-bottom))]">
+          <Button variant="keep" size="touch" className="w-full justify-between" onClick={() => setStage("choose")}><RotateCcw className="size-4" /> Experience it again <ArrowRight className="size-4" /></Button>
+          {creatorPreview && <Button variant="quiet" size="touch" className="w-full justify-between border border-[#DED4CA]" onClick={onCreatorExit ?? onCreatorContinue}>Back to editor <ArrowRight className="size-4" /></Button>}
+        </footer>
+      </section>
+    </main>;
   }
 
   if (stage === "choose") {
@@ -307,9 +320,9 @@ export function KeepRecipientExperience({
         <p className="eyebrow">{visited && !creatorPreview ? "WELCOME BACK" : "A KEEP FOR"}</p><h1 className="keep-editorial-title mt-5">{name}</h1><p className="mt-4 text-sm text-muted-foreground">from {from} · {year}</p>
         <p className="mt-10 max-w-sm font-display text-[32px] leading-[1.12] tracking-tight">{visited && !creatorPreview ? "How would you like to experience it?" : "How would you like to experience it?"}</p>
         <div className="mt-8 space-y-3">
-          <Button variant="quiet" className="keep-editorial-surface h-auto w-full justify-between p-5 text-left" onClick={() => choose("watch")}><span className="flex items-center gap-4"><Images className="size-5" /><span><strong className="block font-normal">Watch</strong><small className="mt-1 block font-normal text-muted-foreground">Voice, memories, music + captions</small></span></span><ArrowRight /></Button>
-          <Button variant="quiet" className="keep-editorial-surface h-auto w-full justify-between p-5 text-left" onClick={() => choose("listen")}><span className="flex items-center gap-4"><Headphones className="size-5" /><span><strong className="block font-normal">Listen</strong><small className="mt-1 block font-normal text-muted-foreground">Voice + music, without the screen</small></span></span><ArrowRight /></Button>
-          <Button variant="quiet" className="keep-editorial-surface h-auto w-full justify-between p-5 text-left" onClick={() => choose("read")}><span className="flex items-center gap-4"><BookOpen className="size-5" /><span><strong className="block font-normal">Read</strong><small className="mt-1 block font-normal text-muted-foreground">Their words, woven together with memories</small></span></span><ArrowRight /></Button>
+          <Button variant="quiet" className="keep-editorial-surface h-auto w-full justify-between p-5 text-left" onClick={() => choose("watch")}><span className="flex items-center gap-4"><Images className="size-5" /><span><strong className="block font-normal">Watch, Listen &amp; Read</strong><small className="mt-1 block font-normal text-muted-foreground">Voice, photos, videos, music &amp; captions</small></span></span><ArrowRight /></Button>
+          <Button variant="quiet" className="keep-editorial-surface h-auto w-full justify-between p-5 text-left" onClick={() => choose("listen")}><span className="flex items-center gap-4"><Headphones className="size-5" /><span><strong className="block font-normal">Listen &amp; Read</strong><small className="mt-1 block font-normal text-muted-foreground">Listen to their voice while reading every word</small></span></span><ArrowRight /></Button>
+          <Button variant="quiet" className="keep-editorial-surface h-auto w-full justify-between p-5 text-left" onClick={() => choose("read")}><span className="flex items-center gap-4"><BookOpen className="size-5" /><span><strong className="block font-normal">Read</strong><small className="mt-1 block font-normal text-muted-foreground">Just the written message, no media</small></span></span><ArrowRight /></Button>
         </div>
       </div>
     </div></main>;
