@@ -17,7 +17,7 @@ export async function publicationRequest(body: unknown, session?: KeepSession | 
   return data;
 }
 export function publicationSettings(p: KeepProject) {
-  return { voiceMode: p.voiceMode ?? "solo", contributors: p.contributors ?? [], paragraphSpeakers: p.paragraphSpeakers ?? [], recipientName: p.recipientName, openingMessage: (p.openingMessage ?? 'Made just for you.').trim().slice(0, 160), occasion: p.occasion, messageParagraphs: p.messageParagraphs, readMemoryOrder: p.readMemoryOrder,
+  return { voiceMode: p.voiceMode ?? "solo", contributors: p.contributors ?? [], paragraphSpeakers: p.paragraphSpeakers ?? [], recipientName: p.recipientName, openingMessage: (p.openingMessage ?? '').trim().slice(0, 160), engraveOpeningMessage: !!p.engraveOpeningMessage && !!p.openingMessage?.trim(), occasion: p.occasion, messageParagraphs: p.messageParagraphs, readMemoryOrder: p.readMemoryOrder,
     musicMood: p.musicMood, voiceMusicBalance: p.voiceMusicBalance, voiceVolume: p.voiceVolume ?? 60, musicVolume: p.musicVolume ?? 60,
     audioMix: p.audioMix, captionStyle: p.captionStyle, captionPosition: p.captionPosition, captionLines: p.captionLines,
     captionCues: p.captionCues, visualStyle: p.visualStyle, cardEngraving: p.cardEngraving, voiceDuration: p.finalVoiceRecording?.durationSec ?? 0 };
