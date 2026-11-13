@@ -42,7 +42,7 @@ export type TimedWord = { word: string; start: number; end: number };
 
 export async function transcribeTimedAudio(blob: Blob, mimeType?: string, prompt?: string) {
   const type = mimeType ?? blob.type;
-  const ext = type.includes("mp4") ? "m4a" : type.includes("ogg") ? "ogg" : "webm";
+  const ext = type.includes("wav") ? "wav" : type.includes("mp4") ? "m4a" : type.includes("ogg") ? "ogg" : "webm";
   const fd = new FormData();
   fd.append("action", "transcribe_timed");
   fd.append("file", new File([blob], `keep-voice.${ext}`, { type: blob.type || mimeType || "audio/webm" }));
