@@ -11,30 +11,49 @@ export const Route = createFileRoute("/shop")({
   head: () => ({
     meta: [
       { title: "Keep — Some things are worth keeping" },
-      { name: "description", content: "A beautiful metal keepsake card, one personal memory film, and words they'll never forget. $99 with standard U.S. shipping included." },
+      { name: "description", content: "A meaningful metal keepsake card in three options: Basic $69, Signature $99 and Deluxe $129. Standard U.S. shipping included." },
     ],
   }),
   component: ShopKeep,
 });
 
-// Stripe Payment Links keep payments off our site and collect US shipping at checkout.
-const checkoutUrl = (import.meta.env["VITE_KEEP_STRIPE_PAYMENT_LINK_URL"] as string | undefined)?.trim() ?? "";
-// Never expose checkout until the signed webhook, production secrets and paid-to-creator flow are verified.
-const checkoutReady = import.meta.env["VITE_KEEP_STRIPE_CHECKOUT_READY"] === "true" &&
-  /^https:\/\/buy\.stripe\.com\/[a-zA-Z0-9_]+(?:\?.*)?$/.test(checkoutUrl);
+// Stripe-hosted links stay disabled until each tier's webhook, engraving and fulfillment are tested.
+type KeepTier = "basic" | "signature" | "deluxe";
+const checkoutUrls: Record<KeepTier, string> = {
+  basic: (import.meta.env["VITE_KEEP_STRIPE_BASIC_PAYMENT_LINK_URL"] as string | undefined)?.trim() ?? "",
+  signature: (import.meta.env["VITE_KEEP_STRIPE_PAYMENT_LINK_URL"] as string | undefined)?.trim() ?? "",
+  deluxe: (import.meta.env["VITE_KEEP_STRIPE_DELUXE_PAYMENT_LINK_URL"] as string | undefined)?.trim() ?? "",
+};
+const checkoutEnabled = import.meta.env["VITE_KEEP_STRIPE_CHECKOUT_READY"] === "true";
+const validatedCheckout = (tier: KeepTier) =>
+  checkoutEnabled && /^https:\/\/buy\.stripe\.com\/[a-zA-Z0-9_]+(?:\?.*)?$/.test(checkoutUrls[tier]);
+
+const packageChoices: Array<{
+  tier: KeepTier; name: string; price: string; cards: string; engraving: string; message: string; points: string[]; featured: boolean;
+}> = [
+  { tier: "basic", name: "Basic", price: "$69", cards: "1 card", engraving: "Keep logo only",
+    message: "Beautifully simple. Everything that matters, without the extra engraving.",
+    points: ["One matte-black metal NFC card", "Official Keep logo", "No personalized engraving", "One private digital Keep experience"], featured: false },
+  { tier: "signature", name: "Signature", price: "$99", cards: "1 card", engraving: "Personalized engraving",
+    message: "Make it unmistakably theirs with your words engraved on the front.",
+    points: ["One matte-black metal NFC card", "Keep logo + custom front message", "Laser engraving included", "One private digital Keep experience"], featured: true },
+  { tier: "deluxe", name: "Deluxe", price: "$129", cards: "2 cards", engraving: "Two custom engravings",
+    message: "Two meaningful cards. Two ways to keep your story close.",
+    points: ["Two matte-black metal NFC cards", "Keep logo on both cards", "Custom front engraving on each", "One private digital Keep experience"], featured: false },
+];
 
 const journey = [
-  { number: "01", title: "Choose your Keep", copy: "Start with a beautifully crafted metal keepsake card. Your $99 purchase includes the experience inside.", icon: "card" },
+  { number: "01", title: "Choose your Keep", copy: "Choose Basic, Signature or Deluxe. Every package includes your own personal Keep experience.", icon: "card" },
   { number: "02", title: "Make it personal", copy: "Share your words, add your favorite photos and videos, and find the perfect music. Keep guides you along the way.", icon: "story" },
   { number: "03", title: "Preview & approve", copy: "Watch your finished Keep, make it just right, then approve it for production.", icon: "play" },
   { number: "04", title: "We make it yours", copy: "We prepare, test and ship your card. They simply tap with their phone to relive it.", icon: "gift" },
 ];
 
 const questions = [
-  { q: "What exactly am I purchasing?", a: "One matte-black metal Keep card and one personalized digital memory experience. After checkout, you'll use our guided editor to combine your own voice, words, photos, short videos and music." },
+  { q: "What exactly am I purchasing?", a: "Choose Basic for a logo-only card, Signature for one personally engraved card, or Deluxe for two engraved cards. Each includes one private digital Keep experience made from your voice, words, photos, short videos and music." },
   { q: "Do I need to know how to edit videos?", a: "Not at all. Keep guides you step by step. You can write or record a message yourself, or use Keep AI to help find the words." },
   { q: "When will my Keep ship?", a: "After you've created, previewed and approved your finished Keep, we'll prepare the physical card for shipping. The timeline starts after your approval, not at checkout." },
-  { q: "Is standard shipping included?", a: "Yes. Standard shipping to addresses within the United States is included in the $99 price. Availability and rates outside the United States are not yet offered." },
+  { q: "Is standard shipping included?", a: "Yes. Standard shipping to U.S. addresses is included in all three package prices. International shipping is not available at launch. Applicable sales tax is additional." },
   { q: "Does the recipient need an app?", a: "No app is needed. With a compatible NFC-enabled smartphone, they can tap their Keep card to open their private viewing link." },
 ];
 
@@ -42,14 +61,23 @@ function BrandMark({ light = false }: { light?: boolean }) {
   return <img src={light ? "/brand/keep-wordmark-ivory.svg" : "/brand/keep-wordmark.svg"} alt="Keep" width={106} height={54} className="h-12 w-[106px] object-contain object-left" />;
 }
 
-function PurchaseAction({ smaller = false }: { smaller?: boolean }) {
-  if (!checkoutReady) return <div className={smaller ? "w-full" : "max-w-[380px]"}>
-    <span aria-disabled="true" className="flex min-h-14 items-center justify-between gap-4 rounded-sm border border-[#0B0B0B] bg-[#0B0B0B] px-6 py-4 text-sm font-medium text-[#F7F5F2] opacity-75">
+function PurchaseAction({ tier = "signature", smaller = false }: { tier?: KeepTier; smaller?: boolean }) {
+  const packageName = packageChoices.find(p => p.tier === tier)!;
+  if (!validatedCheckout(tier)) return <div className="w-full">
+    <span aria-disabled="true" className="flex min-h-12 items-center justify-between gap-4 rounded-sm border border-[#0B0B0B] bg-[#0B0B0B] px-5 py-3 text-xs font-medium text-[#F7F5F2] opacity-60">
       Checkout opening soon <ArrowRight className="size-4 shrink-0" />
     </span>
-    <p className="mt-3 text-[11px] leading-5 text-[#74695E]">We’re finishing secure payment verification before opening orders.</p>
+    {smaller ? <p className="mt-2 text-[10px] leading-4 text-[#74695E]">We’re finishing secure payment verification before opening orders.</p> : null}
   </div>;
-  return <a href={checkoutUrl} className={`flex min-h-14 items-center justify-between gap-4 rounded-sm border border-[#0B0B0B] bg-[#0B0B0B] px-6 py-4 text-sm font-medium text-[#F7F5F2] transition-colors hover:bg-[#302923] ${smaller ? "w-full" : "max-w-[380px]"}`}>Purchase your Keep — $99 <ArrowRight className="size-4 shrink-0" /></a>;
+  return <a href={checkoutUrls[tier]} className="flex min-h-12 w-full items-center justify-between gap-3 rounded-sm border border-[#0B0B0B] bg-[#0B0B0B] px-5 py-3 text-xs font-medium text-[#F7F5F2] transition-colors hover:bg-[#302923]">
+    Choose {packageName.name} — {packageName.price} <ArrowRight className="size-4 shrink-0" />
+  </a>;
+}
+
+function ExplorePackagesAction() {
+  return <a href="#packages" className="flex min-h-14 w-full max-w-[380px] items-center justify-between gap-4 rounded-sm border border-[#0B0B0B] bg-[#0B0B0B] px-6 py-4 text-sm font-medium text-[#F7F5F2] transition-colors hover:bg-[#302923]">
+    Explore the Keep collection <ArrowRight className="size-4 shrink-0" />
+  </a>;
 }
 
 function PhotoPhone() {
@@ -76,11 +104,11 @@ function ShopKeep() {
         <nav className="hidden items-center gap-9 text-[12px] font-medium text-[#4A4138] md:flex" aria-label="Shop navigation">
           <a href="#experience" className="hover:text-black">The experience</a>
           <a href="#how-it-works" className="hover:text-black">How it works</a>
-          <a href="#the-card" className="hover:text-black">The card</a>
+          <a href="#packages" className="hover:text-black">Packages</a>
           <Link to="/about" className="hover:text-black">Our story</Link>
         </nav>
         <div className="flex items-center gap-3">
-          <a href="#the-card" className="hidden min-h-10 items-center gap-2 rounded-sm bg-[#151312] px-5 text-[12px] font-medium text-[#F7F5F2] sm:flex">Explore Keep <ArrowRight className="size-3.5" /></a>
+          <a href="#packages" className="hidden min-h-10 items-center gap-2 rounded-sm bg-[#151312] px-5 text-[12px] font-medium text-[#F7F5F2] sm:flex">Explore Keep <ArrowRight className="size-3.5" /></a>
           <KeepAccountButton />
         </div>
       </div>
@@ -93,7 +121,7 @@ function ShopKeep() {
           <h1 className="font-display text-[clamp(49px,5.7vw,83px)] font-normal leading-[1.085] tracking-[-.048em]">Some things are <em className="text-[#8C7766]">worth keeping.</em></h1>
           <p className="mt-7 max-w-[530px] font-display text-[clamp(23px,2.6vw,32px)] leading-snug tracking-[-.023em]">Give them words they'll never forget.</p>
           <p className="mt-5 max-w-[475px] text-[15px] leading-[1.95] text-[#5F5850]">A beautiful metal card that opens an extraordinary personal gift: your voice, your photographs and the words that mean the most. Made by you. Kept by them.</p>
-          <div className="mt-9"><PurchaseAction /></div>
+          <div className="mt-9"><ExplorePackagesAction /></div>
           <a href="#experience" className="mt-7 inline-flex items-center gap-3 text-[12px] font-medium text-[#6A5849] hover:text-black">Discover the experience <ArrowDown className="size-4" /></a>
         </div>
 
@@ -153,6 +181,32 @@ function ShopKeep() {
       </div>
     </section>
 
+    <section id="packages" className="scroll-mt-24 border-t border-[#D8D0C7] bg-[#F7F5F2]">
+      <div className="mx-auto max-w-[1240px] px-6 py-20 md:px-10 md:py-28">
+        <div className="mx-auto max-w-[670px] text-center">
+          <p className="text-[10px] font-semibold uppercase tracking-[.2em] text-[#6A5849]">The Keep collection</p>
+          <h2 className="mt-5 font-display text-[clamp(41px,4.7vw,67px)] leading-[1.15] tracking-[-.036em]">Every story deserves to be kept.</h2>
+          <p className="mx-auto mt-5 max-w-[525px] text-sm leading-8 text-[#665D55]">Three thoughtful ways to give. Each package includes the same deeply personal digital Keep experience.</p>
+        </div>
+        <div className="mt-14 grid items-stretch gap-5 lg:grid-cols-3">
+          {packageChoices.map(p => <article key={p.tier} className={`relative flex flex-col overflow-hidden rounded-sm border p-7 sm:p-8 ${p.featured ? "border-[#171514] bg-[#EDE7E0] shadow-[0_18px_50px_rgba(20,16,13,.09)]" : "border-[#D8D0C7] bg-[#FBF9F6]"}`}>
+            {p.featured ? <div className="mb-5 inline-flex self-start items-center bg-[#171514] px-3 py-2 text-[10px] font-medium uppercase tracking-[.14em] text-[#F7F5F2]">The signature choice</div> : <div className="mb-5 h-[28px]" />}
+            <p className="text-[10px] font-medium uppercase tracking-[.17em] text-[#786859]">{p.cards} · {p.engraving}</p>
+            <h3 className="mt-4 font-display text-[35px] tracking-[-.035em]">{p.name}</h3>
+            <p className="mt-2 font-display text-[48px] leading-none tracking-[-.04em]">{p.price}</p>
+            <p className="mt-5 min-h-16 text-[13px] leading-7 text-[#665D55]">{p.message}</p>
+            <div className="my-7 border-t border-[#D5CBBF]" />
+            <ul className="mb-8 flex-1 space-y-4 text-[12px] leading-6 text-[#4C453E]">
+              {p.points.map(point => <li key={point} className="flex items-start gap-3"><Check className="mt-1 size-4 shrink-0 text-[#796757]"/>{point}</li>)}
+              <li className="flex items-start gap-3"><Check className="mt-1 size-4 shrink-0 text-[#796757]"/>Standard U.S. shipping included</li>
+            </ul>
+            <PurchaseAction tier={p.tier} smaller />
+          </article>)}
+        </div>
+        <p className="mx-auto mt-8 max-w-[680px] text-center text-xs leading-6 text-[#665D55]">Deluxe includes two cards at $129. Additional cards are not included in that price. Every package includes one digital Keep; all physical cards are prepared after final approval. Applicable taxes may be added.</p>
+      </div>
+    </section>
+
     <section id="the-card" className="scroll-mt-24 bg-[#EDE7E0]">
       <div className="mx-auto grid max-w-[1240px] items-center gap-12 px-6 py-20 md:grid-cols-2 md:gap-16 md:px-10 md:py-28">
         <div className="relative flex min-h-[400px] items-center justify-center overflow-hidden bg-[#DDD3C7] p-10 sm:min-h-[530px]">
@@ -165,7 +219,7 @@ function ShopKeep() {
           <h2 className="mt-4 font-display text-[clamp(42px,4.6vw,68px)] leading-[1.1] tracking-[-.035em]">One card. One unforgettable story.</h2>
           <div className="mt-7 flex items-baseline gap-4 border-b border-[#CBBFB2] pb-6"><strong className="font-display text-[46px] font-normal">$99</strong><span className="text-[12px] text-[#665D55]">Standard U.S. shipping included</span></div>
           <ul className="my-8 space-y-4 text-[13px] leading-6 text-[#514A43]">
-            {["Matte-black metal NFC Keep card","One private, personalized memory experience","Your voice, photos, short videos, music and captions","Guided Keep AI tools to help find the words","Preview and approve before we prepare your card"].map(item=><li key={item} className="flex gap-3"><Check className="mt-[3px] size-4 shrink-0 text-[#6A5849]"/>{item}</li>)}
+            {["One matte-black metal NFC Keep card","Keep logo + your personal message laser-engraved on the front","One private, personalized memory experience","Your voice, photos, short videos, music and captions","Guided Keep AI tools to help find the words","Preview and approve before we prepare your card"].map(item=><li key={item} className="flex gap-3"><Check className="mt-[3px] size-4 shrink-0 text-[#6A5849]"/>{item}</li>)}
           </ul>
           <PurchaseAction />
           <p className="mt-5 text-[11px] leading-6 text-[#665D55]">Cards are prepared after the creator approves their finished Keep. U.S. delivery only at launch. Taxes may apply at checkout.</p>
@@ -208,7 +262,7 @@ function ShopKeep() {
       <p className="text-[10px] uppercase tracking-[.2em] text-[#C6B49A]">For the people who matter most</p>
       <h2 className="mx-auto mt-6 max-w-[830px] font-display text-[clamp(45px,6vw,79px)] leading-[1.12] tracking-[-.042em]">Some words deserve to last forever.</h2>
       <p className="mx-auto mt-6 max-w-[510px] text-[14px] leading-8 text-[#D3C9C0]">For the thank-yous, the I-love-yous and the moments you never want them to forget.</p>
-      <div className="mx-auto mt-9 max-w-[380px]"><PurchaseAction smaller /></div>
+      <div className="mx-auto mt-9 max-w-[380px]"><ExplorePackagesAction /></div>
       <div className="mx-auto mt-10 flex items-center justify-center gap-2 text-[11px] text-[#D4C9BF]"><LockKeyhole className="size-4"/> Private memories. Made to be shared with someone special.</div>
     </section>
 
@@ -216,7 +270,7 @@ function ShopKeep() {
       <div className="mx-auto flex max-w-[1240px] flex-col items-center justify-between gap-6 border-t border-[#332D29] pt-8 md:flex-row">
         <BrandMark light />
         <p className="text-[11px]">Some things are worth keeping.</p>
-        <div className="flex gap-6 text-[11px]"><Link to="/about">Our story</Link><Link to="/app">My Keeps</Link><a href="#the-card">The card</a></div>
+        <div className="flex gap-6 text-[11px]"><Link to="/about">Our story</Link><Link to="/app">My Keeps</Link><a href="#packages">Packages</a></div>
       </div>
     </footer>
   </main>;
