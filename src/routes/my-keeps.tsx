@@ -3,6 +3,7 @@ import { ArrowLeft, ArrowRight, CalendarDays, Check, ChevronDown, ExternalLink, 
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { KeepAccountButton } from "@/components/keep-account-button";
+import { KeepLibraryCard } from "@/components/keep-library-card";
 import { viewingLink } from "@/lib/keep-publish";
 import { deleteOwnedKeep, keepDeleteConfirmation } from "@/lib/keep-delete";
 import { clearDraft, loadDraft, projectBlobIds } from "@/lib/keep-project";
@@ -97,23 +98,12 @@ function MyKeeps() {
     </div>
     <div className="mt-9 flex items-center justify-between gap-4 border-b border-border/80 pb-5"><span className="text-xs uppercase tracking-[.17em] text-muted-foreground">{keeps.length} {keeps.length===1?"creation":"creations"}</span><a href="/?create=1" className="inline-flex items-center gap-2 text-xs text-[#6A5849]"><Plus className="size-4"/> Create a Keep</a></div>
     {loading ? <p className="py-12 text-sm text-muted-foreground" role="status">Gathering your Keeps…</p> : !session ? <div className="py-14"><p className="keep-section-title">Your Keeps are waiting.</p><Link to="/app" className="keep-premium-action mt-7 px-6 py-3">Sign in to view them <ArrowRight className="size-4"/></Link></div> : error ? <p role="alert" className="py-10 text-sm text-red-700">{error}</p> : keeps.length===0 ? <div className="py-16 text-center"><Heart className="mx-auto size-7 text-[#6A5849]"/><h2 className="keep-section-title mt-5">Your first Keep starts here.</h2><p className="mt-4 text-sm text-muted-foreground">Something meaningful is waiting to be made.</p><a href="/?create=1" className="keep-premium-action mx-auto mt-8 px-6 py-3">Create a Keep <ArrowRight className="size-4"/></a></div> :
-    <div className="mt-6 space-y-3">{keeps.map(keep=><article key={keep.id} className="keep-editorial-surface overflow-hidden">
-      <button type="button" onClick={()=>setExpanded(expanded===keep.id?null:keep.id)} aria-expanded={expanded===keep.id} className="flex w-full items-center gap-4 p-4 text-left">
-        <div className="relative flex h-24 w-[76px] shrink-0 items-center justify-center overflow-hidden rounded-lg border border-border/80 bg-[#E6DED3]">
-          {thumbs[keep.id] ? <img src={thumbs[keep.id]} alt={`Cover moment for ${keep.recipient_name||"this Keep"}`} className="h-full w-full object-cover" loading="lazy"/> : <Gift className="size-6 text-[#6A5849]/65"/>}
-        </div>
-        <span className="min-w-0 flex-1"><span className="block truncate font-display text-[30px] leading-none">For {keep.recipient_name||"someone special"}</span><span className="mt-2 block truncate text-xs text-[#6A5849]">{keep.occasion||"A personal Keep"}</span><span className="mt-3 flex items-center gap-1.5 text-[11px] text-muted-foreground"><CalendarDays className="size-3"/>{fmt(keep.published_at||keep.created_at)}</span></span>
-        <ChevronDown className={`size-4 shrink-0 text-[#6A5849] transition-transform ${expanded===keep.id?"rotate-180":""}`}/>
-      </button>
-      <a href={`/?edit=${encodeURIComponent(keep.id)}`} className="keep-premium-action mx-4 mb-4 flex items-center justify-center gap-2 px-4 py-3"><PenLine className="size-4"/>Continue Editing</a>
-      {expanded===keep.id&&<div className="border-t border-border/80 px-5 pb-5 pt-5">
-        <p className="mb-5 text-sm leading-6 text-foreground/75">{keep.published_project?.openingMessage?.trim() || keep.published_project?.messageParagraphs?.[0]?.slice(0,140) || "A memory made to be kept."}</p>
-        {keep.published_at&&keep.status==="ready"?<div className="grid gap-2 sm:grid-cols-2">
-          <button className="keep-premium-action min-h-12 justify-center px-4 py-3" onClick={async()=>{try{await navigator.clipboard.writeText(viewingLink(keep.recipient_token));setCopied(keep.id);toast.success("Link copied");}catch{toast.error("Copy unavailable. Open the Keep to copy its address.");}}}>{copied===keep.id?<Check className="size-4"/>:<Link2 className="size-4"/>}{copied===keep.id?"Link copied":"Copy viewing link"}</button>
-          <a href={viewingLink(keep.recipient_token)} target="_blank" rel="noreferrer" className="flex min-h-12 items-center justify-center gap-2 rounded-xl border border-border/80 px-4 py-3 text-sm"><ExternalLink className="size-4"/>Open Keep</a>
-        </div>:<p className="text-xs text-muted-foreground">Not yet published</p>}
-        <div className="mt-5 border-t border-border/80 pt-3"><button type="button" disabled={deleting===keep.id} onClick={()=>void remove(keep)} className="inline-flex items-center gap-2 py-2 text-xs text-red-700 hover:text-red-700"><Trash2 className="size-3.5"/>{deleting===keep.id?"Deleting…":"Delete this Keep"}</button></div>
-      </div>}
-    </article>)}</div>}
+    <div className="mt-6 space-y-3">{keeps.map(keep=>
+      <KeepLibraryCard key={keep.id} keep={keep} thumbnail={thumbs[keep.id]} expanded={expanded===keep.id}
+        copied={copied===keep.id} deleting={deleting===keep.id}
+        onToggle={()=>setExpanded(expanded===keep.id?null:keep.id)}
+        onCopy={()=>void (async()=>{try{await navigator.clipboard.writeText(viewingLink(keep.recipient_token));setCopied(keep.id);toast.success("Link copied");}catch{toast.error("Copy unavailable. Open the Keep to copy its address.");}})()}
+        onDelete={()=>void remove(keep)} />
+    )}</div>}
   </div></main>;
 }

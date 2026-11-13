@@ -963,3 +963,13 @@ body:has(.keep-studio) {
     grid-template-columns: repeat(5, minmax(0,1fr));
   }
 }
+
+/* A slow, quiet transition between the recipient's short spoken phrases. */
+@keyframes keep-immersive-caption-in {
+  from { opacity: 0; transform: translateY(12px); filter: blur(2px); }
+  to   { opacity: 1; transform: translateY(0); filter: blur(0); }
+}
+.keep-immersive-caption { animation: keep-immersive-caption-in 480ms cubic-bezier(.2,.7,.25,1) both; }
+@media (prefers-reduced-motion: reduce) {
+  .keep-immersive-caption { animation: none; }
+}
