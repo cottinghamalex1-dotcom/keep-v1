@@ -658,6 +658,7 @@ function KeepApp() {
   const readyPart = (i: number) => (project.voiceParts ?? []).find(part => part.paragraphIndex === i && part.contributorId === speakerFor(i) && part.textFingerprint === (project.messageParagraphs[i] ?? "").trim() && !!part.audioId);
   const readyCount = project.messageParagraphs.filter((p,i) => p.trim() && readyPart(i)).length;
   const groupReady = project.messageParagraphs.length > 1 && readyCount === project.messageParagraphs.length;
+  const groupSignature = project.messageParagraphs.map((p,i)=>[speakerFor(i),p.trim(),readyPart(i)?.audioId ?? ""].join("::")).join("\n");
   const giverNames = isTogether ? (project.contributors ?? []).map(c => c.name.trim()).filter(Boolean).join(" & ") : "Alex";
   const editWordsFromEditor = () => {
     setEditorPanel(null);
@@ -735,7 +736,7 @@ function KeepApp() {
         paragraphIndex:index, contributorId:speakerFor(index), textFingerprint:(project.messageParagraphs[index] ?? "").trim(),
         audioId:id, audioUrl:URL.createObjectURL(r.blob), durationSec:r.durationSec, mimeType:r.mimeType,
       }];
-      setProject(old=>({...old,voiceParts:nextParts,finalVoiceRecording:null,captionTranscript:"",captionCues:[],captionWords:[],captionTimingEstimated:false}));
+      setProject(old=>({...old,voiceParts:nextParts,finalVoiceRecording:null,groupVoiceSignature:undefined,captionTranscript:"",captionCues:[],captionWords:[],captionTimingEstimated:false}));
       if (oldPart) { releaseUrls([oldPart.audioUrl]); if (oldPart.audioId) void deleteBlobs([oldPart.audioId]); }
       const nextIndex = project.messageParagraphs.findIndex((p,i) => p.trim() && !nextParts.some(part => part.paragraphIndex === i && part.contributorId === speakerFor(i) && part.textFingerprint === p.trim()));
       if (nextIndex >= 0) setGroupPartIndex(nextIndex);
@@ -762,7 +763,7 @@ function KeepApp() {
       const id = newId("voice");
       if (!(await putBlob(id,joined.blob))) throw new Error("Not enough device storage to save the combined recording.");
       if (rec) { releaseUrls([rec.audioUrl]); if (rec.audioId) void deleteBlobs([rec.audioId]); }
-      setProject(old=>({...old,finalVoiceRecording:{audioId:id,audioUrl:URL.createObjectURL(joined.blob),durationSec:joined.durationSec,mimeType:"audio/wav",demo:false},captionTranscript:"",captionCues:[],captionWords:[],captionTimingEstimated:false}));
+      setProject(old=>({...old,finalVoiceRecording:{audioId:id,audioUrl:URL.createObjectURL(joined.blob),durationSec:joined.durationSec,mimeType:"audio/wav",demo:false},groupVoiceSignature:groupSignature,captionTranscript:"",captionCues:[],captionWords:[],captionTimingEstimated:false}));
       go("recorded");
       void syncFinalCaptions(joined.blob, "audio/wav", joined.durationSec);
     } catch (error) {
@@ -1266,6 +1267,10 @@ function KeepApp() {
       setPublishError("Finish restoring your saved memories before publishing.");
       return;
     }
+    if (current.voiceMode === "together" && (!groupReady || current.groupVoiceSignature !== groupSignature)) {
+      setPublishError("Your shared script has changed. Re-record any updated parts and combine your voices again.");
+      return;
+    }
     publishingLock.current = true;
     setPublishing(true);
     setPublishError("");
@@ -1571,6 +1576,32 @@ function KeepApp() {
       {isRecording && <div className="mb-2 text-sm tabular-nums text-accent" role="status">● {fmt(recorder.elapsed)}</div>}
       {micUnavailable ? <><p className="mt-4 text-xs leading-5 text-muted-foreground">{micMessage}</p><Button variant="keep" size="touch" className="mt-4 w-full" onClick={useDemoRecording}>Use demo recording (2:30)</Button></> : <div className="mt-3 flex gap-2">{!isRecording ? <Button variant="keep" size="touch" className="w-full" disabled={recorder.status === "requesting" || recorder.supported === null} onClick={() => void startFinal()}><Mic /> {recorder.status === "requesting" ? "Waiting for microphone…" : "Start Recording"}</Button> : <>{recorder.canPause ? <Button variant="quiet" size="touch" className="flex-1" onClick={() => (recorder.status === "paused" ? recorder.resume() : recorder.pause())}>{recorder.status === "paused" ? <Play /> : <Pause />}{recorder.status === "paused" ? "Resume" : "Pause"}</Button> : <Button variant="quiet" size="touch" className="flex-1" onClick={() => setScrollPaused(!scrollPaused)}>{scrollPaused ? <Play /> : <Pause />}{scrollPaused ? "Resume script" : "Pause script"}</Button>}<Button variant="keep" size="touch" className="flex-1" onClick={() => void finishFinal()}><Check /> Finish</Button></>}</div>}
     </div></div>}
+    {screen === "groupRecord" && <>{top()}<div className="mx-auto max-w-[650px] px-6 pb-[max(32px,env(safe-area-inset-bottom))] pt-5">
+      <p className="mb-3 text-[11px] font-semibold uppercase tracking-[.16em] text-[#7C6752]">CREATE TOGETHER · {readyCount} OF {project.messageParagraphs.length} PARTS SAVED</p>
+      <h1 className="font-display text-[clamp(38px,10vw,53px)] leading-[1.08]">Every voice matters.</h1>
+      <p className="mt-3 text-sm leading-6 text-muted-foreground">Record one part at a time. Pass the phone to the next person when you're done. Your recordings are saved as you go.</p>
+      <div className="mt-6 flex flex-wrap gap-2" role="group" aria-label="Choose a recording part">
+        {project.messageParagraphs.map((p,i)=><button type="button" key={i} disabled={isRecording || groupBusy} aria-pressed={groupPartIndex===i} aria-label={`Part ${i+1} for ${speakerName(i)}`} onClick={()=>setGroupPartIndex(i)} className={`flex items-center gap-1.5 rounded-full border px-3 py-2 text-xs font-medium disabled:opacity-50 ${groupPartIndex===i?"border-[#AE9478] bg-[#EDE2D3] text-[#4A382B]":"border-border bg-card text-foreground"}`}>{readyPart(i) ? <Check className="size-3.5 text-[#6A8462]"/> : <Mic className="size-3.5"/>} {i+1}. {speakerName(i)}</button>)}
+      </div>
+      <div className="mt-6 rounded-[24px] border border-[#D7C8B8] bg-[#FAF6EF] p-6 text-[#211D19] shadow-sm">
+        <div className="flex items-center justify-between gap-3"><span className="text-[11px] font-semibold uppercase tracking-[.12em] text-[#8A6D52]">PART {groupPartIndex+1} OF {project.messageParagraphs.length}</span><span className="rounded-full bg-[#E8DAC8] px-3 py-1 text-xs font-medium">{speakerName(groupPartIndex)}</span></div>
+        <p className="mt-5 whitespace-pre-wrap font-display text-[clamp(22px,6vw,30px)] leading-[1.42]">{project.messageParagraphs[groupPartIndex]}</p>
+        {readyPart(groupPartIndex)?.audioUrl && !isRecording && <div className="mt-6 border-t border-[#DCCFC1] pt-4">
+          <p className="mb-2 text-xs text-[#6D5B4A]">Saved recording · {fmt(readyPart(groupPartIndex)!.durationSec)}</p>
+          <audio src={readyPart(groupPartIndex)!.audioUrl} controls preload="none" className="h-10 w-full" aria-label={`Listen to ${speakerName(groupPartIndex)}'s recording`}/>
+        </div>}
+      </div>
+      {isRecording && <p className="mt-5 text-center text-sm tabular-nums text-[#9F483F]" role="status">● Recording {speakerName(groupPartIndex)} · {fmt(recorder.elapsed)}</p>}
+      {micUnavailable && <p className="mt-5 text-sm text-destructive" role="alert">{micMessage} Each person needs a real voice recording to finish this Keep.</p>}
+      <div className="mt-6 space-y-3">
+        {!isRecording ? <Button variant="keep" size="touch" className="w-full" disabled={groupBusy || micUnavailable || recorder.supported !== true} onClick={()=>void startFinal()}><Mic className="size-5"/>{readyPart(groupPartIndex)?"Re-record this part":`Record ${speakerName(groupPartIndex)}'s part`}</Button> :
+          <div className="flex gap-2">{recorder.canPause && <Button variant="quiet" size="touch" className="flex-1" onClick={()=>recorder.status==="paused"?recorder.resume():recorder.pause()}>{recorder.status==="paused"?"Resume":"Pause"}</Button>}
+            <Button variant="keep" size="touch" className="flex-1" disabled={groupBusy} onClick={()=>void finishGroupPart()}><Check className="size-4"/> Save this part</Button></div>}
+        <Button variant={groupReady ? "keep" : "quiet"} size="touch" className="w-full" disabled={!groupReady || isRecording || groupBusy} onClick={()=>void combineGroupVoices()}>{groupBusy ? <Loader2 className="size-4 animate-spin"/> : <ArrowRight className="size-4"/>}{groupBusy ? "Preparing voices…" : "Bring all voices together"}</Button>
+        <p className="text-center text-[11px] leading-5 text-muted-foreground">The final Keep will play everyone's recordings as one smooth message, with a short natural pause between parts.</p>
+        <Button variant="bare" size="sm" className="w-full text-muted-foreground" disabled={isRecording || groupBusy} onClick={()=>go("message")}>Edit who says what</Button>
+      </div>
+    </div></>}
     {screen === "recorded" && <>{top()}<div className="relative flex keep-min-screen-minus-90 flex-col overflow-hidden px-7 pb-[max(36px,env(safe-area-inset-bottom))] pt-8">
       <div className="pointer-events-none absolute left-1/2 top-[31%] h-80 w-80 -translate-x-1/2 rounded-full bg-accent/[0.07] blur-3xl" />
       <div className="relative z-10 text-center">
