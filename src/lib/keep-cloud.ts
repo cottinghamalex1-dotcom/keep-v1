@@ -29,7 +29,8 @@ function fileRefs(project: KeepProject): string[] {
   return Array.from(new Set([
     ...project.memories.filter(m=>m.source==="upload").map(m=>m.id),
     ...project.interviewAnswers.map(a=>a.audioId).filter((v):v is string=>!!v),
-    ...(project.finalVoiceRecording?.audioId ? [project.finalVoiceRecording.audioId] : [])
+    ...(project.finalVoiceRecording?.audioId ? [project.finalVoiceRecording.audioId] : []),
+    ...(project.voiceParts ?? []).map(part => part.audioId)
   ]));
 }
 function safeProject(project: KeepProject): KeepProject {
@@ -37,7 +38,8 @@ function safeProject(project: KeepProject): KeepProject {
     ...project,
     memories: project.memories.map(m=>({...m,url:m.source==="text"?m.url:""})),
     interviewAnswers: project.interviewAnswers.map(a=>({...a,audioUrl:undefined})),
-    finalVoiceRecording: project.finalVoiceRecording ? {...project.finalVoiceRecording,audioUrl:undefined}:null
+    finalVoiceRecording: project.finalVoiceRecording ? {...project.finalVoiceRecording,audioUrl:undefined}:null,
+    voiceParts: (project.voiceParts ?? []).map(({audioUrl:_url,...part})=>part)
   };
 }
 const uploadedThisSession = new Set<string>();
@@ -111,6 +113,7 @@ async function hydrateCloudProject(project: Partial<KeepProject>, session: KeepS
   type Need = { id: string; url: string | undefined };
   const needs: Need[] = [
     ...(p.finalVoiceRecording?.audioId ? [{ id: p.finalVoiceRecording.audioId, url: p.finalVoiceRecording.audioUrl }] : []),
+    ...(p.voiceParts ?? []).map(part=>({id:part.audioId,url:part.audioUrl})), 
     ...p.memories.filter((m) => m.source === "upload").map((m) => ({id:m.id,url:m.url})),
     ...p.interviewAnswers.filter((a) => !!a.audioId).map((a) => ({id:a.audioId!,url:a.audioUrl})),
   ];
@@ -167,7 +170,8 @@ async function hydrateCloudProject(project: Partial<KeepProject>, session: KeepS
   const finalVoiceRecording = p.finalVoiceRecording?.audioId
     ? {...p.finalVoiceRecording,audioUrl:urls.get(p.finalVoiceRecording.audioId)}
     : p.finalVoiceRecording;
-  return {...p,memories,interviewAnswers,finalVoiceRecording,
+  const voiceParts = (p.voiceParts ?? []).map(part=>({...part,audioUrl:urls.get(part.audioId)}));
+  return {...p,memories,interviewAnswers,finalVoiceRecording,voiceParts,
     restoreIncomplete:missing.size>0,restoreMissingCount:missing.size};
 }
 
