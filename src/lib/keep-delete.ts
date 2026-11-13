@@ -20,7 +20,7 @@ export async function deleteOwnedKeep(keepId: string, accessToken: string): Prom
 export function keepDeleteConfirmation(recipientName: string | null, isPublished: boolean, linkedToCard: boolean): string {
   const recipient = recipientName?.trim() || "someone special";
   const consequences = isPublished
-    ? "Their viewing link will stop working immediately, including any link you have already shared."
+    ? "Their viewing link will stop working immediately, including any link you have already shared or programmed onto an NFC card."
     : "This draft cannot be restored.";
   const cardWarning = linkedToCard
     ? " Any physical NFC card linked to this Keep will no longer open it until it is linked to a different Keep."
