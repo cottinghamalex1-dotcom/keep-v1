@@ -151,6 +151,7 @@ export function KeepRecipientExperience({
   };
 
   const toggleListen = () => {
+    if (timer.current) { window.clearTimeout(timer.current); timer.current = null; }
     if (audioUrl && audio.current) {
       const element = audio.current;
       if (listening) {
@@ -160,6 +161,10 @@ export function KeepRecipientExperience({
         void listenMix.current?.pause();
         setListening(false);
       } else {
+        if (Number.isFinite(element.duration) && element.currentTime >= element.duration - 0.1) {
+          element.currentTime = 0;
+          setListenProgress(0);
+        }
         setListening(true);
         // Do not start the voice clock until the selected music has genuinely
         // started playing (a large MP3 may need to buffer on cellular).
