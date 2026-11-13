@@ -4,6 +4,9 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { KeepAccountButton } from "@/components/keep-account-button";
 import { viewingLink } from "@/lib/keep-publish";
+import { deleteOwnedKeep, keepDeleteConfirmation } from "@/lib/keep-delete";
+import { clearDraft, loadDraft, projectBlobIds } from "@/lib/keep-project";
+import { deleteBlobs } from "@/lib/keep-media-store";
 
 export const Route = createFileRoute("/my-keeps")({ component: MyKeeps });
 const endpoint = "https://lwkzhpwugtosbidxvdcr.supabase.co";
@@ -67,15 +70,22 @@ function MyKeeps() {
   },[]);
   const remove = async (keep:KeepRecord) => {
     if(!session||deleting)return;
-    if(linkedIds.includes(keep.id)){toast.error("This Keep is linked to a physical card. Unlink it before deleting.");return;}
-    if(!window.confirm(`Permanently delete the Keep for ${keep.recipient_name||"someone special"}? Its viewing link will stop working. This cannot be undone.`))return;
+    const published = keep.status === "ready" && !!keep.published_at;
+    if(!window.confirm(keepDeleteConfirmation(keep.recipient_name,published,linkedIds.includes(keep.id))))return;
     setDeleting(keep.id);
     try {
-      const res=await fetch(endpoint+"/rest/v1/keeps?id=eq."+encodeURIComponent(keep.id)+"&owner_id=eq."+encodeURIComponent(session.user.id)+"&select=id",{method:"DELETE",headers:{"apikey":publicKey,"Authorization":"Bearer "+session.access_token,"Prefer":"return=representation"}});
-      const body=await res.json().catch(()=>null);
-      if(!res.ok)throw new Error(body?.message||"Delete unsuccessful");
-      if(!Array.isArray(body)||!body.some((row:{id:string})=>row.id===keep.id))throw new Error("Deletion wasn't confirmed.");
-      setKeeps(items=>items.filter(item=>item.id!==keep.id));setExpanded(null);toast.success("Keep deleted");
+      const result=await deleteOwnedKeep(keep.id,session.access_token);
+      const local=loadDraft();
+      if(local?.publicationId===keep.id) {
+        clearDraft();
+        void deleteBlobs(projectBlobIds(local));
+      }
+      setKeeps(items=>items.filter(item=>item.id!==keep.id));
+      setLinkedIds(ids=>ids.filter(id=>id!==keep.id));
+      setThumbs(items=>{const next={...items};delete next[keep.id];return next;});
+      setExpanded(null);
+      if(result.mediaCleanupPending) toast.warning("Keep deleted and viewing link disabled, but some media cleanup needs attention.");
+      else toast.success(published?"Keep permanently deleted. Viewing link disabled.":"Keep deleted.");
     }catch(e){toast.error(e instanceof Error?e.message:"Could not delete this Keep");}
     finally{setDeleting(null);}
   };
