@@ -1,6 +1,6 @@
 import { viewingLink } from "@/lib/keep-publish";
 import { KeepLibraryCard } from "@/components/keep-library-card";
-import { KeepCreationSteps } from "@/components/keep-creation-steps";
+import { KeepCreateCTA } from "@/components/keep-create-cta";
 import { KeepAccountDashboard } from "@/components/keep-account-dashboard";
 import { deleteOwnedKeep, keepDeleteConfirmation } from "@/lib/keep-delete";
 import { clearDraft, loadDraft, projectBlobIds } from "@/lib/keep-project";
@@ -166,10 +166,9 @@ function KeepDashboard() {
       </form>
       <button className="mt-6 text-sm text-[#6A5849]" onClick={() => setRegister(!register)}>{register ? "Already have an account? Sign in" : "New to Keep? Create an account"}</button>
     </section> : <>
-      <section className={tab === "home" ? "keep-horizon-hero relative mb-9 pt-11 text-center" : "mb-10 pt-4"}>{tab === "home" ? <><h1 className="keep-editorial-title relative z-10">Say what matters.<span className="mt-1 block italic">Keep it forever.</span></h1><p className="keep-page-description relative z-10 mx-auto mt-6">Turn your words and moments into a beautiful, lasting keepsake they can hold onto forever.</p><KeepCreationSteps /></> : <h1 className="keep-editorial-title">{tab === "given" ? "Keeps given" : tab === "received" ? "Keeps received" : "Your account"}</h1>}</section>
+      <section className={tab === "home" ? "keep-horizon-hero relative mb-9 pt-11 text-center" : "mb-10 pt-4"}>{tab === "home" ? <><h1 className="keep-editorial-title relative z-10">Say what matters.<span className="mt-1 block italic">Keep it forever.</span></h1><p className="keep-page-description relative z-10 mx-auto mt-6">Turn your words and moments into a beautiful, lasting keepsake they can hold onto forever.</p><KeepCreateCTA /></> : <h1 className="keep-editorial-title">{tab === "given" ? "Keeps given" : tab === "received" ? "Keeps received" : "Your account"}</h1>}</section>
       {tab === "home" && <div className="space-y-4">
 
-        <a href="/?create=1" className="keep-premium-action w-full p-5"><span><strong className="block text-base">Create a Keep</strong><small>Your story starts here</small></span><Plus /></a>
         {(keeps.length > 0 || cloudDraft?.active) && <section className="rounded-[22px] border border-[#DED7CF] bg-[#FFFEFC] p-4 sm:p-5">
           <div className="mb-5 flex items-center justify-between gap-4"><h2 className="text-sm font-medium tracking-wide">Your creations</h2><Link to="/my-keeps" className="text-xs text-[#6A5849]">View all <ArrowRight className="ml-1 inline size-3"/></Link></div>
           <div className="space-y-3">

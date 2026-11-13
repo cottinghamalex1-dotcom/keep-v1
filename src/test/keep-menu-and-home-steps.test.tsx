@@ -3,7 +3,7 @@ import { createMemoryHistory, createRouter, RouterProvider } from "@tanstack/rea
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { routeTree } from "@/routeTree.gen";
-import { KeepCreationSteps } from "@/components/keep-creation-steps";
+import { KeepCreateCTA } from "@/components/keep-create-cta";
 
 async function openMenu(path: string) {
   localStorage.removeItem("keep-app-session");
@@ -43,13 +43,13 @@ describe("Consistent Keep navigation", () => {
     expect(screen.queryByText("What is Keep?")).toBeNull();
     expect(screen.getByText("See all my Keeps")).toBeTruthy();
   });
-  it("keeps the home journey elegant, numbered and accessible", () => {
-    const { container } = render(<KeepCreationSteps />);
-    expect(screen.getByRole("region", { name: "Create a Keep in three steps" })).toBeTruthy();
-    expect(screen.getByText("Thoughtfully made, deeply felt")).toBeTruthy();
-    expect([...container.querySelectorAll("ol li")]).toHaveLength(3);
-    expect(screen.getByText("Your words")).toBeTruthy();
-    expect(screen.getByText("Your moments")).toBeTruthy();
-    expect(screen.getByText("Their Keep")).toBeTruthy();
+  it("gives the home hero one clearly labeled, premium creation action", () => {
+    const { container } = render(<KeepCreateCTA />);
+    const link = screen.getByRole("link", { name: "Create a Keep — start your story" });
+    expect(link.getAttribute("href")).toBe("/?create=1");
+    expect(screen.getByText("Create a Keep")).toBeTruthy();
+    expect(screen.getByText("Your story begins here.")).toBeTruthy();
+    expect(container.querySelector("ol")).toBeNull();
+    expect(screen.queryByText("Thoughtfully made, deeply felt")).toBeNull();
   });
 });
