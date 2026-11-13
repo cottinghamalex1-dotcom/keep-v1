@@ -72,8 +72,11 @@ export function recoverCaptionTiming(
 
 /** Keep one caption visible through any small silence between phrases.
  * The playing narration controls when to start/end displaying captions. */
-export function captionAtTime(cues: CaptionCue[], time: number): CaptionCue | undefined {
+export function captionAtTime(cues: CaptionCue[], time: number, narrationDuration?: number): CaptionCue | undefined {
   if (!cues.length || !Number.isFinite(time) || time < 0) return undefined;
+  // A held caption must stop when the narration is over.
+  const lastEnd = cues[cues.length - 1]!.end;
+  if (time > lastEnd + 0.1 && (!narrationDuration || time > narrationDuration + 0.01)) return undefined;
   for (let i = cues.length - 1; i >= 0; i--) {
     const cue = cues[i]!;
     if (time + 0.015 >= cue.start && time <= cue.end + 0.08) return cue;
