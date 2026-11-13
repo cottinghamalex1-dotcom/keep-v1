@@ -9,6 +9,7 @@ export type InterviewContext = {
   relationship: string;
   occasion: string;
   intent: string;
+  contributors?: string[];
   answers: { question: string; transcript: string }[];
 };
 
