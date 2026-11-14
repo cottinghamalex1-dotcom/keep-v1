@@ -66,6 +66,13 @@ describe("voice confirmation after recording", () => {
     expect(defaults.onRecordAgain).toHaveBeenCalledOnce();
   });
 
+  it("does not pretend the demo contains real recorded audio", () => {
+    render(<KeepVoiceTransition {...defaults} isDemo hasRecording isPersisted hasCaptions={false} />);
+    expect(screen.getByText("Ready for a preview.")).toBeInTheDocument();
+    expect(screen.getByText("DEMO · NO VOICE ATTACHED")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Continue my Keep/ })).toBeEnabled();
+  });
+
   it("distinguishes an in-session recording from one stored on the device", () => {
     render(<KeepVoiceTransition {...defaults} isPersisted={false}/>);
     expect(screen.getByRole("alert")).toHaveTextContent("couldn't be saved to device storage");
