@@ -14,6 +14,7 @@ import { KeepStudioResize, DEFAULT_PREVIEW_SIZE, constrainPreviewSize } from "@/
 import { KeepTeleprompter } from "@/components/keep-teleprompter";
 import { KeepStyleEditor } from "@/components/keep-style-editor";
 import { KeepSelfieEditor } from "@/components/keep-selfie-editor";
+import { KeepSelfiePrompt } from "@/components/keep-selfie-prompt";
 import { composeSelfieStory, withoutSelfieScenes } from "@/lib/keep-selfie-story";
 import { KeepFinishingChoices } from "@/components/keep-finishing-choices";
 import { KeepAskAIModal, KeepWordChanges } from "@/components/keep-ask-ai-modal";
@@ -1766,7 +1767,11 @@ function KeepApp() {
           <h1 className="mt-1 font-display text-[clamp(28px,7.2vw,40px)] leading-[1.05] tracking-[-.025em]">Now say it in your own voice.</h1>
           {!isRecording && <p className="mt-1.5 text-[12px] leading-5 text-muted-foreground">Read naturally. The words will scroll for you.</p>}
         </div>
-        <KeepTeleprompter text={project.messageParagraphs.join("\n\n")} label="YOUR MESSAGE" speaker="Your voice" isRecording={isRecording} isPaused={recorder.status === "paused"} elapsed={recorder.elapsed} />
+        {!isRecording&&<div className="shrink-0 pb-2"><KeepSelfiePrompt enabled={selfieSelected} preparing={selfiePreparing}
+          error={recorder.cameraError} onChoose={()=>void chooseSelfie()} onVoiceOnly={()=>{recorder.disableSelfie();setSelfieSelected(false);}} /></div>}
+        <KeepTeleprompter text={project.messageParagraphs.join("\n\n")} label="YOUR MESSAGE" speaker="Your voice"
+          cameraStream={selfieSelected?recorder.previewStream:null}
+          isRecording={isRecording} isPaused={recorder.status === "paused"} elapsed={recorder.elapsed} />
         <div className="shrink-0 pt-3">
           {micUnavailable ? <>
             <p role="alert" className="mb-2 text-center text-xs text-destructive">{micMessage}</p>
@@ -1774,7 +1779,7 @@ function KeepApp() {
           </> : !isRecording ? (
             <Button variant="keep" size="touch" className="w-full" disabled={recorder.status === "requesting" || recorder.supported !== true} onClick={() => void startFinal()}>
               {recorder.status === "requesting" ? <Loader2 className="size-5 animate-spin" /> : <Mic className="size-5" />}
-              {recorder.status === "requesting" ? "Waiting for microphone…" : "Start recording"}
+              {recorder.status === "requesting" ? "Getting ready…" : selfieSelected?"Start selfie & voice":"Start recording"}
             </Button>
           ) : (
             <div className="flex gap-2">
@@ -1802,15 +1807,18 @@ function KeepApp() {
             {readyPart(i) ? <Check className="size-3.5 text-[#6A8462]" /> : <Mic className="size-3.5" />} {i+1}. {speakerName(i)}
           </button>)}
         </div>
+        {!isRecording&&<div className="shrink-0 pb-2"><KeepSelfiePrompt enabled={selfieSelected} preparing={selfiePreparing}
+          error={recorder.cameraError} onChoose={()=>void chooseSelfie()} onVoiceOnly={()=>{recorder.disableSelfie();setSelfieSelected(false);}} /></div>}
         <KeepTeleprompter key={groupPartIndex} text={project.messageParagraphs[groupPartIndex] ?? ""} label={"PART " + (groupPartIndex+1) + " OF " + project.messageParagraphs.length}
-          speaker={speakerName(groupPartIndex)} isRecording={isRecording} isPaused={recorder.status === "paused"} elapsed={recorder.elapsed} />
+          speaker={speakerName(groupPartIndex)} cameraStream={selfieSelected?recorder.previewStream:null}
+          isRecording={isRecording} isPaused={recorder.status === "paused"} elapsed={recorder.elapsed} />
         <div className="shrink-0 space-y-2 pt-2.5">
           {!isRecording && readyPart(groupPartIndex)?.audioUrl && <audio src={readyPart(groupPartIndex)!.audioUrl} controls preload="none" className="h-10 w-full" aria-label={"Review " + speakerName(groupPartIndex) + "'s saved recording"} />}
           {micUnavailable && <p role="alert" className="text-center text-xs text-destructive">{micMessage} A real voice recording is needed for each part.</p>}
           {!isRecording ? (
             <Button variant="keep" size="touch" className="w-full" disabled={groupBusy || micUnavailable || recorder.status === "requesting" || recorder.supported !== true} onClick={() => void startFinal()}>
               {recorder.status === "requesting" ? <Loader2 className="size-4 animate-spin" /> : <Mic className="size-4" />}
-              {readyPart(groupPartIndex) ? "Re-record this part" : "Record " + speakerName(groupPartIndex) + "'s part"}
+              {selfieSelected ? "Record video + voice" : readyPart(groupPartIndex) ? "Re-record this part" : "Record " + speakerName(groupPartIndex) + "'s part"}
             </Button>
           ) : (
             <div className="flex gap-2">
