@@ -109,6 +109,18 @@ export function KeepRecipientExperience({
   useEffect(() => () => {
     if (timer.current) window.clearInterval(timer.current);
   }, []);
+  useEffect(()=>{
+    if(stage!=="experience"||experience!=="listen")return;
+    const onHide=()=>{
+      if(!document.hidden)return;
+      cancelPendingListen();
+      audio.current?.pause();
+      void listenMix.current?.pause();
+      setListening(false);
+    };
+    document.addEventListener("visibilitychange",onHide);
+    return ()=>document.removeEventListener("visibilitychange",onHide);
+  },[stage,experience]);
   useEffect(() => {
     if (stage !== "experience" || experience !== "listen" || listenProgress < 99.8 || !audioUrl) return;
     const tail = window.setTimeout(() => { void listenMix.current?.pause(); }, KEEP_MUSIC_TAIL_SECONDS * 1000);
@@ -298,6 +310,8 @@ export function KeepRecipientExperience({
       knownDuration={listenDuration} onToggle={toggleListen}
       onProgress={setListenProgress} onDuration={setListenDuration}
       onListening={setListening} onBack={backToChoose}
+      onBuffering={()=>{if(listening)void listenMix.current?.pause();}}
+      onBufferEnded={()=>{if(listening)void listenMix.current?.play().catch(()=>setListening(false));}}
     />;
   }
 
@@ -394,10 +408,11 @@ type ListenReadProps = {
   listening: boolean; progress: number;
   onToggle: () => void; onProgress: (value: number) => void; onDuration: (value: number) => void;
   onListening: (value: boolean) => void; onBack: () => void;
+  onBuffering: () => void; onBufferEnded: () => void;
 };
 
 function KeepListenAndRead({ name, from, year, paragraphs, captionCues, audioUrl, audioDuration, knownDuration, audioRef,
-  listening, progress, onToggle, onProgress, onDuration, onListening, onBack }: ListenReadProps) {
+  listening, progress, onToggle, onProgress, onDuration, onListening, onBack, onBuffering, onBufferEnded }: ListenReadProps) {
   const seconds = Math.max(1, knownDuration || audioDuration);
   const frames = useMemo(() => makeReadingFrames(captionCues, paragraphs, seconds), [captionCues, paragraphs, seconds]);
   const elapsed = Math.min(seconds, progress * seconds / 100);
@@ -421,6 +436,9 @@ function KeepListenAndRead({ name, from, year, paragraphs, captionCues, audioUrl
       {audioUrl && <audio ref={audioRef} src={audioUrl} crossOrigin="anonymous" preload="metadata"
         onLoadedMetadata={e => {const d=e.currentTarget.duration;if(Number.isFinite(d)&&d>0)onDuration(d);}}
         onPlay={() => onListening(true)}
+        onWaiting={onBuffering}
+        onStalled={onBuffering}
+        onPlaying={onBufferEnded}
         onPause={() => onListening(false)}
         onEnded={() => {onListening(false);onProgress(100);}}
         onTimeUpdate={e => {const el=e.currentTarget;const d=Number.isFinite(el.duration)&&el.duration>0?el.duration:seconds;onProgress(Math.min(100,el.currentTime/d*100));}}
