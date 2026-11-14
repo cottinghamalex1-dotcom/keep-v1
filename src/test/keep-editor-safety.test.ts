@@ -25,10 +25,12 @@ describe("editor photo identity and selfie protection", () => {
   it("removes the intended image when text scenes come earlier in the timeline", () => {
     const textCard: MediaItem = { id:"words-0",source:"text",kind:"image",url:"data:image/svg+xml,test" };
     const p = { ...newProject(), selfieBaseMedia:[textCard,photo("photo-a"),photo("photo-b")],
-      memories:[textCard,photo("photo-a"),photo("photo-b")] };
+      memories:[textCard,photo("photo-a"),photo("photo-b")],
+      readMemoryOrder:["photo-b","words-0","photo-a"] };
     const next = removeEditableMoment(p,"photo-b");
     expect(next.memories.map(m=>m.id)).toEqual(["words-0","photo-a"]);
     expect(next.selfieBaseMedia?.map(m=>m.id)).toEqual(["words-0","photo-a"]);
+    expect(next.readMemoryOrder).toEqual(["words-0","photo-a"]);
   });
 
   it("refuses to remove selfie footage from the ordinary photo uploader", () => {
