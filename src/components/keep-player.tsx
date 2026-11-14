@@ -33,6 +33,7 @@ export function KeepPlayer({ name, from, year, onExit, onFinish, recipient = fal
   const [masterDuration, setMasterDuration] = useState(audioDuration);
   const [voiceStarted, setVoiceStarted] = useState(false);
   const [voiceEnded, setVoiceEnded] = useState(false);
+  const [voiceBuffering, setVoiceBuffering] = useState(false);
   const [controlsVisible, setControlsVisible] = useState(true);
   const [mediaReady, setMediaReady] = useState(false);
   const controlsTimer = useRef<number | null>(null);
@@ -285,8 +286,11 @@ export function KeepPlayer({ name, from, year, onExit, onFinish, recipient = fal
     if (controlsVisible) setControlsVisible(false);
     else showControls();
   }}>
-    {audioUrl && <audio ref={audio} crossOrigin="anonymous" src={audioUrl} playsInline preload="auto" onPlay={() => { setVoiceEnded(false); tailRemainingRef.current=KEEP_MUSIC_TAIL_SECONDS*1000; }} onLoadedMetadata={(event) => { const duration = event.currentTarget.duration; if (Number.isFinite(duration) && duration > 0) setMasterDuration(duration); }} onEnded={() => setVoiceEnded(true)} onTimeUpdate={(e) => { const a = e.currentTarget; const d = Number.isFinite(a.duration) && a.duration > 0 ? a.duration : audioDuration || 1; setAudioTime(a.currentTime); setScene((current) => { const index = sceneIndexAt(items, a.currentTime, d); return current < 0 || current === index ? current : index; }); }} />}
-    {item && !end && <><CinematicMedia item={item} nextItem={nextItem} followingItem={items[scene + 2]} sceneKey={scene} motionIndex={scene} playing={playing && (voiceStarted || !item?.isSelfie || !mediaReady)} duration={targetSceneSeconds} onFirstFrameReady={()=>setMediaReady(true)}
+    {audioUrl && <audio ref={audio} crossOrigin="anonymous" src={audioUrl} playsInline preload="auto" onPlay={() => { setVoiceEnded(false); setVoiceBuffering(false); tailRemainingRef.current=KEEP_MUSIC_TAIL_SECONDS*1000; }}
+      onWaiting={() => { if(playing && voiceStartedRef.current){setVoiceBuffering(true);void mix.current?.pause();} }}
+      onStalled={() => { if(playing && voiceStartedRef.current){setVoiceBuffering(true);void mix.current?.pause();} }}
+      onPlaying={() => {setVoiceBuffering(false);if(playing&&voiceStartedRef.current)void mix.current?.play().catch(()=>setBlocked(true));}} onLoadedMetadata={(event) => { const duration = event.currentTarget.duration; if (Number.isFinite(duration) && duration > 0) setMasterDuration(duration); }} onEnded={() => setVoiceEnded(true)} onTimeUpdate={(e) => { const a = e.currentTarget; const d = Number.isFinite(a.duration) && a.duration > 0 ? a.duration : audioDuration || 1; setAudioTime(a.currentTime); setScene((current) => { const index = sceneIndexAt(items, a.currentTime, d); return current < 0 || current === index ? current : index; }); }} />}
+    {item && !end && <><CinematicMedia item={item} nextItem={nextItem} followingItem={items[scene + 2]} sceneKey={scene} motionIndex={scene} playing={playing && !voiceEnded && !voiceBuffering && (voiceStarted || !item?.isSelfie || !mediaReady)} duration={targetSceneSeconds} onFirstFrameReady={()=>setMediaReady(true)}
       sceneElapsed={audioUrl && voiceStarted && scene >= 0
         ? filmSceneElapsed(items, scene, audioTime, masterDuration || audioDuration)
         : undefined}
