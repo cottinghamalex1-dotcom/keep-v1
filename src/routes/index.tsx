@@ -25,7 +25,7 @@ import { activeKeepSession, loadEditableKeep, loadCloudDraft, saveCloudDraft, re
 import { CinematicMedia } from "@/components/cinematic-media";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useRef, useState, type ChangeEvent, type ReactNode, type CSSProperties } from "react";
-import { ArrowLeft, ArrowRight, Camera, Check, ChevronLeft, ChevronRight, CircleHelp, Download, Ellipsis, GripVertical, Images, LockKeyhole, MessageCircle, Mic, Keyboard, Music2, FileUp, Loader2, Pause, Play, Plus, Radio, RotateCcw, Settings2, Sparkles, Square, Trash2, Undo2, Redo2, VolumeX, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, BookOpen, Camera, Check, ChevronLeft, ChevronRight, Headphones, CircleHelp, Download, Ellipsis, GripVertical, Images, LockKeyhole, MessageCircle, Mic, Keyboard, Music2, FileUp, Loader2, Pause, Play, Plus, Radio, RotateCcw, Settings2, Sparkles, Square, Trash2, Undo2, Redo2, VolumeX, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { KeepPlayer, memoryImages, memoryLabels } from "@/components/keep-player";
@@ -1584,6 +1584,11 @@ function KeepApp() {
       } catch {
         toast.info("Your published Keep is saved. A cloud draft backup will retry when you reopen the editor.");
       }
+      if (original.publicationToken) {
+        toast.success("Your Keep has been updated. Its permanent viewing link stays the same.");
+        window.location.assign("/app");
+        return;
+      }
       setHistory((h) => [...h, screen]);
       setScreen("success");
       resetPageScroll();
@@ -1609,8 +1614,9 @@ function KeepApp() {
       : project;
     if (next !== project) setProject(next);
     saveDraft(next);
-    // "Done" on an already published Keep also updates the live viewing link.
-    if (next.publicationToken) { void finishAndShare(next); return; }
+    // Re-publish an existing Keep, then return to Your Creations. Show progress
+    // and any validation errors right here in the editor rather than silently failing.
+    if (next.publicationToken) { setPublishError(""); void finishAndShare(next); return; }
     go("card");
   };
   const totalSec = rec?.durationSec ?? 150;
@@ -2102,10 +2108,11 @@ function KeepApp() {
           <Button variant="bare" size="icon" aria-label="Undo" disabled={!undoPast.current.length} onClick={() => stepHistory("undo")}><Undo2 className="size-4" /></Button>
           <Button variant="bare" size="icon" aria-label="Redo" disabled={!undoFuture.current.length} onClick={() => stepHistory("redo")}><Redo2 className="size-4" /></Button>
           <Button variant="bare" size="sm" className="text-muted-foreground" onClick={() => { setViewingDemo(false); setPreviewChooserOpen(true); setReadArrangeOpen(false); }}><Play className="size-4" /> Preview</Button>
-          <Button variant="keep" size="sm" disabled={!!project.restoreIncomplete} onClick={toCard}>Done <Check className="size-4" /></Button>
+          <Button variant="keep" size="sm" disabled={!!project.restoreIncomplete || publishing} onClick={toCard}>{publishing ? "Saving…" : "Done"} {publishing ? <Loader2 className="size-4 animate-spin" /> : <Check className="size-4" />}</Button>
         </div>
       </div>
 
+      {(publishing || publishError) && <div className={`mx-4 mt-2 rounded-xl border px-4 py-3 text-xs leading-5 ${publishError ? "border-[#BE7363] bg-[#3B2826] text-[#FFE5DF]" : "border-[#927B61] bg-[#302922] text-[#F7EBDD]"}`} role={publishError ? "alert" : "status"}>{publishError || publishStatus || "Saving changes to your Keep…"}</div>}
       {rec?.audioUrl && !rec.demo && <audio ref={editorAudioRef} src={rec.audioUrl} preload="metadata" onWaiting={() => {if(editorPlaying)void editorMixRef.current?.pause();}} onStalled={() => {if(editorPlaying)void editorMixRef.current?.pause();}} onPlaying={() => {if(editorPlaying)void editorMixRef.current?.play().catch(()=>undefined);}} onTimeUpdate={(e) => { const time = e.currentTarget.currentTime; setEditorTime(time); setFrame(editorSceneAt(time)); }} onEnded={() => { if (editorDuration <= (rec?.durationSec ?? 0) + 0.1) { setEditorPlaying(false); setEditorTime(editorDuration); } }} />}
       <div className="keep-studio-stage">
         <div className="keep-studio-canvas-wrap">
@@ -2271,9 +2278,9 @@ function KeepApp() {
       {previewChooserOpen && sheet("Preview your Keep", () => { setPreviewChooserOpen(false); setReadArrangeOpen(false); }, <div className="pb-2">
         <p className="mt-2 text-xs leading-5 text-muted-foreground">Choose how you want to check it. Previewing is optional — you can come back and make changes anytime.</p>
         <div className="mt-5 space-y-2">
-          <Button variant="quiet" className="h-auto w-full justify-between p-4 text-left" onClick={() => openCreatorPreview("watch")}><span className="flex items-center gap-3"><Images className="size-5" /><span><strong className="block font-normal">Watch</strong><small className="mt-1 block font-normal text-muted-foreground">Voice, memories, music + captions</small></span></span><ArrowRight /></Button>
-          <Button variant="quiet" className="h-auto w-full justify-between p-4 text-left" onClick={() => openCreatorPreview("listen")}><span className="flex items-center gap-3"><Music2 className="size-5" /><span><strong className="block font-normal">Listen</strong><small className="mt-1 block font-normal text-muted-foreground">Hear the final voice + music mix</small></span></span><ArrowRight /></Button>
-          <Button variant="quiet" className="h-auto w-full justify-between p-4 text-left" onClick={() => openCreatorPreview("read")}><span className="flex items-center gap-3"><MessageCircle className="size-5" /><span><strong className="block font-normal">Read</strong><small className="mt-1 block font-normal text-muted-foreground">Words woven together with memories</small></span></span><ArrowRight /></Button>
+          <Button variant="quiet" className="h-auto w-full justify-between p-4 text-left" onClick={() => openCreatorPreview("watch")}><span className="flex items-center gap-3"><Images className="size-5" /><span><strong className="block font-normal">Watch, Listen &amp; Read</strong><small className="mt-1 block font-normal text-muted-foreground">Voice, photos, videos, music &amp; captions</small></span></span><ArrowRight /></Button>
+          <Button variant="quiet" className="h-auto w-full justify-between p-4 text-left" onClick={() => openCreatorPreview("listen")}><span className="flex items-center gap-3"><Headphones className="size-5" /><span><strong className="block font-normal">Listen &amp; Read</strong><small className="mt-1 block font-normal text-muted-foreground">Listen to their voice while reading every word</small></span></span><ArrowRight /></Button>
+          <Button variant="quiet" className="h-auto w-full justify-between p-4 text-left" onClick={() => openCreatorPreview("read")}><span className="flex items-center gap-3"><BookOpen className="size-5" /><span><strong className="block font-normal">Read</strong><small className="mt-1 block font-normal text-muted-foreground">Just the written message, no media</small></span></span><ArrowRight /></Button>
         </div>
 
         <div className="mt-5 border-t border-border pt-4">
