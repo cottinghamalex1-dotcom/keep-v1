@@ -23,6 +23,17 @@ describe('Publishing a Keep',()=>{
    expect(JSON.stringify(body)).not.toContain('Private answer');expect(JSON.stringify(body)).not.toContain('blob:');
    expect(manifestSchema.safeParse(body.project).success).toBe(true);
  });
+ it('preserves the chosen voice treatment through server validation and recipient serialization',()=>{
+   for(const voiceTone of ['natural','warm','clear'] as const){
+     const edited={...project(),audioMix:{voiceMuted:false,musicMuted:false,fadeIn:2.5,fadeOut:3,ducking:true,voiceTone}};
+     const payload={...publicationSettings(edited),voicePath:`${owner}/publications/${id}/version/voice`,
+       memories:[{id:'photo',kind:'image',source:'upload',storagePath:`${owner}/publications/${id}/version/photo`}]};
+     const published=manifestSchema.parse(payload);
+     expect(published.audioMix?.voiceTone).toBe(voiceTone);
+     const delivered=manifestSchema.parse(JSON.parse(JSON.stringify(published)));
+     expect(delivered.audioMix?.voiceTone).toBe(voiceTone);
+   }
+ });
  it('does not publish metadata after a failed upload',async()=>{
    vi.mocked(fetch).mockResolvedValue(new Response('',{status:500}));
    await expect(publishKeep(project(),id,()=>{})).rejects.toThrow('could not upload');expect(fetch).toHaveBeenCalledTimes(1);
