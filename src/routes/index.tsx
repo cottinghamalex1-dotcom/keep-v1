@@ -952,7 +952,7 @@ function KeepApp() {
 
   // ---- Memories ----
   const [styleTouched, setStyleTouched] = useState(false);
-  const personalMedia = project.memories.filter((m) => m.source !== "text");
+  const personalMedia = project.memories.filter((m) => m.source !== "text" && !m.isSelfie);
   const photoCount = personalMedia.filter(m => m.kind === "image").length;
   const videoCount = personalMedia.filter(m => m.kind === "video").length;
   // Narration-first photo guidance: use the real voice recording when available,
@@ -971,9 +971,12 @@ function KeepApp() {
   const chosenStyle = styleTouched ? (project.creationStyle ?? "memories") : suggestedStyle;
   const createStory = () => {
     const duration = rec?.durationSec ?? 150;
-    const media = chosenStyle === "memories" && personalMedia.length
-      ? spreadMemories(personalMedia, duration)
-      : arrangeWords(personalMedia, project.messageParagraphs, duration);
+    const selfieTakes=project.selfieVideos??[];
+    const base = selfieTakes.length && !personalMedia.length ? []
+      : chosenStyle === "memories" && personalMedia.length
+        ? spreadMemories(personalMedia, duration)
+        : arrangeWords(personalMedia, project.messageParagraphs, duration);
+    const media=composeSelfieStory(base,selfieTakes,duration,project);
     patch({ memories: media, creationStyle: chosenStyle });
     setFrame(0);
     setEditorTime(0);
@@ -1067,7 +1070,7 @@ function KeepApp() {
           patch({ memories: frames.length ? frames.map((m, i) => (i === replaceIndex ? { ...items[0]!, displayDurationSec: items[0]!.kind === "video" ? items[0]!.displayDurationSec : m.displayDurationSec ?? 7, focusX: m.focusX, focusY: m.focusY, zoom: m.zoom, motion: m.motion, transition: m.transition } : m)) : shown.map((m, i) => (i === replaceIndex ? { ...items[0]!, displayDurationSec: items[0]!.displayDurationSec } : m)) });
           toast.success("Moment updated");
         } else {
-          patch({ memories: [...frames, ...items] });
+          patch({ memories: composeSelfieStory([...withoutSelfieScenes(frames),...items],project.selfieVideos??[],rec?.durationSec??150,project) });
           toast.success(`${items.length} ${items.length === 1 ? "moment" : "moments"} added`);
         }
       }
@@ -1114,6 +1117,17 @@ function KeepApp() {
       await deleteBlobs(savedIds);
       throw error;
     }
+  };
+  const recordSelfieFromMedia = async () => {
+    if(isTogether&&project.voiceRecordingLocation==="remote"){
+      toast.info("Remote contributors can add selfie video from their private invitation.");
+      go("remoteInvite");return;
+    }
+    const prepared=await recorder.prepareSelfie();
+    if(!prepared){toast.error("The front camera couldn't open. You can continue with voice and photos.");return;}
+    setSelfieSelected(true);
+    setGroupPartIndex(0);
+    go(isTogether?"groupRecord":"record");
   };
   const removeMemory = (i: number) => {
     const list = frames.length ? frames : shown;
