@@ -325,7 +325,7 @@ export function KeepRecipientExperience({
         className={`absolute inset-0 z-[70] transition-opacity duration-[850ms] ease-in-out motion-reduce:duration-0 ${watching && openingFrameReady ? "pointer-events-none opacity-0" : "opacity-100"}`}>
         <KeepFirstPlayReveal
           name={name} occasion={subtitle} introduction={openingMessage}
-          from={from} year={year} onOpen={enter}
+          from={from} year={year} onOpen={enter} opening={watching}
           onOtherFormats={() => { setVisited(true); setStage("choose"); }}
           onCreatorExit={creatorPreview ? onCreatorExit : undefined}
         />
