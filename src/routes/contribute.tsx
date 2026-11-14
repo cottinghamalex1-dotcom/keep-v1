@@ -47,6 +47,8 @@ function KeepRemoteContributor() {
     const extension=take.mime.includes("mp4")?"mp4":"webm";
     const file=new File([take.blob],`Selfie-part-${take.partIndex+1}.${extension}`,{type:take.mime||take.blob.type});
     await uploadRemoteMedia(token,file,"video",take.duration,"selfie",take.partIndex);
+    const updated=await resolveRemoteInvitation(token);
+    setInvite(updated);
     setSelfieRetry(null);
   };
   const chooseSelfie=async()=>{
