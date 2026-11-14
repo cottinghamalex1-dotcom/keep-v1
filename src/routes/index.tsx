@@ -1083,7 +1083,7 @@ function KeepApp() {
     }
   };
   const importContributorMoments = async (items:RemoteMediaItem[]):Promise<number> => {
-    const existing=new Set(project.memories.map(moment=>moment.remoteMediaId).filter(Boolean));
+    const existing=new Set([...project.memories,...(project.selfieVideos??[])].map(moment=>moment.remoteMediaId).filter(Boolean));
     const newItems=items.filter(item=>!existing.has(item.id));
     if(!newItems.length)return 0;
     const staged:MediaItem[]=[];
@@ -1097,18 +1097,25 @@ function KeepApp() {
         const blob=await response.blob();
         if(blob.size<100||blob.size>(media.kind==="video"?40:15)*1024*1024)
           throw new Error(`The file ${media.name} couldn't be verified.`);
-        const id=newId("media");
+        const id=newId(media.purpose==="selfie"?"selfie":"media");
         if(!(await putBlob(id,blob)))throw new Error("Your device couldn't save a shared moment. Free up space and try again.");
         savedIds.push(id);
         staged.push({
           id,kind:media.kind,source:"upload",name:media.name,mimeType:media.mimeType,
           remoteMediaId:media.id,persisted:true,url:URL.createObjectURL(blob),
-          displayDurationSec:media.kind==="video"?Math.max(1,Math.min(90,media.durationSec??7)):7
+          ...(media.purpose==="selfie"?{
+            isSelfie:true,blobId:id,selfiePartIndex:media.paragraphIndex??0,
+            videoDurationSec:media.durationSec??7,videoStartSec:0
+          }:{}),
+          displayDurationSec:media.kind==="video"?Math.max(1,Math.min(media.purpose==="selfie"?300:90,media.durationSec??7)):7
         });
       }
       setProject(old=>{
-        const present=new Set(old.memories.map(item=>item.remoteMediaId).filter(Boolean));
-        return {...old,memories:[...old.memories,...staged.filter(item=>!present.has(item.remoteMediaId))]};
+        const present=new Set([...old.memories,...(old.selfieVideos??[])].map(item=>item.remoteMediaId).filter(Boolean));
+        const added=staged.filter(item=>!present.has(item.remoteMediaId));
+        const selfies=[...(old.selfieVideos??[]),...added.filter(item=>item.isSelfie)];
+        const ordinary=[...withoutSelfieScenes(old.memories),...added.filter(item=>!item.isSelfie)];
+        return {...old,selfieVideos:selfies,memories:composeSelfieStory(ordinary,selfies,old.finalVoiceRecording?.durationSec??150,old)};
       });
       toast.success(`${staged.length} shared ${staged.length===1?"moment":"moments"} added. Arrange them in Photos.`);
       return staged.length;
@@ -1131,6 +1138,7 @@ function KeepApp() {
   };
   const removeMemory = (i: number) => {
     const list = frames.length ? frames : shown;
+    if(list[i]?.isSelfie){setEditorPanel("Selfie");toast.info("Edit or hide the selfie in the Selfie Video controls.");return;}
     // Blob and object URL are kept so Undo can bring this moment back.
     patch({ memories: list.filter((_, j) => j !== i) });
     setFrame((f) => Math.max(0, Math.min(f, list.length - 2)));
@@ -1138,6 +1146,7 @@ function KeepApp() {
   const moveMemory = (from: number, to: number) => {
     const list = [...(frames.length ? frames : shown)];
     if (to < 0 || to >= list.length || from === to) return;
+    if(list[from]?.isSelfie||list[to]?.isSelfie){toast.info("Use Selfie Video to arrange the opening and closing moments.");return;}
     const [m] = list.splice(from, 1);
     if (!m) return;
     list.splice(to, 0, m);
