@@ -447,7 +447,6 @@ function KeepListenAndRead({ name, from, year, paragraphs, captionCues, audioUrl
   const elapsed = Math.min(seconds, progress * seconds / 100);
   const frameIndex = readingFrameAtTime(frames, elapsed);
   const finished = progress >= 99.8;
-  const started = listening || progress > 0.1;
   // Reading should be visible even before Play and while the speaker pauses.
   const shown = !finished && frameIndex >= 0 ? frames[frameIndex] : null;
   const stamp = (value: number) => `${Math.floor(value / 60)}:${String(Math.floor(value % 60)).padStart(2, "0")}`;
