@@ -88,6 +88,17 @@ export function KeepRecipientExperience({
   const listenMix = useRef<ReturnType<typeof createKeepVoiceMix>>(null);
   const listenIntroTimer = useRef<number | null>(null);
   const listenHasStarted = useRef(false);
+  const listenIntroRemaining = useRef(KEEP_MUSIC_LEAD_SECONDS * 1000);
+  const listenIntroStartedAt = useRef(0);
+  const listenAttempt = useRef(0);
+  const cancelPendingListen = () => {
+    listenAttempt.current++;
+    if(listenIntroTimer.current!==null){
+      window.clearTimeout(listenIntroTimer.current);
+      listenIntroTimer.current=null;
+      listenIntroRemaining.current=Math.max(0,listenIntroRemaining.current-(performance.now()-listenIntroStartedAt.current));
+    }
+  };
   const paragraphs = messageParagraphs?.length ? messageParagraphs : demoMessage;
 
   useEffect(() => {
@@ -112,13 +123,25 @@ export function KeepRecipientExperience({
     controller?.setLevels(voiceVolume, musicVolume);
     listenHasStarted.current = false;
     return () => {
-      if (listenIntroTimer.current) window.clearTimeout(listenIntroTimer.current);
-      listenIntroTimer.current = null;
+      cancelPendingListen();
       void controller?.stop();
       listenMix.current = null;
       listenHasStarted.current = false;
+      listenIntroRemaining.current = KEEP_MUSIC_LEAD_SECONDS * 1000;
     };
-  }, [stage, experience, audioUrl, audioDuration, musicMood, voiceMusicBalance, voiceVolume, musicVolume]);
+  }, [stage, experience, audioUrl, audioDuration]);
+  useEffect(()=>{
+    listenMix.current?.setLevels(voiceVolume,musicVolume);
+  },[stage,experience,voiceVolume,musicVolume]);
+  useEffect(()=>{
+    listenMix.current?.setTrackMutes(!!audioMix?.voiceMuted,!!audioMix?.musicMuted);
+    listenMix.current?.setVoiceTone(audioMix?.voiceTone??"natural");
+  },[stage,experience,audioMix?.voiceMuted,audioMix?.musicMuted,audioMix?.voiceTone]);
+  useEffect(()=>{
+    if(stage==="experience"&&experience==="listen")
+      listenMix.current?.restartMusic(musicMood,
+        (["Soft","Balanced","Full"].includes(voiceMusicBalance)?voiceMusicBalance:"Balanced") as MusicBalance,audioMix);
+  },[stage,experience,musicMood,voiceMusicBalance,audioMix?.fadeIn,audioMix?.fadeOut,audioMix?.ducking]);
 
   const enter = () => {
     if (persistVisit) {
@@ -141,7 +164,9 @@ export function KeepRecipientExperience({
   const backToChoose = () => {
     if (timer.current) window.clearInterval(timer.current);
     timer.current = null;
+    cancelPendingListen();
     if (audio.current) audio.current.pause();
+    void listenMix.current?.pause();
     setListening(false);
     if (creatorPreview && onCreatorExit) {
       onCreatorExit();
@@ -153,6 +178,8 @@ export function KeepRecipientExperience({
   const finishExperience = () => {
     if (timer.current) window.clearInterval(timer.current);
     timer.current = null;
+    cancelPendingListen();
+    void listenMix.current?.pause();
     setListening(false);
     setStage("ending");
   };
@@ -160,8 +187,56 @@ export function KeepRecipientExperience({
   const toggleListen = () => {
     if (timer.current) { window.clearTimeout(timer.current); timer.current = null; }
     if (audioUrl && audio.current) {
-      const element = audio.current;
-      if (listening) {
+      const element=audio.current;
+      if(listening){
+        cancelPendingListen();
+        element.pause();
+        void listenMix.current?.pause();
+        setListening(false);
+        return;
+      }
+      const wasFinished=Number.isFinite(element.duration)&&element.currentTime>=element.duration-.1;
+      if(wasFinished){
+        element.currentTime=0;
+        setListenProgress(0);
+        listenHasStarted.current=false;
+        listenIntroRemaining.current=KEEP_MUSIC_LEAD_SECONDS*1000;
+        listenMix.current?.restartMusic(musicMood,
+          (["Soft","Balanced","Full"].includes(voiceMusicBalance)?voiceMusicBalance:"Balanced") as MusicBalance,audioMix);
+      }
+      const attempt=++listenAttempt.current;
+      setListening(true);
+      const controller=listenMix.current;
+      // Browsers without Web Audio still get the spoken message rather than a
+      // dead Play button. On supported devices the full soundtrack plays first.
+      if(!controller){
+        listenHasStarted.current=true;
+        void element.play().catch(()=>{if(attempt===listenAttempt.current)setListening(false);});
+        return;
+      }
+      void controller.play().then(()=>{
+        if(attempt!==listenAttempt.current)return;
+        const beginVoice=()=>{
+          if(attempt!==listenAttempt.current)return;
+          listenIntroTimer.current=null;
+          listenIntroRemaining.current=0;
+          listenHasStarted.current=true;
+          void element.play().catch(()=>{
+            if(attempt!==listenAttempt.current)return;
+            void controller.pause();
+            setListening(false);
+          });
+        };
+        if(!listenHasStarted.current&&element.currentTime<0.05){
+          listenIntroStartedAt.current=performance.now();
+          listenIntroTimer.current=window.setTimeout(beginVoice,listenIntroRemaining.current);
+        }else beginVoice();
+      }).catch(()=>{
+        if(attempt===listenAttempt.current)setListening(false);
+      });
+      return;
+    }
+    if (listening) {
         if (listenIntroTimer.current) window.clearTimeout(listenIntroTimer.current);
         listenIntroTimer.current = null;
         element.pause();
@@ -328,7 +403,7 @@ function KeepListenAndRead({ name, from, year, paragraphs, captionCues, audioUrl
   const elapsed = Math.min(seconds, progress * seconds / 100);
   const frameIndex = frameAtTime(frames, elapsed);
   const finished = progress >= 99.8;
-  const started = progress > 0.1 || listening;
+  const started = progress > 0.1;
   const shown = started && !finished && frameIndex >= 0 ? frames[frameIndex] : null;
   const stamp = (value: number) => `${Math.floor(value / 60)}:${String(Math.floor(value % 60)).padStart(2, "0")}`;
   return <main className="app-shell">
