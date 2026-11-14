@@ -34,6 +34,7 @@ describe("seamless personalized introduction to film", () => {
 
     // The original first impression stays mounted rather than dropping to black.
     expect(container.querySelector(".keep-first-play")).toBe(originalReveal);
+    expect(screen.getByText("Opening your Keep…")).toBeInTheDocument();
     const cover = originalReveal!.parentElement!;
     expect(cover).toHaveClass("opacity-100");
     expect(cover).toHaveAttribute("aria-hidden", "true");
