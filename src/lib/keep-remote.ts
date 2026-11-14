@@ -29,7 +29,7 @@ async function callApi<T>(payload: JsonResult, session?: KeepSession): Promise<T
   });
   let data: Record<string, unknown>;
   try {data=await response.json() as Record<string, unknown>;} catch {throw new Error("Couldn't contact Keep. Check your connection and try again.");}
-  if(!response.ok) throw new Error(typeof data.error === "string" ? data.error : "Keep couldn't complete that request. Please try again.");
+  if(!response.ok) throw new Error(typeof data["error"] === "string" ? data["error"] : "Keep couldn't complete that request. Please try again.");
   return data as T;
 }
 export async function callRemoteOwner<T>(payload: JsonResult): Promise<T> {
