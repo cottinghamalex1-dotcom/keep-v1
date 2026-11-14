@@ -149,7 +149,7 @@ Deno.serve(async req => {
       if(listError) return error("Invitations could not be loaded.",500);
       const rows=(invites??[]) as Invite[];
       const recs=await recordingsFor(rows.map(row=>row.id));
-      if(action==="owner-list") return answer({invites:rows.map(invite=>({
+      if(action==="owner-list") return answer({notificationsEnabled:!!(Deno.env.get("RESEND_API_KEY") && Deno.env.get("KEEP_EMAIL_FROM")),invites:rows.map(invite=>({
         id:invite.id,contributorId:invite.contributor_id,contributorName:invite.contributor_name,
         total:invite.script_parts.length,completed:completedIndices(invite,recs).length,
         expiresAt:invite.expires_at,emailSent:!!invite.email_sent_at
