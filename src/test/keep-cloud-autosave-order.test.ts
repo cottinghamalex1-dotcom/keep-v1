@@ -9,6 +9,15 @@ const session: KeepSession = { access_token:"token",refresh_token:"refresh",user
 const ok = () => new Response(JSON.stringify([]),{status:200});
 
 describe("cloud autosave ordering", () => {
+  it("rejects a cloud draft that would contain an unrecoverable in-session-only voice", async () => {
+    const fetcher=vi.fn().mockResolvedValue(ok());
+    vi.stubGlobal("fetch",fetcher);
+    await expect(saveCloudDraft({ ...newProject(),active:true,
+      finalVoiceRecording:{audioUrl:"blob:only-in-this-tab",durationSec:84,demo:false} },session))
+      .rejects.toThrow("wasn't saved to this device");
+    expect(fetcher).not.toHaveBeenCalled();
+  });
+
   it("does not allow an older in-flight save to overwrite newer edits", async () => {
     let finishOld!: (response:Response) => void;
     const oldPending=new Promise<Response>(resolve => { finishOld=resolve; });
