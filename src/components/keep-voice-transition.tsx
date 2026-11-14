@@ -8,6 +8,7 @@ type Props = {
   syncError: boolean;
   isDemo: boolean;
   isPersisted: boolean;
+  hasRecording: boolean;
   returnToEditor: boolean;
   onContinue: () => void;
   onRetry: () => void;
@@ -20,22 +21,25 @@ type Props = {
  * confirmation must never appear before the audio is usable.
  */
 export function KeepVoiceTransition({
-  isSaving, isSyncing, hasCaptions, syncError, isDemo, isPersisted, returnToEditor,
+  isSaving, isSyncing, hasCaptions, syncError, isDemo, isPersisted, hasRecording, returnToEditor,
   onContinue, onRetry, onRecordAgain,
 }: Props) {
   const processing = isSaving || isSyncing;
-  const needsCaptionReview = !processing && !isDemo && (syncError || !hasCaptions);
-  const notStored = !processing && !isDemo && !isPersisted;
+  const missingRecording = !processing && !hasRecording;
+  const needsCaptionReview = !processing && hasRecording && !isDemo && (syncError || !hasCaptions);
+  const notStored = !processing && hasRecording && !isDemo && !isPersisted;
   const title = processing
     ? isSaving ? "Holding onto your words." : "Putting the words in place."
-    : "Your voice is kept.";
+    : missingRecording ? "Your recording needs another try." : "Your voice is kept.";
   const message = isSaving
     ? "Preserving your recording and the moments that make it yours."
     : isSyncing
       ? "Pairing your message with your voice, so the captions feel right when it plays."
-      : needsCaptionReview
-        ? "Your recording is ready. Captions need another look before you share your Keep."
-        : "Not polished. Not performed. Just you, exactly as they should hear you.";
+      : missingRecording
+        ? "We couldn't restore that recording. Please record it again so your Keep has your voice."
+        : needsCaptionReview
+          ? "Your recording is ready. Captions need another look before you share your Keep."
+          : "Not polished. Not performed. Just you, exactly as they should hear you.";
 
   return <div className="keep-voice-transition fixed inset-0 z-[95] flex items-center justify-center overflow-y-auto bg-[#211A14]/65 px-4 py-[max(18px,env(safe-area-inset-top))] backdrop-blur-[10px] sm:px-6">
     <section role="dialog" aria-modal="true" aria-labelledby="keep-voice-transition-title"
@@ -60,22 +64,22 @@ export function KeepVoiceTransition({
 
         <div className="mx-auto mt-7 max-w-[335px]" aria-live="polite">
           <div role="progressbar" aria-label="Preparing your recording" aria-valuemin={0} aria-valuemax={100}
-            aria-valuenow={processing ? undefined : 100}
+            aria-valuenow={processing ? undefined : missingRecording ? 0 : 100}
             aria-valuetext={processing ? (isSaving ? "Saving recording" : "Syncing captions") : "Preparation complete"}
             className="relative h-1.5 overflow-hidden rounded-full bg-[#E8DDD0]">
             <div className={processing ? "keep-voice-transition-progress-loading absolute inset-y-0 left-0 w-[38%] rounded-full bg-gradient-to-r from-[#B99C78] via-[#816346] to-[#CBB392]"
               : "keep-voice-transition-progress-complete absolute inset-0 rounded-full bg-gradient-to-r from-[#B9A17F] to-[#826548]"} />
           </div>
           <p role="status" className="mt-3 text-[10px] font-semibold tracking-[.08em] text-[#8D755D]">
-            {isSaving ? "SAVING YOUR VOICE" : isSyncing ? "SYNCING YOUR WORDS" : needsCaptionReview ? "VOICE READY · CAPTIONS TO REVIEW" : "READY FOR THE NEXT MOMENT"}
+            {isSaving ? "SAVING YOUR VOICE" : isSyncing ? "SYNCING YOUR WORDS" : missingRecording ? "RECORDING NOT FOUND" : needsCaptionReview ? "VOICE READY · CAPTIONS TO REVIEW" : "READY FOR THE NEXT MOMENT"}
           </p>
         </div>
 
         {!processing && <>
-          <button type="button" autoFocus onClick={onContinue}
+          {!missingRecording && <button type="button" autoFocus onClick={onContinue}
             className="mt-7 flex min-h-[54px] w-full items-center justify-center gap-2 rounded-xl bg-[#1D1A17] px-5 text-[13px] font-medium text-[#FCF8F2] shadow-[0_12px_25px_rgba(29,26,23,.16)] transition-transform hover:bg-[#342B24] active:scale-[.99]">
             {returnToEditor ? "Back to my Keep" : "Continue my Keep"} <ArrowRight aria-hidden="true" className="size-4"/>
-          </button>
+          </button>}
           <button type="button" onClick={onRecordAgain}
             className="mt-2 inline-flex min-h-11 items-center justify-center gap-2 px-4 text-[11px] text-[#806A55] underline-offset-4 hover:underline">
             <RotateCcw aria-hidden="true" className="size-3.5" /> Record again
