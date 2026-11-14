@@ -17,7 +17,12 @@ export function removeEditableMoment(project: KeepProject, id: string): KeepProj
     ? composeSelfieStory(nextBase, project.selfieVideos ?? [],
       project.finalVoiceRecording?.durationSec ?? 150, project)
     : project.memories.filter(moment => moment.id !== id);
-  return { ...project, selfieBaseMedia: nextBase, memories: scenes };
+  return {
+    ...project,
+    selfieBaseMedia: nextBase,
+    memories: scenes,
+    readMemoryOrder: project.readMemoryOrder.filter(momentId => momentId !== id),
+  };
 }
 
 /** True when a real voice already has a durable recording we must not overwrite
