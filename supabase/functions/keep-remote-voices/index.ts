@@ -233,12 +233,12 @@ Deno.serve(async req => {
       const format=mediaTypes[mime];
       const size=Number(body.size);
       const kind=small(body.kind,8);
-      const name=small(body.fileName,110).replace(/[\\/\\\\<>\\u0000-\\u001f]/g,"_")||"Shared moment";
+      const name=small(body.fileName,110).replace(/[^a-zA-Z0-9 ._()-]/g,"_")||"Shared moment";
       const duration=kind==="video"?Number(body.durationSec):null;
       if(!format||format.kind!==kind)return error("Please choose a supported photo or short video.",415);
       if(!Number.isFinite(size)||size<100||size>(kind==="video"?41943040:15728640))
         return error(kind==="video"?"Please share a video under 40 MB.":"Please share a photo under 15 MB.");
-      if(kind==="video"&&(!Number.isFinite(duration)||duration!>90.5||duration!<=0))
+      if(kind==="video"&&(duration===null||!Number.isFinite(duration)||duration>90.5||duration<=0))
         return error("Please trim videos to 90 seconds or less. Around 10 seconds is best.");
       if((invite.media_upload_attempts??0)>=60)return error("This link reached its upload limit. Ask for a fresh invitation.",429);
       if(guestMedia.length>=25)return error("You've shared 25 moments. The creator can add more from their own phone.");
