@@ -1,7 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState, type ChangeEvent } from "react";
-import { ArrowRight, Check, CircleCheck, FileAudio, Heart, Mic, Pause, RefreshCw, ShieldCheck, Square } from "lucide-react";
+import { ArrowRight, Check, CircleCheck, FileAudio, Heart, ImagePlus, Mic, Pause, RefreshCw, ShieldCheck, Square } from "lucide-react";
 import { KeepTeleprompter } from "@/components/keep-teleprompter";
+import { KeepRemoteMediaContributor } from "@/components/keep-remote-media-contributor";
 import { useRecorder } from "@/hooks/use-recorder";
 import { getRemoteFileDuration, resolveRemoteInvitation, uploadRemoteRecording, type RemoteInviteDetails } from "@/lib/keep-remote";
 
@@ -21,6 +22,7 @@ function KeepRemoteContributor() {
   const [sending,setSending]=useState(false);
   const [currentIndex,setCurrentIndex]=useState(0);
   const [started,setStarted]=useState(false);
+  const [mediaMode,setMediaMode]=useState(false);
   const [uploadRetry,setUploadRetry]=useState<{blob:Blob;duration:number}|null>(null);
   const [sent,setSent]=useState(false);
   const recorder=useRecorder();
@@ -47,6 +49,7 @@ function KeepRemoteContributor() {
       setUploadRetry(null);
       setStarted(false);
       setSent(true);
+      if(next.parts.every(part=>part.completed))setMediaMode(true);
       const nextPart=next.parts.find(part=>!part.completed);
       if(nextPart)setCurrentIndex(nextPart.index);
     }catch(issue){setError(issue instanceof Error?issue.message:"Your recording didn't upload. Tap Retry to send it again.");}
@@ -75,6 +78,20 @@ function KeepRemoteContributor() {
     <p role="alert" className="mt-3 max-w-xs text-sm leading-6 text-[#79695B]">{error||"Ask the creator for a new private link."}</p>
     <button type="button" onClick={()=>void load()} className="mt-6 flex min-h-12 items-center gap-2 rounded-xl border border-[#BEAD9C] px-5 text-xs"><RefreshCw className="size-4"/>Try again</button>
   </main>;
+  if(mediaMode)return <main className="mx-auto min-h-dvh max-w-[590px] bg-[#F7F5F2] px-6 pb-14 pt-7 text-[#30271F]">
+    <div className="flex items-center justify-between"><span className="font-display text-[38px]">Keep</span>
+      <span className="rounded-full border border-[#D8C9BA] px-3 py-1.5 text-[10px] text-[#7D6A57]">Private invitation</span></div>
+    <p className="mt-9 text-[10px] font-semibold uppercase tracking-[.18em] text-[#8D735A]">A KEEP FOR {invite.recipientName.toUpperCase()}</p>
+    <h1 className="mt-3 font-display text-[clamp(36px,9vw,49px)] leading-[1.1] tracking-[-.03em]">The moments that matter.</h1>
+    <p className="mb-6 mt-3 text-[13px] leading-6 text-[#76695E]">Your voice and memories make this gift more personal. Photos and videos are completely optional.</p>
+    <KeepRemoteMediaContributor token={token} mediaCount={invite.mediaCount??0}
+      onUploaded={count=>setInvite(old=>old?{...old,mediaCount:count}:old)}/>
+    {pending.length>0&&<button type="button" onClick={()=>{setMediaMode(false);setStarted(false);}}
+      className="mt-4 flex min-h-12 w-full items-center justify-center rounded-xl border border-[#CDBBA9] bg-white text-[12px] font-medium">Return to my voice recording</button>}
+    <button type="button" onClick={()=>{setMediaMode(false);setStarted(false);}} className="mt-3 flex min-h-12 w-full items-center justify-center rounded-xl bg-[#211D19] text-[12px] font-semibold text-[#FFFAF3]">
+      {pending.length>0?"Save my moments for now":"I'm finished · Thank you"}
+    </button>
+  </main>;
   if(!pending.length)return <main className="flex min-h-dvh flex-col items-center justify-center bg-[#F7F5F2] px-7 text-center text-[#30271F]">
     <div className="flex size-16 items-center justify-center rounded-full border border-[#D7C9BA] bg-[#F1E5D6]"><CircleCheck className="size-8 text-[#648364]"/></div>
     <p className="mt-7 text-[10px] font-semibold uppercase tracking-[.2em] text-[#8F775E]">VOICE RECEIVED</p>
@@ -83,13 +100,14 @@ function KeepRemoteContributor() {
       Thank you, {invite.contributorName}. Your recordings are safely back with {invite.creatorName}.
       They'll be beautifully woven into this Keep for {invite.recipientName}.
     </p>
+    <button type="button" onClick={()=>setMediaMode(true)} className="mt-9 flex min-h-12 items-center gap-2 rounded-xl border border-[#BFAE9D] bg-[#FFFCF8] px-5 text-sm font-medium"><ImagePlus className="size-4"/> Add more photos or videos</button>
     <p className="mt-12 font-display text-2xl italic text-[#806B56]">Some things are worth keeping.</p>
   </main>;
   if(!started)return <main className="mx-auto min-h-dvh max-w-[590px] bg-[#F7F5F2] px-6 pb-14 pt-7 text-[#30271F]">
     <div className="flex items-center justify-between"><span className="font-display text-[38px]">Keep</span><span className="rounded-full border border-[#D8C9BA] px-3 py-1.5 text-[10px] text-[#7D6A57]">Private invitation</span></div>
     <div className="mt-10 rounded-[22px] border border-[#DFD3C5] bg-[#FFFCF7] p-6 shadow-[0_15px_40px_rgba(73,51,27,.055)]">
       <p className="text-[10px] font-semibold uppercase tracking-[.22em] text-[#8B7159]">A MESSAGE FROM {invite.creatorName.toUpperCase()}</p>
-      <h1 className="mt-5 font-display text-[clamp(39px,10vw,53px)] leading-[1.05] tracking-[-.035em]">Your voice matters, {invite.contributorName}.</h1>
+      <h1 className="mt-5 font-display text-[clamp(39px,10vw,53px)] leading-[1.05] tracking-[-.035em]">Your voice & memories matter, {invite.contributorName}.</h1>
       <p className="mt-5 text-sm leading-7 text-[#776B60]">
         {invite.creatorName} is creating a personal Keep for <strong className="font-medium text-[#3B3026]">{invite.recipientName}</strong>
         {invite.occasion? ` for ${invite.occasion.toLowerCase()}`:""}—and would love for you to be part of it.
@@ -100,7 +118,8 @@ function KeepRemoteContributor() {
           {[
             ["01","Find somewhere quiet","Your phone is all you need."],
             ["02","Read your exact words","Your personal script scrolls automatically while you record."],
-            ["03","Finish and send","Keep safely uploads your voice back to the creator for you."],
+            ["03","Share favorite moments (optional)","Add photos and short videos from your phone if you'd like."],
+            ["04","Everything goes back to the creator","Your voice and moments upload privately for the creator to review."],
           ].map(([number,title,detail])=><div key={number} className="flex items-start gap-4"><span className="font-display text-[26px] italic text-[#9A7D60]">{number}</span>
             <div><p className="text-sm font-medium">{title}</p><p className="mt-0.5 text-[11px] leading-5 text-[#786C5F]">{detail}</p></div></div>)}
         </div>
@@ -111,7 +130,8 @@ function KeepRemoteContributor() {
     <button type="button" onClick={()=>{setError("");setStarted(true);}} className="mt-4 flex min-h-14 w-full items-center justify-between rounded-xl bg-[#151310] px-5 text-sm font-semibold text-[#FAF4EB]">
       I'm ready to record <ArrowRight className="size-5"/>
     </button>
-    <p className="mt-3 flex items-center justify-center gap-1.5 text-[11px] text-[#8A7865]"><ShieldCheck className="size-3.5"/> Your words and recording are private.</p>
+    <button type="button" onClick={()=>setMediaMode(true)} className="mt-3 flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-[#BBA791] bg-[#FFFCF7] px-3 text-[12px] font-medium text-[#69523E]"><ImagePlus className="size-4"/> Share photos & videos first (optional)</button>
+    <p className="mt-3 flex items-center justify-center gap-1.5 text-[11px] text-[#8A7865]"><ShieldCheck className="size-3.5"/> Your voice, photos and videos are private.</p>
   </main>;
   return <main className="flex h-[100dvh] min-h-0 flex-col overflow-hidden bg-[#F7F5F2] px-3 pb-[max(8px,env(safe-area-inset-bottom))] pt-[max(7px,env(safe-area-inset-top))] text-[#30271F]">
     <div className="mx-auto flex w-full max-w-[620px] shrink-0 items-center justify-between gap-2 px-2 pb-2">
