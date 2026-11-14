@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { ChevronLeft, ChevronRight, Images, Music2, Pause, Play, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, Music2, Pause, Play, X } from "lucide-react";
 import type { PlayerMedia } from "@/components/keep-player";
 import { MUSIC_FILES } from "@/lib/keep-audio";
 
@@ -19,6 +19,7 @@ export function KeepMemoryGallery({ media, musicMood, onClose }: Props) {
   const track = MUSIC_FILES[musicMood === "Worth Keeping" ? "Intentional" : musicMood] ?? MUSIC_FILES["Warm + Nostalgic"];
   const selected = media[index];
 
+  useEffect(() => { if (soundtrack.current) soundtrack.current.volume = 0.4; }, []);
   useEffect(() => {
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
@@ -86,7 +87,7 @@ export function KeepMemoryGallery({ media, musicMood, onClose }: Props) {
               : <span className="flex h-full w-full items-center justify-center bg-[#292622] text-white"><Play className="size-4" /></span>}
           </button>)}
         </div>}
-        <audio ref={soundtrack} src={track} loop preload="none" volume={0.4} onPause={() => setMusicPlaying(false)} onPlay={() => setMusicPlaying(true)} />
+        <audio ref={soundtrack} src={track} loop preload="none" onPause={() => setMusicPlaying(false)} onPlay={() => setMusicPlaying(true)} />
         <button type="button" disabled={!track} onClick={() => void toggleMusic()} aria-pressed={musicPlaying} className="mx-auto flex min-h-11 items-center justify-center gap-2 rounded-full border border-[#D6CABF] bg-white px-5 py-2.5 text-sm text-[#463A30] disabled:opacity-50">
           {musicPlaying ? <Pause className="size-4" /> : <Music2 className="size-4" />}
           {musicPlaying ? "Pause background music" : "Play background music"}
