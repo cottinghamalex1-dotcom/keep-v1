@@ -8,7 +8,7 @@ type Props = {
   onPlayPreview: () => void; onTone: (tone: VoiceTone) => void;
   onVolume: (track: "voice" | "music", value: number) => void;
   onMix: (change: Partial<AudioMix>) => void;
-  onRemoteManage?: () => void;
+  onRemoteManage?: (() => void) | undefined;
 };
 const presets: { key: VoiceTone; title: string; description: string }[] = [
   { key: "natural", title: "Natural", description: "Balanced & true" },
