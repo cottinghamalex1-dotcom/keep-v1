@@ -5,6 +5,7 @@ export type CinematicMoment = {
   url: string;
   kind: "image" | "video";
   videoStartSec?: number | undefined; // selfie closing scene begins near the end of the filmed take
+  isSelfie?: boolean | undefined;
   focusX?: number | undefined;
   focusY?: number | undefined;
   zoom?: number | undefined;
@@ -25,6 +26,8 @@ type Props = {
   sceneElapsed?: number;
   className?: string;
   imageClassName?: string;
+  /** Fires once the visible opening media has actually decoded. */
+  onFirstFrameReady?: (() => void) | undefined;
 };
 
 type Scene = { key: string; item: CinematicMoment; duration: number; imageClassName: string; index: number };
@@ -41,13 +44,21 @@ const flip = (slot: Slot): Slot => slot === 0 ? 1 : 0;
  * as the active layer (no remount/black flashes on Safari).
  */
 export function CinematicMedia({
-  item, nextItem, followingItem, sceneKey, motionIndex = 0, playing = true, duration = 7, sceneElapsed, className = "", imageClassName = "",
+  item, nextItem, followingItem, sceneKey, motionIndex = 0, playing = true, duration = 7, sceneElapsed, className = "", imageClassName = "", onFirstFrameReady,
 }: Props) {
   const key = String(sceneKey ?? item.url);
   const [state, setState] = useState<State>(() => ({
     slots: [{ key, item, duration, imageClassName, index: motionIndex }, null], active: 0, pending: null, revealed: false,
   }));
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const readyRef = useRef<string | null>(null);
+  const readyCallback = useRef(onFirstFrameReady);
+  readyCallback.current = onFirstFrameReady;
+  const markFirstReady = (scene: Scene, isPending: boolean) => {
+    if(isPending||scene.key!==key||readyRef.current===key)return;
+    readyRef.current=key;
+    readyCallback.current?.();
+  };
   const videos = useRef<[HTMLVideoElement | null, HTMLVideoElement | null]>([null, null]);
   const prefetched = useRef<Map<string, HTMLImageElement>>(new Map());
   const activeScene = state.slots[state.active];
@@ -129,6 +140,12 @@ export function CinematicMedia({
     }
   },[sceneElapsed,state.active,state.slots,key]);
 
+  const canRevealVideo = (video:HTMLVideoElement, scene:Scene) => {
+    const offset=scene.item.videoStartSec;
+    if(typeof offset!=="number"||offset<0.1)return true;
+    // A Safari video can announce "canplay" while it still displays frame 0.
+    return !video.seeking && Math.abs(video.currentTime-offset)<0.4;
+  };
   const reveal = (slot: Slot, scene: Scene) => {
     let first = 0;
     let second = 0;
@@ -194,14 +211,28 @@ export function CinematicMedia({
       ? <video
           key={scene.key}
           ref={(node) => { videos.current[slot] = node; }}
-          src={moment.url} muted playsInline loop autoPlay={playing}
+          src={moment.url} muted playsInline loop={!moment.isSelfie} autoPlay={playing}
           preload="auto" onLoadedMetadata={(event)=>{
-             if(typeof moment.videoStartSec==="number") {
+             if(typeof moment.videoStartSec==="number" && moment.videoStartSec>0.05) {
                try{event.currentTarget.currentTime=Math.min(Math.max(0,event.currentTarget.duration-.05),moment.videoStartSec);}catch{/* Safari not ready */}
              }
-           }} onLoadedData={() => { if (isPending) reveal(slot, scene); }}
-          onCanPlay={(event) => { if (isPending && event.currentTarget.readyState >= 2) reveal(slot, scene); }}
-          onError={() => { if (isPending) setState((old) => {
+           }}
+          onLoadedData={(event) => {
+            if(!canRevealVideo(event.currentTarget,scene))return;
+            if(isPending)reveal(slot,scene);
+            else markFirstReady(scene,isPending);
+          }}
+          onSeeked={(event)=>{
+            if(!canRevealVideo(event.currentTarget,scene))return;
+            if(isPending)reveal(slot,scene);
+            else markFirstReady(scene,isPending);
+          }}
+          onCanPlay={(event) => {
+            if(event.currentTarget.readyState<2||!canRevealVideo(event.currentTarget,scene))return;
+            if(isPending)reveal(slot,scene);
+            else markFirstReady(scene,isPending);
+          }}
+          onError={() => { if(!isPending)markFirstReady(scene,isPending); if (isPending) setState((old) => {
             if (old.pending !== slot) return old;
             const slots = [...old.slots] as Layers;
             slots[slot] = null;
@@ -213,6 +244,7 @@ export function CinematicMedia({
           key={scene.key}
           src={moment.url} alt="" decoding="async"
           onLoad={(event) => {
+            if(!isPending)markFirstReady(scene,isPending);
             if (!isPending) return;
             const element = event.currentTarget;
             if (typeof element.decode === "function") void element.decode().catch(() => undefined).finally(() => reveal(slot, scene));
