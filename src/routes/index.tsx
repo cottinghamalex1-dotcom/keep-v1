@@ -756,17 +756,24 @@ function KeepApp() {
     if (!r) { toast.error("Nothing was recorded. Try again."); return; }
     const id = newId("voice");
     const stored = await putBlob(id, r.blob);
+    const selfie=await saveSelfieTake(r.selfieBlob,r.selfieMimeType,r.durationSec,0);
+    if(selfieSelected && !selfie)toast.info("Your voice is safe. The selfie video wasn't captured; you can retry later.");
+    setSelfieSelected(false);
     if (rec) { releaseUrls([rec.audioUrl]); if (rec.audioId) void deleteBlobs([rec.audioId]); }
     captionSyncToken.current++;
     const audioUrl = URL.createObjectURL(r.blob);
-    setProject((o) => ({
+    setProject((o) => {
+      const selfies=selfie?[selfie]:[];
+      return ({
       ...o,
+      selfieVideos:selfies,
+      memories:o.memories.length?composeSelfieStory(withoutSelfieScenes(o.memories),selfies,r.durationSec,o):o.memories,
       finalVoiceRecording: { audioId: stored ? id : undefined, audioUrl, durationSec: r.durationSec, mimeType: r.mimeType, demo: false },
       captionTranscript: "",
       captionCues: [],
       captionWords: [],
       captionTimingEstimated: false,
-    }));
+    });});
     go("recorded");
     void syncFinalCaptions(r.blob, r.mimeType, r.durationSec, stored ? id : undefined);
   };
@@ -780,13 +787,21 @@ function KeepApp() {
       const index = groupPartIndex;
       const id = newId("voice-part");
       if (!(await putBlob(id,r.blob))) throw new Error("Your device could not save this recording. Please free some storage and try again.");
+      const selfie=await saveSelfieTake(r.selfieBlob,r.selfieMimeType,r.durationSec,index);
+      if(selfieSelected&&!selfie)toast.info("This voice part saved. The optional camera video wasn't captured.");
+      setSelfieSelected(false);
       const currentParts = project.voiceParts ?? [];
       const oldPart = currentParts.find(p => p.paragraphIndex === index);
       const nextParts = [...currentParts.filter(p => p.paragraphIndex !== index), {
         paragraphIndex:index, contributorId:speakerFor(index), textFingerprint:(project.messageParagraphs[index] ?? "").trim(),
         audioId:id, audioUrl:URL.createObjectURL(r.blob), durationSec:r.durationSec, mimeType:r.mimeType,
       }];
-      setProject(old=>({...old,voiceParts:nextParts,finalVoiceRecording:null,groupVoiceSignature:undefined,captionTranscript:"",captionCues:[],captionWords:[],captionTimingEstimated:false}));
+      setProject(old=>{
+        const selfies=[...(old.selfieVideos??[]).filter(item=>item.selfiePartIndex!==index),...(selfie?[selfie]:[])];
+        return {...old,selfieVideos:selfies,
+          memories:old.memories.length?composeSelfieStory(withoutSelfieScenes(old.memories),selfies,old.finalVoiceRecording?.durationSec??150,old):old.memories,
+          voiceParts:nextParts,finalVoiceRecording:null,groupVoiceSignature:undefined,captionTranscript:"",captionCues:[],captionWords:[],captionTimingEstimated:false};
+      });
       if (oldPart) { releaseUrls([oldPart.audioUrl]); if (oldPart.audioId) void deleteBlobs([oldPart.audioId]); }
       const nextIndex = project.messageParagraphs.findIndex((p,i) => p.trim() && !nextParts.some(part => part.paragraphIndex === i && part.contributorId === speakerFor(i) && part.textFingerprint === p.trim()));
       if (nextIndex >= 0) setGroupPartIndex(nextIndex);
@@ -814,7 +829,9 @@ function KeepApp() {
       if (!(await putBlob(id,joined.blob))) throw new Error("Not enough device storage to save the combined recording.");
       if (rec) { releaseUrls([rec.audioUrl]); if (rec.audioId) void deleteBlobs([rec.audioId]); }
       captionSyncToken.current++;
-      setProject(old=>({...old,finalVoiceRecording:{audioId:id,audioUrl:URL.createObjectURL(joined.blob),durationSec:joined.durationSec,mimeType:"audio/wav",demo:false},groupVoiceSignature:groupSignature,captionTranscript:"",captionCues:[],captionWords:[],captionTimingEstimated:false}));
+      setProject(old=>({...old,
+        memories:old.memories.length?composeSelfieStory(withoutSelfieScenes(old.memories),old.selfieVideos??[],joined.durationSec,old):old.memories,
+        finalVoiceRecording:{audioId:id,audioUrl:URL.createObjectURL(joined.blob),durationSec:joined.durationSec,mimeType:"audio/wav",demo:false},groupVoiceSignature:groupSignature,captionTranscript:"",captionCues:[],captionWords:[],captionTimingEstimated:false}));
       go("recorded");
       void syncFinalCaptions(joined.blob, "audio/wav", joined.durationSec, id);
     } catch (error) {
