@@ -88,12 +88,23 @@ as $$
 declare
   tier text := coalesce(to_jsonb(new)->>'package_tier','signature');
   cards integer := coalesce(nullif(to_jsonb(new)->>'included_card_count','')::integer,1);
+  shipping jsonb := coalesce(to_jsonb(new)->'stripe_shipping_details','{}'::jsonb);
+  order_ref text := coalesce(
+    nullif(to_jsonb(new)->>'stripe_checkout_session_id',''),
+    nullif(new.shopify_order_id,''),
+    new.id::text
+  );
 begin
   if tier not in ('basic','signature','deluxe') then tier := 'signature'; end if;
   insert into public.keep_fulfillment (
-    purchase_id, order_reference, package_tier, card_count, shipping_email
+    purchase_id, order_reference, package_tier, card_count, shipping_email,
+    shipping_name, shipping_address1, shipping_address2, shipping_city,
+    shipping_region, shipping_postal_code, shipping_country
   ) values (
-    new.id, new.shopify_order_id, tier, least(greatest(cards,1),10), new.purchaser_email
+    new.id, order_ref, tier, least(greatest(cards,1),10), new.purchaser_email,
+    shipping->>'name', shipping#>>'{address,line1}', shipping#>>'{address,line2}',
+    shipping#>>'{address,city}', shipping#>>'{address,state}',
+    shipping#>>'{address,postal_code}', shipping#>>'{address,country}'
   ) on conflict (purchase_id) do nothing;
   return new;
 end
