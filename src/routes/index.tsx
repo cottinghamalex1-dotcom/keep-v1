@@ -768,7 +768,7 @@ function KeepApp() {
       return ({
       ...o,
       selfieVideos:selfies,
-      memories:o.memories.length?composeSelfieStory(withoutSelfieScenes(o.memories),selfies,r.durationSec,o):o.memories,
+      memories:o.memories.length?composeSelfieStory(o.selfieBaseMedia?.length?o.selfieBaseMedia:withoutSelfieScenes(o.memories),selfies,r.durationSec,o):o.memories,
       finalVoiceRecording: { audioId: stored ? id : undefined, audioUrl, durationSec: r.durationSec, mimeType: r.mimeType, demo: false },
       captionTranscript: "",
       captionCues: [],
@@ -800,7 +800,7 @@ function KeepApp() {
       setProject(old=>{
         const selfies=[...(old.selfieVideos??[]).filter(item=>item.selfiePartIndex!==index),...(selfie?[selfie]:[])];
         return {...old,selfieVideos:selfies,
-          memories:old.memories.length?composeSelfieStory(withoutSelfieScenes(old.memories),selfies,old.finalVoiceRecording?.durationSec??150,old):old.memories,
+          memories:old.memories.length?composeSelfieStory(old.selfieBaseMedia?.length?old.selfieBaseMedia:withoutSelfieScenes(old.memories),selfies,old.finalVoiceRecording?.durationSec??150,old):old.memories,
           voiceParts:nextParts,finalVoiceRecording:null,groupVoiceSignature:undefined,captionTranscript:"",captionCues:[],captionWords:[],captionTimingEstimated:false};
       });
       if (oldPart) { releaseUrls([oldPart.audioUrl]); if (oldPart.audioId) void deleteBlobs([oldPart.audioId]); }
@@ -831,7 +831,7 @@ function KeepApp() {
       if (rec) { releaseUrls([rec.audioUrl]); if (rec.audioId) void deleteBlobs([rec.audioId]); }
       captionSyncToken.current++;
       setProject(old=>({...old,
-        memories:old.memories.length?composeSelfieStory(withoutSelfieScenes(old.memories),old.selfieVideos??[],joined.durationSec,old):old.memories,
+        memories:old.memories.length?composeSelfieStory(old.selfieBaseMedia?.length?old.selfieBaseMedia:withoutSelfieScenes(old.memories),old.selfieVideos??[],joined.durationSec,old):old.memories,
         finalVoiceRecording:{audioId:id,audioUrl:URL.createObjectURL(joined.blob),durationSec:joined.durationSec,mimeType:"audio/wav",demo:false},groupVoiceSignature:groupSignature,captionTranscript:"",captionCues:[],captionWords:[],captionTimingEstimated:false}));
       go("recorded");
       void syncFinalCaptions(joined.blob, "audio/wav", joined.durationSec, id);
@@ -952,7 +952,7 @@ function KeepApp() {
 
   // ---- Memories ----
   const [styleTouched, setStyleTouched] = useState(false);
-  const personalMedia = project.memories.filter((m) => m.source !== "text" && !m.isSelfie);
+  const personalMedia = (project.selfieBaseMedia?.length?project.selfieBaseMedia:project.memories).filter((m) => m.source !== "text" && !m.isSelfie);
   const photoCount = personalMedia.filter(m => m.kind === "image").length;
   const videoCount = personalMedia.filter(m => m.kind === "video").length;
   // Narration-first photo guidance: use the real voice recording when available,
@@ -977,7 +977,7 @@ function KeepApp() {
         ? spreadMemories(personalMedia, duration)
         : arrangeWords(personalMedia, project.messageParagraphs, duration);
     const media=composeSelfieStory(base,selfieTakes,duration,project);
-    patch({ memories: media, creationStyle: chosenStyle });
+    patch({ memories: media, selfieBaseMedia:base, creationStyle: chosenStyle });
     setFrame(0);
     setEditorTime(0);
     setEditorPlaying(false);
@@ -1070,7 +1070,8 @@ function KeepApp() {
           patch({ memories: frames.length ? frames.map((m, i) => (i === replaceIndex ? { ...items[0]!, displayDurationSec: items[0]!.kind === "video" ? items[0]!.displayDurationSec : m.displayDurationSec ?? 7, focusX: m.focusX, focusY: m.focusY, zoom: m.zoom, motion: m.motion, transition: m.transition } : m)) : shown.map((m, i) => (i === replaceIndex ? { ...items[0]!, displayDurationSec: items[0]!.displayDurationSec } : m)) });
           toast.success("Moment updated");
         } else {
-          patch({ memories: composeSelfieStory([...withoutSelfieScenes(frames),...items],project.selfieVideos??[],rec?.durationSec??150,project) });
+          patch({ memories: composeSelfieStory([...(project.selfieBaseMedia?.length?project.selfieBaseMedia:withoutSelfieScenes(frames)),...items],project.selfieVideos??[],rec?.durationSec??150,project),
+            selfieBaseMedia:[...(project.selfieBaseMedia?.length?project.selfieBaseMedia:withoutSelfieScenes(frames)),...items] });
           toast.success(`${items.length} ${items.length === 1 ? "moment" : "moments"} added`);
         }
       }
@@ -1114,8 +1115,8 @@ function KeepApp() {
         const present=new Set([...old.memories,...(old.selfieVideos??[])].map(item=>item.remoteMediaId).filter(Boolean));
         const added=staged.filter(item=>!present.has(item.remoteMediaId));
         const selfies=[...(old.selfieVideos??[]),...added.filter(item=>item.isSelfie)];
-        const ordinary=[...withoutSelfieScenes(old.memories),...added.filter(item=>!item.isSelfie)];
-        return {...old,selfieVideos:selfies,memories:composeSelfieStory(ordinary,selfies,old.finalVoiceRecording?.durationSec??150,old)};
+        const ordinary=[...(old.selfieBaseMedia?.length?old.selfieBaseMedia:withoutSelfieScenes(old.memories)),...added.filter(item=>!item.isSelfie)];
+        return {...old,selfieVideos:selfies,selfieBaseMedia:ordinary,memories:composeSelfieStory(ordinary,selfies,old.finalVoiceRecording?.durationSec??150,old)};
       });
       toast.success(`${staged.length} shared ${staged.length===1?"moment":"moments"} added. Arrange them in Photos.`);
       return staged.length;
@@ -2132,10 +2133,10 @@ function KeepApp() {
       {editorPanel === "Selfie" && <KeepSelfieEditor
         takes={project.selfieVideos??[]}
         settings={project}
-        hasOtherMoments={withoutSelfieScenes(project.memories).filter(item=>item.source!=="text").length>0}
+        hasOtherMoments={(project.selfieBaseMedia?.length?project.selfieBaseMedia:withoutSelfieScenes(project.memories)).filter(item=>item.source!=="text").length>0}
         onClose={()=>{setEditorExpanded(false);setEditorPanel(null);}}
         onChange={updates=>setProject(old=>({...old,...updates,
-          memories:composeSelfieStory(withoutSelfieScenes(old.memories),old.selfieVideos??[],
+          memories:composeSelfieStory(old.selfieBaseMedia?.length?old.selfieBaseMedia:withoutSelfieScenes(old.memories),old.selfieVideos??[],
             old.finalVoiceRecording?.durationSec??150,{...old,...updates})}))}
         onRecord={()=>{setReturnToEditorAfterRecording(true);void recordSelfieFromMedia();}}
         onRemove={id=>{
