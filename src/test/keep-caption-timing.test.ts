@@ -78,15 +78,20 @@ it("detects a short phrase stretched across 13 seconds in a 98-second Keep", () 
   expect(recoverCaptionTiming([], repaired.cues, 98.41).repaired).toBe(false);
 });
 
-it("holds a real caption between timestamp gaps, but not after narration ends", () => {
+it("does not reveal words before speech and clears captions in long pauses", () => {
   const cues: CaptionCue[] = [
-    { text: "First spoken phrase", start: 2, end: 3 },
-    { text: "Second spoken phrase", start: 8, end: 9 },
+    {text:"First spoken phrase",start:2,end:3},
+    {text:"Second spoken phrase",start:8,end:9},
   ];
-  expect(captionAtTime(cues, 1.0, 10)?.text).toBe("First spoken phrase");
-  expect(captionAtTime(cues, 5.0, 10)?.text).toBe("First spoken phrase");
-  expect(captionAtTime(cues, 8.4, 10)?.text).toBe("Second spoken phrase");
-  expect(captionAtTime(cues, 9.7, 10)?.text).toBe("Second spoken phrase");
-  expect(captionAtTime(cues, 10.5, 10)).toBeUndefined();
-  expect(captionAtTime(cues, 10.5)).toBeUndefined();
+  expect(captionAtTime(cues,0,10)).toBeUndefined();
+  expect(captionAtTime(cues,1.98,10)).toBeUndefined();
+  expect(captionAtTime(cues,2.1,10)?.text).toBe("First spoken phrase");
+  expect(captionAtTime(cues,3.3,10)?.text).toBe("First spoken phrase");
+  expect(captionAtTime(cues,5,10)).toBeUndefined();
+  expect(captionAtTime(cues,7.99,10)).toBeUndefined();
+  expect(captionAtTime(cues,8.4,10)?.text).toBe("Second spoken phrase");
+  expect(captionAtTime(cues,9.5,10)?.text).toBe("Second spoken phrase");
+  expect(captionAtTime(cues,9.8,10)).toBeUndefined();
+  expect(captionAtTime(cues,10.5,10)).toBeUndefined();
+  expect(captionAtTime(cues,10.5)).toBeUndefined();
 });
