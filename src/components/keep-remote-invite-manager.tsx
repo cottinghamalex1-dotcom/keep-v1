@@ -76,7 +76,7 @@ export function KeepRemoteInviteManager({ project,onContinue,onCombine,onImportM
     window.location.href="sms:&body="+encodeURIComponent(shareText(name,url));
   };
   const totalMoments=statuses.reduce((sum,status)=>sum+(status.mediaCount??0),0);
-  const importedIds=new Set(project.memories.map(moment=>moment.remoteMediaId).filter(Boolean));
+  const importedIds=new Set([...project.memories,...(project.selfieVideos??[])].map(moment=>moment.remoteMediaId).filter(Boolean));
   const openMediaReview=async()=>{
     if(!keepId)return;
     setMediaLoading(true);setMessage("");
@@ -171,7 +171,7 @@ export function KeepRemoteInviteManager({ project,onContinue,onCombine,onImportM
     <section className="mt-7 rounded-[20px] border border-[#D4C2AD] bg-[#FCF8F1] p-5" aria-label="Contributed photos and videos">
       <div className="flex items-center gap-2"><Images className="size-5 text-[#886D51]"/><h3 className="font-display text-[26px]">Shared moments.</h3></div>
       <p className="mt-2 text-[12px] leading-6 text-[#726355]">
-        {totalMoments} photos or videos received. Each contributor uses their existing private recording link.
+        {totalMoments} photos or videos received. Each contributor uses their existing private recording link, including optional front-camera selfie takes.
         Review the moments before adding them to your Keep.
       </p>
       <button type="button" disabled={mediaLoading||!totalMoments} onClick={()=>void (mediaOpen?setMediaOpen(false):openMediaReview())}
@@ -191,7 +191,7 @@ export function KeepRemoteInviteManager({ project,onContinue,onCombine,onImportM
                 <video src={item.signedUrl} muted playsInline preload="metadata" className="h-full w-full object-cover"/>}
             </div>
             <div className="min-w-0 flex-1"><p className="truncate text-[12px] font-medium">{item.name}</p>
-              <p className="mt-1 text-[10px] text-[#826F5D]">{item.contributorName} · {item.kind==="image"?"Photo":"Video"} · {already?"Already in your Keep":"Ready to add"}</p></div>
+              <p className="mt-1 text-[10px] text-[#826F5D]">{item.contributorName} · {item.purpose==="selfie"?"Selfie video":item.kind==="image"?"Photo":"Video"} · {already?"Already in your Keep":"Ready to add"}</p></div>
           </label>;
         })}
         {!sharedMedia.length&&<p className="text-xs text-[#786657]">No moments have arrived yet. Tap Refresh above to check again.</p>}
