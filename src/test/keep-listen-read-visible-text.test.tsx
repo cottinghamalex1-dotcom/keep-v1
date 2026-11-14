@@ -27,7 +27,7 @@ describe("Listen and Read: visible spoken words", () => {
   it("shows the actual first passage immediately when Listen and Read is selected", () => {
     render(<KeepRecipientExperience {...props} />);
     fireEvent.click(screen.getByRole("button", { name: /choose another way to experience it/i }));
-    fireEvent.click(screen.getByRole("button", { name: /Listen & Read/i }));
+    fireEvent.click(screen.getByRole("button", { name: /^Listen & Read/i }));
     expect(screen.getByText(first)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Play narration" })).toBeInTheDocument();
     expect(screen.queryByText("Some words deserve to be heard.")).not.toBeInTheDocument();
