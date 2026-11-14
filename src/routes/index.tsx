@@ -1402,6 +1402,12 @@ function KeepApp() {
     }
   };
   const toCard = () => {
+    if(isTogether && project.voiceRecordingLocation==="remote" && (!rec?.audioUrl || !groupReady || project.groupVoiceSignature!==groupSignature)){
+      toast.info("Collect and combine all remote recordings before finishing this Keep.");
+      setReturnToEditorAfterRecording(true);
+      go("remoteInvite");
+      return;
+    }
     const next = !engraving[0]?.trim()
       ? { ...project, cardEngraving: [(name || "Hanna").toUpperCase(), engraving[1] || "FROM ALEX", engraving[2] || "2026"] }
       : project;
@@ -2012,6 +2018,10 @@ function KeepApp() {
         onTone={(tone) => { patchMix({ voiceTone: tone }); if (!editorPlaying && !!rec?.audioUrl && !rec.demo) { if (editorTime >= editorDuration - 0.1) seekEditor(0); setEditorPlaying(true); } }}
         onVolume={(kind,value) => patch(kind === "voice" ? {voiceVolume:value} : {musicVolume:value})}
         onMix={patchMix}
+        onRemoteManage={isTogether && project.voiceRecordingLocation==="remote" ? ()=>{
+          setEditorPlaying(false);setEditorExpanded(false);setEditorPanel(null);
+          setReturnToEditorAfterRecording(true);go("remoteInvite");
+        }:undefined}
       />}
 
       </div>
