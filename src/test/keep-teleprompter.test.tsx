@@ -26,13 +26,29 @@ describe("shared recording teleprompter", () => {
     expect(screen.getByLabelText("Recording paused")).toHaveTextContent("PAUSED");
   });
 
-  it("keeps the script scrollable by hand and offers a way back to auto-scroll", () => {
+  it("scrolls by default when recording; touching text does not disable the teleprompter", () => {
     render(<KeepTeleprompter {...props} isRecording />);
-    const viewport = screen.getByLabelText("Teleprompter script. Swipe to adjust your reading position.");
+    const viewport = screen.getByLabelText("Auto-scrolling teleprompter script");
+    expect(screen.getByRole("status")).toHaveTextContent("AUTO-SCROLLING");
+    expect(screen.getByRole("button", { name: "Pause auto-scroll" })).toBeInTheDocument();
     fireEvent.touchStart(viewport);
+    expect(screen.getByRole("button", { name: "Pause auto-scroll" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Pause auto-scroll" }));
     expect(screen.getByRole("button", { name: "Resume auto-scroll" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Resume auto-scroll" }));
     expect(screen.getByRole("button", { name: "Pause auto-scroll" })).toBeInTheDocument();
+  });
+  
+  it("provides clearly marked speed buttons for both solo and group speakers", () => {
+    const { rerender } = render(<KeepTeleprompter {...props} speaker="Dad" text="The first part." />);
+    expect(screen.getByRole("button", { name: "Slower teleprompter scrolling" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Faster teleprompter scrolling" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Faster teleprompter scrolling" }));
+    expect(screen.getByText("1.2×")).toBeInTheDocument();
+    rerender(<KeepTeleprompter {...props} speaker="Mom" text="The next speaker's part." isRecording />);
+    expect(screen.getByText("Mom")).toBeInTheDocument();
+    expect(screen.getByText("1.2×")).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("AUTO-SCROLLING");
   });
 
   it("offers rehearsal without making the creator think the microphone is recording", () => {
@@ -47,7 +63,7 @@ describe("shared recording teleprompter", () => {
     vi.stubGlobal("requestAnimationFrame", vi.fn((cb: FrameRequestCallback) => { frame = cb; return 1; }));
     vi.stubGlobal("cancelAnimationFrame", vi.fn());
     render(<KeepTeleprompter {...props} isRecording />);
-    const viewport = screen.getByLabelText("Teleprompter script. Swipe to adjust your reading position.") as HTMLElement;
+    const viewport = screen.getByLabelText("Auto-scrolling teleprompter script") as HTMLElement;
     Object.defineProperty(viewport, "scrollHeight", { configurable: true, value: 1500 });
     Object.defineProperty(viewport, "clientHeight", { configurable: true, value: 300 });
     act(() => {
