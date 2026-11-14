@@ -47,10 +47,12 @@ describe("Moments uploader", () => {
   it("prevents re-opening the upload picker while another upload is underway", () => {
     const actions = controls();
     const { rerender } = render(<KeepMomentsUploader moments={[]} busy {...actions} />);
-    expect(screen.getByRole("button", { name: /Adding your moments/ })).toBeDisabled();
+    screen.getAllByRole("button", { name: /Adding your moments/ }).forEach(button => expect(button).toBeDisabled());
     rerender(<KeepMomentsUploader moments={samples} busy {...actions} />);
     expect(screen.getByRole("button", { name: "Adding…" })).toBeDisabled();
-    fireEvent.click(screen.getByRole("button", { name: "Continue", exact: true }));
-    expect(actions.onContinue).toHaveBeenCalledOnce();
+    expect(screen.getByRole("button", { name: "Adding your moments…" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Continue without more photos" })).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "Adding your moments…" }));
+    expect(actions.onContinue).not.toHaveBeenCalled();
   });
 });

@@ -10,6 +10,7 @@ import { KeepVoiceEditor } from "@/components/keep-voice-editor";
 import { KeepRemoteInviteManager } from "@/components/keep-remote-invite-manager";
 import { remoteOwnerDownload, type RemoteMediaItem } from "@/lib/keep-remote";
 import { KeepPhotosEditor } from "@/components/keep-photos-editor";
+import { clampCaptionRange, removeEditableMoment, shouldPreserveExistingVoice } from "@/lib/keep-editor-safety";
 import { KeepMomentsUploader } from "@/components/keep-moments-uploader";
 import { KeepStudioResize, DEFAULT_PREVIEW_SIZE, constrainPreviewSize } from "@/components/keep-studio-resize";
 import { KeepTeleprompter } from "@/components/keep-teleprompter";
@@ -41,7 +42,7 @@ import { countKeepWords, estimateKeepSeconds, formatKeepTime } from "@/lib/keep-
 import { useRecorder } from "@/hooks/use-recorder";
 import { joinKeepVoiceParts } from "@/lib/keep-collaborative-audio";
 import { deleteBlobs, getBlob, putBlob } from "@/lib/keep-media-store";
-import { createKeepVoiceMix, KEEP_MUSIC_LEAD_SECONDS, playMusicSample, stopMusicSample, type MusicBalance } from "@/lib/keep-audio";
+import { createKeepVoiceMix, KEEP_MUSIC_LEAD_SECONDS, KEEP_MUSIC_TAIL_SECONDS, playMusicSample, stopMusicSample, type MusicBalance } from "@/lib/keep-audio";
 import { fetchDraft, fetchNextQuestion, fetchRevision, keepAiAvailable, transcribeAudio, transcribeTimedAudio, type TimedWord } from "@/lib/keep-ai";
 import { fmt, hydrateDraftMedia, loadDraft, newId, newProject, projectBlobIds, projectObjectUrls, sampleMemories, saveDraft, stageLabels, defaultAudioMix, type AudioMix, type CaptionCue, type InterviewAnswer, type KeepProject, type KeepVoicePart, type MediaItem, type VoiceTone } from "@/lib/keep-project";
 
@@ -225,6 +226,13 @@ function KeepApp() {
   const editorIntroRemainingRef = useRef(KEEP_MUSIC_LEAD_SECONDS*1000);
   const editorIntroStartedAtRef = useRef(0);
   const editorIntroTimerRef = useRef<ReturnType<typeof setTimeout>|null>(null);
+  const editorOutroTimerRef = useRef<ReturnType<typeof setTimeout>|null>(null);
+  const clearEditorOutro = () => {
+    if (editorOutroTimerRef.current !== null) {
+      window.clearTimeout(editorOutroTimerRef.current);
+      editorOutroTimerRef.current = null;
+    }
+  };
   const editorPlayAttemptRef = useRef(0);
   const editorNarrationStartedRef = useRef(false);
   const cancelEditorIntro = () => {
@@ -247,6 +255,8 @@ function KeepApp() {
   const [musicSampling, setMusicSampling] = useState("");
   const musicSampleTimer = useRef<number | null>(null);
   const [busy, setBusy] = useState(false);
+  const mediaImportLock = useRef(false);
+  const replaceTargetId = useRef<string | null>(null);
   const [mediaImport, setMediaImport] = useState<{ total: number; completed: number; detail?: string; compressionPercent?: number } | null>(null);
   const [voiceSampling, setVoiceSampling] = useState<VoiceTone | null>(null);
   const voiceSampleRef = useRef<{ tone: VoiceTone; audio: HTMLAudioElement; mixer: NonNullable<ReturnType<typeof createKeepVoiceMix>>; timer: number | null } | null>(null);
@@ -714,6 +724,8 @@ function KeepApp() {
     else toast.error("Front camera unavailable. Voice-only recording is still available.");
   };
   const startFinal = async () => {
+    if (rec?.audioUrl && !rec.demo && (project.selfieVideos??[]).length && !selfieSelected &&
+      !window.confirm("Re-recording your voice will remove the old synced selfie video so the words and picture stay in sync. Continue?")) return;
     const ok=await recorder.start({selfie:selfieSelected});
     if(!ok)toast.error(selfieSelected?"The camera or microphone isn't available. Try voice only.":"The microphone isn't available right now.");
   };
@@ -767,6 +779,11 @@ function KeepApp() {
     if (!r) { toast.error("Nothing was recorded. Try again."); return; }
     const id = newId("voice");
     const stored = await putBlob(id, r.blob);
+    if (shouldPreserveExistingVoice(!!rec?.audioUrl && !rec.demo, stored)) {
+      toast.error("The new take could not be saved, so your previous recording is still safe. Free up device storage and try again.", { duration: 9000 });
+      return;
+    }
+    if (!stored) toast.warning("This voice is only available while this page stays open. Free up storage before leaving or refreshing.", { duration: 10000 });
     const selfie=await saveSelfieTake(r.selfieBlob,r.selfieMimeType,r.durationSec,0);
     if(selfieSelected && !selfie)toast.info("Your voice is safe. The selfie video wasn't captured; you can retry later.");
     setSelfieSelected(false);
@@ -1020,16 +1037,21 @@ function KeepApp() {
       selfieBaseMedia:(prev.selfieBaseMedia??[]).map(m=>m.id===target.id?{...m,...changes}:m)
     };
   });
-  const addFiles = async (e: ChangeEvent<HTMLInputElement>, replaceIndex?: number) => {
+  const addFiles = async (e: ChangeEvent<HTMLInputElement>, replacementId?: string) => {
     const files = Array.from(e.target.files ?? []);
     e.target.value = "";
     if (!files.length) return;
+    if (mediaImportLock.current) {
+      toast.info("Your previous media is still being added. Please finish that upload first.");
+      return;
+    }
     const supported = files.filter((f) => f.type.startsWith("image/") || f.type.startsWith("video/") || /\.(heic|heif|jpe?g|png|gif|webp|mov|mp4|m4v)$/i.test(f.name));
     if (!supported.length) { toast.error("Choose photos or short video clips to add."); return; }
+    mediaImportLock.current = true;
     setBusy(true);
     setMediaImport({ total: supported.length, completed: 0 });
     // Give iPhone time to paint the status before reading iCloud media.
-    await new Promise<void>((resolve) => requestAnimationFrame(() => window.setTimeout(resolve, 0)));
+    await new Promise<void>((resolve) => window.setTimeout(resolve, 30));
     const items: MediaItem[] = [];
     const skipped: string[] = [];
     let processed = 0;
@@ -1088,34 +1110,59 @@ function KeepApp() {
         } finally {
           processed++;
           setMediaImport({ total: supported.length, completed: processed, detail: undefined });
-          await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+          await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
         }
       }
       if (items.length) {
-        if (replaceIndex !== undefined) {
-          const target=(frames.length?frames:shown)[replaceIndex];
-          if(target?.isSelfie) {
-            toast.info("To replace your selfie, use the Selfie Video editor.");
+        if (replacementId !== undefined) {
+          // A replacement targets the moment selected when the picker opened,
+          // not whatever happens to be selected after a slow iCloud import.
+          const target = (frames.length ? frames : shown).find(moment => moment.id === replacementId);
+          if (!target || target.isSelfie) {
+            toast.info(target?.isSelfie
+              ? "Replace selfies in the Selfie Video editor."
+              : "That moment has changed. Select it again before replacing.");
+            for (const item of items) { releaseUrls([item.url]); if (item.persisted) void deleteBlobs([item.id]); }
           } else {
-            const replacement={...items[0]!,displayDurationSec:items[0]!.kind==="video"
-              ? items[0]!.displayDurationSec:target?.displayDurationSec??7,
-              focusX:target?.focusX,focusY:target?.focusY,zoom:target?.zoom,
-              motion:target?.motion,transition:target?.transition};
-            setProject(old=>{
-              const source=old.memories.length?old.memories:sampleMemories();
-              const scenes=source.map((m,i)=>i===replaceIndex?replacement:m);
-              const base=old.selfieBaseMedia?.length?old.selfieBaseMedia:withoutSelfieScenes(old.memories);
-              const nextBase=base.map(m=>m.id===target?.id?replacement:m);
-              return {...old,selfieBaseMedia:nextBase,
-                memories:(old.selfieVideos??[]).length
-                  ?composeSelfieStory(nextBase,old.selfieVideos??[],old.finalVoiceRecording?.durationSec??150,old)
-                  :scenes};
+            const incoming = items[0]!;
+            setProject(old => {
+              const scenes = old.memories.length ? old.memories : sampleMemories();
+              const latestTarget = scenes.find(moment => moment.id === replacementId);
+              if (!latestTarget || latestTarget.isSelfie) return old;
+              const replacement = {
+                ...incoming, displayDurationSec: incoming.kind === "video"
+                  ? incoming.displayDurationSec : latestTarget.displayDurationSec ?? 7,
+                focusX: latestTarget.focusX, focusY: latestTarget.focusY,
+                zoom: latestTarget.zoom, motion: latestTarget.motion,
+                transition: latestTarget.transition,
+              };
+              const base = old.selfieBaseMedia?.length ? old.selfieBaseMedia : withoutSelfieScenes(old.memories);
+              const nextBase = base.map(moment => moment.id === replacementId ? replacement : moment);
+              return {
+                ...old, selfieBaseMedia: nextBase,
+                memories: (old.selfieVideos ?? []).length
+                  ? composeSelfieStory(nextBase, old.selfieVideos ?? [], old.finalVoiceRecording?.durationSec ?? 150, old)
+                  : scenes.map(moment => moment.id === replacementId ? replacement : moment),
+                // Replacing a photo should not move it to the end of the
+                // recipient's manually arranged photo-gallery order.
+                readMemoryOrder: old.readMemoryOrder.map(id => id === replacementId ? replacement.id : id),
+              };
             });
+            for (const unused of items.slice(1)) { releaseUrls([unused.url]); if (unused.persisted) void deleteBlobs([unused.id]); }
             toast.success("Moment updated");
           }
         } else {
-          patch({ memories: composeSelfieStory([...(project.selfieBaseMedia?.length?project.selfieBaseMedia:withoutSelfieScenes(frames)),...items],project.selfieVideos??[],rec?.durationSec??150,project),
-            selfieBaseMedia:[...(project.selfieBaseMedia?.length?project.selfieBaseMedia:withoutSelfieScenes(frames)),...items] });
+          // The user can adjust other controls while iCloud uploads; append to
+          // the *current* draft, never an older render captured before awaits.
+          setProject(old => {
+            const base = old.selfieBaseMedia?.length ? old.selfieBaseMedia : withoutSelfieScenes(old.memories);
+            const nextBase = [...base, ...items];
+            return {
+              ...old,
+              memories: composeSelfieStory(nextBase, old.selfieVideos ?? [], old.finalVoiceRecording?.durationSec ?? 150, old),
+              selfieBaseMedia: nextBase,
+            };
+          });
           toast.success(`${items.length} ${items.length === 1 ? "moment" : "moments"} added`);
         }
       }
@@ -1125,6 +1172,7 @@ function KeepApp() {
     } finally {
       setMediaImport(null);
       setBusy(false);
+      mediaImportLock.current = false;
     }
   };
   const importContributorMoments = async (items:RemoteMediaItem[]):Promise<number> => {
@@ -1181,19 +1229,22 @@ function KeepApp() {
     setGroupPartIndex(0);
     go(isTogether?"groupRecord":"record");
   };
+  const removeMomentById = (id: string) => {
+    if (!id) return;
+    const removedIndex = frames.findIndex(moment => moment.id === id);
+    setEditorPlaying(false);
+    editorAudioRef.current?.pause();
+    setFrame(current => Math.max(0, Math.min(
+      removedIndex >= 0 && current > removedIndex ? current - 1 : current,
+      Math.max(0, frames.length - 2),
+    )));
+    setProject(previous => removeEditableMoment(previous, id));
+  };
   const removeMemory = (i: number) => {
-    const list = frames.length ? frames : shown;
-    const item=list[i];
-    if(item?.isSelfie){setEditorPanel("Selfie");toast.info("Edit or hide the selfie in the Selfie Video controls.");return;}
-    // Keep original blobs so Undo can restore the photo or video.
-    setProject(old=>{
-      const base=(old.selfieBaseMedia?.length?old.selfieBaseMedia:withoutSelfieScenes(old.memories))
-        .filter(m=>m.id!==item?.id);
-      return {...old,selfieBaseMedia:base,memories:(old.selfieVideos??[]).length
-        ?composeSelfieStory(base,old.selfieVideos??[],old.finalVoiceRecording?.durationSec??150,old)
-        :list.filter((_,j)=>j!==i)};
-    });
-    setFrame(f=>Math.max(0,Math.min(f,list.length-2)));
+    const item = (frames.length ? frames : shown)[i];
+    if (!item) return;
+    if (item.isSelfie) { setEditorPanel("Selfie"); toast.info("Edit or hide the selfie in the Selfie Video controls."); return; }
+    removeMomentById(item.id);
   };
   const moveMemory = (from: number, to: number) => {
     const list = [...(frames.length ? frames : shown)];
@@ -1374,6 +1425,7 @@ function KeepApp() {
   const editorCue = captionAtTime(project.captionCues, editorTime);
   const editorCaption = editorCue?.text ?? (rec?.demo ? captionLines[Math.min(captionLines.length - 1, Math.floor(editorTime / Math.max(1, editorDuration / Math.max(1, captionLines.length))))] ?? "" : "");
   const seekEditor = (time: number) => {
+    clearEditorOutro();
     const next = Math.max(0, Math.min(editorDuration, time));
     // Seeking should not restart the soundtrack; that causes audible jumps and drift.
     if (editorAudioRef.current) editorAudioRef.current.currentTime = next;
@@ -1415,6 +1467,7 @@ function KeepApp() {
     }
     return () => {
       cancelEditorIntro();
+      clearEditorOutro();
       audio.pause();
       if (editorMixRef.current === controller) editorMixRef.current = null;
       void controller?.stop();
@@ -1472,6 +1525,7 @@ function KeepApp() {
     if(!audio||!rec?.audioUrl||rec.demo)return;
     if(!editorPlaying){
       cancelEditorIntro();
+      clearEditorOutro();
       audio.pause();
       void editorMixRef.current?.pause();
       return;
@@ -1533,7 +1587,16 @@ function KeepApp() {
       // Never advance visuals while a recorded narration is buffering or paused.
       const next = Math.min(editorDuration, voiceClock ? audioTime : initialTime + elapsed);
       setEditorTime(next);
-      if (next >= editorDuration) { setEditorPlaying(false); return; }
+      if (next >= editorDuration) {
+        // Keep the existing final photograph up while the soundtrack rises
+        // after the final spoken word. onEnded owns the music-tail timeout.
+        if (voiceClock) {
+          if (audio?.ended) return;
+        } else {
+          setEditorPlaying(false);
+          return;
+        }
+      }
       raf = window.requestAnimationFrame(tick);
     };
     raf = window.requestAnimationFrame(tick);
@@ -1609,6 +1672,10 @@ function KeepApp() {
     }
   };
   const toCard = () => {
+    if (mediaImportLock.current || captionSyncing) {
+      toast.info(mediaImportLock.current ? "Finish adding your photos and videos before continuing." : "Keep is still syncing your captions.");
+      return;
+    }
     if(isTogether && project.voiceRecordingLocation==="remote" && (!rec?.audioUrl || !groupReady || project.groupVoiceSignature!==groupSignature)){
       toast.info("Collect and combine all remote recordings before finishing this Keep.");
       setReturnToEditorAfterRecording(true);
@@ -1637,7 +1704,7 @@ function KeepApp() {
   const micMessage = recorder.supported === false ? "This browser can't record audio here." : recorder.status === "denied" ? "Microphone access was blocked. You can allow it in your browser settings." : recorder.status === "error" ? "The microphone couldn't start." : "";
   const isRecording = recorder.status === "recording" || recorder.status === "paused";
   const accountLink = <KeepAccountButton />;
-  const fileInputs = <><input ref={draftInput} type="file" accept=".docx,.pdf,.txt,.md,.rtf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/pdf,text/plain,text/markdown,application/rtf" className="sr-only" aria-label="Upload something you have already written" tabIndex={-1} onChange={(e) => void importDraft(e)} /><input ref={addInput} type="file" accept="image/*,video/mp4,video/quicktime,video/*" multiple className="sr-only" aria-label="Choose photos and videos" tabIndex={-1} onChange={(e) => void addFiles(e)} /><input ref={replaceInput} type="file" accept="image/*,video/mp4,video/quicktime,video/*" className="sr-only" aria-label="Choose a replacement photo or short video" tabIndex={-1} onChange={(e) => void addFiles(e, frame % Math.max(1, shown.length))} /></>;
+  const fileInputs = <><input ref={draftInput} type="file" accept=".docx,.pdf,.txt,.md,.rtf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/pdf,text/plain,text/markdown,application/rtf" className="sr-only" aria-label="Upload something you have already written" tabIndex={-1} onChange={(e) => void importDraft(e)} /><input ref={addInput} type="file" accept="image/*,video/mp4,video/quicktime,video/*" multiple className="sr-only" aria-label="Choose photos and videos" tabIndex={-1} onChange={(e) => void addFiles(e)} /><input ref={replaceInput} type="file" accept="image/*,video/mp4,video/quicktime,video/*" className="sr-only" aria-label="Choose a replacement photo or short video" tabIndex={-1} onChange={(e) => { const id = replaceTargetId.current; replaceTargetId.current = null; void addFiles(e, id ?? undefined); }} /></>;
 
   if (resumeError) return <main className="app-shell flex min-h-dvh flex-col px-8 py-10"><a href="/app" className="keep-wordmark" aria-label="Keep home">Keep</a><div className="my-auto max-w-sm"><h1 className="font-display text-[38px] leading-tight">We couldn't open your Keep.</h1><p role="alert" className="mt-5 text-sm leading-7 text-muted-foreground">{resumeError}</p><div className="mt-9 flex flex-col gap-3"><Button variant="keep" size="touch" onClick={() => window.location.reload()}>Try again</Button><a href="/app" className="rounded-xl border border-border px-5 py-3 text-center text-sm">Back to your creations</a></div></div></main>;
   if (!hydrated) return <KeepOpeningScreen phase={openingPhase} progress={openingProgress} onBack={() => window.location.assign("/app")} />;
@@ -2019,7 +2086,7 @@ function KeepApp() {
         moments={personalMedia}
         busy={busy}
         onAdd={() => addInput.current?.click()}
-        onRemove={removeMemory}
+        onRemove={(index) => { const target = personalMedia[index]; if (target) removeMomentById(target.id); }}
         onContinue={() => { setStyleTouched(false); go("storyStyle"); }}
       />
       <aside aria-label="iPhone photo upload tip" className="mb-5 flex items-start gap-3 rounded-xl border border-[#DAD0C5] bg-[#F0EAE2]/65 px-4 py-4">
@@ -2086,13 +2153,23 @@ function KeepApp() {
         <div className="flex items-center gap-1">
           <Button variant="bare" size="icon" aria-label="Undo" disabled={!undoPast.current.length} onClick={() => stepHistory("undo")}><Undo2 className="size-4" /></Button>
           <Button variant="bare" size="icon" aria-label="Redo" disabled={!undoFuture.current.length} onClick={() => stepHistory("redo")}><Redo2 className="size-4" /></Button>
-          <Button variant="bare" size="sm" className="text-muted-foreground" onClick={() => { setViewingDemo(false); setPreviewChooserOpen(true); setReadArrangeOpen(false); }}><Play className="size-4" /> Preview</Button>
-          <Button variant="keep" size="sm" disabled={!!project.restoreIncomplete || publishing} onClick={toCard}>{publishing ? "Saving…" : "Done"} {publishing ? <Loader2 className="size-4 animate-spin" /> : <Check className="size-4" />}</Button>
+          <Button variant="bare" size="sm" className="text-muted-foreground" disabled={busy || publishing} onClick={() => { setViewingDemo(false); setPreviewChooserOpen(true); setReadArrangeOpen(false); }}><Play className="size-4" /> Preview</Button>
+          <Button variant="keep" size="sm" disabled={!!project.restoreIncomplete || publishing || busy || captionSyncing} onClick={toCard}>{publishing ? "Saving…" : busy ? "Adding…" : captionSyncing ? "Syncing…" : "Done"} {publishing || busy || captionSyncing ? <Loader2 className="size-4 animate-spin" /> : <Check className="size-4" />}</Button>
         </div>
       </div>
 
       {(publishing || publishError) && <div className={`mx-4 mt-2 rounded-xl border px-4 py-3 text-xs leading-5 ${publishError ? "border-[#BE7363] bg-[#3B2826] text-[#FFE5DF]" : "border-[#927B61] bg-[#302922] text-[#F7EBDD]"}`} role={publishError ? "alert" : "status"}>{publishError || publishStatus || "Saving changes to your Keep…"}</div>}
-      {rec?.audioUrl && !rec.demo && <audio ref={editorAudioRef} src={rec.audioUrl} preload="metadata" onWaiting={() => {if(editorPlaying)void editorMixRef.current?.pause();}} onStalled={() => {if(editorPlaying)void editorMixRef.current?.pause();}} onPlaying={() => {if(editorPlaying)void editorMixRef.current?.play().catch(()=>undefined);}} onTimeUpdate={(e) => { const time = e.currentTarget.currentTime; setEditorTime(time); setFrame(editorSceneAt(time)); }} onEnded={() => { if (editorDuration <= (rec?.durationSec ?? 0) + 0.1) { setEditorPlaying(false); setEditorTime(editorDuration); } }} />}
+      {rec?.audioUrl && !rec.demo && <audio ref={editorAudioRef} src={rec.audioUrl} preload="metadata" onWaiting={() => {if(editorPlaying)void editorMixRef.current?.pause();}} onStalled={() => {if(editorPlaying)void editorMixRef.current?.pause();}} onPlaying={() => {if(editorPlaying)void editorMixRef.current?.play().catch(()=>undefined);}} onTimeUpdate={(e) => { const time = e.currentTarget.currentTime; setEditorTime(time); setFrame(editorSceneAt(time)); }} onEnded={() => {
+        if (editorDuration > (rec?.durationSec ?? 0) + 0.1) return;
+        setEditorTime(editorDuration);
+        clearEditorOutro();
+        if (editorPlaying) {
+          editorOutroTimerRef.current = window.setTimeout(() => {
+            editorOutroTimerRef.current = null;
+            setEditorPlaying(false);
+          }, KEEP_MUSIC_TAIL_SECONDS * 1000);
+        }
+      }} />}
       <div className="keep-studio-stage">
         <div className="keep-studio-canvas-wrap">
           <div className="keep-studio-canvas relative aspect-[9/16] overflow-hidden rounded-2xl bg-card shadow-lg">
@@ -2176,7 +2253,7 @@ function KeepApp() {
           onClose={() => { setEditorExpanded(false); setEditorPanel(null); }}
           onSeek={(seconds) => { setEditorPlaying(false); seekEditor(seconds); }}
           onChangeCaption={(i,text) => patch({captionCues:project.captionCues.map((c,j)=>j===i?{...c,text}:c)})}
-          onChangeCaptionTime={(i,startTime,endTime) => patch({captionCues:project.captionCues.map((c,j)=>j===i?{...c,start:Math.max(0,Math.min(startTime,endTime-.1)),end:Math.min(editorDuration,Math.max(endTime,startTime+.1))}:c)})}
+          onChangeCaptionTime={(i,startTime,endTime) => patch({captionCues:project.captionCues.map((c,j)=>j===i?{...c,...clampCaptionRange(startTime,endTime,editorDuration)}:c)})}
           onChangeStyle={(style) => patch({captionStyle:style})}
           onChangePosition={(position) => patch({captionPosition:position})}
           onChangeLines={(lines) => patch({captionLines:lines})}
@@ -2203,7 +2280,7 @@ function KeepApp() {
         onClose={() => { setEditorExpanded(false); setEditorPanel(null); }}
         onSelect={(index) => {setEditorPlaying(false); editorAudioRef.current?.pause(); seekEditor(sceneSeekTime(shown,index,editorDuration));setFrame(index);}}
         onAdd={() => addInput.current?.click()}
-        onReplace={() => replaceInput.current?.click()}
+        onReplace={() => { if (busy) { toast.info("Finish adding your previous media first."); return; } replaceTargetId.current = selected?.id ?? null; replaceInput.current?.click(); }}
         onMove={moveMemory}
         onTransition={(transition) => updateSelectedMoment({transition})}
         onPreviewTransition={previewCurrentTransition}
@@ -2253,7 +2330,16 @@ function KeepApp() {
 
       </div>
       <nav className="keep-studio-tools" aria-label="Editing tools">
-        {([{ panel: "Memories", label: "Photos", Icon: Images }, { panel: "Captions", label: "Captions", Icon: MessageCircle }, { panel: "Music", label: "Music", Icon: Music2 }, { panel: "Voice", label: "Voice", Icon: Mic }, { panel: "Style", label: "Style", Icon: Sparkles }, { panel: "Selfie", label: "Selfie", Icon: Camera }] as const).map(({ panel, label, Icon }) => <button key={label} type="button" aria-pressed={editorPanel === panel} onClick={() => { stopMusicSample(); setMusicSampling(""); setCompareOriginalStyle(false); setEditorPanel(panel); }}><Icon /><span>{label}</span></button>)}
+        {([{ panel: "Memories", label: "Photos", Icon: Images }, { panel: "Captions", label: "Captions", Icon: MessageCircle }, { panel: "Music", label: "Music", Icon: Music2 }, { panel: "Voice", label: "Voice", Icon: Mic }, { panel: "Style", label: "Style", Icon: Sparkles }, { panel: "Selfie", label: "Selfie", Icon: Camera }] as const).map(({ panel, label, Icon }) => <button key={label} type="button" aria-pressed={editorPanel === panel} onClick={() => {
+          stopMusicSample(); setMusicSampling(""); setCompareOriginalStyle(false);
+          // The caption and photo fields must not jump to another scene
+          // mid-edit when the narration advances in the background.
+          if (panel === "Captions" || panel === "Memories" || panel === "Selfie") {
+            setEditorPlaying(false);
+            editorAudioRef.current?.pause();
+          }
+          setEditorPanel(panel);
+        }}><Icon /><span>{label}</span></button>)}
       </nav>
 
       {previewChooserOpen && sheet("Preview your Keep", () => { setPreviewChooserOpen(false); setReadArrangeOpen(false); }, <div className="pb-2">
