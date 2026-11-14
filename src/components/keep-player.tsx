@@ -22,9 +22,11 @@ type Props = {
   name: string; from: string; year: string; onExit: () => void; onFinish?: () => void; recipient?: boolean; style?: string; captions?: string;
   subtitle?: string | undefined; media?: PlayerMedia[] | undefined; audioUrl?: string | undefined; audioDuration?: number | undefined; lines?: string[] | undefined;
   captionCues?: CaptionCue[] | undefined; musicMood?: string | undefined; voiceMusicBalance?: string | undefined; voiceVolume?: number | undefined; musicVolume?: number | undefined; captionPosition?: "top" | "middle" | "bottom" | undefined; captionLines?: number | undefined; audioMix?: AudioMix | undefined;
+  /** Notify the recipient experience once the first real photo/video frame can be displayed. */
+  onOpeningFrameReady?: (() => void) | undefined;
 };
 
-export function KeepPlayer({ name, from, year, onExit, onFinish, recipient = false, style = "Natural", captions = "Reel", subtitle, media, audioUrl, audioDuration, lines, captionCues = [], musicMood = "Warm + Nostalgic", voiceMusicBalance = "Balanced", voiceVolume = 60, musicVolume = 60, captionPosition = "bottom", captionLines = 2, audioMix }: Props) {
+export function KeepPlayer({ name, from, year, onExit, onFinish, recipient = false, style = "Natural", captions = "Reel", subtitle, media, audioUrl, audioDuration, lines, captionCues = [], musicMood = "Warm + Nostalgic", voiceMusicBalance = "Balanced", voiceVolume = 60, musicVolume = 60, captionPosition = "bottom", captionLines = 2, audioMix, onOpeningFrameReady }: Props) {
   const [scene, setScene] = useState(0);
   const [playing, setPlaying] = useState(true);
   const [muted, setMuted] = useState(false);
@@ -55,6 +57,12 @@ export function KeepPlayer({ name, from, year, onExit, onFinish, recipient = fal
   // Fix playback timing without changing their narration or caption text.
   const playbackCues = useMemo(() => recoverCaptionTiming([], captionCues, masterDuration || audioDuration || 0).cues, [captionCues, masterDuration, audioDuration]);
   const end = !audioUrl && scene >= 5;
+
+  // Keep the intro visible until the first photo/video has actually loaded.
+  // Music begins on this same readiness signal, not on a separate black title.
+  useEffect(() => {
+    if (mediaReady) onOpeningFrameReady?.();
+  }, [mediaReady, onOpeningFrameReady]);
 
   // Decode the opening frame before starting the music/voice timeline.
   // Keep the following two photos warm without keeping the whole film in memory.
