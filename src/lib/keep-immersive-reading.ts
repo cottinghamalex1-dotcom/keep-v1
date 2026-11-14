@@ -50,3 +50,18 @@ export function frameAtTime(frames: ReadingFrame[], time: number): number {
   }
   return -1;
 }
+
+/**
+ * The Listen & Read view is a reading experience, not video subtitles.
+ * Never leave the entire reading area blank between phrases: hold the last
+ * passage until the next one begins. Before pressing Play, show the opening
+ * passage so listeners know what they are about to experience.
+ */
+export function readingFrameAtTime(frames: ReadingFrame[], time: number): number {
+  if (!frames.length) return -1;
+  if (!Number.isFinite(time) || time <= frames[0]!.start) return 0;
+  for (let i = frames.length - 1; i >= 0; i--) {
+    if (time + 0.015 >= frames[i]!.start) return i;
+  }
+  return 0;
+}
