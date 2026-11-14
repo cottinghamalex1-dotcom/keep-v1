@@ -41,6 +41,16 @@ describe("optional selfie presentation",()=>{
     expect(scenes.at(-1)?.blobId).toBe("first");
     expect(scenes.at(-1)?.videoStartSec).toBe(24);
   });
+  it("can return to the original photo library after using full selfie mode",()=>{
+    const original=[photo("birthday"),photo("vacation")];
+    const selfies=[take("selfie")];
+    const hidden=composeSelfieStory(original,selfies,150,{selfiePresentation:"full"});
+    expect(hidden.every(item=>item.isSelfie)).toBe(true);
+    // The project retains original photo references in selfieBaseMedia.
+    const restored=composeSelfieStory(original,selfies,150,{selfiePresentation:"bookends",selfieBookendSeconds:5});
+    expect(withoutSelfieScenes(restored).map(item=>item.id)).toEqual(["birthday","vacation"]);
+    expect(filmTotal(restored)).toBeCloseTo(150);
+  });
   it("respects an explicit opt-out and never changes the user's photos",()=>{
     const photos=[photo("only")];
     expect(composeSelfieStory(photos,[take("private")],150,{selfiePresentation:"off"})).toEqual(photos);
