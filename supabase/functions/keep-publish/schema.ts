@@ -15,7 +15,7 @@ export const manifestSchema = z.object({
   })).min(1).max(300),
   voicePath:text(300), voiceDuration:number(0.01,7200), musicMood:text(100), voiceMusicBalance:text(40),
   voiceVolume:number(0,100).default(60), musicVolume:number(0,100).default(60),
-  audioMix:z.object({voiceMuted:z.boolean(),musicMuted:z.boolean(),fadeIn:number(0,30),fadeOut:number(0,30),ducking:z.boolean()}).optional(),
+  audioMix:z.object({voiceMuted:z.boolean(),musicMuted:z.boolean(),fadeIn:number(0,30),fadeOut:number(0,30),ducking:z.boolean(),voiceTone:z.enum(['natural','warm','clear']).optional()}).optional(),
   captionStyle:text(40), visualStyle:text(40), captionPosition:z.enum(['top','middle','bottom']).optional(), captionLines:number(1,3).optional(),
   captionCues:z.array(z.object({text:text(2000),start:number(0,7200),end:number(0,7200)}).refine(c=>c.end>=c.start)).max(10000),
 });
