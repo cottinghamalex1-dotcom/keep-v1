@@ -105,6 +105,8 @@ function enqueueCloudMutation(session: KeepSession, persist: () => Promise<void>
 }
 export async function saveCloudDraft(project:KeepProject,session:KeepSession):Promise<void> {
   if (!project.active) return;
+  if (project.finalVoiceRecording && !project.finalVoiceRecording.demo && !project.finalVoiceRecording.audioId)
+    throw new Error("Your voice wasn't saved to this device. Keep the editor open and retry recording before relying on cloud backup.");
   return enqueueCloudMutation(session, async () => {
   // Do not commit metadata pointing at files that failed to upload.
   for(const id of fileRefs(project)) {
