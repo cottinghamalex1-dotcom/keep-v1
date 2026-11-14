@@ -96,7 +96,7 @@ export function recoverCaptionTiming(
 }
 
 /** Follow the true narration clock. A caption must never anticipate speech or
- * linger across a long pause: only brief gaps get a graceful 0.65s hold. */
+ * linger across a long pause: only brief gaps get a graceful 0.4s hold. */
 export function captionAtTime(cues: CaptionCue[], time: number, narrationDuration?: number): CaptionCue | undefined {
   if(!cues.length||!Number.isFinite(time)||time<0)return undefined;
   if(narrationDuration && Number.isFinite(narrationDuration) && time>narrationDuration+0.05)return undefined;
@@ -108,7 +108,7 @@ export function captionAtTime(cues: CaptionCue[], time: number, narrationDuratio
     // Prefer the newest phrase when the timestamp provider overlaps words.
     if(time<=cue.end+0.08)return cue;
     // Leave a tiny post-phrase hold so natural breaths do not flash blank.
-    return time<=cue.end+0.65?cue:undefined;
+    return time<=cue.end+0.4?cue:undefined;
   }
   return undefined;
 }
