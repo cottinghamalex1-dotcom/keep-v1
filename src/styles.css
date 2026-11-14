@@ -317,8 +317,8 @@ button { transition: background-color .18s ease, border-color .18s ease, color .
 .keep-studio-workspace input:not([type=range]):not([type=checkbox]), .keep-studio-workspace textarea, .keep-studio-workspace select { font-size: 16px; }
 .keep-studio-workspace input[type=range] { accent-color: #e8e1d7; min-height: 28px; cursor: pointer; }
 .keep-studio-workspace button:focus-visible, .keep-studio-tools button:focus-visible { outline: 2px solid #e8e1d7; outline-offset: -2px; }
-.keep-studio-tools { flex-shrink: 0; display: grid; grid-template-columns: repeat(5, minmax(0,1fr)); gap: 3px; padding: 8px 8px max(10px, env(safe-area-inset-bottom)); border-top: 1px solid #ffffff12; background: #111113; }
-.keep-studio-tools button { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; min-height: 56px; border-radius: 14px; color: #a6a6ae; font-size: 10px; font-weight: 500; transition: background .15s, color .15s; }
+.keep-studio-tools { flex-shrink: 0; display: grid; grid-template-columns: repeat(6, minmax(0,1fr)); gap: 2px; padding: 8px 4px max(10px, env(safe-area-inset-bottom)); border-top: 1px solid #ffffff12; background: #111113; }
+.keep-studio-tools button { display: flex; min-width: 0; flex-direction: column; align-items: center; justify-content: center; gap: 4px; padding: 5px 1px; min-height: 56px; border-radius: 11px; color: #a6a6ae; font-size: clamp(9px, 2.4vw, 11px); font-weight: 500; transition: background .15s, color .15s; }
 .keep-studio-tools button svg { width: 20px; height: 20px; stroke-width: 1.6; }
 .keep-studio-tools button[aria-pressed=true] { background: #e8e1d7; color: #151515; }
 .keep-studio-tools button:hover:not([aria-pressed=true]) { background: #ffffff0a; color: white; }

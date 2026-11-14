@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { KeepPlayer, type PlayerMedia } from "@/components/keep-player";
 import { KeepFirstPlayReveal } from "@/components/keep-first-play-reveal";
 import { KeepReadingMusic } from "@/components/keep-reading-music";
+import { KeepMemoryGallery } from "@/components/keep-memory-gallery";
 import { frameAtTime, makeReadingFrames } from "@/lib/keep-immersive-reading";
 import type { AudioMix, CaptionCue } from "@/lib/keep-project";
 import { createKeepVoiceMix, KEEP_MUSIC_LEAD_SECONDS, KEEP_MUSIC_TAIL_SECONDS, type MusicBalance } from "@/lib/keep-audio";
@@ -81,6 +82,7 @@ export function KeepRecipientExperience({
   const [stage, setStage] = useState<"reveal" | "choose" | "experience" | "ending">(creatorPreview && initialExperience ? "experience" : "reveal");
   const [experience, setExperience] = useState<KeepExperienceMode>(initialExperience ?? "watch");
   const [listening, setListening] = useState(false);
+  const [galleryOpen, setGalleryOpen] = useState(false);
   const [listenProgress, setListenProgress] = useState(0);
   const [listenDuration, setListenDuration] = useState(audioDuration);
   const audio = useRef<HTMLAudioElement>(null);
@@ -167,6 +169,7 @@ export function KeepRecipientExperience({
   };
 
   const choose = (next: KeepExperienceMode) => {
+    setGalleryOpen(false);
     setExperience(next);
     setListening(false);
     setListenProgress(0);
@@ -345,7 +348,7 @@ export function KeepRecipientExperience({
   }
 
   if (stage === "choose") {
-    return <main className="app-shell"><div className="flex keep-min-screen flex-col px-7 pb-[max(38px,env(safe-area-inset-bottom))] pt-[max(38px,env(safe-area-inset-top))]">
+    return <><main className="app-shell"><div className="flex keep-min-screen flex-col px-7 pb-[max(38px,env(safe-area-inset-bottom))] pt-[max(38px,env(safe-area-inset-top))]">
       <span className="keep-wordmark">Keep</span><div className="flex flex-1 flex-col justify-center py-12">
         <p className="eyebrow">{visited && !creatorPreview ? "WELCOME BACK" : "A KEEP FOR"}</p><h1 className="keep-editorial-title mt-5">{name}</h1><p className="mt-4 text-sm text-muted-foreground">from {from} · {year}</p>
         <p className="mt-10 max-w-sm font-display text-[32px] leading-[1.12] tracking-tight">{visited && !creatorPreview ? "How would you like to experience it?" : "How would you like to experience it?"}</p>
@@ -354,8 +357,9 @@ export function KeepRecipientExperience({
           <Button variant="quiet" className="keep-editorial-surface h-auto w-full justify-between p-5 text-left" onClick={() => choose("listen")}><span className="flex items-center gap-4"><Headphones className="size-5" /><span><strong className="block font-normal">Listen &amp; Read</strong><small className="mt-1 block font-normal text-muted-foreground">Listen to their voice while reading every word</small></span></span><ArrowRight /></Button>
           <Button variant="quiet" className="keep-editorial-surface h-auto w-full justify-between p-5 text-left" onClick={() => choose("read")}><span className="flex items-center gap-4"><BookOpen className="size-5" /><span><strong className="block font-normal">Read</strong><small className="mt-1 block font-normal text-muted-foreground">Just the written message, no media</small></span></span><ArrowRight /></Button>
         </div>
+        {!!media?.length && <button type="button" className="mx-auto mt-6 block text-center text-[13px] text-[#7B6754] underline decoration-[#A58F78] underline-offset-4 hover:text-[#33291F]" onClick={() => setGalleryOpen(true)}>Want to linger on the photos &amp; videos?</button>}
       </div>
-    </div></main>;
+    </div></main>{galleryOpen && !!media?.length && <KeepMemoryGallery media={media} musicMood={musicMood} onClose={() => setGalleryOpen(false)} />}</>;
   }
 
   return <main className="app-shell">

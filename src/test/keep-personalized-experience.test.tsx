@@ -54,3 +54,28 @@ it("Read shows only the message, and the viewer can return to all three new choi
   expect(screen.getByText("Listen & Read")).toBeTruthy();
   expect(screen.getByText("Read")).toBeTruthy();
 });
+
+it("opens a private, manually navigated photo gallery without creating a fourth experience", () => {
+  const props = {
+    name: "Mom", from: "Alex", year: "2026",
+    creatorPreview: true, persistVisit: false,
+    messageParagraphs: ["Thank you for every moment."],
+    media: [
+      { url: "/first.jpg", kind: "image" as const },
+      { url: "/second.jpg", kind: "image" as const },
+    ],
+  };
+  render(<KeepRecipientExperience {...props} initialExperience="read" />);
+  fireEvent.click(screen.getByRole("button", { name: "Back to experiences" }));
+  expect(screen.getByText("Watch, Listen & Read")).toBeTruthy();
+  expect(screen.getByText("Listen & Read")).toBeTruthy();
+  expect(screen.getByText("Read")).toBeTruthy();
+  fireEvent.click(screen.getByRole("button", { name: /Want to linger on the photos & videos/ }));
+  expect(screen.getByRole("dialog", { name: "Look through your memories" })).toBeTruthy();
+  expect(screen.getByText("Moment 1 of 2")).toBeTruthy();
+  expect(screen.getByRole("button", { name: "Play background music" })).toBeTruthy();
+  fireEvent.click(screen.getByRole("button", { name: "Next memory" }));
+  expect(screen.getByText("Moment 2 of 2")).toBeTruthy();
+  fireEvent.click(screen.getByRole("button", { name: "Close photo gallery" }));
+  expect(screen.queryByRole("dialog", { name: "Look through your memories" })).toBeNull();
+});
