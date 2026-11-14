@@ -28,7 +28,7 @@ type Invite = {
   creator_name: string; recipient_name: string; occasion: string | null;
   script_parts: Part[]; token_hash: string; pending_uploads: Record<string,{path:string;mime:string;createdAt:number}>;
   upload_attempts: number; expires_at: string; email_sent_at: string | null;
-  pending_media?: Record<string,{path:string;mime:string;kind:"image"|"video";name:string;size:number;duration:number|null;createdAt:number}>;
+  pending_media?: Record<string,{path:string;mime:string;kind:"image"|"video";name:string;size:number;duration:number|null;purpose?:"moment"|"selfie";paragraphIndex?:number|null;createdAt:number}>;
   media_upload_attempts?: number; media_email_sent_at?:string|null;
 };
 type StoredPart = { invite_id: string; paragraph_index: number; text_fingerprint: string;
@@ -36,6 +36,7 @@ type StoredPart = { invite_id: string; paragraph_index: number; text_fingerprint
 type StoredMedia = {
   id:string; invite_id:string; kind:"image"|"video"; file_path:string; original_name:string;
   content_type:string; size_bytes:number; duration_seconds:number|null; uploaded_at:string;
+  purpose?:"moment"|"selfie"; paragraph_index?:number|null;
 };
 async function mediaFor(ids:string[]):Promise<StoredMedia[]> {
   if(!ids.length)return [];
@@ -190,7 +191,8 @@ Deno.serve(async req => {
             items.push({
               id:row.id,contributorId:invite.contributor_id,contributorName:invite.contributor_name,
               name:row.original_name,kind:row.kind,mimeType:row.content_type,bytes:row.size_bytes,
-              durationSec:row.duration_seconds,signedUrl:signed.signedUrl,uploadedAt:row.uploaded_at
+              durationSec:row.duration_seconds,purpose:row.purpose??"moment",paragraphIndex:row.paragraph_index??null,
+               signedUrl:signed.signedUrl,uploadedAt:row.uploaded_at
             });
           }
         }
@@ -235,18 +237,22 @@ Deno.serve(async req => {
       const kind=small(body.kind,8);
       const name=small(body.fileName,110).replace(/[^a-zA-Z0-9 ._()-]/g,"_")||"Shared moment";
       const duration=kind==="video"?Number(body.durationSec):null;
+      const purpose=small(body.purpose,12)==="selfie"?"selfie":"moment";
+      const paragraphIndex=purpose==="selfie"?Number(body.paragraphIndex):null;
       if(!format||format.kind!==kind)return error("Please choose a supported photo or short video.",415);
       if(!Number.isFinite(size)||size<100||size>(kind==="video"?41943040:15728640))
         return error(kind==="video"?"Please share a video under 40 MB.":"Please share a photo under 15 MB.");
-      if(kind==="video"&&(duration===null||!Number.isFinite(duration)||duration>90.5||duration<=0))
-        return error("Please trim videos to 90 seconds or less. Around 10 seconds is best.");
+      if(purpose==="selfie"&&(kind!=="video"||!Number.isInteger(paragraphIndex)||!scriptPart(invite,paragraphIndex!)))
+        return error("Selfie videos must belong to one of your assigned speaking parts.",403);
+      if(kind==="video"&&(duration===null||!Number.isFinite(duration)||duration>(purpose==="selfie"?300:90.5)||duration<=0))
+        return error(purpose==="selfie"?"Please keep your selfie recording under five minutes.":"Please trim videos to 90 seconds or less.");
       if((invite.media_upload_attempts??0)>=60)return error("This link reached its upload limit. Ask for a fresh invitation.",429);
-      if(guestMedia.length>=25)return error("You've shared 25 moments. The creator can add more from their own phone.");
+      if(purpose!=="selfie"&&guestMedia.filter(item=>(item.purpose??"moment")!=="selfie").length>=25)return error("You've shared 25 moments. The creator can add more from their own phone.");
       const mediaId=crypto.randomUUID();
       const filePath=`${invite.owner_id}/remote/${invite.id}/moments/${mediaId}.${format.ext}`;
       const {data:signed,error:signError}=await admin.storage.from(BUCKET).createSignedUploadUrl(filePath);
       if(signError||!signed?.signedUrl)return error("Couldn't prepare this photo or video. Try again.",500);
-      const pending={...(invite.pending_media??{}),[mediaId]:{path:filePath,mime,kind:format.kind,name,size,duration,createdAt:Date.now()}};
+      const pending={...(invite.pending_media??{}),[mediaId]:{path:filePath,mime,kind:format.kind,name,size,duration,purpose,paragraphIndex,createdAt:Date.now()}};
       const {error:updateError}=await admin.from("keep_remote_invites").update({pending_media:pending,media_upload_attempts:(invite.media_upload_attempts??0)+1}).eq("id",invite.id);
       if(updateError)return error("Couldn't reserve the upload. Please retry.",500);
       return answer({signedUrl:signed.signedUrl,mediaId,path:filePath});
@@ -266,7 +272,8 @@ Deno.serve(async req => {
       const {error:writeError}=await admin.from("keep_remote_media").insert({
         id:mediaId,invite_id:invite.id,kind:pending.kind,file_path:pending.path,
         original_name:pending.name,content_type:pending.mime,size_bytes:actualSize,
-        duration_seconds:pending.duration,uploaded_at:new Date().toISOString()
+        duration_seconds:pending.duration,purpose:pending.purpose??"moment",paragraph_index:pending.paragraphIndex??null,
+         uploaded_at:new Date().toISOString()
       });
       if(writeError)return error("Couldn't save this moment. Please retry.",500);
       const updated={...(invite.pending_media??{})};delete updated[mediaId];
