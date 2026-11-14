@@ -5,7 +5,7 @@ import { KeepPlayer, type PlayerMedia } from "@/components/keep-player";
 import { KeepFirstPlayReveal } from "@/components/keep-first-play-reveal";
 import { KeepReadingMusic } from "@/components/keep-reading-music";
 import { KeepMemoryGallery } from "@/components/keep-memory-gallery";
-import { frameAtTime, makeReadingFrames } from "@/lib/keep-immersive-reading";
+import { makeReadingFrames, readingFrameAtTime } from "@/lib/keep-immersive-reading";
 import type { AudioMix, CaptionCue } from "@/lib/keep-project";
 import { createKeepVoiceMix, KEEP_MUSIC_LEAD_SECONDS, KEEP_MUSIC_TAIL_SECONDS, type MusicBalance } from "@/lib/keep-audio";
 
@@ -105,7 +105,15 @@ export function KeepRecipientExperience({
       listenIntroRemaining.current=Math.max(0,listenIntroRemaining.current-(performance.now()-listenIntroStartedAt.current));
     }
   };
-  const paragraphs = messageParagraphs?.length ? messageParagraphs : demoMessage;
+  // Use only words that belong to this Keep. Older published Keeps can carry
+  // captions without the original script; never substitute the unrelated demo.
+  const paragraphs = messageParagraphs?.some(text => text.trim())
+    ? messageParagraphs.filter(text => text.trim())
+    : captionCues.some(cue => cue.text?.trim())
+      ? captionCues.map(cue => cue.text.trim()).filter(Boolean)
+      : lines?.some(text => text.trim())
+        ? lines.filter(text => text.trim())
+        : audioUrl ? [] : demoMessage;
 
   // Warm the real opening photo/video while the recipient reads their personal
   // introduction. Slow mobile downloads never require a black intermediary.
@@ -437,10 +445,10 @@ function KeepListenAndRead({ name, from, year, paragraphs, captionCues, audioUrl
   const seconds = Math.max(1, knownDuration || audioDuration);
   const frames = useMemo(() => makeReadingFrames(captionCues, paragraphs, seconds), [captionCues, paragraphs, seconds]);
   const elapsed = Math.min(seconds, progress * seconds / 100);
-  const frameIndex = frameAtTime(frames, elapsed);
+  const frameIndex = readingFrameAtTime(frames, elapsed);
   const finished = progress >= 99.8;
-  const started = progress > 0.1;
-  const shown = started && !finished && frameIndex >= 0 ? frames[frameIndex] : null;
+  // Reading should be visible even before Play and while the speaker pauses.
+  const shown = !finished && frameIndex >= 0 ? frames[frameIndex] : null;
   const stamp = (value: number) => `${Math.floor(value / 60)}:${String(Math.floor(value % 60)).padStart(2, "0")}`;
   return <main className="app-shell">
     <section className="relative flex h-[100dvh] min-h-[500px] flex-col overflow-hidden bg-[#F7F5F2] text-[#28221E]" aria-label={`Listen and read the Keep for ${name}`}>
@@ -469,8 +477,8 @@ function KeepListenAndRead({ name, from, year, paragraphs, captionCues, audioUrl
         {shown ? <div key={frameIndex} className="keep-immersive-caption max-w-[540px]">
           <p className="line-clamp-4 whitespace-normal font-display text-[clamp(30px,8.2vw,47px)] leading-[1.24] tracking-[-.028em] text-[#29231E]">{shown.text}</p>
         </div> : <div className="max-w-[360px]">
-          <p className="font-display text-[clamp(30px,7vw,43px)] leading-[1.24] italic tracking-[-.03em] text-[#5D4A3C]">{finished ? "Every word was meant for you." : "Some words deserve to be heard."}</p>
-          {!started && <p className="mt-6 text-xs leading-6 text-[#8C7E70]">Press play and let their message unfold.</p>}
+          <p className="font-display text-[clamp(30px,7vw,43px)] leading-[1.24] italic tracking-[-.03em] text-[#5D4A3C]">{finished ? "Every word was meant for you." : "The written message isn’t available yet."}</p>
+          {!finished && <p className="mt-6 text-xs leading-6 text-[#8C7E70]">The audio is still yours to hear. The creator can review the captions so every word appears here.</p>}
         </div>}
         <div className="pointer-events-none absolute inset-x-0 bottom-[12%] mx-auto h-px w-12 bg-[#D9C9B7]" aria-hidden="true" />
       </div>
