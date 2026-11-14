@@ -47,6 +47,7 @@ export function CinematicMedia({
   item, nextItem, followingItem, sceneKey, motionIndex = 0, playing = true, duration = 7, sceneElapsed, className = "", imageClassName = "", onFirstFrameReady,
 }: Props) {
   const key = String(sceneKey ?? item.url);
+  const [failedScenes,setFailedScenes]=useState<Set<string>>(()=>new Set());
   const [state, setState] = useState<State>(() => ({
     slots: [{ key, item, duration, imageClassName, index: motionIndex }, null], active: 0, pending: null, revealed: false,
   }));
@@ -180,6 +181,18 @@ export function CinematicMedia({
 
   const renderMedia = (scene: Scene, slot: Slot) => {
     const moment = scene.item;
+    if(failedScenes.has(scene.key)){
+      // Never leave recipients staring at a black frame if a mobile browser
+      // cannot decode one of the supplied videos. Show the next still moment
+      // where possible, otherwise retain the branded opening artwork.
+      const still=[nextItem,followingItem].find(m=>m?.kind==="image"&&m.url)?.url;
+      return <div className="absolute inset-0 flex flex-col items-center justify-center overflow-hidden bg-gradient-to-b from-[#3C332F] via-[#241F1E] to-[#171413] px-8 text-center">
+        {still&&<img src={still} alt="" className="absolute inset-0 h-full w-full object-cover opacity-65" />}
+        <div className="absolute inset-0 bg-black/35"/>
+        <img src="/brand/keep-wordmark-ivory.svg" alt="" className="relative z-10 mb-5 h-10 w-28 object-contain drop-shadow-lg"/>
+        <p className="relative z-10 font-display text-xl italic text-[#F7EEE5] drop-shadow-lg">Some things are worth keeping.</p>
+      </div>;
+    }
     const x = Math.max(0, Math.min(100, moment.focusX ?? 50));
     const y = Math.max(0, Math.min(100, moment.focusY ?? 50));
     const zoom = Math.max(1.03, Math.min(1.35, moment.zoom ?? 1.08));
@@ -232,7 +245,7 @@ export function CinematicMedia({
             if(isPending)reveal(slot,scene);
             else markFirstReady(scene,isPending);
           }}
-          onError={() => { if(!isPending)markFirstReady(scene,isPending); if (isPending) setState((old) => {
+          onError={() => { if(!isPending){setFailedScenes(old=>new Set(old).add(scene.key));markFirstReady(scene,isPending);} if (isPending) setState((old) => {
             if (old.pending !== slot) return old;
             const slots = [...old.slots] as Layers;
             slots[slot] = null;
@@ -250,7 +263,7 @@ export function CinematicMedia({
             if (typeof element.decode === "function") void element.decode().catch(() => undefined).finally(() => reveal(slot, scene));
             else reveal(slot, scene);
           }}
-          onError={() => { if (isPending) setState((old) => {
+          onError={() => { if(!isPending){setFailedScenes(old=>new Set(old).add(scene.key));markFirstReady(scene,isPending);} if (isPending) setState((old) => {
             if (old.pending !== slot) return old;
             const slots = [...old.slots] as Layers;
             slots[slot] = null;
