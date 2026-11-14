@@ -1,4 +1,5 @@
 import { viewingLink } from "@/lib/keep-publish";
+import { claimAndListPurchases, isKeepAdmin } from "@/lib/keep-commerce-client";
 import { KeepLibraryCard } from "@/components/keep-library-card";
 import { KeepCreateCTA } from "@/components/keep-create-cta";
 import { KeepCollectionCard } from "@/components/keep-collection-card";
@@ -21,6 +22,9 @@ const sessionKey = "keep-app-session";
 function readSession(): Session | null { try { const s = localStorage.getItem(sessionKey); return s ? JSON.parse(s) as Session : null; } catch { return null; } }
 function KeepDashboard() {
   const [session, setSession] = useState<Session | null>(null);
+  const [paidAccess, setPaidAccess] = useState<"loading"|"paid"|"unpaid"|"error">("loading");
+  const [adminAccess, setAdminAccess] = useState(false);
+  const [accountDataLoaded, setAccountDataLoaded] = useState(false);
   const [ready, setReady] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -93,8 +97,19 @@ function KeepDashboard() {
     if (!res.ok) throw new Error(data.msg || data.error_description || data.message || data.error || "Request failed");
     return data;
   }, []);
-  const signOut = useCallback(() => { localStorage.removeItem(sessionKey); setSession(null); setCards([]); setKeeps([]); setThumbnails({}); setTab("home"); }, []);
+  const signOut = useCallback(() => { localStorage.removeItem(sessionKey); setSession(null); setCards([]); setKeeps([]); setThumbnails({}); setTab("home"); setPaidAccess("loading"); setAdminAccess(false); }, []);
   useEffect(() => { setSession(readSession()); setReady(true); }, []);
+  useEffect(() => {
+    if (!session) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const [verified, operator] = await Promise.all([claimAndListPurchases(session), isKeepAdmin(session)]);
+        if (!cancelled) { setPaidAccess(verified.some(p => ["paid","reserved","approved","in_production","shipped"].includes(p.status)) ? "paid" : "unpaid"); setAdminAccess(operator); }
+      } catch { if (!cancelled) setPaidAccess("error"); }
+    })();
+    return () => { cancelled = true; };
+  }, [session?.access_token]);
   useEffect(() => {
     if (!session) return;
     let cancelled = false;
@@ -112,7 +127,7 @@ function KeepDashboard() {
           api("/rest/v1/keep_profiles?select=display_name&user_id=eq." + encodeURIComponent(current.user.id), {}, current.access_token),
           api("/rest/v1/keep_drafts?select=project&owner_id=eq." + encodeURIComponent(current.user.id) + "&limit=1", {}, current.access_token)
         ]);
-        if (!cancelled) { setCards(cs); setKeeps(ks); setDisplayName(ps?.[0]?.display_name || ""); setCloudDraft(drafts?.[0]?.project || null); }
+        if (!cancelled) { setCards(cs); setKeeps(ks); setDisplayName(ps?.[0]?.display_name || ""); setCloudDraft(drafts?.[0]?.project || null); setAccountDataLoaded(true); }
         // Reuse My Keeps' privately signed cover images; never make the
         // underlying media storage public or persist expiring URLs.
         void Promise.all((ks as Keep[]).filter(k=>k.published_at).slice(0,16).map(async keep=>{
@@ -127,7 +142,7 @@ function KeepDashboard() {
           if(cancelled)return;
           setThumbnails(Object.fromEntries(results.filter((r):r is {id:string;url:string}=>!!r).map(r=>[r.id,r.url])));
         });
-      } catch (err) { if (!cancelled) toast.error(err instanceof Error ? err.message : "Couldn't load your account"); }
+      } catch (err) { if (!cancelled) { setAccountDataLoaded(true); toast.error(err instanceof Error ? err.message : "Couldn't load your account"); } }
     };
     void load();
     return () => { cancelled = true; };
@@ -154,7 +169,7 @@ function KeepDashboard() {
   const secondary = "keep-editorial-surface px-4 py-4 text-sm";
   if (!ready) return <main className="min-h-dvh bg-background" />;
   return <main className="min-h-dvh bg-background text-foreground"><div className="mx-auto min-h-dvh max-w-[540px] px-6 pb-12 pt-9">
-    <header className="relative mb-12 flex items-center justify-between border-b border-border/50 pb-6"><button onClick={() => navigate("home")} aria-label="Home" className="keep-wordmark">Keep</button><button onClick={() => setMenuOpen(!menuOpen)} aria-label="Open navigation menu" aria-expanded={menuOpen} className="flex size-11 items-center justify-center rounded-full border border-border/80"><Menu className="size-5" /></button>{menuOpen && <div className="absolute right-0 top-14 z-50 w-[min(310px,85vw)] rounded-2xl border border-border/80 bg-card p-4 shadow-2xl"><p className="mb-3 text-xs uppercase tracking-[.2em] text-[#6A5849]">Menu</p><button onClick={() => navigate("home")} className="flex w-full items-center gap-3 py-3 text-left"><Home className="size-4 text-[#6A5849]" />Home</button><button onClick={() => setKeepsOpen(!keepsOpen)} className="flex w-full items-center gap-3 py-3 text-left"><Gift className="size-4 text-[#6A5849]" />My Keeps <ChevronDown className={`ml-auto size-4 transition-transform ${keepsOpen ? "rotate-180" : ""}`} /></button>{keepsOpen && <div className="space-y-1 pl-7 text-sm"><a href="/?create=1" className="block py-2">+ Create a new Keep</a><Link to="/my-keeps" onClick={() => setMenuOpen(false)} className="block py-2 text-left">See all my Keeps</Link></div>}<div className="my-3 border-t border-border/80" /><button onClick={() => navigate("account")} className="flex w-full items-center gap-3 py-3 text-left"><UserRound className="size-4 text-[#6A5849]" />Account</button><a href="mailto:support@keep.com" className="flex items-center gap-3 py-3"><CircleHelp className="size-4 text-[#6A5849]" />Help &amp; Support</a></div>}</header>
+    <header className="relative mb-12 flex items-center justify-between border-b border-border/50 pb-6"><button onClick={() => navigate("home")} aria-label="Home" className="keep-wordmark">Keep</button><button onClick={() => setMenuOpen(!menuOpen)} aria-label="Open navigation menu" aria-expanded={menuOpen} className="flex size-11 items-center justify-center rounded-full border border-border/80"><Menu className="size-5" /></button>{menuOpen && <div className="absolute right-0 top-14 z-50 w-[min(310px,85vw)] rounded-2xl border border-border/80 bg-card p-4 shadow-2xl"><p className="mb-3 text-xs uppercase tracking-[.2em] text-[#6A5849]">Menu</p><button onClick={() => navigate("home")} className="flex w-full items-center gap-3 py-3 text-left"><Home className="size-4 text-[#6A5849]" />Home</button><button onClick={() => setKeepsOpen(!keepsOpen)} className="flex w-full items-center gap-3 py-3 text-left"><Gift className="size-4 text-[#6A5849]" />My Keeps <ChevronDown className={`ml-auto size-4 transition-transform ${keepsOpen ? "rotate-180" : ""}`} /></button>{keepsOpen && <div className="space-y-1 pl-7 text-sm"><a href="/?create=1" className="block py-2">+ Create a new Keep</a><Link to="/my-keeps" onClick={() => setMenuOpen(false)} className="block py-2 text-left">See all my Keeps</Link></div>}<div className="my-3 border-t border-border/80" /><button onClick={() => navigate("account")} className="flex w-full items-center gap-3 py-3 text-left"><UserRound className="size-4 text-[#6A5849]" />Account</button><Link to="/personalize" onClick={() => setMenuOpen(false)} className="flex items-center gap-3 py-3"><CreditCard className="size-4 text-[#6A5849]" />Personalize cards</Link>{adminAccess && <Link to="/admin" onClick={() => setMenuOpen(false)} className="flex items-center gap-3 py-3"><ShieldCheck className="size-4 text-[#6A5849]"/>Keep admin</Link>}<Link to="/support" onClick={() => setMenuOpen(false)} className="flex items-center gap-3 py-3"><CircleHelp className="size-4 text-[#6A5849]" />Help &amp; Support</Link></div>}</header>
     {!session ? <section className="mx-auto max-w-sm pt-12">
       <div className="mb-5 flex h-14 w-14 items-center justify-center rounded-xl border border-[#B8A999]/30"><LockKeyhole className="text-[#6A5849]" /></div>
       <h1 className="font-display text-[31px] leading-tight">{register ? "Make something meaningful." : "Welcome back"}</h1>
@@ -166,6 +181,12 @@ function KeepDashboard() {
         <button disabled={busy} className={button}>{busy ? "Please wait…" : register ? "Create account" : "Sign in"}</button>
       </form>
       <button className="mt-6 text-sm text-[#6A5849]" onClick={() => setRegister(!register)}>{register ? "Already have an account? Sign in" : "New to Keep? Create an account"}</button>
+    </section> : (paidAccess === "loading" || !accountDataLoaded) ? <section className="mx-auto max-w-sm pt-12 text-center text-sm text-[#796C5C]">Checking your Keep account and saved creations…</section> : paidAccess !== "paid" && keeps.length === 0 && !cloudDraft?.active && !adminAccess ? <section className="mx-auto max-w-sm pt-10">
+      <div className="mb-5 flex size-14 items-center justify-center rounded-xl border border-[#C9B8A7]"><CreditCard className="size-6 text-[#826A56]"/></div>
+      <h1 className="font-display text-[32px] leading-tight">Your Keep account is ready.</h1>
+      <p className="mt-4 text-sm leading-7 text-muted-foreground">Welcome to Keep. Choose your card package to unlock the creator and begin making something meaningful.</p>
+      <Link to="/shop" hash="packages" className="mt-7 flex min-h-12 items-center justify-between rounded-xl bg-[#29231E] px-5 text-sm font-medium text-white">Explore Basic, Signature &amp; Deluxe <ArrowRight className="size-4"/></Link>
+      <p className="mt-5 text-xs leading-6 text-[#817163]">Already purchased? Sign in using the email on your order, verify that address, then refresh this page. Only confirmed payments unlock your Keep.</p>
     </section> : <>
       <section className={tab === "home" ? "keep-horizon-hero relative mb-9 pt-11 text-center" : "mb-10 pt-4"}>{tab === "home" ? <><h1 className="keep-editorial-title relative z-10">Say what matters.<span className="mt-1 block italic">Keep it forever.</span></h1><p className="keep-page-description relative z-10 mx-auto mt-6">Turn your words and moments into a beautiful, lasting keepsake they can hold onto forever.</p><KeepCreateCTA /></> : <h1 className="keep-editorial-title">{tab === "given" ? "Keeps given" : tab === "received" ? "Keeps received" : "Your account"}</h1>}</section>
       {tab === "home" && <div className="space-y-4">
