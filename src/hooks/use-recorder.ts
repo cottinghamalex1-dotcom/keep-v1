@@ -142,8 +142,8 @@ export function useRecorder() {
       if(wantsSelfie){
         try{
           const videoType=videoMime();
-          const v=videoType?new MediaRecorder(captured,{mimeType:videoType,videoBitsPerSecond:850000,audioBitsPerSecond:48000})
-            :new MediaRecorder(captured,{videoBitsPerSecond:850000,audioBitsPerSecond:48000});
+          const v=videoType?new MediaRecorder(new MediaStream(captured.getVideoTracks()),{mimeType:videoType,videoBitsPerSecond:850000})
+            :new MediaRecorder(new MediaStream(captured.getVideoTracks()),{videoBitsPerSecond:850000});
           v.ondataavailable=event=>{if(event.data?.size)videoChunks.current.push(event.data);};
           v.start(1000);
           videoRec.current=v;
