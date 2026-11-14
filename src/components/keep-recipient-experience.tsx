@@ -107,6 +107,31 @@ export function KeepRecipientExperience({
   };
   const paragraphs = messageParagraphs?.length ? messageParagraphs : demoMessage;
 
+  // Warm the real opening photo/video while the recipient reads their personal
+  // introduction. Slow mobile downloads never require a black intermediary.
+  const openingMoment = media?.[0];
+  useEffect(() => {
+    if (stage !== "reveal" || !openingMoment?.url) return;
+    if (openingMoment.kind === "image") {
+      const image = new Image();
+      image.decoding = "async";
+      image.src = openingMoment.url;
+      if (typeof image.decode === "function") void image.decode().catch(() => undefined);
+      return;
+    }
+    const video = document.createElement("video");
+    video.preload = "auto";
+    video.muted = true;
+    video.playsInline = true;
+    video.src = openingMoment.url;
+    video.load();
+    return () => {
+      video.pause();
+      video.removeAttribute("src");
+      video.load();
+    };
+  }, [stage, openingMoment?.url, openingMoment?.kind]);
+
   useEffect(() => {
     if (!persistVisit) return;
     try { setVisited(localStorage.getItem(visitKey) === "1"); } catch { /* private browsing */ }
