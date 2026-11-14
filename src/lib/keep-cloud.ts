@@ -90,8 +90,22 @@ async function downloadBlob(session:KeepSession,id:string,budgetMs = 10000) {
   uploadedThisSession.add(session.user.id+":"+id);
   return URL.createObjectURL(blob);
 }
+// Media uploads and draft autosaves can overlap after quick editing actions.
+// Serialize per-owner writes so a slow, older save cannot overwrite newer edits.
+const cloudMutationQueue = new Map<string, Promise<void>>();
+function enqueueCloudMutation(session: KeepSession, persist: () => Promise<void>): Promise<void> {
+  const owner = session.user.id;
+  const previous = cloudMutationQueue.get(owner) ?? Promise.resolve();
+  const current = previous.catch(() => undefined).then(persist);
+  cloudMutationQueue.set(owner, current);
+  void current.finally(() => {
+    if (cloudMutationQueue.get(owner) === current) cloudMutationQueue.delete(owner);
+  }).catch(() => undefined);
+  return current;
+}
 export async function saveCloudDraft(project:KeepProject,session:KeepSession):Promise<void> {
   if (!project.active) return;
+  return enqueueCloudMutation(session, async () => {
   // Do not commit metadata pointing at files that failed to upload.
   for(const id of fileRefs(project)) {
     const blob=await getBlob(id);
@@ -104,6 +118,7 @@ export async function saveCloudDraft(project:KeepProject,session:KeepSession):Pr
   }
   const res=await request("/rest/v1/keep_drafts?on_conflict=owner_id",session,{method:"POST",headers:{"Content-Type":"application/json",Prefer:"resolution=merge-duplicates"},body:JSON.stringify({owner_id:session.user.id,project:safeProject(project),updated_at:new Date().toISOString()})});
   await res.text();
+  });
 }
 export async function loadCloudDraft(session:KeepSession,onProgress?: (progress: KeepRestoreProgress) => void):Promise<KeepProject|null> {
   const res=await request("/rest/v1/keep_drafts?select=project&owner_id=eq."+encodeURIComponent(session.user.id)+"&limit=1",session);
@@ -194,7 +209,9 @@ export async function retryMissingCloudMedia(project: KeepProject, session: Keep
   return hydrateCloudProject(project,session,onProgress);
 }
 export async function removeCloudDraft(session:KeepSession):Promise<void> {
-  await request("/rest/v1/keep_drafts?owner_id=eq."+encodeURIComponent(session.user.id),session,{method:"DELETE"});
+  return enqueueCloudMutation(session, async () => {
+    await request("/rest/v1/keep_drafts?owner_id=eq."+encodeURIComponent(session.user.id),session,{method:"DELETE"});
+  });
 }
 
 export async function loadKeepDisplayName(session: KeepSession): Promise<string> {
