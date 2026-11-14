@@ -40,7 +40,7 @@ describe("automatic voice polish", () => {
     render(<KeepVoiceEditor hasVoice duration={132} playing={false} tone="natural" voiceVolume={60} musicVolume={60} mix={defaultAudioMix}
       onClose={vi.fn()} onEditWords={vi.fn()} onRerecord={vi.fn()} onPlayPreview={vi.fn()} onTone={onTone}
       onVolume={vi.fn()} onMix={vi.fn()} />);
-    expect(screen.getByText("Enhanced automatically")).toBeTruthy();
+    expect(screen.getByText(/Enhanced automatically/)).toBeTruthy();
     fireEvent.click(screen.getByRole("button",{name:/Clear.*Bright/}));
     expect(onTone).toHaveBeenCalledWith("clear");
     const more = screen.getByText("More voice & music settings").closest("details");
