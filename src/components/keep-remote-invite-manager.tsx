@@ -115,7 +115,7 @@ export function KeepRemoteInviteManager({ project,onContinue,onCombine,onImportM
     <h1 className="mt-4 font-display text-[clamp(38px,10vw,55px)] leading-[1.12] tracking-[-.035em]">Every voice belongs.</h1>
     <p className="mt-4 text-[14px] leading-7 text-[#6F6256]">
       Share a private link with each person. They'll see their exact words, record with an auto-scrolling teleprompter,
-      and send their voice straight back to this Keep. No account or extra app required.
+      and share optional photos and short videos from their camera roll. Everything comes back privately—no account or extra app required.
     </p>
     <label className="mt-7 block text-xs text-[#6A5849]">
       Your name (shown in the invitation)
@@ -157,11 +157,11 @@ export function KeepRemoteInviteManager({ project,onContinue,onCombine,onImportM
               <button type="button" onClick={()=>void share(person.name,url)} className="flex min-h-11 items-center justify-center gap-2 rounded-xl border border-[#BEA994] text-[11px] font-medium"><MessageCircle className="size-4"/> Share by text</button>
               <button type="button" onClick={()=>void copy(person.name,url)} className="flex min-h-11 items-center justify-center gap-2 rounded-xl border border-[#BEA994] text-[11px] font-medium"><Clipboard className="size-4"/> Copy invite</button>
             </div>}
-          </div>}
+          </div>
           {finished && <div className="mt-3 flex items-center gap-2 text-[11px] text-[#527052]"><CircleCheck className="size-4"/> Voice received {status?.emailSent?"· Email sent":""}. They can still use this link for photos and videos.</div>}
           {status&&!finished&&new Date(status.expiresAt).getTime()<Date.now() && <p className="mt-2 text-[11px] text-[#925E4E]">That invitation has expired. Generate a new link.</p>}
           {status&&<button type="button" className="mt-3 inline-flex min-h-8 items-center gap-1.5 text-[10px] text-[#8F705B]" onClick={async()=>{
-            if(!window.confirm(`Revoke ${person.name}'s invitation? Their submitted audio will no longer be accessible through the link.`))return;
+            if(!window.confirm(`Revoke ${person.name}'s invitation? They will no longer be able to share recordings, photos or videos.`))return;
             try{await revokeRemoteInvite(keepId,status.id);setLinks(old=>{const next={...old};delete next[person.id];return next;});await refresh();}
             catch(error){setMessage(error instanceof Error?error.message:"Couldn't revoke invitation.");}
           }}><X className="size-3"/> Revoke invitation</button>}
