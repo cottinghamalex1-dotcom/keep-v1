@@ -27,6 +27,7 @@ it('updates framing and visual style without remounting the image', () => {
 });
 
 it("does not loop a recorded selfie when the narration outlasts the video take",()=>{
+  vi.spyOn(HTMLMediaElement.prototype,"play").mockResolvedValue();
   const {container}=render(<CinematicMedia item={{url:"/selfie.mp4",kind:"video",isSelfie:true}} playing />);
   const video=container.querySelector("video");
   expect(video).not.toBeNull();
@@ -34,6 +35,7 @@ it("does not loop a recorded selfie when the narration outlasts the video take",
   expect(video!.loop).toBe(false);
 });
 it("waits for an actual decoded frame before declaring the opening video ready",()=>{
+  vi.spyOn(HTMLMediaElement.prototype,"play").mockResolvedValue();
   const ready=vi.fn();
   const {container}=render(<CinematicMedia item={{url:"/intro.mp4",kind:"video"}} onFirstFrameReady={ready} />);
   const video=container.querySelector("video")!;
@@ -44,6 +46,7 @@ it("waits for an actual decoded frame before declaring the opening video ready",
   expect(ready).toHaveBeenCalledOnce();
 });
 it("does not reveal the opening selfie outro frame at the wrong part of its recording",()=>{
+  vi.spyOn(HTMLMediaElement.prototype,"play").mockResolvedValue();
   const ready=vi.fn();
   const {container}=render(<CinematicMedia item={{url:"/selfie.mp4",kind:"video",isSelfie:true,videoStartSec:25}} onFirstFrameReady={ready}/>);
   const video=container.querySelector("video")!;
