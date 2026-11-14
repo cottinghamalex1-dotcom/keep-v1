@@ -14,7 +14,7 @@ export const Route=createFileRoute("/contribute")({
   component:KeepRemoteContributor,
 });
 function KeepRemoteContributor() {
-  const token=useMemo(()=>new URLSearchParams(window.location.search).get("invite")||"",[]);
+  const token=useMemo(()=>typeof window==="undefined"?"":new URLSearchParams(window.location.search).get("invite")||"",[]);
   const [invite,setInvite]=useState<RemoteInviteDetails|null>(null);
   const [loading,setLoading]=useState(true);
   const [error,setError]=useState("");
@@ -126,8 +126,11 @@ function KeepRemoteContributor() {
     <div className="mx-auto w-full max-w-[620px] shrink-0 pt-2">
       {error&&<p role="alert" className="mb-2 rounded-lg border border-[#E0B0A7] bg-[#FFF1ED] px-3 py-2 text-[11px] text-[#9A4339]">{error}</p>}
       {sending? <p role="status" className="rounded-xl bg-[#E9DFD3] p-4 text-center text-[12px] font-medium">Uploading your voice securely… Please keep this page open.</p>
-      : uploadRetry ? <button type="button" onClick={()=>void submit(uploadRetry.blob,uploadRetry.duration)} className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#171512] text-sm font-medium text-[#F9F1E7]"><RefreshCw className="size-4"/> Retry sending this recording</button>
-      : recording ? <div className="grid grid-cols-2 gap-2">
+      : uploadRetry ? <div className="grid grid-cols-2 gap-2">
+          <button type="button" onClick={()=>void submit(uploadRetry.blob,uploadRetry.duration)} className="flex min-h-12 items-center justify-center gap-2 rounded-xl bg-[#171512] px-2 text-xs font-medium text-[#F9F1E7]"><RefreshCw className="size-4"/>Retry upload</button>
+          <button type="button" onClick={()=>{setUploadRetry(null);setError("");}} className="min-h-12 rounded-xl border border-[#C9B9AA] px-2 text-xs">Record again</button>
+        </div>
+      : recording ? <div className={recorder.canPause?"grid grid-cols-2 gap-2":"grid grid-cols-1 gap-2"}>
           {recorder.canPause&&<button type="button" onClick={recorder.status==="paused"?recorder.resume:recorder.pause} className="flex min-h-12 items-center justify-center gap-2 rounded-xl border border-[#BEB0A1] bg-[#FCF8F3] text-sm">
             {recorder.status==="paused"?<Mic className="size-4"/>:<Pause className="size-4"/>}{recorder.status==="paused"?"Resume":"Pause"}
           </button>}
