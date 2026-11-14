@@ -181,7 +181,7 @@ function KeepDashboard() {
         <button disabled={busy} className={button}>{busy ? "Please wait…" : register ? "Create account" : "Sign in"}</button>
       </form>
       <button className="mt-6 text-sm text-[#6A5849]" onClick={() => setRegister(!register)}>{register ? "Already have an account? Sign in" : "New to Keep? Create an account"}</button>
-    </section> : paidAccess === "unpaid" && accountDataLoaded && keeps.length === 0 && !cloudDraft?.active && !adminAccess ? <section className="mx-auto max-w-sm pt-10">
+    </section> : (paidAccess === "loading" || !accountDataLoaded) ? <section className="mx-auto max-w-sm pt-12 text-center text-sm text-[#796C5C]">Checking your Keep account and saved creations…</section> : paidAccess !== "paid" && keeps.length === 0 && !cloudDraft?.active && !adminAccess ? <section className="mx-auto max-w-sm pt-10">
       <div className="mb-5 flex size-14 items-center justify-center rounded-xl border border-[#C9B8A7]"><CreditCard className="size-6 text-[#826A56]"/></div>
       <h1 className="font-display text-[32px] leading-tight">Your Keep account is ready.</h1>
       <p className="mt-4 text-sm leading-7 text-muted-foreground">Welcome to Keep. Choose your card package to unlock the creator and begin making something meaningful.</p>
