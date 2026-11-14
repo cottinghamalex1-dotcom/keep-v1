@@ -7,6 +7,8 @@ import { publishKeep } from "@/lib/keep-publish";
 import { KeepCaptionEditor } from "@/components/keep-caption-editor";
 import { KeepMusicEditor } from "@/components/keep-music-editor";
 import { KeepVoiceEditor } from "@/components/keep-voice-editor";
+import { KeepRemoteInviteManager } from "@/components/keep-remote-invite-manager";
+import { remoteOwnerDownload } from "@/lib/keep-remote";
 import { KeepPhotosEditor } from "@/components/keep-photos-editor";
 import { KeepStudioResize, DEFAULT_PREVIEW_SIZE, constrainPreviewSize } from "@/components/keep-studio-resize";
 import { KeepTeleprompter } from "@/components/keep-teleprompter";
@@ -36,7 +38,7 @@ import { joinKeepVoiceParts } from "@/lib/keep-collaborative-audio";
 import { deleteBlobs, getBlob, putBlob } from "@/lib/keep-media-store";
 import { createKeepVoiceMix, playMusicSample, stopMusicSample, type MusicBalance } from "@/lib/keep-audio";
 import { fetchDraft, fetchNextQuestion, fetchRevision, keepAiAvailable, transcribeAudio, transcribeTimedAudio, type TimedWord } from "@/lib/keep-ai";
-import { fmt, hydrateDraftMedia, loadDraft, newId, newProject, projectBlobIds, projectObjectUrls, sampleMemories, saveDraft, stageLabels, defaultAudioMix, type AudioMix, type CaptionCue, type InterviewAnswer, type KeepProject, type MediaItem, type VoiceTone } from "@/lib/keep-project";
+import { fmt, hydrateDraftMedia, loadDraft, newId, newProject, projectBlobIds, projectObjectUrls, sampleMemories, saveDraft, stageLabels, defaultAudioMix, type AudioMix, type CaptionCue, type InterviewAnswer, type KeepProject, type KeepVoicePart, type MediaItem, type VoiceTone } from "@/lib/keep-project";
 
 export const Route = createFileRoute("/")({
   head: () => ({ meta: [
@@ -50,9 +52,9 @@ export const Route = createFileRoute("/")({
   component: KeepRoute,
 });
 
-type Screen = "home" | "you" | "detail" | "recipient" | "occasion" | "voices" | "intent" | "path" | "interview" | "summary" | "messageGenerating" | "write" | "message" | "recordPrep" | "record" | "groupRecord" | "recorded" | "memories" | "storyStyle" | "generating" | "editor" | "preview" | "recipientReveal" | "recipientPreview" | "giveReady" | "card" | "success";
+type Screen = "home" | "you" | "detail" | "recipient" | "occasion" | "voices" | "intent" | "path" | "interview" | "summary" | "messageGenerating" | "write" | "message" | "recordPrep" | "record" | "groupRecord" | "remoteInvite" | "recorded" | "memories" | "storyStyle" | "generating" | "editor" | "preview" | "recipientReveal" | "recipientPreview" | "giveReady" | "card" | "success";
 type Mode = "Memories" | "Music" | "Captions" | "Style" | "Voice";
-const creationScreens: Screen[] = ["recipient", "occasion", "voices", "intent", "path", "interview", "summary", "messageGenerating", "write", "message", "recordPrep", "record", "groupRecord", "recorded", "memories", "storyStyle", "generating", "editor", "preview", "recipientPreview", "card", "success"];
+const creationScreens: Screen[] = ["recipient", "occasion", "voices", "intent", "path", "interview", "summary", "messageGenerating", "write", "message", "recordPrep", "record", "groupRecord", "remoteInvite", "recorded", "memories", "storyStyle", "generating", "editor", "preview", "recipientPreview", "card", "success"];
 const resumeScreen = (s: Screen): Screen => (s === "messageGenerating" ? "summary" : s === "generating" ? "memories" : s === "preview" || s === "recipientPreview" ? "editor" : s);
 const occasions = ["Birthday", "Anniversary", "Wedding", "New Baby", "Mother's Day", "Father's Day", "Graduation", "Thank You", "Trip / Adventure", "Milestone", "Celebration of Life", "Family Memories", "Just Because", "Other"];
 const relationships = ["Spouse / Partner", "Mom", "Dad", "Child", "Grandparent", "Sibling", "Friend", "Myself", "Someone else"];
@@ -794,6 +796,64 @@ function KeepApp() {
     } finally {
       setGroupBusy(false);
     }
+  };
+
+  /**
+   * Bring secure, remotely uploaded per-paragraph audio into this creator's
+   * local editor, then build the same narration file used for in-person groups.
+   * Match contributor AND unchanged exact text to prevent mixing stale scripts.
+   */
+  const combineRemoteVoices = async () => {
+    if(groupBusy || !project.publicationId || !isTogether) return;
+    setGroupBusy(true);
+    try {
+      const {recordings}=await remoteOwnerDownload(project.publicationId);
+      const blobs:Blob[]=[];
+      const imported:KeepVoicePart[]=[];
+      for(let index=0;index<project.messageParagraphs.length;index++) {
+        const paragraph=project.messageParagraphs[index]!.trim();
+        if(!paragraph) continue;
+        const contributorId=speakerFor(index);
+        const local=readyPart(index);
+        if(local) {
+          const localBlob=await getBlob(local.audioId);
+          if(localBlob?.size) {blobs.push(localBlob);imported.push(local);continue;}
+        }
+        const remote=recordings.find(item=>item.paragraphIndex===index && item.contributorId===contributorId && item.textFingerprint===paragraph);
+        if(!remote) throw new Error(`Still waiting for ${speakerName(index)}'s recording of part ${index+1}.`);
+        const response=await fetch(remote.signedUrl,{referrerPolicy:"no-referrer"});
+        if(!response.ok) throw new Error(`Couldn't download ${speakerName(index)}'s audio. Try again.`);
+        const blob=await response.blob();
+        if(!blob.size || blob.size>20*1024*1024)throw new Error(`The recording for part ${index+1} could not be read.`);
+        const id=newId("remote-voice-part");
+        if(!(await putBlob(id,blob)))throw new Error("Your device couldn't save the received audio. Please free up space and retry.");
+        imported.push({paragraphIndex:index,contributorId,textFingerprint:paragraph,audioId:id,
+          audioUrl:URL.createObjectURL(blob),durationSec:remote.durationSec,mimeType:remote.mimeType});
+        blobs.push(blob);
+      }
+      if(blobs.length!==project.messageParagraphs.filter(p=>p.trim()).length)throw new Error("A speaking part is missing.");
+      const joined=await joinKeepVoiceParts(blobs);
+      if(joined.blob.size>19*1024*1024)throw new Error("The combined narration is too long. Shorten a part and retry.");
+      const audioId=newId("voice");
+      if(!(await putBlob(audioId,joined.blob)))throw new Error("Not enough device storage for the combined narration.");
+      const signature=project.messageParagraphs.map((p,i)=>{
+        const part=imported.find(item=>item.paragraphIndex===i && item.contributorId===speakerFor(i) && item.textFingerprint===p.trim());
+        return [speakerFor(i),p.trim(),part?.audioId??""].join("::");
+      }).join("\\n");
+      captionSyncToken.current++;
+      const oldFinal=project.finalVoiceRecording;
+      if(oldFinal?.audioUrl)releaseUrls([oldFinal.audioUrl]);
+      if(oldFinal?.audioId)void deleteBlobs([oldFinal.audioId]);
+      setProject(old=>({...old,voiceParts:imported,groupVoiceSignature:signature,
+        finalVoiceRecording:{audioId,audioUrl:URL.createObjectURL(joined.blob),
+          durationSec:joined.durationSec,mimeType:"audio/wav",demo:false},
+        captionTranscript:"",captionCues:[],captionWords:[],captionTimingEstimated:false}));
+      toast.success("All voices are together. Keep balanced every speaker's audio.");
+      go("recorded");
+      void syncFinalCaptions(joined.blob,"audio/wav",joined.durationSec,audioId);
+    }catch(issue){
+      toast.error(issue instanceof Error?issue.message:"Couldn't combine the received audio. All recordings are still safely saved.");
+    }finally{setGroupBusy(false);}
   };
 
   const retryCaptionSync = async () => {
