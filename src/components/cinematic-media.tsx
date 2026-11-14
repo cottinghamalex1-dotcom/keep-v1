@@ -257,9 +257,15 @@ export function CinematicMedia({
           key={scene.key}
           src={moment.url} alt="" decoding="async"
           onLoad={(event) => {
-            if(!isPending)markFirstReady(scene,isPending);
-            if (!isPending) return;
             const element = event.currentTarget;
+            if (!isPending) {
+              // The intro must not fade away until Safari can paint this image,
+              // not just until its compressed bytes have finished downloading.
+              if (typeof element.decode === "function")
+                void element.decode().catch(() => undefined).finally(() => markFirstReady(scene, isPending));
+              else markFirstReady(scene, isPending);
+              return;
+            }
             if (typeof element.decode === "function") void element.decode().catch(() => undefined).finally(() => reveal(slot, scene));
             else reveal(slot, scene);
           }}
