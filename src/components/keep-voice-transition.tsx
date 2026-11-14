@@ -30,16 +30,18 @@ export function KeepVoiceTransition({
   const notStored = !processing && hasRecording && !isDemo && !isPersisted;
   const title = processing
     ? isSaving ? "Holding onto your words." : "Putting the words in place."
-    : missingRecording ? "Your recording needs another try." : "Your voice is kept.";
+    : missingRecording ? "Your recording needs another try." : isDemo ? "Ready for a preview." : "Your voice is kept.";
   const message = isSaving
     ? "Preserving your recording and the moments that make it yours."
     : isSyncing
       ? "Pairing your message with your voice, so the captions feel right when it plays."
       : missingRecording
         ? "We couldn't restore that recording. Please record it again so your Keep has your voice."
-        : needsCaptionReview
-          ? "Your recording is ready. Captions need another look before you share your Keep."
-          : "Not polished. Not performed. Just you, exactly as they should hear you.";
+        : isDemo
+          ? "This is a demo without recorded audio. You can keep creating and add your real voice later."
+          : needsCaptionReview
+            ? "Your recording is ready. Captions need another look before you share your Keep."
+            : "Not polished. Not performed. Just you, exactly as they should hear you.";
 
   return <div className="keep-voice-transition fixed inset-0 z-[95] flex items-center justify-center overflow-y-auto bg-[#211A14]/65 px-4 py-[max(18px,env(safe-area-inset-top))] backdrop-blur-[10px] sm:px-6">
     <section role="dialog" aria-modal="true" aria-labelledby="keep-voice-transition-title"
@@ -71,7 +73,7 @@ export function KeepVoiceTransition({
               : missingRecording ? "absolute inset-y-0 left-0 w-0" : "keep-voice-transition-progress-complete absolute inset-0 rounded-full bg-gradient-to-r from-[#B9A17F] to-[#826548]"} />
           </div>
           <p role="status" className="mt-3 text-[10px] font-semibold tracking-[.08em] text-[#8D755D]">
-            {isSaving ? "SAVING YOUR VOICE" : isSyncing ? "SYNCING YOUR WORDS" : missingRecording ? "RECORDING NOT FOUND" : needsCaptionReview ? "VOICE READY · CAPTIONS TO REVIEW" : "READY FOR THE NEXT MOMENT"}
+            {isSaving ? "SAVING YOUR VOICE" : isSyncing ? "SYNCING YOUR WORDS" : missingRecording ? "RECORDING NOT FOUND" : isDemo ? "DEMO · NO VOICE ATTACHED" : needsCaptionReview ? "VOICE READY · CAPTIONS TO REVIEW" : "READY FOR THE NEXT MOMENT"}
           </p>
         </div>
 
