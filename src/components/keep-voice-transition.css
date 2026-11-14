@@ -1,0 +1,27 @@
+.keep-voice-transition-glow {
+  background: radial-gradient(circle, rgba(225, 196, 157, .20) 0%, rgba(238, 222, 200, .08) 48%, transparent 74%);
+}
+.keep-voice-transition-orb {
+  box-shadow: inset 0 2px 8px rgba(255,255,255,.8), 0 20px 45px rgba(148,111,65,.12);
+}
+.keep-voice-transition-halo {
+  animation: keep-voice-halo 3.2s ease-in-out infinite;
+}
+.keep-voice-transition-progress-loading {
+  animation: keep-voice-progress 1.5s ease-in-out infinite alternate;
+}
+.keep-voice-transition-progress-complete {
+  animation: keep-voice-complete .52s ease-out both;
+}
+.keep-voice-transition-check { animation: keep-voice-check .55s ease-out both; }
+.keep-voice-transition-card { animation: keep-voice-enter .42s ease-out both; }
+@keyframes keep-voice-progress { from { transform: translateX(0); } to { transform: translateX(165%); } }
+@keyframes keep-voice-complete { from { transform: scaleX(.35); transform-origin: left; } to { transform: scaleX(1); transform-origin: left; } }
+@keyframes keep-voice-halo { 0%, 100% { transform: scale(.98); opacity: .55; } 50% { transform: scale(1.06); opacity: 1; } }
+@keyframes keep-voice-check { from { opacity: 0; transform: scale(.6); } to { opacity: 1; transform: scale(1); } }
+@keyframes keep-voice-enter { from { opacity: 0; transform: translateY(10px) scale(.985); } to { opacity: 1; transform: translateY(0) scale(1); } }
+@media (prefers-reduced-motion: reduce) {
+  .keep-voice-transition-halo, .keep-voice-transition-progress-loading, .keep-voice-transition-progress-complete,
+  .keep-voice-transition-check, .keep-voice-transition-card { animation: none !important; }
+  .keep-voice-transition-progress-loading { transform: translateX(80%); }
+}
