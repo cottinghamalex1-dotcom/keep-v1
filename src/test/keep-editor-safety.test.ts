@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { clampCaptionRange, removeEditableMoment, shouldPreserveExistingVoice } from "@/lib/keep-editor-safety";
 import { composeSelfieStory } from "@/lib/keep-selfie-story";
-import { newProject, type MediaItem } from "@/lib/keep-project";
+import { clearDraft, loadDraft, newProject, saveDraft, type MediaItem } from "@/lib/keep-project";
 
 const photo = (id: string): MediaItem => ({ id, source:"upload", kind:"image", url:`blob:${id}`, persisted:true });
 const selfie: MediaItem = {
@@ -51,5 +51,23 @@ describe("editing safety", () => {
     expect(clampCaptionRange(80,40,150)).toEqual({start:80,end:80.1});
     expect(clampCaptionRange(0,10,150)).toEqual({start:0,end:10});
     expect(clampCaptionRange(NaN,Infinity,80)).toEqual({start:0,end:0.1});
+  });
+});
+
+describe("voice restoration when device storage is unavailable", () => {
+  it("does not pretend an in-session-only recording can be reopened after refresh", () => {
+    try {
+      saveDraft({ ...newProject(), active:true,
+        finalVoiceRecording:{ audioUrl:"blob:temporary-only", durationSec:85, demo:false } });
+      expect(loadDraft()?.finalVoiceRecording).toBeNull();
+    } finally { clearDraft(); }
+  });
+  it("keeps a voice that has an actual saved blob ID", () => {
+    try {
+      saveDraft({ ...newProject(), active:true,
+        finalVoiceRecording:{ audioId:"voice-stored", audioUrl:"blob:temporary", durationSec:85, demo:false } });
+      expect(loadDraft()?.finalVoiceRecording?.audioId).toBe("voice-stored");
+      expect(loadDraft()?.finalVoiceRecording?.audioUrl).toBeUndefined();
+    } finally { clearDraft(); }
   });
 });
