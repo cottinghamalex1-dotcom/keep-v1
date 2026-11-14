@@ -27,3 +27,16 @@ export function shouldPreserveExistingVoice(
 ): boolean {
   return previousVoiceAvailable && !incomingStored;
 }
+
+/** A caption editor must never save an out-of-range or zero-length phrase,
+ * including when a user clears a numeric field on mobile Safari. */
+export function clampCaptionRange(start: number, end: number, duration: number) {
+  const total = Number.isFinite(duration) ? Math.max(0.2, duration) : 1;
+  const nextStart = Number.isFinite(start) ? start : 0;
+  const nextEnd = Number.isFinite(end) ? end : nextStart + 0.1;
+  const clampedStart = Math.max(0, Math.min(total - 0.1, nextStart));
+  return {
+    start: clampedStart,
+    end: Math.min(total, Math.max(clampedStart + 0.1, nextEnd)),
+  };
+}
