@@ -170,9 +170,12 @@ function KeepDashboard() {
       <section className={tab === "home" ? "keep-horizon-hero relative mb-9 pt-11 text-center" : "mb-10 pt-4"}>{tab === "home" ? <><h1 className="keep-editorial-title relative z-10">Say what matters.<span className="mt-1 block italic">Keep it forever.</span></h1><p className="keep-page-description relative z-10 mx-auto mt-6">Turn your words and moments into a beautiful, lasting keepsake they can hold onto forever.</p><KeepCreateCTA /></> : <h1 className="keep-editorial-title">{tab === "given" ? "Keeps given" : tab === "received" ? "Keeps received" : "Your account"}</h1>}</section>
       {tab === "home" && <div className="space-y-4">
 
-        {(keeps.length > 0 || cloudDraft?.active) && <section className="rounded-[22px] border border-[#DED7CF] bg-[#FFFEFC] p-4 sm:p-5">
-          <div className="mb-5 flex items-center justify-between gap-4"><h2 className="text-sm font-medium tracking-wide">Your creations</h2><Link to="/my-keeps" className="text-xs text-[#6A5849]">View all <ArrowRight className="ml-1 inline size-3"/></Link></div>
-          <div className="space-y-3">
+        {(keeps.length > 0 || cloudDraft?.active) && <section aria-labelledby="your-creations-heading" className="keep-creations-frame relative isolate overflow-hidden rounded-[24px] p-4 sm:p-5">
+          <div className="relative z-10 mb-4 flex items-center justify-between gap-3 border-b border-[#8D7760]/40 pb-4 sm:mb-5">
+            <h2 id="your-creations-heading" className="font-display text-[clamp(28px,6vw,36px)] font-normal leading-[1.1] tracking-[-.03em] text-[#FFF9F0]">Your creations</h2>
+            <Link to="/my-keeps" className="flex min-h-10 shrink-0 items-center gap-1.5 text-xs font-medium text-[#DBC6AA] transition-colors hover:text-white focus-visible:rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#C5AB8D]">View all <ArrowRight className="size-4" aria-hidden="true" /></Link>
+          </div>
+          <div className="relative z-10 space-y-3">
             {cloudDraft?.active && !keeps.some(k=>k.id===cloudDraft.publicationId) &&
               <article className="keep-editorial-surface overflow-hidden border border-[#DED8D1]">
                 <button type="button" onClick={()=>setExpandedDraft(!expandedDraft)} aria-label="Options for unfinished draft" aria-expanded={expandedDraft} className="flex w-full items-center gap-4 p-4 text-left">
