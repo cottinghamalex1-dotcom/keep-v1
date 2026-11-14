@@ -10,7 +10,7 @@ import { KeepVoiceEditor } from "@/components/keep-voice-editor";
 import { KeepRemoteInviteManager } from "@/components/keep-remote-invite-manager";
 import { remoteOwnerDownload, type RemoteMediaItem } from "@/lib/keep-remote";
 import { KeepPhotosEditor } from "@/components/keep-photos-editor";
-import { removeEditableMoment, shouldPreserveExistingVoice } from "@/lib/keep-editor-safety";
+import { clampCaptionRange, removeEditableMoment, shouldPreserveExistingVoice } from "@/lib/keep-editor-safety";
 import { KeepMomentsUploader } from "@/components/keep-moments-uploader";
 import { KeepStudioResize, DEFAULT_PREVIEW_SIZE, constrainPreviewSize } from "@/components/keep-studio-resize";
 import { KeepTeleprompter } from "@/components/keep-teleprompter";
@@ -2250,7 +2250,7 @@ function KeepApp() {
           onClose={() => { setEditorExpanded(false); setEditorPanel(null); }}
           onSeek={(seconds) => { setEditorPlaying(false); seekEditor(seconds); }}
           onChangeCaption={(i,text) => patch({captionCues:project.captionCues.map((c,j)=>j===i?{...c,text}:c)})}
-          onChangeCaptionTime={(i,startTime,endTime) => patch({captionCues:project.captionCues.map((c,j)=>j===i?{...c,start:Math.max(0,Math.min(startTime,endTime-.1)),end:Math.min(editorDuration,Math.max(endTime,startTime+.1))}:c)})}
+          onChangeCaptionTime={(i,startTime,endTime) => patch({captionCues:project.captionCues.map((c,j)=>j===i?{...c,...clampCaptionRange(startTime,endTime,editorDuration)}:c)})}
           onChangeStyle={(style) => patch({captionStyle:style})}
           onChangePosition={(position) => patch({captionPosition:position})}
           onChangeLines={(lines) => patch({captionLines:lines})}
@@ -2327,7 +2327,16 @@ function KeepApp() {
 
       </div>
       <nav className="keep-studio-tools" aria-label="Editing tools">
-        {([{ panel: "Memories", label: "Photos", Icon: Images }, { panel: "Captions", label: "Captions", Icon: MessageCircle }, { panel: "Music", label: "Music", Icon: Music2 }, { panel: "Voice", label: "Voice", Icon: Mic }, { panel: "Style", label: "Style", Icon: Sparkles }, { panel: "Selfie", label: "Selfie", Icon: Camera }] as const).map(({ panel, label, Icon }) => <button key={label} type="button" aria-pressed={editorPanel === panel} onClick={() => { stopMusicSample(); setMusicSampling(""); setCompareOriginalStyle(false); setEditorPanel(panel); }}><Icon /><span>{label}</span></button>)}
+        {([{ panel: "Memories", label: "Photos", Icon: Images }, { panel: "Captions", label: "Captions", Icon: MessageCircle }, { panel: "Music", label: "Music", Icon: Music2 }, { panel: "Voice", label: "Voice", Icon: Mic }, { panel: "Style", label: "Style", Icon: Sparkles }, { panel: "Selfie", label: "Selfie", Icon: Camera }] as const).map(({ panel, label, Icon }) => <button key={label} type="button" aria-pressed={editorPanel === panel} onClick={() => {
+          stopMusicSample(); setMusicSampling(""); setCompareOriginalStyle(false);
+          // The caption and photo fields must not jump to another scene
+          // mid-edit when the narration advances in the background.
+          if (panel === "Captions" || panel === "Memories" || panel === "Selfie") {
+            setEditorPlaying(false);
+            editorAudioRef.current?.pause();
+          }
+          setEditorPanel(panel);
+        }}><Icon /><span>{label}</span></button>)}
       </nav>
 
       {previewChooserOpen && sheet("Preview your Keep", () => { setPreviewChooserOpen(false); setReadArrangeOpen(false); }, <div className="pb-2">
