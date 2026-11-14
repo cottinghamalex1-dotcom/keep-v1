@@ -7,6 +7,8 @@ import { publishKeep } from "@/lib/keep-publish";
 import { KeepCaptionEditor } from "@/components/keep-caption-editor";
 import { KeepMusicEditor } from "@/components/keep-music-editor";
 import { KeepVoiceEditor } from "@/components/keep-voice-editor";
+import { KeepRemoteInviteManager } from "@/components/keep-remote-invite-manager";
+import { remoteOwnerDownload } from "@/lib/keep-remote";
 import { KeepPhotosEditor } from "@/components/keep-photos-editor";
 import { KeepStudioResize, DEFAULT_PREVIEW_SIZE, constrainPreviewSize } from "@/components/keep-studio-resize";
 import { KeepTeleprompter } from "@/components/keep-teleprompter";
@@ -36,7 +38,7 @@ import { joinKeepVoiceParts } from "@/lib/keep-collaborative-audio";
 import { deleteBlobs, getBlob, putBlob } from "@/lib/keep-media-store";
 import { createKeepVoiceMix, playMusicSample, stopMusicSample, type MusicBalance } from "@/lib/keep-audio";
 import { fetchDraft, fetchNextQuestion, fetchRevision, keepAiAvailable, transcribeAudio, transcribeTimedAudio, type TimedWord } from "@/lib/keep-ai";
-import { fmt, hydrateDraftMedia, loadDraft, newId, newProject, projectBlobIds, projectObjectUrls, sampleMemories, saveDraft, stageLabels, defaultAudioMix, type AudioMix, type CaptionCue, type InterviewAnswer, type KeepProject, type MediaItem, type VoiceTone } from "@/lib/keep-project";
+import { fmt, hydrateDraftMedia, loadDraft, newId, newProject, projectBlobIds, projectObjectUrls, sampleMemories, saveDraft, stageLabels, defaultAudioMix, type AudioMix, type CaptionCue, type InterviewAnswer, type KeepProject, type KeepVoicePart, type MediaItem, type VoiceTone } from "@/lib/keep-project";
 
 export const Route = createFileRoute("/")({
   head: () => ({ meta: [
@@ -50,9 +52,9 @@ export const Route = createFileRoute("/")({
   component: KeepRoute,
 });
 
-type Screen = "home" | "you" | "detail" | "recipient" | "occasion" | "voices" | "intent" | "path" | "interview" | "summary" | "messageGenerating" | "write" | "message" | "recordPrep" | "record" | "groupRecord" | "recorded" | "memories" | "storyStyle" | "generating" | "editor" | "preview" | "recipientReveal" | "recipientPreview" | "giveReady" | "card" | "success";
+type Screen = "home" | "you" | "detail" | "recipient" | "occasion" | "voices" | "intent" | "path" | "interview" | "summary" | "messageGenerating" | "write" | "message" | "recordPrep" | "record" | "groupRecord" | "remoteInvite" | "recorded" | "memories" | "storyStyle" | "generating" | "editor" | "preview" | "recipientReveal" | "recipientPreview" | "giveReady" | "card" | "success";
 type Mode = "Memories" | "Music" | "Captions" | "Style" | "Voice";
-const creationScreens: Screen[] = ["recipient", "occasion", "voices", "intent", "path", "interview", "summary", "messageGenerating", "write", "message", "recordPrep", "record", "groupRecord", "recorded", "memories", "storyStyle", "generating", "editor", "preview", "recipientPreview", "card", "success"];
+const creationScreens: Screen[] = ["recipient", "occasion", "voices", "intent", "path", "interview", "summary", "messageGenerating", "write", "message", "recordPrep", "record", "groupRecord", "remoteInvite", "recorded", "memories", "storyStyle", "generating", "editor", "preview", "recipientPreview", "card", "success"];
 const resumeScreen = (s: Screen): Screen => (s === "messageGenerating" ? "summary" : s === "generating" ? "memories" : s === "preview" || s === "recipientPreview" ? "editor" : s);
 const occasions = ["Birthday", "Anniversary", "Wedding", "New Baby", "Mother's Day", "Father's Day", "Graduation", "Thank You", "Trip / Adventure", "Milestone", "Celebration of Life", "Family Memories", "Just Because", "Other"];
 const relationships = ["Spouse / Partner", "Mom", "Dad", "Child", "Grandparent", "Sibling", "Friend", "Myself", "Someone else"];
@@ -796,6 +798,64 @@ function KeepApp() {
     }
   };
 
+  /**
+   * Bring secure, remotely uploaded per-paragraph audio into this creator's
+   * local editor, then build the same narration file used for in-person groups.
+   * Match contributor AND unchanged exact text to prevent mixing stale scripts.
+   */
+  const combineRemoteVoices = async () => {
+    if(groupBusy || !project.publicationId || !isTogether) return;
+    setGroupBusy(true);
+    try {
+      const {recordings}=await remoteOwnerDownload(project.publicationId);
+      const blobs:Blob[]=[];
+      const imported:KeepVoicePart[]=[];
+      for(let index=0;index<project.messageParagraphs.length;index++) {
+        const paragraph=project.messageParagraphs[index]!.trim();
+        if(!paragraph) continue;
+        const contributorId=speakerFor(index);
+        const local=readyPart(index);
+        if(local) {
+          const localBlob=await getBlob(local.audioId);
+          if(localBlob?.size) {blobs.push(localBlob);imported.push(local);continue;}
+        }
+        const remote=recordings.find(item=>item.paragraphIndex===index && item.contributorId===contributorId && item.textFingerprint===paragraph);
+        if(!remote) throw new Error(`Still waiting for ${speakerName(index)}'s recording of part ${index+1}.`);
+        const response=await fetch(remote.signedUrl,{referrerPolicy:"no-referrer"});
+        if(!response.ok) throw new Error(`Couldn't download ${speakerName(index)}'s audio. Try again.`);
+        const blob=await response.blob();
+        if(!blob.size || blob.size>20*1024*1024)throw new Error(`The recording for part ${index+1} could not be read.`);
+        const id=newId("remote-voice-part");
+        if(!(await putBlob(id,blob)))throw new Error("Your device couldn't save the received audio. Please free up space and retry.");
+        imported.push({paragraphIndex:index,contributorId,textFingerprint:paragraph,audioId:id,
+          audioUrl:URL.createObjectURL(blob),durationSec:remote.durationSec,mimeType:remote.mimeType});
+        blobs.push(blob);
+      }
+      if(blobs.length!==project.messageParagraphs.filter(p=>p.trim()).length)throw new Error("A speaking part is missing.");
+      const joined=await joinKeepVoiceParts(blobs);
+      if(joined.blob.size>19*1024*1024)throw new Error("The combined narration is too long. Shorten a part and retry.");
+      const audioId=newId("voice");
+      if(!(await putBlob(audioId,joined.blob)))throw new Error("Not enough device storage for the combined narration.");
+      const signature=project.messageParagraphs.map((p,i)=>{
+        const part=imported.find(item=>item.paragraphIndex===i && item.contributorId===speakerFor(i) && item.textFingerprint===p.trim());
+        return [speakerFor(i),p.trim(),part?.audioId??""].join("::");
+      }).join("\n");
+      captionSyncToken.current++;
+      const oldFinal=project.finalVoiceRecording;
+      if(oldFinal?.audioUrl)releaseUrls([oldFinal.audioUrl]);
+      if(oldFinal?.audioId)void deleteBlobs([oldFinal.audioId]);
+      setProject(old=>({...old,voiceParts:imported,groupVoiceSignature:signature,
+        finalVoiceRecording:{audioId,audioUrl:URL.createObjectURL(joined.blob),
+          durationSec:joined.durationSec,mimeType:"audio/wav",demo:false},
+        captionTranscript:"",captionCues:[],captionWords:[],captionTimingEstimated:false}));
+      toast.success("All voices are together. Keep balanced every speaker's audio.");
+      go("recorded");
+      void syncFinalCaptions(joined.blob,"audio/wav",joined.durationSec,audioId);
+    }catch(issue){
+      toast.error(issue instanceof Error?issue.message:"Couldn't combine the received audio. All recordings are still safely saved.");
+    }finally{setGroupBusy(false);}
+  };
+
   const retryCaptionSync = async () => {
     if (!rec?.audioUrl) return;
     try {
@@ -1342,6 +1402,12 @@ function KeepApp() {
     }
   };
   const toCard = () => {
+    if(isTogether && project.voiceRecordingLocation==="remote" && (!rec?.audioUrl || !groupReady || project.groupVoiceSignature!==groupSignature)){
+      toast.info("Collect and combine all remote recordings before finishing this Keep.");
+      setReturnToEditorAfterRecording(true);
+      go("remoteInvite");
+      return;
+    }
     const next = !engraving[0]?.trim()
       ? { ...project, cardEngraving: [(name || "Hanna").toUpperCase(), engraving[1] || "FROM ALEX", engraving[2] || "2026"] }
       : project;
@@ -1396,14 +1462,27 @@ function KeepApp() {
       </div>
       {project.voiceMode === "together" && <div className="mt-6 rounded-2xl border border-border bg-white/40 p-5">
         <h2 className="font-display text-2xl">Who will speak?</h2>
-        <p className="mt-2 text-xs leading-5 text-muted-foreground">Add each person's first name. Later you'll choose who says each part and pass the phone around to record.</p>
+        <p className="mt-2 text-xs leading-5 text-muted-foreground">Add each person's first name. Later you'll assign exactly what each person says, then choose whether to record together or remotely.</p>
         <div className="mt-5 space-y-3">{(project.contributors ?? []).map((person,i) => <div key={person.id} className="flex items-center gap-2">
           <label className="min-w-0 flex-1"><span className="mb-1 block text-[10px] font-medium uppercase tracking-widest text-muted-foreground">Voice {i+1}</span>
             <input aria-label={`Voice ${i+1} name`} placeholder={i===0?"Your name":i===1?"Second person's name":"Contributor name"} maxLength={60} value={person.name} onChange={event=>patch({contributors:(project.contributors ?? []).map(p=>p.id===person.id?{...p,name:event.target.value}:p)})} className="w-full rounded-lg border border-border bg-background px-4 py-3 text-base outline-none focus:border-accent"/></label>
           {(project.contributors?.length ?? 0) > 2 && <button type="button" aria-label={`Remove ${person.name || `voice ${i+1}`}`} className="mt-5 rounded-lg border border-border p-3 text-muted-foreground" onClick={()=>patch({contributors:(project.contributors ?? []).filter(p=>p.id!==person.id)})}><Trash2 className="size-4"/></button>}
         </div>)}</div>
         {(project.contributors?.length ?? 0) < 8 && <Button variant="bare" size="sm" className="mt-3" onClick={()=>patch({contributors:[...(project.contributors ?? []),{id:newId("speaker"),name:""}]})}><Plus className="size-4"/> Add another voice</Button>}
-        <p className="mt-5 text-xs leading-5 text-muted-foreground">Everyone records separately on this device. Keep brings the recordings together with the music, photos and captions.</p>
+        <div className="mt-6 border-t border-[#DDD3C9] pt-4">
+          <p className="mb-3 text-[11px] font-semibold uppercase tracking-[.13em] text-[#8A725A]">How will you record?</p>
+          <div className="grid grid-cols-2 gap-2">
+            <button type="button" aria-pressed={project.voiceRecordingLocation!=="remote"} onClick={()=>patch({voiceRecordingLocation:"in_person"})}
+              className={`rounded-xl border px-3 py-4 text-left ${project.voiceRecordingLocation!=="remote"?"border-[#AD9275] bg-[#EDE1D2]":"border-[#DAD1C8] bg-[#FFFDF9]"}`}>
+              <span className="block text-sm font-semibold">Together here</span><span className="mt-1 block text-[11px] leading-5 text-[#776A5D]">Pass one phone around.</span>
+            </button>
+            <button type="button" aria-pressed={project.voiceRecordingLocation==="remote"} onClick={()=>patch({voiceRecordingLocation:"remote"})}
+              className={`rounded-xl border px-3 py-4 text-left ${project.voiceRecordingLocation==="remote"?"border-[#AD9275] bg-[#EDE1D2]":"border-[#DAD1C8] bg-[#FFFDF9]"}`}>
+              <span className="block text-sm font-semibold">From anywhere</span><span className="mt-1 block text-[11px] leading-5 text-[#776A5D]">Send private recording links by text.</span>
+            </button>
+          </div>
+          <p className="mt-3 text-[11px] leading-5 text-[#74685D]">Keep will blend and polish all voices consistently.</p>
+        </div>
       </div>}
       <div className="mt-8">{nextButton("Continue",()=>go("intent"),project.voiceMode === "together" && ((project.contributors?.length ?? 0)<2 || (project.contributors ?? []).some(p=>!p.name.trim()) || new Set((project.contributors ?? []).map(p=>p.name.trim().toLowerCase())).size !== (project.contributors?.length ?? 0)))}</div>
     </div></>}
@@ -1551,10 +1630,10 @@ function KeepApp() {
           <Plus className="size-4"/> Add paragraph
         </Button>
         {isTogether && project.messageParagraphs.filter(p=>p.trim()).length < 2 && <p className="mt-4 text-xs text-[#806B57]">Create at least two speaking parts so everyone can take a turn.</p>}
-        <div className="mt-5">{nextButton(isTogether ? "Record together" : "Record Your Keep", () => {
+        <div className="mt-5">{nextButton(isTogether ? project.voiceRecordingLocation==="remote" ? "Invite your voices" : "Record together" : "Record Your Keep", () => {
           patch({ messageParagraphs: project.messageParagraphs.filter((p) => p.trim()), paragraphSpeakers: project.messageParagraphs.map((p,i)=>p.trim()?speakerFor(i):"").filter(Boolean) });
           setAppliedAiOriginal(null);
-          go("recordPrep");
+          go(isTogether && project.voiceRecordingLocation==="remote" ? "remoteInvite" : "recordPrep");
         }, !project.messageParagraphs.some((p) => p.trim()) || (isTogether && project.messageParagraphs.filter(p=>p.trim()).length < 2))}</div>
       </div>
       {askOpen && <KeepAskAIModal
@@ -1571,6 +1650,10 @@ function KeepApp() {
         onDismiss={() => { if (askBusy) return; setAskOpen(false); setAskSuggestion(null); setAskError(""); }}
       />}
     </>}
+    {screen === "remoteInvite" && <>{top()}<KeepRemoteInviteManager project={project}
+      onBack={()=>{setHistory(h=>[...h,"remoteInvite"]);setScreen("message");}}
+      onContinue={()=>{if(returnToEditorAfterRecording || project.memories.length){setHistory(h=>[...h,"remoteInvite"]);setScreen("editor");}else go("memories");}}
+      onCombine={combineRemoteVoices} combining={groupBusy}/></>}
     {screen === "recordPrep" && <div className="fixed inset-0 z-[80] flex items-center justify-center overflow-y-auto bg-[#111113]/65 px-4 pb-[max(16px,env(safe-area-inset-bottom))] pt-[max(16px,env(safe-area-inset-top))] backdrop-blur-[5px]">
       <section role="dialog" aria-modal="true" aria-labelledby="record-tips-title" aria-describedby="record-tips-intro" className="flex max-h-[calc(100dvh-32px)] w-full max-w-[440px] flex-col overflow-hidden rounded-[22px] border border-[#E6DED3] bg-[#F7F5F2] text-[#0B0B0B] shadow-[0_24px_80px_rgba(0,0,0,.35)]">
         <div className="min-h-0 overflow-y-auto px-7 pt-7 sm:px-9 sm:pt-9">
@@ -1935,6 +2018,10 @@ function KeepApp() {
         onTone={(tone) => { patchMix({ voiceTone: tone }); if (!editorPlaying && !!rec?.audioUrl && !rec.demo) { if (editorTime >= editorDuration - 0.1) seekEditor(0); setEditorPlaying(true); } }}
         onVolume={(kind,value) => patch(kind === "voice" ? {voiceVolume:value} : {musicVolume:value})}
         onMix={patchMix}
+        onRemoteManage={isTogether && project.voiceRecordingLocation==="remote" ? ()=>{
+          setEditorPlaying(false);setEditorExpanded(false);setEditorPanel(null);
+          setReturnToEditorAfterRecording(true);go("remoteInvite");
+        }:undefined}
       />}
 
       </div>
