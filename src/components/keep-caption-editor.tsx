@@ -53,7 +53,7 @@ export function KeepCaptionEditor({
         {cues.length > 0 && <button type="button" onClick={onPreviewSync} disabled={syncing}
           className="keep-studio-secondary-action flex min-h-10 items-center justify-center gap-2 px-3 text-[11px] disabled:opacity-55"><Play className="size-3.5" /> Preview</button>}
       </div>
-    </div>}}
+    </div>}
     {selected && <div className="mt-2.5 rounded-xl border border-[#55493F] bg-[#26231F] px-3 py-2.5">
       <div className="mb-2 flex items-center justify-between text-[11px] text-[#E2D8CC]">
         <label htmlFor="keep-current-caption">Edit spoken words</label><span className="tabular-nums text-[#BDB3AA]">{current + 1} / {cues.length}</span>
