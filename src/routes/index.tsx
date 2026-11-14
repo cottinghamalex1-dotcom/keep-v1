@@ -8,7 +8,7 @@ import { KeepCaptionEditor } from "@/components/keep-caption-editor";
 import { KeepMusicEditor } from "@/components/keep-music-editor";
 import { KeepVoiceEditor } from "@/components/keep-voice-editor";
 import { KeepRemoteInviteManager } from "@/components/keep-remote-invite-manager";
-import { remoteOwnerDownload } from "@/lib/keep-remote";
+import { remoteOwnerDownload, type RemoteMediaItem } from "@/lib/keep-remote";
 import { KeepPhotosEditor } from "@/components/keep-photos-editor";
 import { KeepStudioResize, DEFAULT_PREVIEW_SIZE, constrainPreviewSize } from "@/components/keep-studio-resize";
 import { KeepTeleprompter } from "@/components/keep-teleprompter";
@@ -1035,6 +1035,42 @@ function KeepApp() {
       setBusy(false);
     }
   };
+  const importContributorMoments = async (items:RemoteMediaItem[]):Promise<number> => {
+    const existing=new Set(project.memories.map(moment=>moment.remoteMediaId).filter(Boolean));
+    const newItems=items.filter(item=>!existing.has(item.id));
+    if(!newItems.length)return 0;
+    const staged:MediaItem[]=[];
+    const savedIds:string[]=[];
+    try{
+      for(const media of newItems){
+        if(media.kind!=="image"&&media.kind!=="video")throw new Error("An unsupported media type was shared.");
+        if(media.bytes<100||media.bytes>(media.kind==="video"?40:15)*1024*1024)throw new Error("This shared file is too large.");
+        const response=await fetch(media.signedUrl,{referrerPolicy:"no-referrer"});
+        if(!response.ok)throw new Error(`Couldn't retrieve ${media.name}. Please refresh the shared moments.`);
+        const blob=await response.blob();
+        if(blob.size<100||blob.size>(media.kind==="video"?40:15)*1024*1024)
+          throw new Error(`The file ${media.name} couldn't be verified.`);
+        const id=newId("media");
+        if(!(await putBlob(id,blob)))throw new Error("Your device couldn't save a shared moment. Free up space and try again.");
+        savedIds.push(id);
+        staged.push({
+          id,kind:media.kind,source:"upload",name:media.name,mimeType:media.mimeType,
+          remoteMediaId:media.id,persisted:true,url:URL.createObjectURL(blob),
+          displayDurationSec:media.kind==="video"?Math.max(1,Math.min(90,media.durationSec??7)):7
+        });
+      }
+      setProject(old=>{
+        const present=new Set(old.memories.map(item=>item.remoteMediaId).filter(Boolean));
+        return {...old,memories:[...old.memories,...staged.filter(item=>!present.has(item.remoteMediaId))]};
+      });
+      toast.success(`${staged.length} shared ${staged.length===1?"moment":"moments"} added. Arrange them in Photos.`);
+      return staged.length;
+    }catch(error){
+      staged.forEach(item=>URL.revokeObjectURL(item.url));
+      await deleteBlobs(savedIds);
+      throw error;
+    }
+  };
   const removeMemory = (i: number) => {
     const list = frames.length ? frames : shown;
     // Blob and object URL are kept so Undo can bring this moment back.
@@ -1653,7 +1689,7 @@ function KeepApp() {
     {screen === "remoteInvite" && <>{top()}<KeepRemoteInviteManager project={project}
       onBack={()=>{setHistory(h=>[...h,"remoteInvite"]);setScreen("message");}}
       onContinue={()=>{if(returnToEditorAfterRecording || project.memories.length){setHistory(h=>[...h,"remoteInvite"]);setScreen("editor");}else go("memories");}}
-      onCombine={combineRemoteVoices} combining={groupBusy}/></>}
+      onCombine={combineRemoteVoices} onImportMedia={importContributorMoments} combining={groupBusy}/></>}
     {screen === "recordPrep" && <div className="fixed inset-0 z-[80] flex items-center justify-center overflow-y-auto bg-[#111113]/65 px-4 pb-[max(16px,env(safe-area-inset-bottom))] pt-[max(16px,env(safe-area-inset-top))] backdrop-blur-[5px]">
       <section role="dialog" aria-modal="true" aria-labelledby="record-tips-title" aria-describedby="record-tips-intro" className="flex max-h-[calc(100dvh-32px)] w-full max-w-[440px] flex-col overflow-hidden rounded-[22px] border border-[#E6DED3] bg-[#F7F5F2] text-[#0B0B0B] shadow-[0_24px_80px_rgba(0,0,0,.35)]">
         <div className="min-h-0 overflow-y-auto px-7 pt-7 sm:px-9 sm:pt-9">
