@@ -124,7 +124,7 @@ const groupTimedWords = (words: TimedWord[], limit = 5): CaptionCue[] => {
   return cues;
 };
 
-const EDIT_KEYS = ["memories", "selfieVideos", "selfiePresentation", "selfieBookendSeconds", "selfieIntroId", "selfieOutroId", "captionCues", "captionStyle", "visualStyle", "musicMood", "voiceMusicBalance", "voiceVolume", "musicVolume", "captionPosition", "captionLines", "captionWordsPerCue", "audioMix"] as const;
+const EDIT_KEYS = ["memories", "selfieBaseMedia", "selfieVideos", "selfiePresentation", "selfieBookendSeconds", "selfieIntroId", "selfieOutroId", "captionCues", "captionStyle", "visualStyle", "musicMood", "voiceMusicBalance", "voiceVolume", "musicVolume", "captionPosition", "captionLines", "captionWordsPerCue", "audioMix"] as const;
 type EditSnapshot = Pick<KeepProject, (typeof EDIT_KEYS)[number]>;
 const takeSnapshot = (p: KeepProject): EditSnapshot => Object.fromEntries(EDIT_KEYS.map((k) => [k, p[k]])) as EditSnapshot;
 const sameSnapshot = (a: EditSnapshot, b: EditSnapshot) => EDIT_KEYS.every((k) => a[k] === b[k]);
@@ -889,6 +889,7 @@ function KeepApp() {
       if(oldFinal?.audioUrl)releaseUrls([oldFinal.audioUrl]);
       if(oldFinal?.audioId)void deleteBlobs([oldFinal.audioId]);
       setProject(old=>({...old,voiceParts:imported,groupVoiceSignature:signature,
+        memories:old.memories.length?composeSelfieStory(old.selfieBaseMedia?.length?old.selfieBaseMedia:withoutSelfieScenes(old.memories),old.selfieVideos??[],joined.durationSec,old):old.memories,
         finalVoiceRecording:{audioId,audioUrl:URL.createObjectURL(joined.blob),
           durationSec:joined.durationSec,mimeType:"audio/wav",demo:false},
         captionTranscript:"",captionCues:[],captionWords:[],captionTimingEstimated:false}));
