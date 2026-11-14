@@ -106,6 +106,14 @@ export function KeepPlayer({ name, from, year, onExit, onFinish, recipient = fal
     };
   }, [playing, end]);
 
+  // A phone call or backgrounded Safari must not let a hidden video/soundtrack
+  // run ahead. Resume only when the recipient presses Play again.
+  useEffect(()=>{
+    const onHide=()=>{if(document.hidden)setPlaying(false);};
+    document.addEventListener("visibilitychange",onHide);
+    return ()=>document.removeEventListener("visibilitychange",onHide);
+  },[]);
+
   // Recipients go straight to the light completion page, not a second dark end card.
   useEffect(() => {
     if (!audioUrl && scene >= 5 && !finishSent.current) {
