@@ -1,4 +1,4 @@
-import { ArrowLeft, ArrowRight } from "lucide-react";
+import { ArrowLeft, ArrowRight, LoaderCircle } from "lucide-react";
 import "./keep-first-play-reveal.css";
 
 type Props = {
@@ -8,6 +8,7 @@ type Props = {
   from?: string | undefined;
   year?: string | undefined;
   onOpen: () => void;
+  opening?: boolean;
   onOtherFormats: () => void;
   onCreatorExit?: (() => void) | undefined;
 };
@@ -22,6 +23,7 @@ export function KeepFirstPlayReveal({
   from,
   year,
   onOpen,
+  opening = false,
   onOtherFormats,
   onCreatorExit,
 }: Props) {
@@ -47,9 +49,11 @@ export function KeepFirstPlayReveal({
       </div>
 
       <footer className="keep-first-play__footer">
-        <button type="button" className="keep-first-play__open" onClick={onOpen}>
-          <span>Experience your Keep</span>
-          <ArrowRight size={19} strokeWidth={1.6} aria-hidden="true" />
+        <button type="button" className="keep-first-play__open" onClick={onOpen} disabled={opening} aria-busy={opening}>
+          <span>{opening ? "Opening your Keep…" : "Experience your Keep"}</span>
+          {opening
+            ? <LoaderCircle size={19} strokeWidth={1.6} aria-hidden="true" className="animate-spin motion-reduce:animate-none" />
+            : <ArrowRight size={19} strokeWidth={1.6} aria-hidden="true" />}
         </button>
         <button type="button" className="keep-first-play__other" onClick={onOtherFormats}>
           Or choose another way to experience it
