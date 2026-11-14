@@ -1,5 +1,6 @@
 import type { AudioMix, VoiceTone } from "./keep-project";
 import { musicCrossfadeCurves, musicLoopPlan } from "./keep-music-loop";
+import { KEEP_VOICE_PROFILES } from "./keep-voice-profiles";
 
 export type MusicBalance = "Soft" | "Balanced" | "Full";
 type MixOptions = Partial<AudioMix>;
@@ -347,58 +348,53 @@ export function createKeepVoiceMix(audio: HTMLAudioElement, mood: string, balanc
 
   const ctx: AudioContext = new AudioCtx();
   const source = ctx.createMediaElementSource(audio);
+  // Every voice is polished automatically, even on the Natural preset.
+  // The speech-band filters reduce rumble/mud and unwanted high-frequency hiss.
   const highpass = ctx.createBiquadFilter();
   highpass.type = "highpass";
-  highpass.frequency.value = 78;
-
-  const presence = ctx.createBiquadFilter();
-  presence.type = "peaking";
-  presence.frequency.value = 2800;
-  presence.Q.value = 0.75;
-  presence.gain.value = 2.2;
-
-  // Three intentionally distinct, lightweight voice treatments.
-  // These are real-time EQ/dynamics profiles (not pitch shifting or AI cleanup).
-  const warmth = ctx.createBiquadFilter();
-  warmth.type = "lowshelf";
-  warmth.frequency.value = 230;
-  warmth.gain.value = 0;
-
+  const lowShelf = ctx.createBiquadFilter();
+  lowShelf.type = "lowshelf";
+  lowShelf.frequency.value = 220;
   const lowMids = ctx.createBiquadFilter();
   lowMids.type = "peaking";
-  lowMids.frequency.value = 480;
-  lowMids.Q.value = 0.78;
-  lowMids.gain.value = 0;
-
+  lowMids.frequency.value = 390;
+  lowMids.Q.value = 0.85;
+  const presence = ctx.createBiquadFilter();
+  presence.type = "peaking";
+  presence.frequency.value = 2850;
+  presence.Q.value = 0.85;
   const air = ctx.createBiquadFilter();
   air.type = "highshelf";
-  air.frequency.value = 4900;
-  air.gain.value = 0;
+  air.frequency.value = 5400;
+  const deEss = ctx.createBiquadFilter();
+  deEss.type = "peaking";
+  deEss.frequency.value = 7600;
+  deEss.Q.value = 1.25;
+  deEss.gain.value = -1.7;
+  const hissCut = ctx.createBiquadFilter();
+  hissCut.type = "lowpass";
+  hissCut.frequency.value = 12700;
+  hissCut.Q.value = 0.3;
 
   const compressor = ctx.createDynamicsCompressor();
-  compressor.knee.value = 13;
-  compressor.attack.value = 0.008;
-  compressor.release.value = 0.23;
+  compressor.knee.value = 12;
+  const toneMakeUp = ctx.createGain();
 
   const applyVoiceTone = (tone: VoiceTone = "natural") => {
-    // Clear = definition/presence, Warm = rounded/full, Natural = lightly balanced.
-    // Retain the same output volume setting and smooth all live preset changes.
-    const next = tone === "clear"
-      ? { bassCut: 118, clarity: 7.2, warmth: -1.3, lowMids: -3.6, air: 3.7, threshold: -27, ratio: 3.6, attack: 0.006, release: 0.19 }
-      : tone === "warm"
-        ? { bassCut: 64, clarity: -0.6, warmth: 5.2, lowMids: 1.5, air: -2.6, threshold: -24, ratio: 3.0, attack: 0.011, release: 0.29 }
-        : { bassCut: 76, clarity: 1.0, warmth: 0, lowMids: 0, air: 0, threshold: -21, ratio: 2.4, attack: 0.009, release: 0.23 };
+    // More obvious yet natural-sounding differences without pitch alteration.
+    const profile = KEEP_VOICE_PROFILES[tone] ?? KEEP_VOICE_PROFILES.natural;
     const at = ctx.currentTime;
-    const ease = 0.065;
-    highpass.frequency.setTargetAtTime(next.bassCut, at, ease);
-    presence.gain.setTargetAtTime(next.clarity, at, ease);
-    warmth.gain.setTargetAtTime(next.warmth, at, ease);
-    lowMids.gain.setTargetAtTime(next.lowMids, at, ease);
-    air.gain.setTargetAtTime(next.air, at, ease);
-    compressor.threshold.setTargetAtTime(next.threshold, at, ease);
-    compressor.ratio.setTargetAtTime(next.ratio, at, ease);
-    compressor.attack.setTargetAtTime(next.attack, at, ease);
-    compressor.release.setTargetAtTime(next.release, at, ease);
+    const ease = 0.07;
+    highpass.frequency.setTargetAtTime(profile.highpassHz, at, ease);
+    lowShelf.gain.setTargetAtTime(profile.lowShelfDb, at, ease);
+    lowMids.gain.setTargetAtTime(profile.lowMidDb, at, ease);
+    presence.gain.setTargetAtTime(profile.presenceDb, at, ease);
+    air.gain.setTargetAtTime(profile.highShelfDb, at, ease);
+    compressor.threshold.setTargetAtTime(profile.compressorThreshold, at, ease);
+    compressor.ratio.setTargetAtTime(profile.compressorRatio, at, ease);
+    compressor.attack.setTargetAtTime(profile.compressorAttack, at, ease);
+    compressor.release.setTargetAtTime(profile.compressorRelease, at, ease);
+    toneMakeUp.gain.setTargetAtTime(profile.makeUp, at, ease);
   };
 
   const voiceGain = ctx.createGain();
@@ -413,16 +409,47 @@ export function createKeepVoiceMix(audio: HTMLAudioElement, mood: string, balanc
   master.gain.value = 0.92;
 
   source.connect(highpass);
-  highpass.connect(warmth);
-  warmth.connect(lowMids);
+  highpass.connect(lowShelf);
+  lowShelf.connect(lowMids);
   lowMids.connect(presence);
   presence.connect(air);
-  air.connect(compressor);
-  compressor.connect(voiceGain);
+  air.connect(deEss);
+  deEss.connect(hissCut);
+  hissCut.connect(compressor);
+  compressor.connect(toneMakeUp);
+  toneMakeUp.connect(voiceGain);
+  // A low-level adaptive expander attenuates background noise between phrases.
+  // AudioWorklet is optional; the EQ/compression/limiter stay active on older iOS.
+  let disposed = false;
+  let reducer: AudioWorkletNode | null = null;
+  if (ctx.audioWorklet && typeof AudioWorkletNode !== "undefined") {
+    void ctx.audioWorklet.addModule("/audio/keep-noise-reducer.js").then(() => {
+      if (disposed) return;
+      try {
+        const node = new AudioWorkletNode(ctx, "keep-noise-reducer");
+        node.connect(highpass);
+        source.disconnect(highpass);
+        source.connect(node);
+        reducer = node;
+      } catch {
+        // Never interrupt or replace the original voice when a device
+        // cannot initialize the optional cleanup processor.
+        try { source.disconnect(); source.connect(highpass); } catch { /* ignore */ }
+      }
+    }).catch(() => undefined);
+  }
   applyVoiceTone(initialOptions.voiceTone ?? "natural");
   voiceGain.connect(voiceMute);
   voiceMute.connect(master);
-  master.connect(ctx.destination);
+  // A gentle peak limiter protects the combined voice and music from overs.
+  const peakLimiter = ctx.createDynamicsCompressor();
+  peakLimiter.threshold.value = -7;
+  peakLimiter.knee.value = 0;
+  peakLimiter.ratio.value = 18;
+  peakLimiter.attack.value = 0.003;
+  peakLimiter.release.value = 0.09;
+  master.connect(peakLimiter);
+  peakLimiter.connect(ctx.destination);
 
   musicLevel.connect(musicMute);
   musicMute.connect(master);
@@ -462,7 +489,9 @@ export function createKeepVoiceMix(audio: HTMLAudioElement, mood: string, balanc
       if (ctx.state === "running") void music.play?.().catch(() => undefined);
     },
     stop: async () => {
+      disposed = true;
       music.stop();
+      try { reducer?.disconnect(); } catch { /* ignore */ }
       try { source.disconnect(); } catch { /* ignore */ }
       try { await ctx.close(); } catch { /* ignore */ }
     },

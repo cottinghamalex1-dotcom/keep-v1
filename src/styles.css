@@ -1031,3 +1031,136 @@ body:has(.keep-studio) {
   border-color: #DCD2C8;
   box-shadow: 0 3px 16px rgba(9,8,7,.075);
 }
+
+
+/* Studio v2: tactile, adjustable preview / effects split with a quiet design system. */
+.keep-studio--expanded .keep-studio-stage {
+  flex: 0 0 var(--keep-studio-stage-size, 46%);
+  min-height: 0;
+  padding: 5px 12px 6px;
+  transition: none;
+}
+.keep-studio--expanded .keep-studio-workspace { min-height: 0; flex: 1 1 0; overflow-y: auto; border-top: 0; background: #1D1B1A; }
+.keep-studio-splitter {
+  position: relative;
+  z-index: 5;
+  display: flex;
+  flex: 0 0 36px;
+  align-items: center;
+  justify-content: center;
+  gap: 11px;
+  min-height: 36px;
+  padding: 0 13px;
+  border-top: 1px solid #403832;
+  border-bottom: 1px solid #4B4137;
+  background: linear-gradient(180deg, #292522, #25211E);
+  box-shadow: 0 -3px 16px rgba(0,0,0,.08);
+}
+.keep-studio-splitter__label {
+  color: #B5A494;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+}
+.keep-studio-splitter__grip {
+  display: flex;
+  flex: 0 0 auto;
+  width: 48px;
+  height: 32px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #7B6956;
+  border-radius: 15px;
+  background: #3A312A;
+  color: #E8D9C8;
+  cursor: ns-resize;
+  touch-action: none;
+}
+.keep-studio-splitter__range-label { display: flex; align-items: center; }
+.keep-studio-splitter__range-label input[type=range] {
+  width: clamp(55px, 17vw, 105px);
+  height: 32px;
+  cursor: pointer;
+  accent-color: #D2BA99;
+}
+.keep-studio-splitter :is(button,input):focus-visible { outline: 2px solid #E2C7A7; outline-offset: 2px; }
+.keep-studio-compact { color: #F7F3EB; background: linear-gradient(180deg,#211F1D,#1B1A19); }
+.keep-studio-icon-button {
+  display: flex;
+  width: 36px;
+  height: 36px;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #66594D;
+  border-radius: 50%;
+  color: #E5D9CA;
+  background: #302B26;
+}
+.keep-studio-choice {
+  border: 1px solid #51483F;
+  border-radius: 11px;
+  background: linear-gradient(150deg, #302B27, #252321);
+  color: #F6F0E7;
+  box-shadow: inset 0 1px rgba(255,255,255,.035);
+  transition: border-color .18s ease, background .18s ease, box-shadow .18s ease;
+}
+.keep-studio-choice:hover { border-color: #A68C70; background: #383027; }
+.keep-studio-choice--selected,
+.keep-studio-choice[aria-pressed=true] {
+  border-color: #DDC29F;
+  background: #40352B;
+  box-shadow: inset 0 0 0 1px rgba(221,194,159,.12);
+}
+.keep-studio-secondary-action {
+  display: inline-flex;
+  min-height: 40px;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid #625448;
+  border-radius: 10px;
+  padding: 7px 11px;
+  background: #302A25;
+  color: #EEE0CF;
+  font-size: 11px;
+  font-weight: 500;
+}
+.keep-studio-secondary-action:hover { background: #3D342D; border-color: #AB9075; }
+.keep-studio-mini-button {
+  display: inline-flex;
+  min-height: 33px;
+  align-items: center;
+  gap: 3px;
+  border: 1px solid #66584A;
+  border-radius: 8px;
+  padding: 4px 8px;
+  background: #302A25;
+  color: #F1E6D8;
+  font-size: 10px;
+}
+.keep-studio-mini-button:disabled { opacity: .35; }
+.keep-studio-more { border-top: 1px solid #494039; }
+.keep-studio-more summary { list-style: none; }
+.keep-studio-more summary::-webkit-details-marker { display: none; }
+.keep-studio-more[open] summary svg:last-child { transform: rotate(180deg); }
+.keep-studio-more summary:focus-visible { outline: 2px solid #D2BA99; outline-offset: 2px; }
+.keep-studio--expanded .keep-studio-tools {
+  padding-top: 4px;
+  padding-bottom: max(6px, env(safe-area-inset-bottom));
+  gap: 4px;
+}
+.keep-studio--expanded .keep-studio-tools button {
+  min-height: 49px;
+  gap: 3px;
+  border-radius: 12px;
+  color: #C9BDB1;
+}
+.keep-studio--expanded .keep-studio-tools button svg { width: 18px; height: 18px; }
+.keep-studio--expanded .keep-studio-tools button[aria-pressed=true] { background: #E8D8C4; color: #211B17; }
+.keep-studio--expanded .keep-studio-tools button:hover:not([aria-pressed=true]) { background: #3A322D; color: #F8F0E6; }
+@media (max-width: 360px) {
+  .keep-studio-splitter { gap: 6px; padding: 0 8px; }
+  .keep-studio-splitter__grip { width: 38px; }
+  .keep-studio-splitter__label { font-size: 8px; }
+}

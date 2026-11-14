@@ -7,6 +7,8 @@ import { publishKeep } from "@/lib/keep-publish";
 import { KeepCaptionEditor } from "@/components/keep-caption-editor";
 import { KeepMusicEditor } from "@/components/keep-music-editor";
 import { KeepVoiceEditor } from "@/components/keep-voice-editor";
+import { KeepPhotosEditor } from "@/components/keep-photos-editor";
+import { KeepStudioResize, DEFAULT_PREVIEW_SIZE, constrainPreviewSize } from "@/components/keep-studio-resize";
 import { KeepTeleprompter } from "@/components/keep-teleprompter";
 import { KeepStyleEditor } from "@/components/keep-style-editor";
 import { KeepFinishingChoices } from "@/components/keep-finishing-choices";
@@ -17,7 +19,7 @@ import { captionAtTime, recoverCaptionTiming } from "@/lib/keep-caption-timing";
 import { activeKeepSession, loadEditableKeep, loadCloudDraft, saveCloudDraft, removeCloudDraft, retryMissingCloudMedia } from "@/lib/keep-cloud";
 import { CinematicMedia } from "@/components/cinematic-media";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useEffect, useRef, useState, type ChangeEvent, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ChangeEvent, type ReactNode, type CSSProperties } from "react";
 import { ArrowLeft, ArrowRight, Check, ChevronLeft, ChevronRight, CircleHelp, Download, Ellipsis, GripVertical, Images, LockKeyhole, MessageCircle, Mic, Keyboard, Music2, FileUp, Loader2, Pause, Play, Plus, Radio, RotateCcw, Settings2, Sparkles, Square, Trash2, Undo2, Redo2, VolumeX, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -186,6 +188,18 @@ function KeepApp() {
   const [resumeError, setResumeError] = useState("");
   const [editorPanel, setEditorPanel] = useState<Mode | null>(null);
   const [editorExpanded, setEditorExpanded] = useState(false);
+  const [studioPreviewSize, setStudioPreviewSize] = useState(DEFAULT_PREVIEW_SIZE);
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem("keep-studio-preview-size");
+      if (saved !== null && Number.isFinite(Number(saved))) setStudioPreviewSize(constrainPreviewSize(Number(saved)));
+    } catch { /* Private-browsing preferences are optional. */ }
+  }, []);
+  const updateStudioPreviewSize = (value: number) => {
+    const size = constrainPreviewSize(value);
+    setStudioPreviewSize(size);
+    try { window.localStorage.setItem("keep-studio-preview-size", String(size)); } catch { /* Optional */ }
+  };
   const [compareOriginalStyle, setCompareOriginalStyle] = useState(false);
   const [previewChooserOpen, setPreviewChooserOpen] = useState(false);
   const [creatorPreviewMode, setCreatorPreviewMode] = useState<KeepExperienceMode | null>(null);
@@ -227,7 +241,6 @@ function KeepApp() {
   const addInput = useRef<HTMLInputElement>(null);
   const draftInput = useRef<HTMLInputElement>(null);
   const replaceInput = useRef<HTMLInputElement>(null);
-  const dragFrom = useRef<number | null>(null);
   const patch = (p: Partial<KeepProject>) => setProject((o) => ({ ...o, ...p }));
   const mix: AudioMix = { ...defaultAudioMix, ...project.audioMix };
   const patchMix = (m: Partial<AudioMix>) => setProject((o) => ({ ...o, audioMix: { ...defaultAudioMix, ...o.audioMix, ...m } }));
@@ -1345,7 +1358,6 @@ function KeepApp() {
   const nextButton = (label: string, action: () => void, disabled = false) => <Button variant="keep" size="touch" className="keep-premium-action w-full justify-between" onClick={action} disabled={disabled}>{label}<ArrowRight /></Button>;
   const wave = (count = 27, active = true) => <div className="flex h-12 items-center justify-center gap-[3px]" aria-hidden="true">{Array.from({ length: count }, (_, i) => <span key={i} className={`${active ? "wave-bar" : "opacity-40"} w-[2px] rounded-full bg-accent`} style={{ height: `${10 + ((i * 17) % 34)}px`, animationDelay: `${-(i % 7) * 0.13}s` }} />)}</div>;
   const note = (children: ReactNode) => <p className="text-center text-[11px] leading-5 text-muted-foreground">{children}</p>;
-  const editorToolPanel = (heading: string, onClose: () => void, children: ReactNode) => <section className="keep-studio-panel" aria-label={heading}><div className="flex items-center justify-between"><h2 className="font-display text-2xl">{heading}</h2><Button variant="bare" size="icon" aria-label={`Close ${heading}`} onClick={onClose}><X /></Button></div>{children}</section>;
   const sheet = (heading: string, onClose: () => void, children: ReactNode) => <div className={`keep-fixed-screen fixed left-0 right-0 top-0 z-40 flex items-end justify-center ${heading === "Moments" ? "pointer-events-none bg-transparent" : "bg-background/80"}`} onClick={heading === "Moments" ? undefined : onClose}><div className={`keep-sheet-panel w-full max-w-[540px] overflow-y-auto rounded-t-lg bg-card px-7 pb-[max(40px,env(safe-area-inset-bottom))] pt-6 ${heading === "Moments" ? "pointer-events-auto max-h-[43dvh] border-t border-border shadow-2xl" : ""}`} onClick={(e) => e.stopPropagation()}><div className="flex items-center justify-between"><h2 className="font-display text-[30px]">{heading}</h2><Button variant="bare" size="icon" aria-label="Close" onClick={onClose}><X /></Button></div>{children}</div></div>;
   const micUnavailable = recorder.supported === false || recorder.status === "denied" || recorder.status === "error";
   const micMessage = recorder.supported === false ? "This browser can't record audio here." : recorder.status === "denied" ? "Microphone access was blocked. You can allow it in your browser settings." : recorder.status === "error" ? "The microphone couldn't start." : "";
@@ -1775,7 +1787,7 @@ function KeepApp() {
       onCreate={() => { stopVoiceSample(); createStory(); }}
     /></>}
     {screen === "generating" && <div className="flex keep-h-screen flex-col items-center justify-center px-8 text-center"><div className="relative mb-14 flex size-30 items-center justify-center"><div className="pulse-ring absolute inset-0 rounded-full border border-accent" /><Sparkles className="size-8 text-accent" /></div><h1 key={generation} className="display min-h-32 text-5xl page-enter">{["Gathering your moments…", "Bringing your voice and music together…", "Building your Keep…", "Your film is almost ready…"][generation]}</h1><p className="mt-8 max-w-xs text-xs leading-6 text-muted-foreground">Your selections are coming together into one personal film.</p></div>}
-    {screen === "editor" && selected && <div className={`keep-studio ${editorExpanded ? "keep-studio--expanded" : "keep-studio--immersive"}`}>
+    {screen === "editor" && selected && <div className={`keep-studio ${editorExpanded ? "keep-studio--expanded" : "keep-studio--immersive"}`} style={{ "--keep-studio-stage-size": `${studioPreviewSize}%` } as CSSProperties}>
       {project.restoreIncomplete && <div role="alert" className="mx-4 mt-3 flex items-center justify-between gap-3 rounded-xl border border-[#AD8F66] bg-[#30281F] px-3 py-3 text-white">
         <p className="text-xs leading-5">Your Keep is open. {project.restoreMissingCount ?? "Some"} files still need restoring. Your saved cloud copy is safe. Cloud saving is paused; tap Retry before making edits.</p>
         <Button type="button" variant="quiet" size="sm" disabled={restoreRetrying} onClick={() => void retryMissingRestore()}>
@@ -1839,6 +1851,7 @@ function KeepApp() {
         <span className="keep-studio-preview-time">{fmt(editorTime)} / {fmt(editorDuration)}</span>
       </section>}
 
+      {editorExpanded && <KeepStudioResize size={studioPreviewSize} onSize={updateStudioPreviewSize} />}
       <div className="keep-studio-workspace" key={editorPanel ?? "preview"}>
       {!rec?.demo && rec?.audioUrl && project.captionStyle !== "None" && !project.captionCues.length && <div className="border-t border-border/60 bg-card/70 px-5 py-3 text-xs"><div className="flex items-center justify-between gap-3"><span>{captionSyncing ? "Syncing captions to your recording…" : captionSyncError ? "Captions did not sync. Your recording is safe." : "Captions are not ready yet."}</span>{!captionSyncing && <Button variant="quiet" size="sm" onClick={() => void retryCaptionSync()}><RotateCcw className="size-3" /> Retry captions</Button>}</div></div>}
       {(editorPanel === "Music" || editorPanel === "Captions" || editorPanel === "Style") && <div className={`border-t border-border/60 bg-card/55 backdrop-blur-md page-enter ${editorPanel === "Captions" || editorPanel === "Music" || editorPanel === "Style" ? "" : "px-5 py-3"}`}>
@@ -1894,46 +1907,18 @@ function KeepApp() {
         />}
       </div>}
 
-      {editorPanel === "Memories" && editorToolPanel("Photos", () => { setEditorExpanded(false); setEditorPanel(null); }, <div className="pb-2">
-        <p className="mt-2 text-xs leading-5 text-muted-foreground">Choose the photos and short videos that bring your words to life. Tap a moment to select it, then use Earlier or Later to reorder. Short video clips work best; longer videos are automatically compressed when supported.</p>
-        <div className="thin-scroll mt-5 flex gap-2 overflow-x-auto pb-2" role="group" aria-label="Choose a photo to edit">{shown.map((m, i) => <div key={m.id} draggable={typeof window !== "undefined" && window.matchMedia("(hover: hover) and (pointer: fine)").matches} onDragStart={() => { dragFrom.current = i; }} onDragEnd={() => { dragFrom.current = null; }} onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); if (dragFrom.current !== null) moveMemory(dragFrom.current, i); dragFrom.current = null; }} className="shrink-0"><Button variant="bare" className={`relative h-24 w-18 overflow-hidden rounded-lg !p-0 touch-manipulation ${i === frame % shown.length ? "ring-2 ring-accent opacity-100" : "opacity-75"}`} aria-label={`Select photo ${i + 1} of ${shown.length}`} aria-pressed={i === frame % shown.length} onClick={() => {
-          if (dragFrom.current !== null) return;
-          // Film scenes are stretched/compressed to fit the recording. Seeking
-          // with unscaled photo lengths made taps select the wrong thumbnail.
-          setEditorPlaying(false);
-          editorAudioRef.current?.pause();
-          seekEditor(sceneSeekTime(shown, i, editorDuration));
-          setFrame(i);
-        }}><MediaView item={m} thumb alt={m.source === "sample" ? memoryLabels[i % memoryLabels.length] ?? "" : m.name ?? ""} className="h-full w-full object-cover pointer-events-none" />{m.kind === "video" && <Play className="pointer-events-none absolute bottom-1.5 left-1.5 size-3" fill="currentColor" />}</Button></div>)}</div>
-        <div className="mt-5 grid grid-cols-2 gap-2">
-          <Button variant="quiet" onClick={() => addInput.current?.click()}><Plus /> Add moments</Button>
-          <Button variant="quiet" onClick={() => replaceInput.current?.click()}>Replace</Button>
-          <Button variant="quiet" disabled={frame % shown.length === 0} onClick={() => moveMemory(frame % shown.length, frame % shown.length - 1)}><ChevronLeft /> Earlier</Button>
-          <Button variant="quiet" disabled={frame % shown.length >= shown.length - 1} onClick={() => moveMemory(frame % shown.length, frame % shown.length + 1)}>Later <ChevronRight /></Button>
-        </div>
-        <div className="mt-5 rounded-xl border border-border bg-background/50 p-4">
-          <div className="flex items-center justify-between gap-2">
-            <h3 className="text-sm font-medium">Photo transitions</h3>
-            <span className="text-[10px] text-muted-foreground">Moment {frame % shown.length + 1}</span>
-          </div>
-          <p className="mt-1 text-[11px] leading-5 text-muted-foreground">Choose how this photo flows into the next one.</p>
-          <div className="mt-3 grid grid-cols-3 gap-2">
-            {([{ key: "fade", label: "Fade", note: "Smooth" }, { key: "dissolve", label: "Dissolve", note: "Soft blend" }, { key: "cut", label: "Instant", note: "No blend" }] as const).map(option =>
-              <button key={option.key} type="button" disabled={frame % shown.length >= shown.length - 1} aria-pressed={(selected?.transition ?? "dissolve") === option.key} onClick={() => updateSelectedMoment({ transition: option.key })}
-                className={`min-h-[70px] rounded-xl border p-2.5 text-left disabled:opacity-40 ${(selected?.transition ?? "dissolve") === option.key ? "border-[#D2BA99] bg-[#E8E1D7] text-[#171719]" : "border-border bg-[#252326] text-foreground"}`}>
-                <span className="block text-xs font-medium">{option.label}</span>
-                <span className={`mt-1 block text-[10px] ${(selected?.transition ?? "dissolve") === option.key ? "text-[#5F544B]" : "text-muted-foreground"}`}>{option.note}</span>
-              </button>)}
-          </div>
-          <Button variant="quiet" className="mt-3 w-full" disabled={frame % shown.length >= shown.length - 1} onClick={previewCurrentTransition}>
-            <Play className="size-4" /> Preview transition
-          </Button>
-        </div>
-        <p className="mt-3 text-[11px] leading-5 text-muted-foreground">Need to reposition a photo? Drag it in the preview above. Gentle motion is applied automatically.</p>
-        <div className="mt-3 flex justify-start border-t border-border pt-4">
-          <Button variant="bare" size="sm" disabled={shown.length <= 1} className="text-muted-foreground" onClick={() => removeMemory(frame % shown.length)}><Trash2 className="size-4" /> Remove photo</Button>
-        </div>
-      </div>)}
+      {editorPanel === "Memories" && <KeepPhotosEditor
+        moments={shown}
+        selectedIndex={frame % shown.length}
+        onClose={() => { setEditorExpanded(false); setEditorPanel(null); }}
+        onSelect={(index) => {setEditorPlaying(false); editorAudioRef.current?.pause(); seekEditor(sceneSeekTime(shown,index,editorDuration));setFrame(index);}}
+        onAdd={() => addInput.current?.click()}
+        onReplace={() => replaceInput.current?.click()}
+        onMove={moveMemory}
+        onTransition={(transition) => updateSelectedMoment({transition})}
+        onPreviewTransition={previewCurrentTransition}
+        onRemove={() => removeMemory(frame % shown.length)}
+      />}
 
       {editorPanel === "Voice" && <KeepVoiceEditor
         hasVoice={!!rec?.audioUrl && !rec.demo}
