@@ -1456,14 +1456,27 @@ function KeepApp() {
       </div>
       {project.voiceMode === "together" && <div className="mt-6 rounded-2xl border border-border bg-white/40 p-5">
         <h2 className="font-display text-2xl">Who will speak?</h2>
-        <p className="mt-2 text-xs leading-5 text-muted-foreground">Add each person's first name. Later you'll choose who says each part and pass the phone around to record.</p>
+        <p className="mt-2 text-xs leading-5 text-muted-foreground">Add each person's first name. Later you'll assign exactly what each person says, then choose whether to record together or remotely.</p>
         <div className="mt-5 space-y-3">{(project.contributors ?? []).map((person,i) => <div key={person.id} className="flex items-center gap-2">
           <label className="min-w-0 flex-1"><span className="mb-1 block text-[10px] font-medium uppercase tracking-widest text-muted-foreground">Voice {i+1}</span>
             <input aria-label={`Voice ${i+1} name`} placeholder={i===0?"Your name":i===1?"Second person's name":"Contributor name"} maxLength={60} value={person.name} onChange={event=>patch({contributors:(project.contributors ?? []).map(p=>p.id===person.id?{...p,name:event.target.value}:p)})} className="w-full rounded-lg border border-border bg-background px-4 py-3 text-base outline-none focus:border-accent"/></label>
           {(project.contributors?.length ?? 0) > 2 && <button type="button" aria-label={`Remove ${person.name || `voice ${i+1}`}`} className="mt-5 rounded-lg border border-border p-3 text-muted-foreground" onClick={()=>patch({contributors:(project.contributors ?? []).filter(p=>p.id!==person.id)})}><Trash2 className="size-4"/></button>}
         </div>)}</div>
         {(project.contributors?.length ?? 0) < 8 && <Button variant="bare" size="sm" className="mt-3" onClick={()=>patch({contributors:[...(project.contributors ?? []),{id:newId("speaker"),name:""}]})}><Plus className="size-4"/> Add another voice</Button>}
-        <p className="mt-5 text-xs leading-5 text-muted-foreground">Everyone records separately on this device. Keep brings the recordings together with the music, photos and captions.</p>
+        <div className="mt-6 border-t border-[#DDD3C9] pt-4">
+          <p className="mb-3 text-[11px] font-semibold uppercase tracking-[.13em] text-[#8A725A]">How will you record?</p>
+          <div className="grid grid-cols-2 gap-2">
+            <button type="button" aria-pressed={project.voiceRecordingLocation!=="remote"} onClick={()=>patch({voiceRecordingLocation:"in_person"})}
+              className={`rounded-xl border px-3 py-4 text-left ${project.voiceRecordingLocation!=="remote"?"border-[#AD9275] bg-[#EDE1D2]":"border-[#DAD1C8] bg-[#FFFDF9]"}`}>
+              <span className="block text-sm font-semibold">Together here</span><span className="mt-1 block text-[11px] leading-5 text-[#776A5D]">Pass one phone around.</span>
+            </button>
+            <button type="button" aria-pressed={project.voiceRecordingLocation==="remote"} onClick={()=>patch({voiceRecordingLocation:"remote"})}
+              className={`rounded-xl border px-3 py-4 text-left ${project.voiceRecordingLocation==="remote"?"border-[#AD9275] bg-[#EDE1D2]":"border-[#DAD1C8] bg-[#FFFDF9]"}`}>
+              <span className="block text-sm font-semibold">From anywhere</span><span className="mt-1 block text-[11px] leading-5 text-[#776A5D]">Send private recording links by text.</span>
+            </button>
+          </div>
+          <p className="mt-3 text-[11px] leading-5 text-[#74685D]">Keep will blend and polish all voices consistently.</p>
+        </div>
       </div>}
       <div className="mt-8">{nextButton("Continue",()=>go("intent"),project.voiceMode === "together" && ((project.contributors?.length ?? 0)<2 || (project.contributors ?? []).some(p=>!p.name.trim()) || new Set((project.contributors ?? []).map(p=>p.name.trim().toLowerCase())).size !== (project.contributors?.length ?? 0)))}</div>
     </div></>}
@@ -1611,10 +1624,10 @@ function KeepApp() {
           <Plus className="size-4"/> Add paragraph
         </Button>
         {isTogether && project.messageParagraphs.filter(p=>p.trim()).length < 2 && <p className="mt-4 text-xs text-[#806B57]">Create at least two speaking parts so everyone can take a turn.</p>}
-        <div className="mt-5">{nextButton(isTogether ? "Record together" : "Record Your Keep", () => {
+        <div className="mt-5">{nextButton(isTogether ? project.voiceRecordingLocation==="remote" ? "Invite your voices" : "Record together" : "Record Your Keep", () => {
           patch({ messageParagraphs: project.messageParagraphs.filter((p) => p.trim()), paragraphSpeakers: project.messageParagraphs.map((p,i)=>p.trim()?speakerFor(i):"").filter(Boolean) });
           setAppliedAiOriginal(null);
-          go("recordPrep");
+          go(isTogether && project.voiceRecordingLocation==="remote" ? "remoteInvite" : "recordPrep");
         }, !project.messageParagraphs.some((p) => p.trim()) || (isTogether && project.messageParagraphs.filter(p=>p.trim()).length < 2))}</div>
       </div>
       {askOpen && <KeepAskAIModal
@@ -1631,6 +1644,10 @@ function KeepApp() {
         onDismiss={() => { if (askBusy) return; setAskOpen(false); setAskSuggestion(null); setAskError(""); }}
       />}
     </>}
+    {screen === "remoteInvite" && <>{top()}<KeepRemoteInviteManager project={project}
+      onBack={()=>{setHistory(h=>[...h,"remoteInvite"]);setScreen("message");}}
+      onContinue={()=>{if(returnToEditorAfterRecording || project.memories.length){setHistory(h=>[...h,"remoteInvite"]);setScreen("editor");}else go("memories");}}
+      onCombine={combineRemoteVoices} combining={groupBusy}/></>}
     {screen === "recordPrep" && <div className="fixed inset-0 z-[80] flex items-center justify-center overflow-y-auto bg-[#111113]/65 px-4 pb-[max(16px,env(safe-area-inset-bottom))] pt-[max(16px,env(safe-area-inset-top))] backdrop-blur-[5px]">
       <section role="dialog" aria-modal="true" aria-labelledby="record-tips-title" aria-describedby="record-tips-intro" className="flex max-h-[calc(100dvh-32px)] w-full max-w-[440px] flex-col overflow-hidden rounded-[22px] border border-[#E6DED3] bg-[#F7F5F2] text-[#0B0B0B] shadow-[0_24px_80px_rgba(0,0,0,.35)]">
         <div className="min-h-0 overflow-y-auto px-7 pt-7 sm:px-9 sm:pt-9">
