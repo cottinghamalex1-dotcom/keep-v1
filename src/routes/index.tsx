@@ -1917,7 +1917,7 @@ function KeepApp() {
       </div>
     </div></>}
     {screen === "memories" && <>{top()}<div className="px-7 pb-10 pt-9">
-      {title("YOUR MOMENTS", "Add photos & videos.", "Let photos tell most of the story, with a few meaningful video moments mixed in.")}
+      {title("YOUR MOMENTS", "Add photos & videos.", "Let photos tell most of the story, with a few meaningful video moments mixed in—or simply let your face tell it.")}
       <div className="keep-editorial-surface mb-7 px-5 py-5" aria-live="polite">
         <div className="flex items-center justify-between gap-3"><p className="text-[11px] font-medium uppercase tracking-[.14em] text-[#6A5849]">Suggested moments</p>{guidanceSeconds > 0 && <span className="text-[11px] text-muted-foreground">{narrationLengthText}</span>}</div>
         {guidanceSeconds > 0 ? <>
@@ -1942,6 +1942,22 @@ function KeepApp() {
           <p className="text-[12px] font-semibold text-[#44382D]">Adding videos? Keep them short.</p>
           <p className="mt-1 text-[12px] leading-5 text-[#675B50]">Short clips of <strong>10 seconds or less</strong> usually tell the story best. For longer videos, Keep will <strong>automatically compress</strong> the file on your device when possible (up to 90 seconds). This can take a little while. The video plays muted so your narration and music stay front and center.</p>
         </div>
+      </aside>
+      <aside aria-label="Optional selfie video" className="mb-5 rounded-[20px] border border-[#CDB7A2] bg-[#F6EFE5] px-4 py-4">
+        <div className="flex items-center gap-2"><Camera className="size-5 text-[#795F47]"/>
+          <h3 className="font-display text-[24px]">No photos? Show your face.</h3></div>
+        <p className="mt-2 text-xs leading-6 text-[#6D5D4D]">
+          Completely optional. Read your words over the front-camera preview and record a selfie while you speak.
+          With no photos, your selfie can carry the whole Keep. With photos, it can gently open and close the story.
+        </p>
+        {(project.selfieVideos??[]).length>0&&<div className="mt-3 flex gap-2 overflow-x-auto">
+          {(project.selfieVideos??[]).map(item=><video key={item.id} src={item.url} muted playsInline preload="metadata"
+            className="aspect-[3/4] h-24 shrink-0 rounded-lg object-cover" aria-label="Your recorded selfie video"/>)}
+        </div>}
+        <Button variant="quiet" size="touch" className="mt-3 w-full" onClick={()=>void recordSelfieFromMedia()}>
+          <Camera className="size-4"/>{(project.selfieVideos??[]).length?"Record another selfie":"Record a selfie instead"}<ArrowRight className="size-4"/>
+        </Button>
+        <p className="mt-2 text-[11px] leading-5 text-[#887463]">Recording here replaces the narration with the new take so your voice and face stay in sync.</p>
       </aside>
       <div className="keep-creator-photo-grid grid grid-cols-3 gap-1">
         {personalMedia.map((m, i) => <div key={m.id} className="relative aspect-square overflow-hidden bg-card"><MediaView item={m} thumb alt={m.name ?? "Your memory"} className="h-full w-full object-cover" /><button type="button" aria-label={"Remove memory " + (i+1)} onClick={() => removeMemory(i)} className="absolute right-1 top-1 rounded-full bg-black/70 p-2 text-white"><X className="size-4" /></button></div>)}
@@ -2104,6 +2120,26 @@ function KeepApp() {
         onRemove={() => removeMemory(frame % shown.length)}
       />}
 
+      {editorPanel === "Selfie" && <KeepSelfieEditor
+        takes={project.selfieVideos??[]}
+        settings={project}
+        hasOtherMoments={withoutSelfieScenes(project.memories).filter(item=>item.source!=="text").length>0}
+        onClose={()=>{setEditorExpanded(false);setEditorPanel(null);}}
+        onChange={updates=>setProject(old=>({...old,...updates,
+          memories:composeSelfieStory(withoutSelfieScenes(old.memories),old.selfieVideos??[],
+            old.finalVoiceRecording?.durationSec??150,{...old,...updates})}))}
+        onRecord={()=>{setReturnToEditorAfterRecording(true);void recordSelfieFromMedia();}}
+        onRemove={id=>{
+          if(!window.confirm("Remove this selfie video from your Keep? The voice recording stays unchanged."))return;
+          setProject(old=>{
+            const selfies=(old.selfieVideos??[]).filter(item=>item.id!==id);
+            return {...old,selfieVideos:selfies,
+              memories:composeSelfieStory(withoutSelfieScenes(old.memories),selfies,
+                old.finalVoiceRecording?.durationSec??150,old)};
+          });
+        }}
+      />}
+
       {editorPanel === "Voice" && <KeepVoiceEditor
         hasVoice={!!rec?.audioUrl && !rec.demo}
         duration={rec?.durationSec}
@@ -2127,7 +2163,7 @@ function KeepApp() {
 
       </div>
       <nav className="keep-studio-tools" aria-label="Editing tools">
-        {([{ panel: "Memories", label: "Photos", Icon: Images }, { panel: "Captions", label: "Captions", Icon: MessageCircle }, { panel: "Music", label: "Music", Icon: Music2 }, { panel: "Voice", label: "Voice", Icon: Mic }, { panel: "Style", label: "Style", Icon: Sparkles }] as const).map(({ panel, label, Icon }) => <button key={label} type="button" aria-pressed={editorPanel === panel} onClick={() => { stopMusicSample(); setMusicSampling(""); setCompareOriginalStyle(false); setEditorPanel(panel); }}><Icon /><span>{label}</span></button>)}
+        {([{ panel: "Memories", label: "Photos", Icon: Images }, { panel: "Captions", label: "Captions", Icon: MessageCircle }, { panel: "Music", label: "Music", Icon: Music2 }, { panel: "Voice", label: "Voice", Icon: Mic }, { panel: "Selfie", label: "Selfie", Icon: Camera }, { panel: "Style", label: "Style", Icon: Sparkles }] as const).map(({ panel, label, Icon }) => <button key={label} type="button" aria-pressed={editorPanel === panel} onClick={() => { stopMusicSample(); setMusicSampling(""); setCompareOriginalStyle(false); setEditorPanel(panel); }}><Icon /><span>{label}</span></button>)}
       </nav>
 
       {previewChooserOpen && sheet("Preview your Keep", () => { setPreviewChooserOpen(false); setReadArrangeOpen(false); }, <div className="pb-2">
