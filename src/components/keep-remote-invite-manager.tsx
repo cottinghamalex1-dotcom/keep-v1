@@ -16,6 +16,7 @@ export const getSpeakerParts = (project: KeepProject, contributorId: string): Re
 
 export function KeepRemoteInviteManager({ project,onContinue,onCombine,onBack,combining }:Props) {
   const [statuses,setStatuses]=useState<RemoteInviteStatus[]>([]);
+  const [emailEnabled,setEmailEnabled]=useState<boolean|null>(null);
   const [links,setLinks]=useState<Record<string,string>>({});
   const [creatorName,setCreatorName]=useState(project.contributors?.[0]?.name||"");
   const [busyId,setBusyId]=useState("");
@@ -27,7 +28,7 @@ export function KeepRemoteInviteManager({ project,onContinue,onCombine,onBack,co
   const refresh=useCallback(async ()=>{
     if(!keepId)return;
     setLoading(true);
-    try {const result=await listRemoteInvites(keepId);setStatuses(result.invites);}
+    try {const result=await listRemoteInvites(keepId);setStatuses(result.invites);setEmailEnabled(!!result.notificationsEnabled);}
     catch(error){setMessage(error instanceof Error?error.message:"Unable to check recording invitations.");}
     finally{setLoading(false);}
   },[keepId]);
@@ -144,6 +145,9 @@ export function KeepRemoteInviteManager({ project,onContinue,onCombine,onBack,co
       : <button type="button" onClick={onContinue} className="mt-4 flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#171512] px-4 text-[12px] font-semibold text-[#F7F1E9]">
           Continue with photos while they record <ArrowRight className="size-4"/>
         </button>}
+      {emailEnabled===false && <p className="mt-3 flex items-start gap-2 rounded-lg border border-[#DECDB8] bg-[#FFFAF3] px-3 py-2 text-[11px] leading-5 text-[#766454]">
+        <Mail className="mt-0.5 size-4 shrink-0"/> Recordings are tracked here. Automatic email alerts are not yet configured for this Keep account.
+      </p>}
       <p className="mt-3 text-center text-[11px] leading-5 text-[#7D6F61]">
         Invitations expire after 30 days. You can leave and come back to this Keep whenever you like.
       </p>
