@@ -27,6 +27,15 @@ export function KeepTeleprompter({ text, label, speaker, isRecording, isPaused, 
   const filming=!!cameraStream;
   const viewport = useRef<HTMLDivElement>(null);
   const previousRecording = useRef(false);
+  // Keep fractional scroll progress: mobile Safari rounds scrollTop to whole pixels,
+  // so reading it back every animation frame can leave auto-scroll stuck at zero.
+  const scrollTarget = useRef(0);
+  const lastAppliedScroll = useRef(0);
+  const resetScroll = () => {
+    scrollTarget.current = 0;
+    lastAppliedScroll.current = 0;
+    if (viewport.current) viewport.current.scrollTop = 0;
+  };
   const [speed, setSpeed] = useState(1);
   const [following, setFollowing] = useState(true);
   const [rehearsing, setRehearsing] = useState(false);
@@ -35,7 +44,7 @@ export function KeepTeleprompter({ text, label, speaker, isRecording, isPaused, 
   useEffect(() => {
     if (isRecording && !previousRecording.current) {
       // A new take starts from the first line, including after rehearsing.
-      if (viewport.current) viewport.current.scrollTop = 0;
+      resetScroll();
       setFollowing(true);
       setRehearsing(false);
     }
@@ -46,19 +55,29 @@ export function KeepTeleprompter({ text, label, speaker, isRecording, isPaused, 
     if (!moving || !following) return;
     let raf = 0;
     let last = 0;
+    scrollTarget.current = viewport.current?.scrollTop ?? 0;
+    lastAppliedScroll.current = scrollTarget.current;
     const wordCount = Math.max(1, (text.match(/\S+/gu) ?? []).length);
     // A natural speaking pace provides a useful starting speed. The creator
     // can slow down, speed up, pause following, or scroll with a finger.
     const suggestedSeconds = Math.max(8, wordCount / 175 * 60);
     const tick = (now: number) => {
       const element = viewport.current;
-      if (element && last) {
-        const seconds = Math.min(0.1, Math.max(0, (now - last) / 1000));
-        const distance = Math.max(0, element.scrollHeight - element.clientHeight);
-        // Full travel is paced against the actual script length, without a
-        // hard pixel-speed cap that can strand longer scripts below the viewport.
-        const pixelsPerSecond = distance / suggestedSeconds;
-        element.scrollTop = Math.min(distance, element.scrollTop + seconds * pixelsPerSecond * speed);
+      if (element) {
+        // If the creator scrolls with a finger, follow from their new position.
+        if (Math.abs(element.scrollTop - lastAppliedScroll.current) > 2) {
+          scrollTarget.current = element.scrollTop;
+        }
+        if (last) {
+          const seconds = Math.min(0.1, Math.max(0, (now - last) / 1000));
+          const distance = Math.max(0, element.scrollHeight - element.clientHeight);
+          const pixelsPerSecond = distance / suggestedSeconds;
+          // Accumulate subpixel progress instead of repeatedly adding less than
+          // one pixel to Safari's rounded scrollTop (which otherwise never moves).
+          scrollTarget.current = Math.min(distance, scrollTarget.current + seconds * pixelsPerSecond * speed);
+          element.scrollTop = scrollTarget.current;
+          lastAppliedScroll.current = element.scrollTop;
+        }
       }
       last = now;
       raf = window.requestAnimationFrame(tick);
@@ -68,7 +87,7 @@ export function KeepTeleprompter({ text, label, speaker, isRecording, isPaused, 
   }, [moving, following, speed, text]);
 
   const restart = () => {
-    if (viewport.current) viewport.current.scrollTop = 0;
+    resetScroll();
     setFollowing(true);
   };
   const beginRehearsal = () => {
@@ -82,7 +101,7 @@ export function KeepTeleprompter({ text, label, speaker, isRecording, isPaused, 
   const timeLabel = String(Math.floor(elapsed / 60)).padStart(2, "0") + ":" + String(Math.floor(elapsed % 60)).padStart(2, "0");
 
   return (
-    <section className={`flex min-h-0 flex-1 flex-col overflow-hidden rounded-[24px] border shadow-[0_8px_30px_rgba(64,46,25,.06)] ${filming?"border-[#75675B] bg-[#151311] text-white":"border-[#D7C8B8] bg-[#FAF6EF] text-[#211D19]"}`} aria-label={filming?"Selfie video recording teleprompter":"Recording teleprompter"}>
+    <section className={`grid min-h-0 flex-1 grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden rounded-[24px] border shadow-[0_8px_30px_rgba(64,46,25,.06)] ${filming?"border-[#75675B] bg-[#151311] text-white":"border-[#D7C8B8] bg-[#FAF6EF] text-[#211D19]"}`} aria-label={filming?"Selfie video recording teleprompter":"Recording teleprompter"}>
       <div className={`relative z-20 flex shrink-0 flex-wrap items-center justify-between gap-2 border-b px-4 py-3 sm:px-6 ${filming?"border-white/20 bg-[#211D19]":"border-[#E5D9CB]"}`}>
         <div className="flex min-w-0 items-center gap-2">
           <span className={`text-[10px] font-semibold uppercase tracking-[.13em] ${filming?"text-[#E3CEB0]":"text-[#8A6D52]"}`}>{label}</span>
@@ -100,7 +119,7 @@ export function KeepTeleprompter({ text, label, speaker, isRecording, isPaused, 
         )}
       </div>
 
-      <div className="relative flex min-h-0 flex-1 flex-col">
+      <div className="relative isolate min-h-0 overflow-hidden">
         {filming && <>
           <video ref={camera} muted playsInline autoPlay aria-label="Live front camera preview"
             className="pointer-events-none absolute inset-0 h-full w-full scale-x-[-1] object-cover" />
@@ -110,16 +129,16 @@ export function KeepTeleprompter({ text, label, speaker, isRecording, isPaused, 
           </div>
         </>}
         <div ref={viewport} tabIndex={0} aria-label="Auto-scrolling teleprompter script"
-          className="relative z-10 min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#B69B7B] sm:px-8"
-          style={{ paddingTop: "clamp(64px, 16dvh, 140px)", paddingBottom: "clamp(150px, 32dvh, 260px)" }}>
-          <p className={`whitespace-pre-wrap font-display text-[clamp(25px,6.5vw,36px)] leading-[1.46] tracking-[-.018em] ${filming?"text-white [text-shadow:0_2px_12px_rgba(0,0,0,.9)]":""}`}>{text}</p>
+          className="relative z-10 h-full min-h-0 overflow-y-auto overscroll-contain px-5 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#B69B7B] sm:px-8"
+          style={{ WebkitOverflowScrolling: "touch", paddingTop: filming ? "clamp(72px, 13dvh, 110px)" : "clamp(44px, 9dvh, 84px)", paddingBottom: "clamp(90px, 18dvh, 160px)" }}>
+          <p className={`whitespace-pre-wrap font-display tracking-[-.018em] ${filming?"text-[clamp(22px,5.2vw,29px)] leading-[1.42] text-white [text-shadow:0_2px_12px_rgba(0,0,0,.9)]":"text-[clamp(24px,5.8vw,33px)] leading-[1.45]"}`}>{text}</p>
         </div>
         <div className={`pointer-events-none absolute inset-x-0 bottom-0 h-8 bg-gradient-to-t to-transparent ${filming?"from-[#151311]":"from-[#FAF6EF]"}`} aria-hidden="true" />
       </div>
 
-      <div className="shrink-0 border-t border-[#E5D9CB] bg-[#F5EEE4] px-3 py-2.5 sm:px-5">
+      <div className="relative z-20 shrink-0 border-t border-[#E5D9CB] bg-[#F5EEE4] px-3 py-2.5 sm:px-5">
         <p role="status" className="mb-2 text-center text-[10px] font-semibold tracking-[.07em] text-[#6A5849]">
-          {isRecording ? (isPaused ? "Recording paused · Words will resume moving" : following ? "● AUTO-SCROLLING WITH YOUR VOICE" : "Auto-scroll paused") :
+          {isRecording ? (isPaused ? "Recording paused · Auto-scroll will resume with recording" : following ? "● AUTO-SCROLLING" : "Auto-scroll paused") :
             rehearsing ? "● PRACTICE AUTO-SCROLLING" : "Words scroll automatically when recording starts"}
         </p>
         <div className="mb-2 flex items-center justify-between gap-2">
@@ -131,9 +150,9 @@ export function KeepTeleprompter({ text, label, speaker, isRecording, isPaused, 
           <button type="button" aria-label="Faster teleprompter scrolling" className="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl border border-[#BCA88F] bg-[#FFFDF8] px-3 text-[12px] font-semibold text-[#48382A] shadow-[0_2px_5px_rgba(43,30,18,.08)] transition-colors hover:bg-[#ECE1D2] active:bg-[#E8D9C7] disabled:cursor-not-allowed disabled:opacity-35" disabled={speed >= 2.0} onClick={() => setSpeed(value => Math.min(2, Math.round((value + 0.2) * 10) / 10))}>Faster <Plus className="size-4" /></button>
         </div>
         {isRecording ? (
-          <button type="button" onClick={() => setFollowing(value => !value)} className="flex min-h-10 w-full items-center justify-center gap-2 rounded-lg border border-[#DED0BE] bg-[#FFF9F2] px-4 text-xs font-medium text-[#4C3A2B]">
+          <button type="button" disabled={isPaused} onClick={() => setFollowing(value => !value)} className="flex min-h-10 w-full items-center justify-center gap-2 rounded-lg border border-[#DED0BE] bg-[#FFF9F2] px-4 text-xs font-medium text-[#4C3A2B] disabled:cursor-not-allowed disabled:opacity-55">
             {following ? <Pause className="size-3.5" /> : <Play className="size-3.5" />}
-            {following ? "Pause auto-scroll" : "Resume auto-scroll"}
+            {isPaused ? "Scrolling paused with recording" : following ? "Pause auto-scroll" : "Resume auto-scroll"}
           </button>
         ) : (
           <div className="flex gap-2">
