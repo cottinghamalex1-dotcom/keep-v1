@@ -80,6 +80,10 @@ export function KeepRecipientExperience({
   const visitKey = useMemo(() => `keep.recipient.opened.${name}.${from}.${year}`, [name, from, year]);
   const [visited, setVisited] = useState(false);
   const [stage, setStage] = useState<"reveal" | "choose" | "experience" | "ending">(creatorPreview && initialExperience ? "experience" : "reveal");
+  // Retain the letter-like introduction over the player until the opening
+  // media is actually decoded; never expose the player's empty dark backdrop.
+  const [introHandoff, setIntroHandoff] = useState(false);
+  const [openingFrameReady, setOpeningFrameReady] = useState(false);
   const [experience, setExperience] = useState<KeepExperienceMode>(initialExperience ?? "watch");
   const [listening, setListening] = useState(false);
   const [galleryOpen, setGalleryOpen] = useState(false);
@@ -158,6 +162,8 @@ export function KeepRecipientExperience({
   },[stage,experience,musicMood,voiceMusicBalance,audioMix?.fadeIn,audioMix?.fadeOut,audioMix?.ducking]);
 
   const enter = () => {
+    setOpeningFrameReady(false);
+    setIntroHandoff(true);
     if (persistVisit) {
       try { localStorage.setItem(visitKey, "1"); } catch { /* private browsing */ }
     }
@@ -177,6 +183,7 @@ export function KeepRecipientExperience({
   };
 
   const backToChoose = () => {
+    setIntroHandoff(false);
     if (timer.current) window.clearInterval(timer.current);
     timer.current = null;
     cancelPendingListen();
@@ -191,6 +198,7 @@ export function KeepRecipientExperience({
   };
 
   const finishExperience = () => {
+    setIntroHandoff(false);
     if (timer.current) window.clearInterval(timer.current);
     timer.current = null;
     cancelPendingListen();
@@ -272,8 +280,32 @@ export function KeepRecipientExperience({
     }, Math.max(80, Math.round((audioDuration * 1000) / 100)));
   };
 
-  if (stage === "experience" && experience === "watch") {
-    return <main className="app-shell"><KeepPlayer name={name.toUpperCase()} from={from} year={year} subtitle={subtitle} recipient onExit={backToChoose} onFinish={finishExperience} style={style} captions={captions} media={media} audioUrl={audioUrl} audioDuration={audioDuration} lines={lines} captionCues={captionCues} musicMood={musicMood} voiceMusicBalance={voiceMusicBalance} voiceVolume={voiceVolume} musicVolume={musicVolume} captionPosition={captionPosition} captionLines={captionLines} audioMix={audioMix} /></main>;
+  if (stage === "reveal" || (stage === "experience" && experience === "watch")) {
+    const watching = stage === "experience";
+    return <main className="app-shell relative">
+      {watching && <KeepPlayer key="recipient-film"
+        name={name.toUpperCase()} from={from} year={year} subtitle={subtitle}
+        recipient onExit={backToChoose} onFinish={finishExperience}
+        style={style} captions={captions} media={media} audioUrl={audioUrl}
+        audioDuration={audioDuration} lines={lines} captionCues={captionCues}
+        musicMood={musicMood} voiceMusicBalance={voiceMusicBalance}
+        voiceVolume={voiceVolume} musicVolume={musicVolume}
+        captionPosition={captionPosition} captionLines={captionLines}
+        audioMix={audioMix} onOpeningFrameReady={() => setOpeningFrameReady(true)} />}
+      {(stage === "reveal" || introHandoff) && <div key="recipient-intro"
+        aria-hidden={watching} inert={watching}
+        onTransitionEnd={event => {
+          if (watching && openingFrameReady && event.target === event.currentTarget) setIntroHandoff(false);
+        }}
+        className={`absolute inset-0 z-[70] transition-opacity duration-[850ms] ease-in-out motion-reduce:duration-0 ${watching && openingFrameReady ? "pointer-events-none opacity-0" : "opacity-100"}`}>
+        <KeepFirstPlayReveal
+          name={name} occasion={subtitle} introduction={openingMessage}
+          from={from} year={year} onOpen={enter}
+          onOtherFormats={() => { setVisited(true); setStage("choose"); }}
+          onCreatorExit={creatorPreview ? onCreatorExit : undefined}
+        />
+      </div>}
+    </main>;
   }
 
   if (stage === "experience" && experience === "listen") {
@@ -362,18 +394,7 @@ export function KeepRecipientExperience({
     </div></main>{galleryOpen && !!media?.length && <KeepMemoryGallery media={media} musicMood={musicMood} onClose={() => setGalleryOpen(false)} />}</>;
   }
 
-  return <main className="app-shell">
-    <KeepFirstPlayReveal
-      name={name}
-      occasion={subtitle}
-      introduction={openingMessage}
-      from={from}
-      year={year}
-      onOpen={enter}
-      onOtherFormats={() => { setVisited(true); setStage("choose"); }}
-      onCreatorExit={creatorPreview ? onCreatorExit : undefined}
-    />
-  </main>;
+  return null;
 }
 
 type ListenReadProps = {
