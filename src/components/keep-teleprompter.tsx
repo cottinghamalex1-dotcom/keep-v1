@@ -8,13 +8,23 @@ type Props = {
   isRecording: boolean;
   isPaused: boolean;
   elapsed: number;
+  cameraStream?: MediaStream | null;
 };
 
 /**
  * One premium reading surface shared by solo and multi-person recording.
  * Scroll only the script, not the record controls or status indicator.
  */
-export function KeepTeleprompter({ text, label, speaker, isRecording, isPaused, elapsed }: Props) {
+export function KeepTeleprompter({ text, label, speaker, isRecording, isPaused, elapsed, cameraStream }: Props) {
+  const camera=useRef<HTMLVideoElement>(null);
+  useEffect(()=>{
+    const node=camera.current;
+    if(!node)return;
+    node.srcObject=cameraStream??null;
+    if(cameraStream)void node.play().catch(()=>undefined);
+    return ()=>{if(node.srcObject===cameraStream)node.srcObject=null;};
+  },[cameraStream]);
+  const filming=!!cameraStream;
   const viewport = useRef<HTMLDivElement>(null);
   const previousRecording = useRef(false);
   const [speed, setSpeed] = useState(1);
@@ -72,10 +82,10 @@ export function KeepTeleprompter({ text, label, speaker, isRecording, isPaused, 
   const timeLabel = String(Math.floor(elapsed / 60)).padStart(2, "0") + ":" + String(Math.floor(elapsed % 60)).padStart(2, "0");
 
   return (
-    <section className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[24px] border border-[#D7C8B8] bg-[#FAF6EF] text-[#211D19] shadow-[0_8px_30px_rgba(64,46,25,.06)]" aria-label="Recording teleprompter">
-      <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-[#E5D9CB] px-4 py-3 sm:px-6">
+    <section className={`flex min-h-0 flex-1 flex-col overflow-hidden rounded-[24px] border shadow-[0_8px_30px_rgba(64,46,25,.06)] ${filming?"border-[#75675B] bg-[#151311] text-white":"border-[#D7C8B8] bg-[#FAF6EF] text-[#211D19]"}`} aria-label={filming?"Selfie video recording teleprompter":"Recording teleprompter"}>
+      <div className={`relative z-20 flex shrink-0 flex-wrap items-center justify-between gap-2 border-b px-4 py-3 sm:px-6 ${filming?"border-white/20 bg-[#211D19]":"border-[#E5D9CB]"}`}>
         <div className="flex min-w-0 items-center gap-2">
-          <span className="text-[10px] font-semibold uppercase tracking-[.13em] text-[#8A6D52]">{label}</span>
+          <span className={`text-[10px] font-semibold uppercase tracking-[.13em] ${filming?"text-[#E3CEB0]":"text-[#8A6D52]"}`}>{label}</span>
           <span className="max-w-[120px] truncate rounded-full bg-[#E8DAC8] px-2.5 py-1 text-[11px] font-medium text-[#33291F]">{speaker}</span>
         </div>
         {isRecording ? (
@@ -91,12 +101,20 @@ export function KeepTeleprompter({ text, label, speaker, isRecording, isPaused, 
       </div>
 
       <div className="relative flex min-h-0 flex-1 flex-col">
+        {filming && <>
+          <video ref={camera} muted playsInline autoPlay aria-label="Live front camera preview"
+            className="pointer-events-none absolute inset-0 h-full w-full scale-x-[-1] object-cover" />
+          <div aria-hidden="true" className="pointer-events-none absolute inset-0 bg-gradient-to-b from-black/30 via-black/35 to-black/75" />
+          <div className="pointer-events-none absolute inset-x-3 top-3 z-10 flex justify-center">
+            <span className="rounded-full border border-white/25 bg-black/40 px-3 py-1.5 text-[10px] font-semibold tracking-[.06em] text-white backdrop-blur-md">FRONT CAMERA · LOOK INTO THE LENS</span>
+          </div>
+        </>}
         <div ref={viewport} tabIndex={0} aria-label="Auto-scrolling teleprompter script"
-          className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#B69B7B] sm:px-8"
+          className="relative z-10 min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#B69B7B] sm:px-8"
           style={{ paddingTop: "clamp(64px, 16dvh, 140px)", paddingBottom: "clamp(150px, 32dvh, 260px)" }}>
-          <p className="whitespace-pre-wrap font-display text-[clamp(25px,6.5vw,36px)] leading-[1.46] tracking-[-.018em]">{text}</p>
+          <p className={`whitespace-pre-wrap font-display text-[clamp(25px,6.5vw,36px)] leading-[1.46] tracking-[-.018em] ${filming?"text-white [text-shadow:0_2px_12px_rgba(0,0,0,.9)]":""}`}>{text}</p>
         </div>
-        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-8 bg-gradient-to-t from-[#FAF6EF] to-transparent" aria-hidden="true" />
+        <div className={`pointer-events-none absolute inset-x-0 bottom-0 h-8 bg-gradient-to-t to-transparent ${filming?"from-[#151311]":"from-[#FAF6EF]"}`} aria-hidden="true" />
       </div>
 
       <div className="shrink-0 border-t border-[#E5D9CB] bg-[#F5EEE4] px-3 py-2.5 sm:px-5">
