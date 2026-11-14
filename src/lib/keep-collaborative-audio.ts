@@ -4,6 +4,24 @@
  * caption transcription, and permanent publishing pipeline.
  */
 export type JoinedVoices = { blob: Blob; durationSec: number };
+export type VoiceLevel = { gain: number; rms: number; peak: number };
+/** Match different microphone levels without squashing dynamics or boosting noise excessively. */
+export function voiceLevelForSamples(channels: Float32Array[]): VoiceLevel {
+  let power=0, count=0, peak=0;
+  for(const channel of channels)for(let i=0;i<channel.length;i++){
+    const v=channel[i]!;
+    if(Math.abs(v)<0.012)continue; // Silence should not drive gain upward.
+    power+=v*v;
+    count++;
+    peak=Math.max(peak,Math.abs(v));
+  }
+  const rms=count?Math.sqrt(power/count):0;
+  if(!rms||!peak)return {gain:1,rms,peak};
+  const targetRms=0.105; // comfortable speech bed before the shared mastering chain
+  const loudnessGain=Math.max(0.65,Math.min(2.5,targetRms/rms));
+  return {gain:Math.min(loudnessGain,0.88/peak),rms,peak};
+}
+
 export async function joinKeepVoiceParts(parts: Blob[], gapSeconds = 0.3): Promise<JoinedVoices> {
   if (!parts.length) throw new Error("Record at least one voice before continuing.");
   const Context = window.AudioContext;
@@ -45,6 +63,8 @@ export async function joinKeepVoiceParts(parts: Blob[], gapSeconds = 0.3): Promi
     const buffer = buffers[index]!;
     const channels = Array.from({ length: buffer.numberOfChannels }, (_, c) => buffer.getChannelData(c));
     const frameCount = frameCounts[index]!;
+    const level=voiceLevelForSamples(channels);
+    const edgeFrames=Math.min(Math.round(sampleRate*0.016),Math.floor(frameCount/4));
     for (let i = 0; i < frameCount; i++) {
       const position = i * buffer.sampleRate / sampleRate;
       const base = Math.min(buffer.length - 1, Math.floor(position));
@@ -52,7 +72,9 @@ export async function joinKeepVoiceParts(parts: Blob[], gapSeconds = 0.3): Promi
       const fraction = position - base;
       let sample = 0;
       for (const channel of channels) sample += channel[base]! * (1 - fraction) + channel[following]! * fraction;
-      sample = Math.max(-1, Math.min(1, sample / channels.length));
+      // Gentle fades avoid clicks between contributors' separate recordings.
+      const edge=edgeFrames ? Math.min(1,i/edgeFrames,(frameCount-1-i)/edgeFrames) : 1;
+      sample = Math.max(-1, Math.min(1,(sample / channels.length)*level.gain*edge));
       view.setInt16(cursor, Math.round(sample < 0 ? sample * 32768 : sample * 32767), true);
       cursor += 2;
     }
