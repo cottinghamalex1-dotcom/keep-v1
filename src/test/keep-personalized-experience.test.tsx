@@ -33,8 +33,8 @@ it("offers hands-free Listen & Read with centered timed words instead of a scrol
     media: [{ url: "/memory.jpg", kind: "image" as const }],
   };
   render(<KeepRecipientExperience {...props} initialExperience="listen" />);
-  expect(screen.queryByText("We remember that day.")).toBeNull();
-  expect(screen.getByText("Some words deserve to be heard.")).toBeTruthy();
+  expect(screen.getByText("We remember that day. You are deeply loved.")).toBeTruthy();
+  expect(screen.queryByText("Some words deserve to be heard.")).toBeNull();
   expect(screen.getByRole("button", { name: "Play narration" })).toBeTruthy();
   expect(screen.queryByAltText(/Memory/)).toBeNull();
 });
