@@ -13,6 +13,9 @@ import { KeepPhotosEditor } from "@/components/keep-photos-editor";
 import { KeepStudioResize, DEFAULT_PREVIEW_SIZE, constrainPreviewSize } from "@/components/keep-studio-resize";
 import { KeepTeleprompter } from "@/components/keep-teleprompter";
 import { KeepStyleEditor } from "@/components/keep-style-editor";
+import { KeepSelfieEditor } from "@/components/keep-selfie-editor";
+import { KeepSelfiePrompt } from "@/components/keep-selfie-prompt";
+import { composeSelfieStory, withoutSelfieScenes } from "@/lib/keep-selfie-story";
 import { KeepFinishingChoices } from "@/components/keep-finishing-choices";
 import { KeepAskAIModal, KeepWordChanges } from "@/components/keep-ask-ai-modal";
 import { arrangeWords, spreadMemories, recommendedStyle } from "@/lib/keep-story-layout";
@@ -22,7 +25,7 @@ import { activeKeepSession, loadEditableKeep, loadCloudDraft, saveCloudDraft, re
 import { CinematicMedia } from "@/components/cinematic-media";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useRef, useState, type ChangeEvent, type ReactNode, type CSSProperties } from "react";
-import { ArrowLeft, ArrowRight, Check, ChevronLeft, ChevronRight, CircleHelp, Download, Ellipsis, GripVertical, Images, LockKeyhole, MessageCircle, Mic, Keyboard, Music2, FileUp, Loader2, Pause, Play, Plus, Radio, RotateCcw, Settings2, Sparkles, Square, Trash2, Undo2, Redo2, VolumeX, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, Camera, Check, ChevronLeft, ChevronRight, CircleHelp, Download, Ellipsis, GripVertical, Images, LockKeyhole, MessageCircle, Mic, Keyboard, Music2, FileUp, Loader2, Pause, Play, Plus, Radio, RotateCcw, Settings2, Sparkles, Square, Trash2, Undo2, Redo2, VolumeX, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { KeepPlayer, memoryImages, memoryLabels } from "@/components/keep-player";
@@ -53,7 +56,7 @@ export const Route = createFileRoute("/")({
 });
 
 type Screen = "home" | "you" | "detail" | "recipient" | "occasion" | "voices" | "intent" | "path" | "interview" | "summary" | "messageGenerating" | "write" | "message" | "recordPrep" | "record" | "groupRecord" | "remoteInvite" | "recorded" | "memories" | "storyStyle" | "generating" | "editor" | "preview" | "recipientReveal" | "recipientPreview" | "giveReady" | "card" | "success";
-type Mode = "Memories" | "Music" | "Captions" | "Style" | "Voice";
+type Mode = "Memories" | "Music" | "Captions" | "Style" | "Voice" | "Selfie";
 const creationScreens: Screen[] = ["recipient", "occasion", "voices", "intent", "path", "interview", "summary", "messageGenerating", "write", "message", "recordPrep", "record", "groupRecord", "remoteInvite", "recorded", "memories", "storyStyle", "generating", "editor", "preview", "recipientPreview", "card", "success"];
 const resumeScreen = (s: Screen): Screen => (s === "messageGenerating" ? "summary" : s === "generating" ? "memories" : s === "preview" || s === "recipientPreview" ? "editor" : s);
 const occasions = ["Birthday", "Anniversary", "Wedding", "New Baby", "Mother's Day", "Father's Day", "Graduation", "Thank You", "Trip / Adventure", "Milestone", "Celebration of Life", "Family Memories", "Just Because", "Other"];
@@ -121,7 +124,7 @@ const groupTimedWords = (words: TimedWord[], limit = 5): CaptionCue[] => {
   return cues;
 };
 
-const EDIT_KEYS = ["memories", "captionCues", "captionStyle", "visualStyle", "musicMood", "voiceMusicBalance", "voiceVolume", "musicVolume", "captionPosition", "captionLines", "captionWordsPerCue", "audioMix"] as const;
+const EDIT_KEYS = ["memories", "selfieBaseMedia", "selfieVideos", "selfiePresentation", "selfieBookendSeconds", "selfieIntroId", "selfieOutroId", "captionCues", "captionStyle", "visualStyle", "musicMood", "voiceMusicBalance", "voiceVolume", "musicVolume", "captionPosition", "captionLines", "captionWordsPerCue", "audioMix"] as const;
 type EditSnapshot = Pick<KeepProject, (typeof EDIT_KEYS)[number]>;
 const takeSnapshot = (p: KeepProject): EditSnapshot => Object.fromEntries(EDIT_KEYS.map((k) => [k, p[k]])) as EditSnapshot;
 const sameSnapshot = (a: EditSnapshot, b: EditSnapshot) => EDIT_KEYS.every((k) => a[k] === b[k]);
@@ -209,6 +212,8 @@ function KeepApp() {
   const [readArrangeIndex, setReadArrangeIndex] = useState(0);
   const [returnToEditorAfterRecording, setReturnToEditorAfterRecording] = useState(false);
   const [groupPartIndex, setGroupPartIndex] = useState(0);
+  const [selfieSelected, setSelfieSelected] = useState(false);
+  const [selfiePreparing, setSelfiePreparing] = useState(false);
   const [groupBusy, setGroupBusy] = useState(false);
   const [frame, setFrame] = useState(0);
   const [editorPlaying, setEditorPlaying] = useState(false);
@@ -694,7 +699,29 @@ function KeepApp() {
     setRehearsing(false);
     window.scrollTo(0, 0);
   };
-  const startFinal = async () => { const ok = await recorder.start(); if (!ok) toast.error("The microphone isn't available right now."); };
+  const chooseSelfie = async () => {
+    if(selfieSelected){recorder.disableSelfie();setSelfieSelected(false);return;}
+    setSelfiePreparing(true);
+    const success=await recorder.prepareSelfie();
+    setSelfiePreparing(false);
+    if(success)setSelfieSelected(true);
+    else toast.error("Front camera unavailable. Voice-only recording is still available.");
+  };
+  const startFinal = async () => {
+    const ok=await recorder.start({selfie:selfieSelected});
+    if(!ok)toast.error(selfieSelected?"The camera or microphone isn't available. Try voice only.":"The microphone isn't available right now.");
+  };
+  const saveSelfieTake = async (blob:Blob|undefined,mimeType:string|undefined,durationSec:number,partIndex:number):Promise<MediaItem|undefined> => {
+    if(!blob?.size)return undefined;
+    if(blob.size>40*1024*1024){toast.warning("Your voice saved, but the selfie is too large. Try a shorter clip.");return undefined;}
+    const id=newId("selfie");
+    if(!(await putBlob(id,blob))){toast.warning("Your voice saved, but the selfie couldn't fit on this device.");return undefined;}
+    return {id,blobId:id,kind:"video",source:"upload",isSelfie:true,selfiePartIndex:partIndex,
+      url:URL.createObjectURL(blob),name:partIndex===0?"Your selfie video":`Selfie · part ${partIndex+1}`,
+      persisted:true,mimeType:mimeType??blob.type,videoStartSec:0,videoDurationSec:durationSec,
+      displayDurationSec:durationSec};
+  };
+
 
   const syncFinalCaptions = async (blob: Blob, mimeType?: string, recordedDuration = rec?.durationSec ?? 0, sourceAudioId?: string) => {
     const request = ++captionSyncToken.current;
@@ -730,17 +757,24 @@ function KeepApp() {
     if (!r) { toast.error("Nothing was recorded. Try again."); return; }
     const id = newId("voice");
     const stored = await putBlob(id, r.blob);
+    const selfie=await saveSelfieTake(r.selfieBlob,r.selfieMimeType,r.durationSec,0);
+    if(selfieSelected && !selfie)toast.info("Your voice is safe. The selfie video wasn't captured; you can retry later.");
+    setSelfieSelected(false);
     if (rec) { releaseUrls([rec.audioUrl]); if (rec.audioId) void deleteBlobs([rec.audioId]); }
     captionSyncToken.current++;
     const audioUrl = URL.createObjectURL(r.blob);
-    setProject((o) => ({
+    setProject((o) => {
+      const selfies=selfie?[selfie]:[];
+      return ({
       ...o,
+      selfieVideos:selfies,
+      memories:o.memories.length?composeSelfieStory(o.selfieBaseMedia?.length?o.selfieBaseMedia:withoutSelfieScenes(o.memories),selfies,r.durationSec,o):o.memories,
       finalVoiceRecording: { audioId: stored ? id : undefined, audioUrl, durationSec: r.durationSec, mimeType: r.mimeType, demo: false },
       captionTranscript: "",
       captionCues: [],
       captionWords: [],
       captionTimingEstimated: false,
-    }));
+    });});
     go("recorded");
     void syncFinalCaptions(r.blob, r.mimeType, r.durationSec, stored ? id : undefined);
   };
@@ -754,13 +788,21 @@ function KeepApp() {
       const index = groupPartIndex;
       const id = newId("voice-part");
       if (!(await putBlob(id,r.blob))) throw new Error("Your device could not save this recording. Please free some storage and try again.");
+      const selfie=await saveSelfieTake(r.selfieBlob,r.selfieMimeType,r.durationSec,index);
+      if(selfieSelected&&!selfie)toast.info("This voice part saved. The optional camera video wasn't captured.");
+      setSelfieSelected(false);
       const currentParts = project.voiceParts ?? [];
       const oldPart = currentParts.find(p => p.paragraphIndex === index);
       const nextParts = [...currentParts.filter(p => p.paragraphIndex !== index), {
         paragraphIndex:index, contributorId:speakerFor(index), textFingerprint:(project.messageParagraphs[index] ?? "").trim(),
         audioId:id, audioUrl:URL.createObjectURL(r.blob), durationSec:r.durationSec, mimeType:r.mimeType,
       }];
-      setProject(old=>({...old,voiceParts:nextParts,finalVoiceRecording:null,groupVoiceSignature:undefined,captionTranscript:"",captionCues:[],captionWords:[],captionTimingEstimated:false}));
+      setProject(old=>{
+        const selfies=[...(old.selfieVideos??[]).filter(item=>item.selfiePartIndex!==index),...(selfie?[selfie]:[])];
+        return {...old,selfieVideos:selfies,
+          memories:old.memories.length?composeSelfieStory(old.selfieBaseMedia?.length?old.selfieBaseMedia:withoutSelfieScenes(old.memories),selfies,old.finalVoiceRecording?.durationSec??150,old):old.memories,
+          voiceParts:nextParts,finalVoiceRecording:null,groupVoiceSignature:undefined,captionTranscript:"",captionCues:[],captionWords:[],captionTimingEstimated:false};
+      });
       if (oldPart) { releaseUrls([oldPart.audioUrl]); if (oldPart.audioId) void deleteBlobs([oldPart.audioId]); }
       const nextIndex = project.messageParagraphs.findIndex((p,i) => p.trim() && !nextParts.some(part => part.paragraphIndex === i && part.contributorId === speakerFor(i) && part.textFingerprint === p.trim()));
       if (nextIndex >= 0) setGroupPartIndex(nextIndex);
@@ -788,7 +830,9 @@ function KeepApp() {
       if (!(await putBlob(id,joined.blob))) throw new Error("Not enough device storage to save the combined recording.");
       if (rec) { releaseUrls([rec.audioUrl]); if (rec.audioId) void deleteBlobs([rec.audioId]); }
       captionSyncToken.current++;
-      setProject(old=>({...old,finalVoiceRecording:{audioId:id,audioUrl:URL.createObjectURL(joined.blob),durationSec:joined.durationSec,mimeType:"audio/wav",demo:false},groupVoiceSignature:groupSignature,captionTranscript:"",captionCues:[],captionWords:[],captionTimingEstimated:false}));
+      setProject(old=>({...old,
+        memories:old.memories.length?composeSelfieStory(old.selfieBaseMedia?.length?old.selfieBaseMedia:withoutSelfieScenes(old.memories),old.selfieVideos??[],joined.durationSec,old):old.memories,
+        finalVoiceRecording:{audioId:id,audioUrl:URL.createObjectURL(joined.blob),durationSec:joined.durationSec,mimeType:"audio/wav",demo:false},groupVoiceSignature:groupSignature,captionTranscript:"",captionCues:[],captionWords:[],captionTimingEstimated:false}));
       go("recorded");
       void syncFinalCaptions(joined.blob, "audio/wav", joined.durationSec, id);
     } catch (error) {
@@ -845,6 +889,7 @@ function KeepApp() {
       if(oldFinal?.audioUrl)releaseUrls([oldFinal.audioUrl]);
       if(oldFinal?.audioId)void deleteBlobs([oldFinal.audioId]);
       setProject(old=>({...old,voiceParts:imported,groupVoiceSignature:signature,
+        memories:old.memories.length?composeSelfieStory(old.selfieBaseMedia?.length?old.selfieBaseMedia:withoutSelfieScenes(old.memories),old.selfieVideos??[],joined.durationSec,old):old.memories,
         finalVoiceRecording:{audioId,audioUrl:URL.createObjectURL(joined.blob),
           durationSec:joined.durationSec,mimeType:"audio/wav",demo:false},
         captionTranscript:"",captionCues:[],captionWords:[],captionTimingEstimated:false}));
@@ -908,7 +953,7 @@ function KeepApp() {
 
   // ---- Memories ----
   const [styleTouched, setStyleTouched] = useState(false);
-  const personalMedia = project.memories.filter((m) => m.source !== "text");
+  const personalMedia = (project.selfieBaseMedia?.length?project.selfieBaseMedia:project.memories).filter((m) => m.source !== "text" && !m.isSelfie);
   const photoCount = personalMedia.filter(m => m.kind === "image").length;
   const videoCount = personalMedia.filter(m => m.kind === "video").length;
   // Narration-first photo guidance: use the real voice recording when available,
@@ -927,10 +972,13 @@ function KeepApp() {
   const chosenStyle = styleTouched ? (project.creationStyle ?? "memories") : suggestedStyle;
   const createStory = () => {
     const duration = rec?.durationSec ?? 150;
-    const media = chosenStyle === "memories" && personalMedia.length
-      ? spreadMemories(personalMedia, duration)
-      : arrangeWords(personalMedia, project.messageParagraphs, duration);
-    patch({ memories: media, creationStyle: chosenStyle });
+    const selfieTakes=project.selfieVideos??[];
+    const base = selfieTakes.length && !personalMedia.length ? []
+      : chosenStyle === "memories" && personalMedia.length
+        ? spreadMemories(personalMedia, duration)
+        : arrangeWords(personalMedia, project.messageParagraphs, duration);
+    const media=composeSelfieStory(base,selfieTakes,duration,project);
+    patch({ memories: media, selfieBaseMedia:base, creationStyle: chosenStyle });
     setFrame(0);
     setEditorTime(0);
     setEditorPlaying(false);
@@ -945,7 +993,13 @@ function KeepApp() {
   const photoDrag = useRef<{ x: number; y: number; focusX: number; focusY: number; width: number; height: number } | null>(null);
   const updateSelectedMoment = (changes: Partial<MediaItem>) => setProject((prev) => {
     const moments = prev.memories.length ? prev.memories : sampleMemories();
-    return { ...prev, memories: moments.map((m, i) => i === frame % moments.length ? { ...m, ...changes } : m) };
+    const target=moments[frame % moments.length];
+    if(!target || target.isSelfie)return prev;
+    return {
+      ...prev,
+      memories:moments.map((m,i)=>i===frame % moments.length?{...m,...changes}:m),
+      selfieBaseMedia:(prev.selfieBaseMedia??[]).map(m=>m.id===target.id?{...m,...changes}:m)
+    };
   });
   const addFiles = async (e: ChangeEvent<HTMLInputElement>, replaceIndex?: number) => {
     const files = Array.from(e.target.files ?? []);
@@ -1020,10 +1074,29 @@ function KeepApp() {
       }
       if (items.length) {
         if (replaceIndex !== undefined) {
-          patch({ memories: frames.length ? frames.map((m, i) => (i === replaceIndex ? { ...items[0]!, displayDurationSec: items[0]!.kind === "video" ? items[0]!.displayDurationSec : m.displayDurationSec ?? 7, focusX: m.focusX, focusY: m.focusY, zoom: m.zoom, motion: m.motion, transition: m.transition } : m)) : shown.map((m, i) => (i === replaceIndex ? { ...items[0]!, displayDurationSec: items[0]!.displayDurationSec } : m)) });
-          toast.success("Moment updated");
+          const target=(frames.length?frames:shown)[replaceIndex];
+          if(target?.isSelfie) {
+            toast.info("To replace your selfie, use the Selfie Video editor.");
+          } else {
+            const replacement={...items[0]!,displayDurationSec:items[0]!.kind==="video"
+              ? items[0]!.displayDurationSec:target?.displayDurationSec??7,
+              focusX:target?.focusX,focusY:target?.focusY,zoom:target?.zoom,
+              motion:target?.motion,transition:target?.transition};
+            setProject(old=>{
+              const source=old.memories.length?old.memories:sampleMemories();
+              const scenes=source.map((m,i)=>i===replaceIndex?replacement:m);
+              const base=old.selfieBaseMedia?.length?old.selfieBaseMedia:withoutSelfieScenes(old.memories);
+              const nextBase=base.map(m=>m.id===target?.id?replacement:m);
+              return {...old,selfieBaseMedia:nextBase,
+                memories:(old.selfieVideos??[]).length
+                  ?composeSelfieStory(nextBase,old.selfieVideos??[],old.finalVoiceRecording?.durationSec??150,old)
+                  :scenes};
+            });
+            toast.success("Moment updated");
+          }
         } else {
-          patch({ memories: [...frames, ...items] });
+          patch({ memories: composeSelfieStory([...(project.selfieBaseMedia?.length?project.selfieBaseMedia:withoutSelfieScenes(frames)),...items],project.selfieVideos??[],rec?.durationSec??150,project),
+            selfieBaseMedia:[...(project.selfieBaseMedia?.length?project.selfieBaseMedia:withoutSelfieScenes(frames)),...items] });
           toast.success(`${items.length} ${items.length === 1 ? "moment" : "moments"} added`);
         }
       }
@@ -1036,7 +1109,7 @@ function KeepApp() {
     }
   };
   const importContributorMoments = async (items:RemoteMediaItem[]):Promise<number> => {
-    const existing=new Set(project.memories.map(moment=>moment.remoteMediaId).filter(Boolean));
+    const existing=new Set([...project.memories,...(project.selfieVideos??[])].map(moment=>moment.remoteMediaId).filter(Boolean));
     const newItems=items.filter(item=>!existing.has(item.id));
     if(!newItems.length)return 0;
     const staged:MediaItem[]=[];
@@ -1050,18 +1123,25 @@ function KeepApp() {
         const blob=await response.blob();
         if(blob.size<100||blob.size>(media.kind==="video"?40:15)*1024*1024)
           throw new Error(`The file ${media.name} couldn't be verified.`);
-        const id=newId("media");
+        const id=newId(media.purpose==="selfie"?"selfie":"media");
         if(!(await putBlob(id,blob)))throw new Error("Your device couldn't save a shared moment. Free up space and try again.");
         savedIds.push(id);
         staged.push({
           id,kind:media.kind,source:"upload",name:media.name,mimeType:media.mimeType,
           remoteMediaId:media.id,persisted:true,url:URL.createObjectURL(blob),
-          displayDurationSec:media.kind==="video"?Math.max(1,Math.min(90,media.durationSec??7)):7
+          ...(media.purpose==="selfie"?{
+            isSelfie:true,blobId:id,selfiePartIndex:media.paragraphIndex??0,
+            videoDurationSec:media.durationSec??7,videoStartSec:0
+          }:{}),
+          displayDurationSec:media.kind==="video"?Math.max(1,Math.min(media.purpose==="selfie"?300:90,media.durationSec??7)):7
         });
       }
       setProject(old=>{
-        const present=new Set(old.memories.map(item=>item.remoteMediaId).filter(Boolean));
-        return {...old,memories:[...old.memories,...staged.filter(item=>!present.has(item.remoteMediaId))]};
+        const present=new Set([...old.memories,...(old.selfieVideos??[])].map(item=>item.remoteMediaId).filter(Boolean));
+        const added=staged.filter(item=>!present.has(item.remoteMediaId));
+        const selfies=[...(old.selfieVideos??[]),...added.filter(item=>item.isSelfie)];
+        const ordinary=[...(old.selfieBaseMedia?.length?old.selfieBaseMedia:withoutSelfieScenes(old.memories)),...added.filter(item=>!item.isSelfie)];
+        return {...old,selfieVideos:selfies,selfieBaseMedia:ordinary,memories:composeSelfieStory(ordinary,selfies,old.finalVoiceRecording?.durationSec??150,old)};
       });
       toast.success(`${staged.length} shared ${staged.length===1?"moment":"moments"} added. Arrange them in Photos.`);
       return staged.length;
@@ -1071,15 +1151,35 @@ function KeepApp() {
       throw error;
     }
   };
+  const recordSelfieFromMedia = async () => {
+    if(isTogether&&project.voiceRecordingLocation==="remote"){
+      toast.info("Remote contributors can add selfie video from their private invitation.");
+      go("remoteInvite");return;
+    }
+    const prepared=await recorder.prepareSelfie();
+    if(!prepared){toast.error("The front camera couldn't open. You can continue with voice and photos.");return;}
+    setSelfieSelected(true);
+    setGroupPartIndex(0);
+    go(isTogether?"groupRecord":"record");
+  };
   const removeMemory = (i: number) => {
     const list = frames.length ? frames : shown;
-    // Blob and object URL are kept so Undo can bring this moment back.
-    patch({ memories: list.filter((_, j) => j !== i) });
-    setFrame((f) => Math.max(0, Math.min(f, list.length - 2)));
+    const item=list[i];
+    if(item?.isSelfie){setEditorPanel("Selfie");toast.info("Edit or hide the selfie in the Selfie Video controls.");return;}
+    // Keep original blobs so Undo can restore the photo or video.
+    setProject(old=>{
+      const base=(old.selfieBaseMedia?.length?old.selfieBaseMedia:withoutSelfieScenes(old.memories))
+        .filter(m=>m.id!==item?.id);
+      return {...old,selfieBaseMedia:base,memories:(old.selfieVideos??[]).length
+        ?composeSelfieStory(base,old.selfieVideos??[],old.finalVoiceRecording?.durationSec??150,old)
+        :list.filter((_,j)=>j!==i)};
+    });
+    setFrame(f=>Math.max(0,Math.min(f,list.length-2)));
   };
   const moveMemory = (from: number, to: number) => {
     const list = [...(frames.length ? frames : shown)];
     if (to < 0 || to >= list.length || from === to) return;
+    if(list[from]?.isSelfie||list[to]?.isSelfie){toast.info("Use Selfie Video to arrange the opening and closing moments.");return;}
     const [m] = list.splice(from, 1);
     if (!m) return;
     list.splice(to, 0, m);
@@ -1094,26 +1194,28 @@ function KeepApp() {
     editorAudioRef.current?.pause();
     if (editorAudioRef.current) editorAudioRef.current.currentTime = time;
     setEditorTime(time);
-    patch({ memories: list });
+    patch({ memories: list, selfieBaseMedia:list.filter(item=>!item.isSelfie) });
     setFrame(to);
   };
   const duplicateMoment = async (index:number, firstDuration?:number, secondDuration?:number) => {
     const item = shown[index];
     if (!item) return;
+    if(item.isSelfie){setEditorPanel("Selfie");toast.info("Use the Selfie Video editor to change selfie footage.");return;}
     const id = newId("media");
     let persisted = item.persisted;
     let url = item.url;
     if (item.source === "upload") {
-      const blob = await getBlob(item.id);
+      const blob = await getBlob(item.blobId??item.id);
       if (!blob) { toast.error("The original photo is missing. Please re-add it."); return; }
       persisted = await putBlob(id,blob);
       url = URL.createObjectURL(blob);
     }
-    const copy:MediaItem = {...item,id,url,persisted,displayDurationSec:secondDuration??item.displayDurationSec};
+    const copy:MediaItem = {...item,id,blobId:id,url,persisted,displayDurationSec:secondDuration??item.displayDurationSec};
     const list = [...shown];
     if(firstDuration!==undefined) list[index]={...item,displayDurationSec:firstDuration};
     list.splice(index+1,0,copy);
-    patch({memories:list});
+    const base=list.filter(moment=>!moment.isSelfie);
+    patch({memories:list,selfieBaseMedia:base});
     setFrame(index+1);
     toast.success(firstDuration!==undefined?"Moment split into two clips.":"Moment duplicated.");
   };
@@ -1723,7 +1825,11 @@ function KeepApp() {
           <h1 className="mt-1 font-display text-[clamp(28px,7.2vw,40px)] leading-[1.05] tracking-[-.025em]">Now say it in your own voice.</h1>
           {!isRecording && <p className="mt-1.5 text-[12px] leading-5 text-muted-foreground">Read naturally. The words will scroll for you.</p>}
         </div>
-        <KeepTeleprompter text={project.messageParagraphs.join("\n\n")} label="YOUR MESSAGE" speaker="Your voice" isRecording={isRecording} isPaused={recorder.status === "paused"} elapsed={recorder.elapsed} />
+        {!isRecording&&<div className="shrink-0 pb-2"><KeepSelfiePrompt enabled={selfieSelected} preparing={selfiePreparing}
+          error={recorder.cameraError} onChoose={()=>void chooseSelfie()} onVoiceOnly={()=>{recorder.disableSelfie();setSelfieSelected(false);}} /></div>}
+        <KeepTeleprompter text={project.messageParagraphs.join("\n\n")} label="YOUR MESSAGE" speaker="Your voice"
+          cameraStream={selfieSelected?recorder.previewStream:null}
+          isRecording={isRecording} isPaused={recorder.status === "paused"} elapsed={recorder.elapsed} />
         <div className="shrink-0 pt-3">
           {micUnavailable ? <>
             <p role="alert" className="mb-2 text-center text-xs text-destructive">{micMessage}</p>
@@ -1731,7 +1837,7 @@ function KeepApp() {
           </> : !isRecording ? (
             <Button variant="keep" size="touch" className="w-full" disabled={recorder.status === "requesting" || recorder.supported !== true} onClick={() => void startFinal()}>
               {recorder.status === "requesting" ? <Loader2 className="size-5 animate-spin" /> : <Mic className="size-5" />}
-              {recorder.status === "requesting" ? "Waiting for microphone…" : "Start recording"}
+              {recorder.status === "requesting" ? "Getting ready…" : selfieSelected?"Start selfie & voice":"Start recording"}
             </Button>
           ) : (
             <div className="flex gap-2">
@@ -1759,15 +1865,18 @@ function KeepApp() {
             {readyPart(i) ? <Check className="size-3.5 text-[#6A8462]" /> : <Mic className="size-3.5" />} {i+1}. {speakerName(i)}
           </button>)}
         </div>
+        {!isRecording&&<div className="shrink-0 pb-2"><KeepSelfiePrompt enabled={selfieSelected} preparing={selfiePreparing}
+          error={recorder.cameraError} onChoose={()=>void chooseSelfie()} onVoiceOnly={()=>{recorder.disableSelfie();setSelfieSelected(false);}} /></div>}
         <KeepTeleprompter key={groupPartIndex} text={project.messageParagraphs[groupPartIndex] ?? ""} label={"PART " + (groupPartIndex+1) + " OF " + project.messageParagraphs.length}
-          speaker={speakerName(groupPartIndex)} isRecording={isRecording} isPaused={recorder.status === "paused"} elapsed={recorder.elapsed} />
+          speaker={speakerName(groupPartIndex)} cameraStream={selfieSelected?recorder.previewStream:null}
+          isRecording={isRecording} isPaused={recorder.status === "paused"} elapsed={recorder.elapsed} />
         <div className="shrink-0 space-y-2 pt-2.5">
           {!isRecording && readyPart(groupPartIndex)?.audioUrl && <audio src={readyPart(groupPartIndex)!.audioUrl} controls preload="none" className="h-10 w-full" aria-label={"Review " + speakerName(groupPartIndex) + "'s saved recording"} />}
           {micUnavailable && <p role="alert" className="text-center text-xs text-destructive">{micMessage} A real voice recording is needed for each part.</p>}
           {!isRecording ? (
             <Button variant="keep" size="touch" className="w-full" disabled={groupBusy || micUnavailable || recorder.status === "requesting" || recorder.supported !== true} onClick={() => void startFinal()}>
               {recorder.status === "requesting" ? <Loader2 className="size-4 animate-spin" /> : <Mic className="size-4" />}
-              {readyPart(groupPartIndex) ? "Re-record this part" : "Record " + speakerName(groupPartIndex) + "'s part"}
+              {selfieSelected ? "Record video + voice" : readyPart(groupPartIndex) ? "Re-record this part" : "Record " + speakerName(groupPartIndex) + "'s part"}
             </Button>
           ) : (
             <div className="flex gap-2">
@@ -1852,7 +1961,7 @@ function KeepApp() {
       </div>
     </div></>}
     {screen === "memories" && <>{top()}<div className="px-7 pb-10 pt-9">
-      {title("YOUR MOMENTS", "Add photos & videos.", "Let photos tell most of the story, with a few meaningful video moments mixed in.")}
+      {title("YOUR MOMENTS", "Add photos & videos.", "Let photos tell most of the story, with a few meaningful video moments mixed in—or simply let your face tell it.")}
       <div className="keep-editorial-surface mb-7 px-5 py-5" aria-live="polite">
         <div className="flex items-center justify-between gap-3"><p className="text-[11px] font-medium uppercase tracking-[.14em] text-[#6A5849]">Suggested moments</p>{guidanceSeconds > 0 && <span className="text-[11px] text-muted-foreground">{narrationLengthText}</span>}</div>
         {guidanceSeconds > 0 ? <>
@@ -1877,6 +1986,22 @@ function KeepApp() {
           <p className="text-[12px] font-semibold text-[#44382D]">Adding videos? Keep them short.</p>
           <p className="mt-1 text-[12px] leading-5 text-[#675B50]">Short clips of <strong>10 seconds or less</strong> usually tell the story best. For longer videos, Keep will <strong>automatically compress</strong> the file on your device when possible (up to 90 seconds). This can take a little while. The video plays muted so your narration and music stay front and center.</p>
         </div>
+      </aside>
+      <aside aria-label="Optional selfie video" className="mb-5 rounded-[20px] border border-[#CDB7A2] bg-[#F6EFE5] px-4 py-4">
+        <div className="flex items-center gap-2"><Camera className="size-5 text-[#795F47]"/>
+          <h3 className="font-display text-[24px]">No photos? Show your face.</h3></div>
+        <p className="mt-2 text-xs leading-6 text-[#6D5D4D]">
+          Completely optional. Read your words over the front-camera preview and record a selfie while you speak.
+          With no photos, your selfie can carry the whole Keep. With photos, it can gently open and close the story.
+        </p>
+        {(project.selfieVideos??[]).length>0&&<div className="mt-3 flex gap-2 overflow-x-auto">
+          {(project.selfieVideos??[]).map(item=><video key={item.id} src={item.url} muted playsInline preload="metadata"
+            className="aspect-[3/4] h-24 shrink-0 rounded-lg object-cover" aria-label="Your recorded selfie video"/>)}
+        </div>}
+        <Button variant="quiet" size="touch" className="mt-3 w-full" onClick={()=>void recordSelfieFromMedia()}>
+          <Camera className="size-4"/>{(project.selfieVideos??[]).length?"Record another selfie":"Record a selfie instead"}<ArrowRight className="size-4"/>
+        </Button>
+        <p className="mt-2 text-[11px] leading-5 text-[#887463]">Recording here replaces the narration with the new take so your voice and face stay in sync.</p>
       </aside>
       <div className="keep-creator-photo-grid grid grid-cols-3 gap-1">
         {personalMedia.map((m, i) => <div key={m.id} className="relative aspect-square overflow-hidden bg-card"><MediaView item={m} thumb alt={m.name ?? "Your memory"} className="h-full w-full object-cover" /><button type="button" aria-label={"Remove memory " + (i+1)} onClick={() => removeMemory(i)} className="absolute right-1 top-1 rounded-full bg-black/70 p-2 text-white"><X className="size-4" /></button></div>)}
@@ -2039,6 +2164,26 @@ function KeepApp() {
         onRemove={() => removeMemory(frame % shown.length)}
       />}
 
+      {editorPanel === "Selfie" && <KeepSelfieEditor
+        takes={project.selfieVideos??[]}
+        settings={project}
+        hasOtherMoments={(project.selfieBaseMedia?.length?project.selfieBaseMedia:withoutSelfieScenes(project.memories)).filter(item=>item.source!=="text").length>0}
+        onClose={()=>{setEditorExpanded(false);setEditorPanel(null);}}
+        onChange={updates=>setProject(old=>({...old,...updates,
+          memories:composeSelfieStory(old.selfieBaseMedia?.length?old.selfieBaseMedia:withoutSelfieScenes(old.memories),old.selfieVideos??[],
+            old.finalVoiceRecording?.durationSec??150,{...old,...updates})}))}
+        onRecord={()=>{setReturnToEditorAfterRecording(true);void recordSelfieFromMedia();}}
+        onRemove={id=>{
+          if(!window.confirm("Remove this selfie video from your Keep? The voice recording stays unchanged."))return;
+          setProject(old=>{
+            const selfies=(old.selfieVideos??[]).filter(item=>item.id!==id);
+            return {...old,selfieVideos:selfies,
+              memories:composeSelfieStory(old.selfieBaseMedia?.length?old.selfieBaseMedia:withoutSelfieScenes(old.memories),selfies,
+                old.finalVoiceRecording?.durationSec??150,old)};
+          });
+        }}
+      />}
+
       {editorPanel === "Voice" && <KeepVoiceEditor
         hasVoice={!!rec?.audioUrl && !rec.demo}
         duration={rec?.durationSec}
@@ -2062,7 +2207,7 @@ function KeepApp() {
 
       </div>
       <nav className="keep-studio-tools" aria-label="Editing tools">
-        {([{ panel: "Memories", label: "Photos", Icon: Images }, { panel: "Captions", label: "Captions", Icon: MessageCircle }, { panel: "Music", label: "Music", Icon: Music2 }, { panel: "Voice", label: "Voice", Icon: Mic }, { panel: "Style", label: "Style", Icon: Sparkles }] as const).map(({ panel, label, Icon }) => <button key={label} type="button" aria-pressed={editorPanel === panel} onClick={() => { stopMusicSample(); setMusicSampling(""); setCompareOriginalStyle(false); setEditorPanel(panel); }}><Icon /><span>{label}</span></button>)}
+        {([{ panel: "Memories", label: "Photos", Icon: Images }, { panel: "Captions", label: "Captions", Icon: MessageCircle }, { panel: "Music", label: "Music", Icon: Music2 }, { panel: "Voice", label: "Voice", Icon: Mic }, { panel: "Selfie", label: "Selfie", Icon: Camera }, { panel: "Style", label: "Style", Icon: Sparkles }] as const).map(({ panel, label, Icon }) => <button key={label} type="button" aria-pressed={editorPanel === panel} onClick={() => { stopMusicSample(); setMusicSampling(""); setCompareOriginalStyle(false); setEditorPanel(panel); }}><Icon /><span>{label}</span></button>)}
       </nav>
 
       {previewChooserOpen && sheet("Preview your Keep", () => { setPreviewChooserOpen(false); setReadArrangeOpen(false); }, <div className="pb-2">
@@ -2088,15 +2233,15 @@ function KeepApp() {
     </div>}
     {screen === "preview" && (viewingDemo
       ? <KeepPlayer name="HANNA" from="Alex" year="2026" onExit={back} onFinish={home} />
-      : <KeepPlayer name={(name || "Your Keep").toUpperCase()} from={giverNames} year="2026" subtitle={project.occasion} onExit={back} onFinish={() => { setScreen("editor"); resetPageScroll(); }} style={project.visualStyle} captions={project.captionStyle} media={frames.length ? frames.map((m) => ({ url: m.url, kind: m.kind, displayDurationSec: m.displayDurationSec ?? 7, focusX: m.focusX, focusY: m.focusY, zoom: m.zoom, motion: m.motion, transition: m.transition })) : undefined} audioUrl={rec && !rec.demo ? rec.audioUrl : undefined} audioDuration={rec?.durationSec} lines={captionLines} captionCues={project.captionCues} musicMood={project.musicMood} voiceMusicBalance={project.voiceMusicBalance} voiceVolume={project.voiceVolume} musicVolume={project.musicVolume} captionPosition={project.captionPosition} captionLines={project.captionLines} audioMix={mix} />)}
+      : <KeepPlayer name={(name || "Your Keep").toUpperCase()} from={giverNames} year="2026" subtitle={project.occasion} onExit={back} onFinish={() => { setScreen("editor"); resetPageScroll(); }} style={project.visualStyle} captions={project.captionStyle} media={frames.length ? frames.map((m) => ({ url: m.url, kind: m.kind, isSelfie:m.isSelfie, videoStartSec:m.videoStartSec, displayDurationSec: m.displayDurationSec ?? 7, focusX: m.focusX, focusY: m.focusY, zoom: m.zoom, motion: m.motion, transition: m.transition })) : undefined} audioUrl={rec && !rec.demo ? rec.audioUrl : undefined} audioDuration={rec?.durationSec} lines={captionLines} captionCues={project.captionCues} musicMood={project.musicMood} voiceMusicBalance={project.voiceMusicBalance} voiceVolume={project.voiceVolume} musicVolume={project.musicVolume} captionPosition={project.captionPosition} captionLines={project.captionLines} audioMix={mix} />)}
     {screen === "recipientPreview" && <KeepRecipientExperience
       name={(name || engraving[0] || "You").trim()}
       from={isTogether ? giverNames : (engraving[1]?.replace(/^FROM\s+/i, "") || "Alex").trim()}
       year={(engraving[2] || "2026").trim()}
       subtitle={project.occasion}
       openingMessage={project.openingMessage}
-      media={frames.length ? frames.map((m) => ({ url: m.url, kind: m.kind, displayDurationSec: m.displayDurationSec ?? 7, focusX: m.focusX, focusY: m.focusY, zoom: m.zoom, motion: m.motion, transition: m.transition })) : undefined}
-      readMedia={readOrderedFrames.length ? readOrderedFrames.map((m) => ({ url: m.url, kind: m.kind, displayDurationSec: m.displayDurationSec ?? 7, focusX: m.focusX, focusY: m.focusY, zoom: m.zoom, motion: m.motion, transition: m.transition })) : undefined}
+      media={frames.length ? frames.map((m) => ({ url: m.url, kind: m.kind, isSelfie:m.isSelfie, videoStartSec:m.videoStartSec, displayDurationSec: m.displayDurationSec ?? 7, focusX: m.focusX, focusY: m.focusY, zoom: m.zoom, motion: m.motion, transition: m.transition })) : undefined}
+      readMedia={readOrderedFrames.length ? readOrderedFrames.map((m) => ({ url: m.url, kind: m.kind, isSelfie:m.isSelfie, videoStartSec:m.videoStartSec, displayDurationSec: m.displayDurationSec ?? 7, focusX: m.focusX, focusY: m.focusY, zoom: m.zoom, motion: m.motion, transition: m.transition })) : undefined}
       audioUrl={rec && !rec.demo ? rec.audioUrl : undefined}
       audioDuration={rec?.durationSec}
       messageParagraphs={project.messageParagraphs.length ? project.messageParagraphs : initialMessage.map((p) => withName(p, name))}
@@ -2119,8 +2264,8 @@ function KeepApp() {
       year={(engraving[2] || "").trim()}
       openingMessage={project.openingMessage}
       subtitle={project.occasion}
-      media={frames.length ? frames.map((m) => ({ url: m.url, kind: m.kind, displayDurationSec: m.displayDurationSec ?? 7, focusX: m.focusX, focusY: m.focusY, zoom: m.zoom, motion: m.motion, transition: m.transition })) : undefined}
-      readMedia={readOrderedFrames.length ? readOrderedFrames.map((m) => ({ url: m.url, kind: m.kind })) : undefined}
+      media={frames.length ? frames.map((m) => ({ url: m.url, kind: m.kind, isSelfie:m.isSelfie, videoStartSec:m.videoStartSec, displayDurationSec: m.displayDurationSec ?? 7, focusX: m.focusX, focusY: m.focusY, zoom: m.zoom, motion: m.motion, transition: m.transition })) : undefined}
+      readMedia={readOrderedFrames.length ? readOrderedFrames.map((m) => ({ url: m.url, kind: m.kind, isSelfie:m.isSelfie, videoStartSec:m.videoStartSec })) : undefined}
       audioUrl={rec && !rec.demo ? rec.audioUrl : undefined}
       audioDuration={rec?.durationSec}
       messageParagraphs={project.messageParagraphs}

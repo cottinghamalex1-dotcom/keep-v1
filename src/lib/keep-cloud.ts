@@ -27,7 +27,9 @@ async function request(path: string, session: KeepSession, options: RequestInit 
 }
 function fileRefs(project: KeepProject): string[] {
   return Array.from(new Set([
-    ...project.memories.filter(m=>m.source==="upload").map(m=>m.id),
+    ...project.memories.filter(m=>m.source==="upload").map(m=>m.blobId??m.id),
+    ...(project.selfieVideos??[]).filter(m=>m.source==="upload").map(m=>m.blobId??m.id),
+    ...(project.selfieBaseMedia??[]).filter(m=>m.source==="upload").map(m=>m.blobId??m.id),
     ...project.interviewAnswers.map(a=>a.audioId).filter((v):v is string=>!!v),
     ...(project.finalVoiceRecording?.audioId ? [project.finalVoiceRecording.audioId] : []),
     ...(project.voiceParts ?? []).map(part => part.audioId)
@@ -37,6 +39,8 @@ function safeProject(project: KeepProject): KeepProject {
   return {
     ...project,
     memories: project.memories.map(m=>({...m,url:m.source==="text"?m.url:""})),
+    selfieVideos: (project.selfieVideos??[]).map(m=>({...m,url:""})),
+    selfieBaseMedia: (project.selfieBaseMedia??[]).map(m=>({...m,url:m.source==="text"?m.url:""})),
     interviewAnswers: project.interviewAnswers.map(a=>({...a,audioUrl:undefined})),
     finalVoiceRecording: project.finalVoiceRecording ? {...project.finalVoiceRecording,audioUrl:undefined}:null,
     voiceParts: (project.voiceParts ?? []).map(({audioUrl:_url,...part})=>part)
@@ -114,7 +118,9 @@ async function hydrateCloudProject(project: Partial<KeepProject>, session: KeepS
   const needs: Need[] = [
     ...(p.finalVoiceRecording?.audioId ? [{ id: p.finalVoiceRecording.audioId, url: p.finalVoiceRecording.audioUrl }] : []),
     ...(p.voiceParts ?? []).map(part=>({id:part.audioId,url:part.audioUrl})), 
-    ...p.memories.filter((m) => m.source === "upload").map((m) => ({id:m.id,url:m.url})),
+    ...p.memories.filter((m) => m.source === "upload").map((m) => ({id:m.blobId??m.id,url:m.url})),
+    ...(p.selfieVideos??[]).filter(m=>m.source==="upload").map(m=>({id:m.blobId??m.id,url:m.url})),
+    ...(p.selfieBaseMedia??[]).filter(m=>m.source==="upload").map(m=>({id:m.blobId??m.id,url:m.url})),
     ...p.interviewAnswers.filter((a) => !!a.audioId).map((a) => ({id:a.audioId!,url:a.audioUrl})),
   ];
   const total = needs.length;
@@ -164,14 +170,22 @@ async function hydrateCloudProject(project: Partial<KeepProject>, session: KeepS
   const memories = p.memories.map((m) => {
     if (m.source === "sample") return {...m,url:memoryImages[m.sampleIndex??0]??""};
     if (m.source === "text") return m;
-    return {...m,url:urls.get(m.id)??"",persisted:!!urls.get(m.id)};
+    return {...m,url:urls.get(m.blobId??m.id)??"",persisted:!!urls.get(m.blobId??m.id)};
   });
+  const selfieBaseMedia=(p.selfieBaseMedia??[]).map(item=>item.source==="sample"
+    ?{...item,url:memoryImages[item.sampleIndex??0]??""}
+    :item.source==="text"?item
+    :{...item,url:urls.get(item.blobId??item.id)??"",persisted:!!urls.get(item.blobId??item.id)});
+  const selfieVideos=(p.selfieVideos??[]).map(item=>({
+    ...item,url:urls.get(item.blobId??item.id)??"",
+    persisted:!!urls.get(item.blobId??item.id)
+  }));
   const interviewAnswers = p.interviewAnswers.map((a) => ({...a,audioUrl:a.audioId ? urls.get(a.audioId) : a.audioUrl}));
   const finalVoiceRecording = p.finalVoiceRecording?.audioId
     ? {...p.finalVoiceRecording,audioUrl:urls.get(p.finalVoiceRecording.audioId)}
     : p.finalVoiceRecording;
   const voiceParts = (p.voiceParts ?? []).map(part=>({...part,audioUrl:urls.get(part.audioId)}));
-  return {...p,memories,interviewAnswers,finalVoiceRecording,voiceParts,
+  return {...p,memories,selfieVideos,selfieBaseMedia,interviewAnswers,finalVoiceRecording,voiceParts,
     restoreIncomplete:missing.size>0,restoreMissingCount:missing.size};
 }
 
@@ -218,7 +232,7 @@ export async function loadEditableKeep(id: string, session: KeepSession, onProgr
     // Unique local IDs prevent an older published copy replacing another draft's media.
     const blobId = crypto.randomUUID();
     const { storagePath, ...settings } = memory;
-    memories.push({ ...settings, id: blobId, source: "upload" as const, url: await restore(storagePath, blobId) });
+    memories.push({ ...settings, id: blobId, blobId, source: "upload" as const, url: await restore(storagePath, blobId) });
     completed += 1;
     onProgress?.({completed,total,kind:"media"});
   }

@@ -38,12 +38,21 @@ export async function publishKeep(p: KeepProject, keepId: string, progress: (mes
     return path;
   }
   const memories = [];
+  const uploadedSourcePaths=new Map<string,string>();
   for (const m of p.memories) {
-    let blob: Blob | undefined;
-    if (m.source === 'upload') blob = (await getBlob(m.id)) ?? undefined;
-    else { const response = await fetch(m.url); if (response.ok) blob = await response.blob(); }
-    if (!blob) throw new Error('A photo or video is missing. Reopen your saved draft or add that memory again.');
-    memories.push({id:m.id,kind:m.kind,source:m.source,storagePath:await upload(blob, `memory-${memories.length}`),displayDurationSec:m.displayDurationSec,focusX:m.focusX,focusY:m.focusY,zoom:m.zoom,motion:m.motion,transition:m.transition});
+    // A selfie used for both opening and closing must upload just once. Both
+    // authored scenes safely reference that same private storage object.
+    const sourceKey=m.source==='upload'?(m.blobId??m.id):m.id;
+    let storagePath=uploadedSourcePaths.get(sourceKey);
+    if(!storagePath){
+      let blob:Blob|undefined;
+      if(m.source==='upload')blob=(await getBlob(sourceKey))??undefined;
+      else{const response=await fetch(m.url);if(response.ok)blob=await response.blob();}
+      if(!blob)throw new Error('A photo or video is missing. Reopen your saved draft or add that memory again.');
+      storagePath=await upload(blob,`memory-${memories.length}`);
+      uploadedSourcePaths.set(sourceKey,storagePath);
+    }
+    memories.push({id:m.id,kind:m.kind,source:m.source,storagePath,displayDurationSec:m.displayDurationSec,videoStartSec:m.videoStartSec,videoDurationSec:m.videoDurationSec,isSelfie:m.isSelfie,selfieRole:m.selfieRole,focusX:m.focusX,focusY:m.focusY,zoom:m.zoom,motion:m.motion,transition:m.transition});
   }
   const voice = await getBlob(p.finalVoiceRecording.audioId);
   if (!voice) throw new Error('Your voice recording is missing from this phone. Reopen your saved draft or record it again.');

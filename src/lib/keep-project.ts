@@ -9,6 +9,12 @@ export type MediaItem = {
   name?: string | undefined;
   mimeType?: string | undefined;
   remoteMediaId?: string | undefined; // prevents re-importing a contributor moment
+  blobId?: string | undefined; // one recorded selfie video may be used twice without duplicating bytes
+  isSelfie?: boolean | undefined;
+  selfiePartIndex?: number | undefined;
+  selfieRole?: "full" | "intro" | "outro" | undefined;
+  videoStartSec?: number | undefined;
+  videoDurationSec?: number | undefined;
   sampleIndex?: number | undefined;
   persisted?: boolean | undefined; // blob saved in IndexedDB
   displayDurationSec?: number | undefined; // how long this moment stays on screen in watch mode
@@ -87,6 +93,14 @@ export type KeepProject = {
   captionPosition?: "top" | "middle" | "bottom";
   creationStyle?: "memories" | "words";
   memories: MediaItem[];
+  /** Optional front-camera recording sources, saved once and reused for visual clips. */
+  selfieVideos?: MediaItem[];
+  /** Non-selfie moments remain available even when Full selfie hides them in Watch. */
+  selfieBaseMedia?: MediaItem[];
+  selfiePresentation?: "auto" | "full" | "bookends" | "off";
+  selfieBookendSeconds?: number;
+  selfieIntroId?: string;
+  selfieOutroId?: string;
   readMemoryOrder: string[];
   musicMood: string;
   voiceMusicBalance: string;
@@ -111,7 +125,7 @@ export const sampleMemories = (): MediaItem[] =>
 export function newProject(): KeepProject {
   return {
     active: false, stage: "recipient", recipientName: "", openingMessage: "", engraveOpeningMessage: false, openingMessageSuggestions: [], openingSuggestionsFor: "", relationship: "", occasion: "Anniversary", intent: "", questionIndex: 0, interviewQuestion: "", interviewSummary: "",
-    interviewAnswers: [], messageSource: null, writtenText: "", messageParagraphs: [], voiceMode: "solo", voiceRecordingLocation: "in_person", contributors: [], paragraphSpeakers: [], voiceParts: [], finalVoiceRecording: null, captionTranscript: "", captionCues: [], captionWords: [], captionWordsPerCue: 5, captionLines: 2, captionPosition: "bottom", creationStyle: "memories", memories: [], readMemoryOrder: [],
+    interviewAnswers: [], messageSource: null, writtenText: "", messageParagraphs: [], voiceMode: "solo", voiceRecordingLocation: "in_person", contributors: [], paragraphSpeakers: [], voiceParts: [], finalVoiceRecording: null, captionTranscript: "", captionCues: [], captionWords: [], captionWordsPerCue: 5, captionLines: 2, captionPosition: "bottom", creationStyle: "memories", memories: [], selfieVideos: [], selfieBaseMedia: [], selfiePresentation: "auto", selfieBookendSeconds: 4, readMemoryOrder: [],
     musicMood: "Warm + Nostalgic", voiceMusicBalance: "Balanced", musicMix: 50, voiceVolume: 60, musicVolume: 60, audioMixVersion: 2, captionStyle: "Reel", visualStyle: "Natural", cardEngraving: ["", "FROM ALEX", "2026"],
   };
 }
@@ -128,6 +142,9 @@ export function saveDraft(p: KeepProject) {
     const lite: KeepProject = {
       ...p,
       memories: p.memories.filter((m) => m.source === "sample" || m.source === "text" || m.persisted).map((m) => ({ ...m, url: m.source === "text" ? m.url : "" })),
+      selfieVideos: (p.selfieVideos ?? []).filter(m=>m.persisted).map(m=>({...m,url:""})),
+      selfieBaseMedia: (p.selfieBaseMedia??[]).filter(m=>m.source!=="upload"||m.persisted)
+        .map(m=>({...m,url:m.source==="text"?m.url:""})),
       interviewAnswers: p.interviewAnswers.map(({ audioUrl: _a, ...a }) => a),
       finalVoiceRecording: p.finalVoiceRecording ? { ...p.finalVoiceRecording, audioUrl: undefined } : null,
       voiceParts: p.voiceParts?.map(({ audioUrl: _url, ...part }) => part),
@@ -169,19 +186,33 @@ export async function hydrateDraftMedia(p: KeepProject) {
   const memories: MediaItem[] = [];
   for (const m of p.memories) {
     if (m.source === "sample" || m.source === "text") { memories.push(m); continue; }
-    const url = await blobUrl(m.id);
+    const url = await blobUrl(m.blobId ?? m.id);
     if (url) memories.push({ ...m, url });
+  }
+  const selfieBaseMedia:MediaItem[]=[];
+  for(const item of p.selfieBaseMedia??[]){
+    if(item.source==="sample"){selfieBaseMedia.push({...item,url:memoryImages[item.sampleIndex??0]??""});continue;}
+    if(item.source==="text"){selfieBaseMedia.push(item);continue;}
+    const url=await blobUrl(item.blobId??item.id);
+    if(url)selfieBaseMedia.push({...item,url});
+  }
+  const selfieVideos: MediaItem[]=[];
+  for(const item of p.selfieVideos??[]){
+    const url=await blobUrl(item.blobId??item.id);
+    if(url)selfieVideos.push({...item,url});
   }
   const interviewAnswers = await Promise.all(p.interviewAnswers.map(async (a) => ({ ...a, audioUrl: await blobUrl(a.audioId) })));
   const f = p.finalVoiceRecording;
   const finalVoiceRecording = f ? (f.demo ? f : { ...f, audioUrl: await blobUrl(f.audioId) }) : null;
   const voiceParts = await Promise.all((p.voiceParts ?? []).map(async (part) => ({ ...part, audioUrl: await blobUrl(part.audioId) })));
-  return { memories, interviewAnswers, finalVoiceRecording, voiceParts };
+  return { memories, selfieBaseMedia, selfieVideos, interviewAnswers, finalVoiceRecording, voiceParts };
 }
 
 export function projectBlobIds(p: KeepProject) {
   return [
-    ...p.memories.filter((m) => m.source === "upload").map((m) => m.id),
+    ...p.memories.filter((m) => m.source === "upload").map((m) => m.blobId??m.id),
+    ...(p.selfieVideos??[]).filter(m=>m.source==="upload").map(m=>m.blobId??m.id),
+    ...(p.selfieBaseMedia??[]).filter(m=>m.source==="upload").map(m=>m.blobId??m.id),
     ...p.interviewAnswers.map((a) => a.audioId).filter((x): x is string => !!x),
     ...(p.finalVoiceRecording?.audioId ? [p.finalVoiceRecording.audioId] : []),
     ...(p.voiceParts ?? []).map((part) => part.audioId),
@@ -191,6 +222,8 @@ export function projectBlobIds(p: KeepProject) {
 export function projectObjectUrls(p: KeepProject) {
   return [
     ...p.memories.filter((m) => m.source === "upload").map((m) => m.url),
+    ...(p.selfieVideos??[]).map(m=>m.url),
+    ...(p.selfieBaseMedia??[]).filter(m=>m.source==="upload").map(m=>m.url),
     ...p.interviewAnswers.map((a) => a.audioUrl),
     p.finalVoiceRecording?.audioUrl,
     ...(p.voiceParts ?? []).map((part) => part.audioUrl),

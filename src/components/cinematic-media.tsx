@@ -4,6 +4,7 @@ import { motionFor } from "@/lib/keep-film-timing";
 export type CinematicMoment = {
   url: string;
   kind: "image" | "video";
+  videoStartSec?: number | undefined; // selfie closing scene begins near the end of the filmed take
   focusX?: number | undefined;
   focusY?: number | undefined;
   zoom?: number | undefined;
@@ -66,7 +67,7 @@ export function CinematicMedia({
         if (old.url === item.url && old.kind === item.kind &&
           old.focusX === item.focusX && old.focusY === item.focusY &&
           old.zoom === item.zoom && old.motion === item.motion &&
-          old.transition === item.transition && current.duration === duration &&
+          old.transition === item.transition && old.videoStartSec === item.videoStartSec && current.duration === duration &&
           current.imageClassName === imageClassName && current.index === motionIndex) return previous;
         const slots = [...previous.slots] as Layers;
         slots[previous.active] = next;
@@ -113,6 +114,20 @@ export function CinematicMedia({
       else video.pause();
     }
   }, [playing, state.slots[0]?.key, state.slots[1]?.key, state.pending]);
+
+  useEffect(()=>{
+    // Selfie outro shares the opening video's underlying file. Seek the second
+    // visual scene to the end of the take, while narration stays on its own clock.
+    const active=state.slots[state.active];
+    const offset=active?.item.videoStartSec;
+    if(active?.key!==key || typeof offset!=="number")return;
+    const video=videos.current[state.active];
+    if(!video || !Number.isFinite(video.duration))return;
+    const wanted=Math.max(0,Math.min(Math.max(0,video.duration-.05),offset+(sceneElapsed??0)));
+    if(Math.abs(video.currentTime-wanted)>.4){
+      try{video.currentTime=wanted;}catch{/* metadata may still be loading */}
+    }
+  },[sceneElapsed,state.active,state.slots,key]);
 
   const reveal = (slot: Slot, scene: Scene) => {
     let first = 0;
@@ -180,7 +195,11 @@ export function CinematicMedia({
           key={scene.key}
           ref={(node) => { videos.current[slot] = node; }}
           src={moment.url} muted playsInline loop autoPlay={playing}
-          preload="auto" onLoadedData={() => { if (isPending) reveal(slot, scene); }}
+          preload="auto" onLoadedMetadata={(event)=>{
+             if(typeof moment.videoStartSec==="number") {
+               try{event.currentTarget.currentTime=Math.min(Math.max(0,event.currentTarget.duration-.05),moment.videoStartSec);}catch{/* Safari not ready */}
+             }
+           }} onLoadedData={() => { if (isPending) reveal(slot, scene); }}
           onCanPlay={(event) => { if (isPending && event.currentTarget.readyState >= 2) reveal(slot, scene); }}
           onError={() => { if (isPending) setState((old) => {
             if (old.pending !== slot) return old;
