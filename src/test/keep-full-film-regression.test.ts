@@ -45,7 +45,8 @@ describe("full 2:30 narrated film timing",()=>{
     expect(captionAtTime(cues,0,150)).toBeUndefined();
     expect(captionAtTime(cues,1.5,150)?.text).toBe(cues[0]?.text);
     expect(captionAtTime(cues,3.5,150)?.text).toBe(cues[0]?.text);
-    expect(captionAtTime(cues,4,150)).toBeUndefined();
+    expect(captionAtTime(cues,3.75,150)).toBeUndefined();
+    expect(captionAtTime(cues,4,150)?.text).toBe(cues[1]?.text);
     expect(captionAtTime(cues,150.5,150)).toBeUndefined();
   });
   it("always reserves the same musical introduction and ending after narration",()=>{
