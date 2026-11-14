@@ -8,6 +8,7 @@ type Props = {
   onPlayPreview: () => void; onTone: (tone: VoiceTone) => void;
   onVolume: (track: "voice" | "music", value: number) => void;
   onMix: (change: Partial<AudioMix>) => void;
+  onRemoteManage?: () => void;
 };
 const presets: { key: VoiceTone; title: string; description: string }[] = [
   { key: "natural", title: "Natural", description: "Balanced & true" },
@@ -20,7 +21,7 @@ const formatTime = (seconds: number) => {
 };
 
 export function KeepVoiceEditor({ hasVoice, duration, playing, tone, voiceVolume, musicVolume, mix,
-  onClose, onEditWords, onRerecord, onPlayPreview, onTone, onVolume, onMix }: Props) {
+  onClose, onEditWords, onRerecord, onPlayPreview, onTone, onVolume, onMix, onRemoteManage }: Props) {
   const volumeSlider = (label: string, track: "voice" | "music", value: number) => <label className="block">
     <span className="mb-1 flex items-center justify-between text-[11px] text-[#D8CDC1]"><span>{label}</span><output className="tabular-nums">{value}%</output></span>
     <input aria-label={label} type="range" min={0} max={100} value={value}
@@ -43,6 +44,11 @@ export function KeepVoiceEditor({ hasVoice, duration, playing, tone, voiceVolume
         {playing ? <Pause className="size-3.5" fill="currentColor" /> : <Play className="ml-0.5 size-3.5" fill="currentColor" />}
       </button>
     </div>
+
+    {onRemoteManage && <button type="button" onClick={onRemoteManage}
+      className="keep-studio-secondary-action mt-2.5 w-full justify-between">
+      <span className="flex items-center gap-2"><Mic2 className="size-4"/> Check remote voice recordings</span><ArrowRight className="size-4"/>
+    </button>}
 
     <div className="mt-3 grid grid-cols-3 gap-2" aria-label="Voice sound options">
       {presets.map(item => <button key={item.key} type="button" disabled={!hasVoice}
