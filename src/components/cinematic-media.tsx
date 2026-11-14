@@ -121,7 +121,7 @@ export function CinematicMedia({
   useEffect(() => {
     for (const video of videos.current) {
       if (!video) continue;
-      if (playing) void video.play().catch(() => undefined);
+      if (playing) void video.play()?.catch(() => undefined);
       else video.pause();
     }
   }, [playing, state.slots[0]?.key, state.slots[1]?.key, state.pending]);
