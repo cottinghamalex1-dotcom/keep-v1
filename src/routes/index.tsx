@@ -12,6 +12,7 @@ import { remoteOwnerDownload, type RemoteMediaItem } from "@/lib/keep-remote";
 import { KeepPhotosEditor } from "@/components/keep-photos-editor";
 import { KeepStudioResize, DEFAULT_PREVIEW_SIZE, constrainPreviewSize } from "@/components/keep-studio-resize";
 import { KeepTeleprompter } from "@/components/keep-teleprompter";
+import { KeepVoiceTransition } from "@/components/keep-voice-transition";
 import { KeepStyleEditor } from "@/components/keep-style-editor";
 import { KeepSelfieEditor } from "@/components/keep-selfie-editor";
 import { KeepSelfiePrompt } from "@/components/keep-selfie-prompt";
@@ -238,14 +239,12 @@ function KeepApp() {
   const [publishError, setPublishError] = useState("");
   const publishingLock = useRef(false);
   const [setting, setSetting] = useState("");
-  const [voicePlaying, setVoicePlaying] = useState(false);
-  const [voiceTime, setVoiceTime] = useState(0);
+  const [voiceFinalizing, setVoiceFinalizing] = useState(false);
   const [captionSyncing, setCaptionSyncing] = useState(false);
   const [captionSyncError, setCaptionSyncError] = useState(false);
   const captionSyncToken = useRef(0);
   const [musicSampling, setMusicSampling] = useState("");
   const musicSampleTimer = useRef<number | null>(null);
-  const voicePlaybackRef = useRef<HTMLAudioElement>(null);
   const [busy, setBusy] = useState(false);
   const [mediaImport, setMediaImport] = useState<{ total: number; completed: number; detail?: string; compressionPercent?: number } | null>(null);
   const [voiceSampling, setVoiceSampling] = useState<VoiceTone | null>(null);
@@ -376,13 +375,6 @@ function KeepApp() {
   }, [project, hydrated, cloudSyncAllowed]);
   useEffect(() => { if (project.active && !viewingDemo && creationScreens.includes(screen)) setProject((o) => (o.stage === resumeScreen(screen) ? o : { ...o, stage: resumeScreen(screen) })); }, [screen]);
   useEffect(() => { if (screen !== "interview" && screen !== "record" && screen !== "groupRecord") recorder.cancel(); }, [screen]);
-  useEffect(() => {
-    if (screen === "recorded") return;
-    const audio = voicePlaybackRef.current;
-    if (audio) audio.pause();
-    setVoicePlaying(false);
-    setVoiceTime(0);
-  }, [screen]);
   useEffect(() => { if (screen !== "write" && screen !== "intent" && dictationRef.current) { dictationRef.current.stop(); dictationRef.current = null; setDictating(false); } }, [screen]);
   useEffect(() => {
     if (screen === "editor" && returnToEditorAfterRecording) setReturnToEditorAfterRecording(false);
@@ -766,6 +758,8 @@ function KeepApp() {
   };
 
   const finishFinal = async () => {
+    setVoiceFinalizing(true);
+    try {
     const r = await recorder.stop();
     if (!r) { toast.error("Nothing was recorded. Try again."); return; }
     const id = newId("voice");
@@ -790,6 +784,11 @@ function KeepApp() {
     });});
     go("recorded");
     void syncFinalCaptions(r.blob, r.mimeType, r.durationSec, stored ? id : undefined);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "The recording couldn't be prepared. Please try again.");
+    } finally {
+      setVoiceFinalizing(false);
+    }
   };
 
   const finishGroupPart = async () => {
@@ -829,6 +828,7 @@ function KeepApp() {
   const combineGroupVoices = async () => {
     if (groupBusy || !groupReady) return;
     setGroupBusy(true);
+    setVoiceFinalizing(true);
     try {
       const blobs: Blob[] = [];
       for (let i = 0; i < project.messageParagraphs.length; i++) {
@@ -852,6 +852,7 @@ function KeepApp() {
       toast.error(error instanceof Error ? error.message : "The recordings couldn't be combined. Your individual parts are saved.");
     } finally {
       setGroupBusy(false);
+      setVoiceFinalizing(false);
     }
   };
 
@@ -951,19 +952,6 @@ function KeepApp() {
     patch({ finalVoiceRecording: { durationSec: 150, demo: true }, captionTranscript: "", captionCues: [], captionWords: [] });
     go("recorded");
   };
-  const toggleVoicePlayback = () => {
-    const audio = voicePlaybackRef.current;
-    if (!audio) return;
-    if (audio.paused) void audio.play();
-    else audio.pause();
-  };
-  const seekVoicePlayback = (value: number) => {
-    const audio = voicePlaybackRef.current;
-    if (!audio) return;
-    audio.currentTime = value;
-    setVoiceTime(value);
-  };
-
   // ---- Memories ----
   const [styleTouched, setStyleTouched] = useState(false);
   const personalMedia = (project.selfieBaseMedia?.length?project.selfieBaseMedia:project.memories).filter((m) => m.source !== "text" && !m.isSelfie);
@@ -1963,67 +1951,39 @@ function KeepApp() {
         </div>
       </div>
     </div>}
-    {screen === "recorded" && <>{top()}<div className="relative flex keep-min-screen-minus-90 flex-col overflow-hidden px-7 pb-[max(36px,env(safe-area-inset-bottom))] pt-8">
-      <div className="pointer-events-none absolute left-1/2 top-[31%] h-80 w-80 -translate-x-1/2 rounded-full bg-accent/[0.07] blur-3xl" />
-      <div className="relative z-10 text-center">
-        
-        <h1 className="display mx-auto mt-5 max-w-sm text-[clamp(50px,13vw,68px)] leading-[0.96]">{isTogether ? "Your voices are ready." : "Your voice is ready."}</h1>
-        <p className="mx-auto mt-5 max-w-xs text-sm leading-6 text-muted-foreground">{isTogether ? "Different people, one heartfelt message. Just the way you wanted them to hear it." : "Not polished. Not performed. Just you — exactly how they should hear it."}</p>
-      </div>
-
-      <div className="relative z-10 flex flex-1 flex-col items-center justify-center py-7">
-        {!rec ? <p className="text-sm text-muted-foreground">No recording yet.</p> : rec.demo ? <div className="w-full max-w-sm rounded-2xl border border-accent/20 bg-card/80 p-7 text-center shadow-2xl backdrop-blur">
-          <div className="voice-orb mx-auto flex size-24 items-center justify-center rounded-full border border-accent/30 bg-accent/[0.05]"><Play className="ml-1 size-8 text-accent" fill="currentColor" /></div>
-          <p className="mt-6 font-display text-2xl">Demo recording</p>
-          <p className="mt-2 text-xs text-muted-foreground">No audio attached · 2:30</p>
-        </div> : <div className="w-full max-w-sm">
-          {rec.audioUrl ? <>
-            <audio ref={voicePlaybackRef} src={rec.audioUrl} preload="metadata" className="sr-only" onPlay={() => setVoicePlaying(true)} onPause={() => setVoicePlaying(false)} onEnded={() => { setVoicePlaying(false); setVoiceTime(0); }} onTimeUpdate={(e) => setVoiceTime(e.currentTarget.currentTime)} />
-            <div className="relative overflow-hidden rounded-[28px] border border-accent/20 bg-card/80 px-6 pb-6 pt-8 shadow-2xl backdrop-blur">
-              <div className="pointer-events-none absolute left-1/2 top-0 h-40 w-40 -translate-x-1/2 -translate-y-1/3 rounded-full bg-accent/10 blur-3xl" />
-              <button type="button" onClick={toggleVoicePlayback} aria-label={voicePlaying ? "Pause recording" : "Play recording"} className="voice-orb relative mx-auto flex size-24 items-center justify-center rounded-full border border-accent/35 bg-accent/[0.07] text-accent shadow-[0_0_60px_oklch(0.76_0.055_78/0.16)] transition-transform active:scale-95">
-                {voicePlaying ? <Pause className="size-8" fill="currentColor" /> : <Play className="ml-1 size-8" fill="currentColor" />}
-                {voicePlaying && <span className="pulse-ring absolute inset-0 rounded-full border border-accent/45" />}
-              </button>
-
-              <div className="mt-7 flex h-14 items-center justify-center gap-[3px]" aria-hidden="true">
-                {Array.from({ length: 31 }, (_, i) => {
-                  const height = 9 + ((i * 19) % 37);
-                  const active = voicePlaying || (rec.durationSec > 0 && i / 31 <= voiceTime / rec.durationSec);
-                  return <span key={i} className={`${voicePlaying ? "wave-bar" : ""} w-[2px] rounded-full transition-opacity ${active ? "bg-accent opacity-100" : "bg-foreground/25 opacity-60"}`} style={{ height: `${height}px`, animationDelay: `${-(i % 8) * 0.11}s` }} />;
-                })}
-              </div>
-
-              <input aria-label="Recording progress" type="range" min={0} max={Math.max(1, rec.durationSec)} step={0.1} value={Math.min(voiceTime, rec.durationSec)} onChange={(e) => seekVoicePlayback(Number(e.target.value))} className="voice-progress mt-4 w-full" />
-              <div className="mt-2 flex items-center justify-between text-[10px] tracking-widest text-muted-foreground"><span>{fmt(voiceTime)}</span><span>{fmt(rec.durationSec)}</span></div>
-
-              <div className="mt-6 border-t border-border pt-5 text-center">
-                <p className="font-display text-[22px] leading-snug">{voicePlaying ? "This is how they'll hear you." : "Press play and hear what you kept."}</p>
-                <p className="mt-2 text-xs leading-5 text-muted-foreground">{fmt(rec.durationSec)} of your voice, saved with this Keep.</p>
-                <p className="mt-2 text-[11px] leading-5 text-muted-foreground">{rec.durationSec >= 120 && rec.durationSec <= 180 ? "Beautiful — right around the 2–3 minute sweet spot." : "Two to three minutes is a great guide, but your message can be shorter or longer."}</p>
-                {!rec.demo && <div className="mt-4">
-                  {captionSyncing ? <p className="flex items-center justify-center gap-2 text-[11px] text-accent"><Sparkles className="size-3.5 animate-pulse" /> Syncing captions to your voice…</p> : captionSyncError ? <div><p className="text-[11px] leading-5 text-muted-foreground">Caption timing needs another pass.</p><Button variant="bare" size="sm" className="mt-1 text-accent" onClick={() => void retryCaptionSync()}><RotateCcw /> Retry sync</Button></div> : project.captionCues.length ? <p className="flex items-center justify-center gap-2 text-[11px] text-muted-foreground"><Check className="size-3.5 text-accent" /> {project.captionTimingEstimated ? "Captions placed with estimated timing — please review" : "Captions synced to your recording"}</p> : null}
-                </div>}
-              </div>
-            </div>
-          </> : <div className="rounded-2xl border border-border bg-card/70 p-6 text-center"><p className="font-display text-2xl">Your recording is here.</p><p className="mt-3 text-xs leading-5 text-muted-foreground">The audio couldn't be restored on this device. Record again to hear it.</p></div>}
-        </div>}
-      </div>
-
-      <div className="relative z-10 space-y-2">
-        {nextButton(returnToEditorAfterRecording ? "Use updated recording" : "Keep this recording", () => {
-          if (returnToEditorAfterRecording) {
-            setReturnToEditorAfterRecording(false);
-            setHistory([]);
-            setScreen("editor");
-            window.scrollTo(0, 0);
-          } else {
-            go("memories");
-          }
-        }, !rec || captionSyncing || (!!rec && !rec.demo && project.captionCues.length === 0))}
-        <Button variant="bare" size="touch" className="w-full text-muted-foreground" onClick={() => {setGroupPartIndex(0);go(isTogether ? "groupRecord" : "record");}}><RotateCcw /> Record again</Button>
-      </div>
-    </div></>}
+    {voiceFinalizing && screen !== "recorded" && <KeepVoiceTransition
+      isSaving isSyncing={false} hasCaptions={false} syncError={false}
+      isDemo={false} isPersisted={false} hasRecording={false}
+      returnToEditor={returnToEditorAfterRecording}
+      onContinue={() => {}} onRetry={() => {}} onRecordAgain={() => {}} />}
+    {screen === "recorded" && <KeepVoiceTransition
+      isSaving={voiceFinalizing}
+      isSyncing={captionSyncing}
+      hasCaptions={project.captionCues.length > 0}
+      syncError={captionSyncError}
+      isDemo={!!rec?.demo}
+      isPersisted={!!rec?.audioId || !!rec?.demo}
+      hasRecording={!!rec?.audioUrl || !!rec?.demo}
+      returnToEditor={returnToEditorAfterRecording}
+      onRetry={() => void retryCaptionSync()}
+      onRecordAgain={() => {
+        captionSyncToken.current++;
+        setCaptionSyncing(false);
+        setCaptionSyncError(false);
+        setGroupPartIndex(0);
+        go(isTogether ? "groupRecord" : "record");
+      }}
+      onContinue={() => {
+        if (returnToEditorAfterRecording) {
+          setReturnToEditorAfterRecording(false);
+          setHistory([]);
+          setScreen("editor");
+          window.scrollTo(0, 0);
+        } else {
+          go("memories");
+        }
+      }}
+    />}
     {screen === "memories" && <>{top()}<div className="px-7 pb-10 pt-9">
       {title("YOUR MOMENTS", "Add photos & videos.", "Let photos tell most of the story, with a few meaningful video moments mixed in—or simply let your face tell it.")}
       <div className="keep-editorial-surface mb-7 px-5 py-5" aria-live="polite">
