@@ -42,7 +42,7 @@ import { countKeepWords, estimateKeepSeconds, formatKeepTime } from "@/lib/keep-
 import { useRecorder } from "@/hooks/use-recorder";
 import { joinKeepVoiceParts } from "@/lib/keep-collaborative-audio";
 import { deleteBlobs, getBlob, putBlob } from "@/lib/keep-media-store";
-import { createKeepVoiceMix, KEEP_MUSIC_LEAD_SECONDS, playMusicSample, stopMusicSample, type MusicBalance } from "@/lib/keep-audio";
+import { createKeepVoiceMix, KEEP_MUSIC_LEAD_SECONDS, KEEP_MUSIC_TAIL_SECONDS, playMusicSample, stopMusicSample, type MusicBalance } from "@/lib/keep-audio";
 import { fetchDraft, fetchNextQuestion, fetchRevision, keepAiAvailable, transcribeAudio, transcribeTimedAudio, type TimedWord } from "@/lib/keep-ai";
 import { fmt, hydrateDraftMedia, loadDraft, newId, newProject, projectBlobIds, projectObjectUrls, sampleMemories, saveDraft, stageLabels, defaultAudioMix, type AudioMix, type CaptionCue, type InterviewAnswer, type KeepProject, type KeepVoicePart, type MediaItem, type VoiceTone } from "@/lib/keep-project";
 
@@ -226,6 +226,13 @@ function KeepApp() {
   const editorIntroRemainingRef = useRef(KEEP_MUSIC_LEAD_SECONDS*1000);
   const editorIntroStartedAtRef = useRef(0);
   const editorIntroTimerRef = useRef<ReturnType<typeof setTimeout>|null>(null);
+  const editorOutroTimerRef = useRef<ReturnType<typeof setTimeout>|null>(null);
+  const clearEditorOutro = () => {
+    if (editorOutroTimerRef.current !== null) {
+      window.clearTimeout(editorOutroTimerRef.current);
+      editorOutroTimerRef.current = null;
+    }
+  };
   const editorPlayAttemptRef = useRef(0);
   const editorNarrationStartedRef = useRef(false);
   const cancelEditorIntro = () => {
@@ -1415,6 +1422,7 @@ function KeepApp() {
   const editorCue = captionAtTime(project.captionCues, editorTime);
   const editorCaption = editorCue?.text ?? (rec?.demo ? captionLines[Math.min(captionLines.length - 1, Math.floor(editorTime / Math.max(1, editorDuration / Math.max(1, captionLines.length))))] ?? "" : "");
   const seekEditor = (time: number) => {
+    clearEditorOutro();
     const next = Math.max(0, Math.min(editorDuration, time));
     // Seeking should not restart the soundtrack; that causes audible jumps and drift.
     if (editorAudioRef.current) editorAudioRef.current.currentTime = next;
@@ -1456,6 +1464,7 @@ function KeepApp() {
     }
     return () => {
       cancelEditorIntro();
+      clearEditorOutro();
       audio.pause();
       if (editorMixRef.current === controller) editorMixRef.current = null;
       void controller?.stop();
@@ -1513,6 +1522,7 @@ function KeepApp() {
     if(!audio||!rec?.audioUrl||rec.demo)return;
     if(!editorPlaying){
       cancelEditorIntro();
+      clearEditorOutro();
       audio.pause();
       void editorMixRef.current?.pause();
       return;
@@ -1574,7 +1584,16 @@ function KeepApp() {
       // Never advance visuals while a recorded narration is buffering or paused.
       const next = Math.min(editorDuration, voiceClock ? audioTime : initialTime + elapsed);
       setEditorTime(next);
-      if (next >= editorDuration) { setEditorPlaying(false); return; }
+      if (next >= editorDuration) {
+        // Keep the existing final photograph up while the soundtrack rises
+        // after the final spoken word. onEnded owns the music-tail timeout.
+        if (voiceClock) {
+          if (audio?.ended) return;
+        } else {
+          setEditorPlaying(false);
+          return;
+        }
+      }
       raf = window.requestAnimationFrame(tick);
     };
     raf = window.requestAnimationFrame(tick);
@@ -1650,6 +1669,10 @@ function KeepApp() {
     }
   };
   const toCard = () => {
+    if (mediaImportLock.current || captionSyncing) {
+      toast.info(mediaImportLock.current ? "Finish adding your photos and videos before continuing." : "Keep is still syncing your captions.");
+      return;
+    }
     if(isTogether && project.voiceRecordingLocation==="remote" && (!rec?.audioUrl || !groupReady || project.groupVoiceSignature!==groupSignature)){
       toast.info("Collect and combine all remote recordings before finishing this Keep.");
       setReturnToEditorAfterRecording(true);
@@ -2127,13 +2150,23 @@ function KeepApp() {
         <div className="flex items-center gap-1">
           <Button variant="bare" size="icon" aria-label="Undo" disabled={!undoPast.current.length} onClick={() => stepHistory("undo")}><Undo2 className="size-4" /></Button>
           <Button variant="bare" size="icon" aria-label="Redo" disabled={!undoFuture.current.length} onClick={() => stepHistory("redo")}><Redo2 className="size-4" /></Button>
-          <Button variant="bare" size="sm" className="text-muted-foreground" onClick={() => { setViewingDemo(false); setPreviewChooserOpen(true); setReadArrangeOpen(false); }}><Play className="size-4" /> Preview</Button>
-          <Button variant="keep" size="sm" disabled={!!project.restoreIncomplete || publishing} onClick={toCard}>{publishing ? "Saving…" : "Done"} {publishing ? <Loader2 className="size-4 animate-spin" /> : <Check className="size-4" />}</Button>
+          <Button variant="bare" size="sm" className="text-muted-foreground" disabled={busy || publishing} onClick={() => { setViewingDemo(false); setPreviewChooserOpen(true); setReadArrangeOpen(false); }}><Play className="size-4" /> Preview</Button>
+          <Button variant="keep" size="sm" disabled={!!project.restoreIncomplete || publishing || busy || captionSyncing} onClick={toCard}>{publishing ? "Saving…" : busy ? "Adding…" : captionSyncing ? "Syncing…" : "Done"} {publishing || busy || captionSyncing ? <Loader2 className="size-4 animate-spin" /> : <Check className="size-4" />}</Button>
         </div>
       </div>
 
       {(publishing || publishError) && <div className={`mx-4 mt-2 rounded-xl border px-4 py-3 text-xs leading-5 ${publishError ? "border-[#BE7363] bg-[#3B2826] text-[#FFE5DF]" : "border-[#927B61] bg-[#302922] text-[#F7EBDD]"}`} role={publishError ? "alert" : "status"}>{publishError || publishStatus || "Saving changes to your Keep…"}</div>}
-      {rec?.audioUrl && !rec.demo && <audio ref={editorAudioRef} src={rec.audioUrl} preload="metadata" onWaiting={() => {if(editorPlaying)void editorMixRef.current?.pause();}} onStalled={() => {if(editorPlaying)void editorMixRef.current?.pause();}} onPlaying={() => {if(editorPlaying)void editorMixRef.current?.play().catch(()=>undefined);}} onTimeUpdate={(e) => { const time = e.currentTarget.currentTime; setEditorTime(time); setFrame(editorSceneAt(time)); }} onEnded={() => { if (editorDuration <= (rec?.durationSec ?? 0) + 0.1) { setEditorPlaying(false); setEditorTime(editorDuration); } }} />}
+      {rec?.audioUrl && !rec.demo && <audio ref={editorAudioRef} src={rec.audioUrl} preload="metadata" onWaiting={() => {if(editorPlaying)void editorMixRef.current?.pause();}} onStalled={() => {if(editorPlaying)void editorMixRef.current?.pause();}} onPlaying={() => {if(editorPlaying)void editorMixRef.current?.play().catch(()=>undefined);}} onTimeUpdate={(e) => { const time = e.currentTarget.currentTime; setEditorTime(time); setFrame(editorSceneAt(time)); }} onEnded={() => {
+        if (editorDuration > (rec?.durationSec ?? 0) + 0.1) return;
+        setEditorTime(editorDuration);
+        clearEditorOutro();
+        if (editorPlaying) {
+          editorOutroTimerRef.current = window.setTimeout(() => {
+            editorOutroTimerRef.current = null;
+            setEditorPlaying(false);
+          }, KEEP_MUSIC_TAIL_SECONDS * 1000);
+        }
+      }} />}
       <div className="keep-studio-stage">
         <div className="keep-studio-canvas-wrap">
           <div className="keep-studio-canvas relative aspect-[9/16] overflow-hidden rounded-2xl bg-card shadow-lg">
