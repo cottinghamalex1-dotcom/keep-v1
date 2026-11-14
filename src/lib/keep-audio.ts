@@ -424,7 +424,10 @@ export function createKeepVoiceMix(audio: HTMLAudioElement, mood: string, balanc
   let reducer: AudioWorkletNode | null = null;
   if (ctx.audioWorklet && typeof AudioWorkletNode !== "undefined") {
     void ctx.audioWorklet.addModule("/audio/keep-noise-reducer.js").then(() => {
-      if (disposed) return;
+      // Never rewire a live voice track mid-sentence. The optional cleanup
+      // should attach before speech, otherwise EQ/compression stay active
+      // through the current playback without risking a pop or dropout.
+      if (disposed || !audio.paused || audio.currentTime > 0.015) return;
       try {
         const node = new AudioWorkletNode(ctx, "keep-noise-reducer");
         node.connect(highpass);

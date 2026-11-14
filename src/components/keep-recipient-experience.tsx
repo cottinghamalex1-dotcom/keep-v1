@@ -88,6 +88,17 @@ export function KeepRecipientExperience({
   const listenMix = useRef<ReturnType<typeof createKeepVoiceMix>>(null);
   const listenIntroTimer = useRef<number | null>(null);
   const listenHasStarted = useRef(false);
+  const listenIntroRemaining = useRef(KEEP_MUSIC_LEAD_SECONDS * 1000);
+  const listenIntroStartedAt = useRef(0);
+  const listenAttempt = useRef(0);
+  const cancelPendingListen = () => {
+    listenAttempt.current++;
+    if(listenIntroTimer.current!==null){
+      window.clearTimeout(listenIntroTimer.current);
+      listenIntroTimer.current=null;
+      listenIntroRemaining.current=Math.max(0,listenIntroRemaining.current-(performance.now()-listenIntroStartedAt.current));
+    }
+  };
   const paragraphs = messageParagraphs?.length ? messageParagraphs : demoMessage;
 
   useEffect(() => {
@@ -98,6 +109,18 @@ export function KeepRecipientExperience({
   useEffect(() => () => {
     if (timer.current) window.clearInterval(timer.current);
   }, []);
+  useEffect(()=>{
+    if(stage!=="experience"||experience!=="listen")return;
+    const onHide=()=>{
+      if(!document.hidden)return;
+      cancelPendingListen();
+      audio.current?.pause();
+      void listenMix.current?.pause();
+      setListening(false);
+    };
+    document.addEventListener("visibilitychange",onHide);
+    return ()=>document.removeEventListener("visibilitychange",onHide);
+  },[stage,experience]);
   useEffect(() => {
     if (stage !== "experience" || experience !== "listen" || listenProgress < 99.8 || !audioUrl) return;
     const tail = window.setTimeout(() => { void listenMix.current?.pause(); }, KEEP_MUSIC_TAIL_SECONDS * 1000);
@@ -112,13 +135,25 @@ export function KeepRecipientExperience({
     controller?.setLevels(voiceVolume, musicVolume);
     listenHasStarted.current = false;
     return () => {
-      if (listenIntroTimer.current) window.clearTimeout(listenIntroTimer.current);
-      listenIntroTimer.current = null;
+      cancelPendingListen();
       void controller?.stop();
       listenMix.current = null;
       listenHasStarted.current = false;
+      listenIntroRemaining.current = KEEP_MUSIC_LEAD_SECONDS * 1000;
     };
-  }, [stage, experience, audioUrl, audioDuration, musicMood, voiceMusicBalance, voiceVolume, musicVolume]);
+  }, [stage, experience, audioUrl, audioDuration]);
+  useEffect(()=>{
+    listenMix.current?.setLevels(voiceVolume,musicVolume);
+  },[stage,experience,voiceVolume,musicVolume]);
+  useEffect(()=>{
+    listenMix.current?.setTrackMutes(!!audioMix?.voiceMuted,!!audioMix?.musicMuted);
+    listenMix.current?.setVoiceTone(audioMix?.voiceTone??"natural");
+  },[stage,experience,audioMix?.voiceMuted,audioMix?.musicMuted,audioMix?.voiceTone]);
+  useEffect(()=>{
+    if(stage==="experience"&&experience==="listen")
+      listenMix.current?.restartMusic(musicMood,
+        (["Soft","Balanced","Full"].includes(voiceMusicBalance)?voiceMusicBalance:"Balanced") as MusicBalance,audioMix);
+  },[stage,experience,musicMood,voiceMusicBalance,audioMix?.fadeIn,audioMix?.fadeOut,audioMix?.ducking]);
 
   const enter = () => {
     if (persistVisit) {
@@ -141,7 +176,9 @@ export function KeepRecipientExperience({
   const backToChoose = () => {
     if (timer.current) window.clearInterval(timer.current);
     timer.current = null;
+    cancelPendingListen();
     if (audio.current) audio.current.pause();
+    void listenMix.current?.pause();
     setListening(false);
     if (creatorPreview && onCreatorExit) {
       onCreatorExit();
@@ -153,6 +190,8 @@ export function KeepRecipientExperience({
   const finishExperience = () => {
     if (timer.current) window.clearInterval(timer.current);
     timer.current = null;
+    cancelPendingListen();
+    void listenMix.current?.pause();
     setListening(false);
     setStage("ending");
   };
@@ -160,34 +199,53 @@ export function KeepRecipientExperience({
   const toggleListen = () => {
     if (timer.current) { window.clearTimeout(timer.current); timer.current = null; }
     if (audioUrl && audio.current) {
-      const element = audio.current;
-      if (listening) {
-        if (listenIntroTimer.current) window.clearTimeout(listenIntroTimer.current);
-        listenIntroTimer.current = null;
+      const element=audio.current;
+      if(listening){
+        cancelPendingListen();
         element.pause();
         void listenMix.current?.pause();
         setListening(false);
-      } else {
-        if (Number.isFinite(element.duration) && element.currentTime >= element.duration - 0.1) {
-          element.currentTime = 0;
-          setListenProgress(0);
-        }
-        setListening(true);
-        // Do not start the voice clock until the selected music has genuinely
-        // started playing (a large MP3 may need to buffer on cellular).
-        const controller = listenMix.current;
-        void (controller?.play() ?? Promise.reject(new Error("Music unavailable"))).then(() => {
-          if (!listenHasStarted.current && element.currentTime < 0.05) {
-            listenIntroTimer.current = window.setTimeout(() => {
-              listenIntroTimer.current = null;
-              listenHasStarted.current = true;
-              void element.play().catch(() => setListening(false));
-            }, KEEP_MUSIC_LEAD_SECONDS * 1000);
-          } else {
-            void element.play().catch(() => setListening(false));
-          }
-        }).catch(() => setListening(false));
+        return;
       }
+      const wasFinished=Number.isFinite(element.duration)&&element.currentTime>=element.duration-.1;
+      if(wasFinished){
+        element.currentTime=0;
+        setListenProgress(0);
+        listenHasStarted.current=false;
+        listenIntroRemaining.current=KEEP_MUSIC_LEAD_SECONDS*1000;
+        listenMix.current?.restartMusic(musicMood,
+          (["Soft","Balanced","Full"].includes(voiceMusicBalance)?voiceMusicBalance:"Balanced") as MusicBalance,audioMix);
+      }
+      const attempt=++listenAttempt.current;
+      setListening(true);
+      const controller=listenMix.current;
+      // Browsers without Web Audio still get the spoken message rather than a
+      // dead Play button. On supported devices the full soundtrack plays first.
+      if(!controller){
+        listenHasStarted.current=true;
+        void element.play().catch(()=>{if(attempt===listenAttempt.current)setListening(false);});
+        return;
+      }
+      void controller.play().then(()=>{
+        if(attempt!==listenAttempt.current)return;
+        const beginVoice=()=>{
+          if(attempt!==listenAttempt.current)return;
+          listenIntroTimer.current=null;
+          listenIntroRemaining.current=0;
+          listenHasStarted.current=true;
+          void element.play().catch(()=>{
+            if(attempt!==listenAttempt.current)return;
+            void controller.pause();
+            setListening(false);
+          });
+        };
+        if(!listenHasStarted.current&&element.currentTime<0.05){
+          listenIntroStartedAt.current=performance.now();
+          listenIntroTimer.current=window.setTimeout(beginVoice,listenIntroRemaining.current);
+        }else beginVoice();
+      }).catch(()=>{
+        if(attempt===listenAttempt.current)setListening(false);
+      });
       return;
     }
     if (listening) {
@@ -223,6 +281,8 @@ export function KeepRecipientExperience({
       knownDuration={listenDuration} onToggle={toggleListen}
       onProgress={setListenProgress} onDuration={setListenDuration}
       onListening={setListening} onBack={backToChoose}
+      onBuffering={()=>{if(listening)void listenMix.current?.pause();}}
+      onBufferEnded={()=>{if(listening)void listenMix.current?.play().catch(()=>setListening(false));}}
     />;
   }
 
@@ -319,16 +379,17 @@ type ListenReadProps = {
   listening: boolean; progress: number;
   onToggle: () => void; onProgress: (value: number) => void; onDuration: (value: number) => void;
   onListening: (value: boolean) => void; onBack: () => void;
+  onBuffering: () => void; onBufferEnded: () => void;
 };
 
 function KeepListenAndRead({ name, from, year, paragraphs, captionCues, audioUrl, audioDuration, knownDuration, audioRef,
-  listening, progress, onToggle, onProgress, onDuration, onListening, onBack }: ListenReadProps) {
+  listening, progress, onToggle, onProgress, onDuration, onListening, onBack, onBuffering, onBufferEnded }: ListenReadProps) {
   const seconds = Math.max(1, knownDuration || audioDuration);
   const frames = useMemo(() => makeReadingFrames(captionCues, paragraphs, seconds), [captionCues, paragraphs, seconds]);
   const elapsed = Math.min(seconds, progress * seconds / 100);
   const frameIndex = frameAtTime(frames, elapsed);
   const finished = progress >= 99.8;
-  const started = progress > 0.1 || listening;
+  const started = progress > 0.1;
   const shown = started && !finished && frameIndex >= 0 ? frames[frameIndex] : null;
   const stamp = (value: number) => `${Math.floor(value / 60)}:${String(Math.floor(value % 60)).padStart(2, "0")}`;
   return <main className="app-shell">
@@ -346,6 +407,9 @@ function KeepListenAndRead({ name, from, year, paragraphs, captionCues, audioUrl
       {audioUrl && <audio ref={audioRef} src={audioUrl} crossOrigin="anonymous" preload="metadata"
         onLoadedMetadata={e => {const d=e.currentTarget.duration;if(Number.isFinite(d)&&d>0)onDuration(d);}}
         onPlay={() => onListening(true)}
+        onWaiting={onBuffering}
+        onStalled={onBuffering}
+        onPlaying={onBufferEnded}
         onPause={() => onListening(false)}
         onEnded={() => {onListening(false);onProgress(100);}}
         onTimeUpdate={e => {const el=e.currentTarget;const d=Number.isFinite(el.duration)&&el.duration>0?el.duration:seconds;onProgress(Math.min(100,el.currentTime/d*100));}}

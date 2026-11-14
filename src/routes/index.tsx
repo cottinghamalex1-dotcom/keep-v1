@@ -39,7 +39,7 @@ import { countKeepWords, estimateKeepSeconds, formatKeepTime } from "@/lib/keep-
 import { useRecorder } from "@/hooks/use-recorder";
 import { joinKeepVoiceParts } from "@/lib/keep-collaborative-audio";
 import { deleteBlobs, getBlob, putBlob } from "@/lib/keep-media-store";
-import { createKeepVoiceMix, playMusicSample, stopMusicSample, type MusicBalance } from "@/lib/keep-audio";
+import { createKeepVoiceMix, KEEP_MUSIC_LEAD_SECONDS, playMusicSample, stopMusicSample, type MusicBalance } from "@/lib/keep-audio";
 import { fetchDraft, fetchNextQuestion, fetchRevision, keepAiAvailable, transcribeAudio, transcribeTimedAudio, type TimedWord } from "@/lib/keep-ai";
 import { fmt, hydrateDraftMedia, loadDraft, newId, newProject, projectBlobIds, projectObjectUrls, sampleMemories, saveDraft, stageLabels, defaultAudioMix, type AudioMix, type CaptionCue, type InterviewAnswer, type KeepProject, type KeepVoicePart, type MediaItem, type VoiceTone } from "@/lib/keep-project";
 
@@ -220,6 +220,19 @@ function KeepApp() {
   const [editorTime, setEditorTime] = useState(0);
   const editorAudioRef = useRef<HTMLAudioElement>(null);
   const editorMixRef = useRef<ReturnType<typeof createKeepVoiceMix>>(null);
+  const editorIntroRemainingRef = useRef(KEEP_MUSIC_LEAD_SECONDS*1000);
+  const editorIntroStartedAtRef = useRef(0);
+  const editorIntroTimerRef = useRef<ReturnType<typeof setTimeout>|null>(null);
+  const editorPlayAttemptRef = useRef(0);
+  const editorNarrationStartedRef = useRef(false);
+  const cancelEditorIntro = () => {
+    editorPlayAttemptRef.current++;
+    if(editorIntroTimerRef.current!==null){
+      window.clearTimeout(editorIntroTimerRef.current);
+      editorIntroTimerRef.current=null;
+      editorIntroRemainingRef.current=Math.max(0,editorIntroRemainingRef.current-(performance.now()-editorIntroStartedAtRef.current));
+    }
+  };
   const [publishing, setPublishing] = useState(false);
   const [publishStatus, setPublishStatus] = useState("");
   const [publishError, setPublishError] = useState("");
@@ -1358,6 +1371,13 @@ function KeepApp() {
     const next = Math.max(0, Math.min(editorDuration, time));
     // Seeking should not restart the soundtrack; that causes audible jumps and drift.
     if (editorAudioRef.current) editorAudioRef.current.currentTime = next;
+    if(next<0.05){
+      editorNarrationStartedRef.current=false;
+      editorIntroRemainingRef.current=KEEP_MUSIC_LEAD_SECONDS*1000;
+    }else{
+      editorNarrationStartedRef.current=true;
+      editorIntroRemainingRef.current=0;
+    }
     setEditorTime(next);
     setFrame(editorSceneAt(next));
   };
@@ -1380,7 +1400,7 @@ function KeepApp() {
     if (!audio) return;
     let controller: ReturnType<typeof createKeepVoiceMix> = null;
     try {
-      controller = createKeepVoiceMix(audio, project.musicMood, project.voiceMusicBalance as MusicBalance, rec.durationSec, 0.8, mix);
+      controller = createKeepVoiceMix(audio, project.musicMood, project.voiceMusicBalance as MusicBalance, rec.durationSec, KEEP_MUSIC_LEAD_SECONDS, mix);
       editorMixRef.current = controller;
       controller?.setLevels(project.voiceVolume ?? 60, project.musicVolume ?? 60);
       if (controller) void controller.pause();
@@ -1388,6 +1408,7 @@ function KeepApp() {
       toast.error("Music mixing is unavailable on this device. Voice playback will still work.");
     }
     return () => {
+      cancelEditorIntro();
       audio.pause();
       if (editorMixRef.current === controller) editorMixRef.current = null;
       void controller?.stop();
@@ -1440,20 +1461,57 @@ function KeepApp() {
   });
 
   useEffect(() => {
-    if (screen !== "editor") return;
-    const audio = editorAudioRef.current;
-    if (!audio || !rec?.audioUrl || rec.demo) return;
-    if (editorPlaying) {
-      stopMusicSample();
-      setMusicSampling("");
-      void editorMixRef.current?.play().catch(() => undefined);
-      void audio.play().catch(() => { setEditorPlaying(false); toast.error("Tap play again to enable audio."); });
-    } else {
+    if(screen!=="editor")return;
+    const audio=editorAudioRef.current;
+    if(!audio||!rec?.audioUrl||rec.demo)return;
+    if(!editorPlaying){
+      cancelEditorIntro();
       audio.pause();
       void editorMixRef.current?.pause();
+      return;
     }
-    return () => audio.pause();
-  }, [screen, editorPlaying, rec?.audioUrl, rec?.demo]);
+    stopMusicSample();
+    setMusicSampling("");
+    const attempt=++editorPlayAttemptRef.current;
+    void (async()=>{
+      try{
+        const controller=editorMixRef.current;
+        // If an older browser cannot mix tracks, narration still works.
+        if(controller)await controller.play();
+        if(attempt!==editorPlayAttemptRef.current)return;
+        const startVoice=()=>{
+          if(attempt!==editorPlayAttemptRef.current)return;
+          editorIntroTimerRef.current=null;
+          editorIntroRemainingRef.current=0;
+          editorNarrationStartedRef.current=true;
+          void audio.play().catch(()=>{
+            if(attempt!==editorPlayAttemptRef.current)return;
+            setEditorPlaying(false);
+            toast.error("Tap play again to enable audio on this device.");
+          });
+        };
+        if(controller && !editorNarrationStartedRef.current && audio.currentTime<0.05){
+          editorIntroStartedAtRef.current=performance.now();
+          editorIntroTimerRef.current=window.setTimeout(startVoice,editorIntroRemainingRef.current);
+        }else startVoice();
+      }catch{
+        if(attempt!==editorPlayAttemptRef.current)return;
+        setEditorPlaying(false);
+        toast.error("The soundtrack couldn't start. Tap play again.");
+      }
+    })();
+    return ()=>{
+      cancelEditorIntro();
+      audio.pause();
+    };
+  },[screen,editorPlaying,rec?.audioUrl,rec?.demo]);
+  useEffect(()=>{
+    if(screen!=="editor")return;
+    const onHide=()=>{if(document.hidden)setEditorPlaying(false);};
+    document.addEventListener("visibilitychange",onHide);
+    return ()=>document.removeEventListener("visibilitychange",onHide);
+  },[screen]);
+
   // One playback clock: recorded narration when present; otherwise a monotonic
   // animation-frame clock. The preview, playhead and captions read the same time.
   useEffect(() => {
@@ -2048,11 +2106,11 @@ function KeepApp() {
         </div>
       </div>
 
-      {rec?.audioUrl && !rec.demo && <audio ref={editorAudioRef} src={rec.audioUrl} preload="metadata" onTimeUpdate={(e) => { const time = e.currentTarget.currentTime; setEditorTime(time); setFrame(editorSceneAt(time)); }} onEnded={() => { if (editorDuration <= (rec?.durationSec ?? 0) + 0.1) { setEditorPlaying(false); setEditorTime(editorDuration); } }} />}
+      {rec?.audioUrl && !rec.demo && <audio ref={editorAudioRef} src={rec.audioUrl} preload="metadata" onWaiting={() => {if(editorPlaying)void editorMixRef.current?.pause();}} onStalled={() => {if(editorPlaying)void editorMixRef.current?.pause();}} onPlaying={() => {if(editorPlaying)void editorMixRef.current?.play().catch(()=>undefined);}} onTimeUpdate={(e) => { const time = e.currentTarget.currentTime; setEditorTime(time); setFrame(editorSceneAt(time)); }} onEnded={() => { if (editorDuration <= (rec?.durationSec ?? 0) + 0.1) { setEditorPlaying(false); setEditorTime(editorDuration); } }} />}
       <div className="keep-studio-stage">
         <div className="keep-studio-canvas-wrap">
           <div className="keep-studio-canvas relative aspect-[9/16] overflow-hidden rounded-2xl bg-card shadow-lg">
-            <CinematicMedia item={selected} nextItem={shown[frame + 1]} sceneKey={frame} motionIndex={frame} playing={editorPlaying} duration={sceneDuration(shown, frame, editorDuration)} sceneElapsed={sceneElapsed(shown, frame, editorTime, editorDuration)} className="absolute inset-0" imageClassName={`editor-image-${styleSlug(compareOriginalStyle && editorPanel === "Style" ? "Natural" : project.visualStyle)}`} />
+            <CinematicMedia item={selected} nextItem={shown[frame + 1]} sceneKey={frame} motionIndex={frame} playing={editorPlaying && (!selected.isSelfie || editorNarrationStartedRef.current)} duration={sceneDuration(shown, frame, editorDuration)} sceneElapsed={sceneElapsed(shown, frame, editorTime, editorDuration)} className="absolute inset-0" imageClassName={`editor-image-${styleSlug(compareOriginalStyle && editorPanel === "Style" ? "Natural" : project.visualStyle)}`} />
             <div className="absolute inset-0 photo-shade" />
             {editorPanel === "Memories" && <div className="absolute inset-x-0 top-0 bottom-14 z-20 cursor-grab touch-none active:cursor-grabbing" aria-label="Drag photo to reposition" onPointerDown={(e) => { e.currentTarget.setPointerCapture(e.pointerId); const r = e.currentTarget.getBoundingClientRect(); photoDrag.current = { x: e.clientX, y: e.clientY, focusX: selected.focusX ?? 50, focusY: selected.focusY ?? 50, width: r.width, height: r.height }; setEditorPlaying(false); }} onPointerMove={(e) => { const d = photoDrag.current; if (!d) return; updateSelectedMoment({ focusX: Math.max(0, Math.min(100, d.focusX - (e.clientX - d.x) / d.width * 100)), focusY: Math.max(0, Math.min(100, d.focusY - (e.clientY - d.y) / d.height * 100)) }); }} onPointerUp={() => { photoDrag.current = null; }} onPointerCancel={() => { photoDrag.current = null; }}><span className="absolute left-1/2 top-3 -translate-x-1/2 whitespace-nowrap rounded-full bg-black/65 px-3 py-1 text-[10px] text-white">Drag photo to reposition</span></div>}
 

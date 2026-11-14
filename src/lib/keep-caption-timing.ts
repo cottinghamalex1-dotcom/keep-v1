@@ -95,21 +95,20 @@ export function recoverCaptionTiming(
   return { words: correctedWords, cues: correctedCues, repaired: true };
 }
 
-/** Keep one caption visible through any small silence between phrases.
- * The playing narration controls when to start/end displaying captions. */
+/** Follow the true narration clock. A caption must never anticipate speech or
+ * linger across a long pause: only brief gaps get a graceful 0.4s hold. */
 export function captionAtTime(cues: CaptionCue[], time: number, narrationDuration?: number): CaptionCue | undefined {
-  if (!cues.length || !Number.isFinite(time) || time < 0) return undefined;
-  // A held caption must stop when the narration is over.
-  const lastEnd = cues[cues.length - 1]!.end;
-  if (time > lastEnd + 0.1 && (!narrationDuration || time > narrationDuration + 0.01)) return undefined;
-  for (let i = cues.length - 1; i >= 0; i--) {
-    const cue = cues[i]!;
-    if (time + 0.015 >= cue.start && time <= cue.end + 0.08) return cue;
+  if(!cues.length||!Number.isFinite(time)||time<0)return undefined;
+  if(narrationDuration && Number.isFinite(narrationDuration) && time>narrationDuration+0.05)return undefined;
+  const first=cues[0]!;
+  if(time+0.015<first.start)return undefined;
+  for(let i=cues.length-1;i>=0;i--){
+    const cue=cues[i]!;
+    if(time+0.015<cue.start)continue;
+    // Prefer the newest phrase when the timestamp provider overlaps words.
+    if(time<=cue.end+0.08)return cue;
+    // Leave a tiny post-phrase hold so natural breaths do not flash blank.
+    return time<=cue.end+0.4?cue:undefined;
   }
-  // Hold the preceding caption until the next phrase instead of flashing blank.
-  // Before the first timestamp, show the first phrase once narration starts.
-  for (let i = cues.length - 1; i >= 0; i--) {
-    if (cues[i]!.start <= time + 0.015) return cues[i];
-  }
-  return cues[0];
+  return undefined;
 }

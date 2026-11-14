@@ -33,6 +33,7 @@ export function KeepPlayer({ name, from, year, onExit, onFinish, recipient = fal
   const [masterDuration, setMasterDuration] = useState(audioDuration);
   const [voiceStarted, setVoiceStarted] = useState(false);
   const [voiceEnded, setVoiceEnded] = useState(false);
+  const [voiceBuffering, setVoiceBuffering] = useState(false);
   const [controlsVisible, setControlsVisible] = useState(true);
   const [mediaReady, setMediaReady] = useState(false);
   const controlsTimer = useRef<number | null>(null);
@@ -43,6 +44,8 @@ export function KeepPlayer({ name, from, year, onExit, onFinish, recipient = fal
   const audio = useRef<HTMLAudioElement>(null);
   const mix = useRef<ReturnType<typeof createKeepVoiceMix>>(null);
   const endingTimer = useRef<number | null>(null);
+  const tailRemainingRef = useRef(KEEP_MUSIC_TAIL_SECONDS*1000);
+  const tailStartedAtRef = useRef(0);
   // Parent/editor updates may recreate the media array without changing a frame.
   // Keep image layers and decode warmups stable across those unrelated rerenders.
   const mediaFingerprint = JSON.stringify(media ?? []);
@@ -59,7 +62,9 @@ export function KeepPlayer({ name, from, year, onExit, onFinish, recipient = fal
     let cancelled = false;
     const warmers: HTMLImageElement[] = [];
     const finishWarmup = () => { if (!cancelled) setMediaReady(true); };
-    setMediaReady(items[0]?.kind !== "image");
+    // A front-camera video needs a decoded frame before the music/narration
+    // timeline starts. Otherwise a slow cellular download opens on black.
+    setMediaReady(false);
     for (const moment of items.slice(0, 3)) {
       if (moment.kind !== "image" || !moment.url) continue;
       const picture = new Image();
@@ -100,6 +105,14 @@ export function KeepPlayer({ name, from, year, onExit, onFinish, recipient = fal
       controlsTimer.current = null;
     };
   }, [playing, end]);
+
+  // A phone call or backgrounded Safari must not let a hidden video/soundtrack
+  // run ahead. Resume only when the recipient presses Play again.
+  useEffect(()=>{
+    const onHide=()=>{if(document.hidden)setPlaying(false);};
+    document.addEventListener("visibilitychange",onHide);
+    return ()=>document.removeEventListener("visibilitychange",onHide);
+  },[]);
 
   // Recipients go straight to the light completion page, not a second dark end card.
   useEffect(() => {
@@ -223,6 +236,27 @@ export function KeepPlayer({ name, from, year, onExit, onFinish, recipient = fal
     };
   }, [playing, mediaReady, end, audioUrl]);
 
+  // After the final spoken word, keep the music outro playing. If the viewer
+  // pauses, freeze this remaining tail instead of firing the completion screen
+  // during a pause (or losing the end of the soundtrack).
+  useEffect(()=>{
+    if(!audioUrl || !voiceEnded || !playing || finishSent.current)return;
+    tailStartedAtRef.current=performance.now();
+    const remaining=Math.max(0,tailRemainingRef.current);
+    endingTimer.current=window.setTimeout(()=>{
+      endingTimer.current=null;
+      tailRemainingRef.current=0;
+      if(finishSent.current)return;
+      finishSent.current=true;
+      onFinish?.();
+    },remaining);
+    return ()=>{
+      if(endingTimer.current!==null)window.clearTimeout(endingTimer.current);
+      endingTimer.current=null;
+      tailRemainingRef.current=Math.max(0,tailRemainingRef.current-(performance.now()-tailStartedAtRef.current));
+    };
+  },[audioUrl,voiceEnded,playing,onFinish]);
+
   useEffect(() => { mix.current?.setMuted(muted); }, [muted]);
   useEffect(() => { mix.current?.setLevels(voiceVolume, musicVolume); }, [voiceVolume, musicVolume]);
   useEffect(() => { mix.current?.setTrackMutes(!!audioMix?.voiceMuted, !!audioMix?.musicMuted); }, [audioMix?.voiceMuted, audioMix?.musicMuted]);
@@ -260,8 +294,11 @@ export function KeepPlayer({ name, from, year, onExit, onFinish, recipient = fal
     if (controlsVisible) setControlsVisible(false);
     else showControls();
   }}>
-    {audioUrl && <audio ref={audio} crossOrigin="anonymous" src={audioUrl} playsInline preload="auto" onPlay={() => setVoiceEnded(false)} onLoadedMetadata={(event) => { const duration = event.currentTarget.duration; if (Number.isFinite(duration) && duration > 0) setMasterDuration(duration); }} onEnded={() => { setVoiceEnded(true); if (endingTimer.current) window.clearTimeout(endingTimer.current); endingTimer.current = window.setTimeout(() => { if (!finishSent.current) { finishSent.current = true; onFinish?.(); } }, KEEP_MUSIC_TAIL_SECONDS * 1000); }} onTimeUpdate={(e) => { const a = e.currentTarget; const d = Number.isFinite(a.duration) && a.duration > 0 ? a.duration : audioDuration || 1; setAudioTime(a.currentTime); setScene((current) => { const index = sceneIndexAt(items, a.currentTime, d); return current < 0 || current === index ? current : index; }); }} />}
-    {item && !end && <><CinematicMedia item={item} nextItem={nextItem} followingItem={items[scene + 2]} sceneKey={scene} motionIndex={scene} playing={playing && (voiceStarted || !item?.isSelfie)} duration={targetSceneSeconds}
+    {audioUrl && <audio ref={audio} crossOrigin="anonymous" src={audioUrl} playsInline preload="auto" onPlay={() => { setVoiceEnded(false); setVoiceBuffering(false); tailRemainingRef.current=KEEP_MUSIC_TAIL_SECONDS*1000; }}
+      onWaiting={() => { if(playing && voiceStartedRef.current){setVoiceBuffering(true);void mix.current?.pause();} }}
+      onStalled={() => { if(playing && voiceStartedRef.current){setVoiceBuffering(true);void mix.current?.pause();} }}
+      onPlaying={() => {setVoiceBuffering(false);if(playing&&voiceStartedRef.current)void mix.current?.play().catch(()=>setBlocked(true));}} onLoadedMetadata={(event) => { const duration = event.currentTarget.duration; if (Number.isFinite(duration) && duration > 0) setMasterDuration(duration); }} onEnded={() => setVoiceEnded(true)} onTimeUpdate={(e) => { const a = e.currentTarget; const d = Number.isFinite(a.duration) && a.duration > 0 ? a.duration : audioDuration || 1; setAudioTime(a.currentTime); setScene((current) => { const index = sceneIndexAt(items, a.currentTime, d); return current < 0 || current === index ? current : index; }); }} />}
+    {item && !end && <><CinematicMedia item={item} nextItem={nextItem} followingItem={items[scene + 2]} sceneKey={scene} motionIndex={scene} playing={playing && !voiceEnded && !voiceBuffering && (voiceStarted || !item?.isSelfie || !mediaReady)} duration={targetSceneSeconds} onFirstFrameReady={()=>setMediaReady(true)}
       sceneElapsed={audioUrl && voiceStarted && scene >= 0
         ? filmSceneElapsed(items, scene, audioTime, masterDuration || audioDuration)
         : undefined}
