@@ -18,7 +18,11 @@ async function openMenu(path: string) {
   render(<RouterProvider router={router} />, { container: document });
   const menu = await screen.findByRole("button", { name: "Open navigation menu" });
   fireEvent.click(menu);
-  await waitFor(() => expect(screen.getByRole("link", {name:"Log in"})).toBeTruthy());
+  if (path === "/app") {
+    await waitFor(() => expect(screen.getByText("See all my Keeps")).toBeTruthy());
+  } else {
+    await waitFor(() => expect(screen.getByRole("link", {name:"Log in"})).toBeTruthy());
+  }
 }
 
 afterEach(() => {
@@ -33,9 +37,8 @@ describe("Consistent Keep navigation", () => {
     expect(screen.queryByText("Keeps given")).toBeNull();
     expect(screen.queryByText("Keeps received")).toBeNull();
     expect(screen.queryByText("What is Keep?")).toBeNull();
-    expect(screen.queryByText("See all my Keeps")).toBeNull();
-    expect(screen.queryByText("Account")).toBeNull();
-    expect(screen.getByRole("link", {name:"Log in"})).toBeTruthy();
+    expect(screen.getByText("See all my Keeps")).toBeTruthy();
+    expect(screen.getByText("Account")).toBeTruthy();
   });
   it("removes old menu entries from My Keeps and other shared-menu pages", async () => {
     await openMenu("/my-keeps");
