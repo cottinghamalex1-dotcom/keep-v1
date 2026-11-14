@@ -13,6 +13,8 @@ import { KeepPhotosEditor } from "@/components/keep-photos-editor";
 import { KeepStudioResize, DEFAULT_PREVIEW_SIZE, constrainPreviewSize } from "@/components/keep-studio-resize";
 import { KeepTeleprompter } from "@/components/keep-teleprompter";
 import { KeepStyleEditor } from "@/components/keep-style-editor";
+import { KeepSelfieEditor } from "@/components/keep-selfie-editor";
+import { composeSelfieStory, withoutSelfieScenes } from "@/lib/keep-selfie-story";
 import { KeepFinishingChoices } from "@/components/keep-finishing-choices";
 import { KeepAskAIModal, KeepWordChanges } from "@/components/keep-ask-ai-modal";
 import { arrangeWords, spreadMemories, recommendedStyle } from "@/lib/keep-story-layout";
@@ -22,7 +24,7 @@ import { activeKeepSession, loadEditableKeep, loadCloudDraft, saveCloudDraft, re
 import { CinematicMedia } from "@/components/cinematic-media";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useRef, useState, type ChangeEvent, type ReactNode, type CSSProperties } from "react";
-import { ArrowLeft, ArrowRight, Check, ChevronLeft, ChevronRight, CircleHelp, Download, Ellipsis, GripVertical, Images, LockKeyhole, MessageCircle, Mic, Keyboard, Music2, FileUp, Loader2, Pause, Play, Plus, Radio, RotateCcw, Settings2, Sparkles, Square, Trash2, Undo2, Redo2, VolumeX, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, Camera, Check, ChevronLeft, ChevronRight, CircleHelp, Download, Ellipsis, GripVertical, Images, LockKeyhole, MessageCircle, Mic, Keyboard, Music2, FileUp, Loader2, Pause, Play, Plus, Radio, RotateCcw, Settings2, Sparkles, Square, Trash2, Undo2, Redo2, VolumeX, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { KeepPlayer, memoryImages, memoryLabels } from "@/components/keep-player";
@@ -53,7 +55,7 @@ export const Route = createFileRoute("/")({
 });
 
 type Screen = "home" | "you" | "detail" | "recipient" | "occasion" | "voices" | "intent" | "path" | "interview" | "summary" | "messageGenerating" | "write" | "message" | "recordPrep" | "record" | "groupRecord" | "remoteInvite" | "recorded" | "memories" | "storyStyle" | "generating" | "editor" | "preview" | "recipientReveal" | "recipientPreview" | "giveReady" | "card" | "success";
-type Mode = "Memories" | "Music" | "Captions" | "Style" | "Voice";
+type Mode = "Memories" | "Music" | "Captions" | "Style" | "Voice" | "Selfie";
 const creationScreens: Screen[] = ["recipient", "occasion", "voices", "intent", "path", "interview", "summary", "messageGenerating", "write", "message", "recordPrep", "record", "groupRecord", "remoteInvite", "recorded", "memories", "storyStyle", "generating", "editor", "preview", "recipientPreview", "card", "success"];
 const resumeScreen = (s: Screen): Screen => (s === "messageGenerating" ? "summary" : s === "generating" ? "memories" : s === "preview" || s === "recipientPreview" ? "editor" : s);
 const occasions = ["Birthday", "Anniversary", "Wedding", "New Baby", "Mother's Day", "Father's Day", "Graduation", "Thank You", "Trip / Adventure", "Milestone", "Celebration of Life", "Family Memories", "Just Because", "Other"];
@@ -121,7 +123,7 @@ const groupTimedWords = (words: TimedWord[], limit = 5): CaptionCue[] => {
   return cues;
 };
 
-const EDIT_KEYS = ["memories", "captionCues", "captionStyle", "visualStyle", "musicMood", "voiceMusicBalance", "voiceVolume", "musicVolume", "captionPosition", "captionLines", "captionWordsPerCue", "audioMix"] as const;
+const EDIT_KEYS = ["memories", "selfieVideos", "selfiePresentation", "selfieBookendSeconds", "selfieIntroId", "selfieOutroId", "captionCues", "captionStyle", "visualStyle", "musicMood", "voiceMusicBalance", "voiceVolume", "musicVolume", "captionPosition", "captionLines", "captionWordsPerCue", "audioMix"] as const;
 type EditSnapshot = Pick<KeepProject, (typeof EDIT_KEYS)[number]>;
 const takeSnapshot = (p: KeepProject): EditSnapshot => Object.fromEntries(EDIT_KEYS.map((k) => [k, p[k]])) as EditSnapshot;
 const sameSnapshot = (a: EditSnapshot, b: EditSnapshot) => EDIT_KEYS.every((k) => a[k] === b[k]);
@@ -209,6 +211,8 @@ function KeepApp() {
   const [readArrangeIndex, setReadArrangeIndex] = useState(0);
   const [returnToEditorAfterRecording, setReturnToEditorAfterRecording] = useState(false);
   const [groupPartIndex, setGroupPartIndex] = useState(0);
+  const [selfieSelected, setSelfieSelected] = useState(false);
+  const [selfiePreparing, setSelfiePreparing] = useState(false);
   const [groupBusy, setGroupBusy] = useState(false);
   const [frame, setFrame] = useState(0);
   const [editorPlaying, setEditorPlaying] = useState(false);
@@ -694,7 +698,29 @@ function KeepApp() {
     setRehearsing(false);
     window.scrollTo(0, 0);
   };
-  const startFinal = async () => { const ok = await recorder.start(); if (!ok) toast.error("The microphone isn't available right now."); };
+  const chooseSelfie = async () => {
+    if(selfieSelected){recorder.disableSelfie();setSelfieSelected(false);return;}
+    setSelfiePreparing(true);
+    const success=await recorder.prepareSelfie();
+    setSelfiePreparing(false);
+    if(success)setSelfieSelected(true);
+    else toast.error("Front camera unavailable. Voice-only recording is still available.");
+  };
+  const startFinal = async () => {
+    const ok=await recorder.start({selfie:selfieSelected});
+    if(!ok)toast.error(selfieSelected?"The camera or microphone isn't available. Try voice only.":"The microphone isn't available right now.");
+  };
+  const saveSelfieTake = async (blob:Blob|undefined,mimeType:string|undefined,durationSec:number,partIndex:number):Promise<MediaItem|undefined> => {
+    if(!blob?.size)return undefined;
+    if(blob.size>40*1024*1024){toast.warning("Your voice saved, but the selfie is too large. Try a shorter clip.");return undefined;}
+    const id=newId("selfie");
+    if(!(await putBlob(id,blob))){toast.warning("Your voice saved, but the selfie couldn't fit on this device.");return undefined;}
+    return {id,blobId:id,kind:"video",source:"upload",isSelfie:true,selfiePartIndex:partIndex,
+      url:URL.createObjectURL(blob),name:partIndex===0?"Your selfie video":`Selfie · part ${partIndex+1}`,
+      persisted:true,mimeType:mimeType??blob.type,videoStartSec:0,videoDurationSec:durationSec,
+      displayDurationSec:durationSec};
+  };
+
 
   const syncFinalCaptions = async (blob: Blob, mimeType?: string, recordedDuration = rec?.durationSec ?? 0, sourceAudioId?: string) => {
     const request = ++captionSyncToken.current;
