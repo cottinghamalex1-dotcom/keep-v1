@@ -1005,3 +1005,29 @@ body:has(.keep-studio) {
   .keep-home-create-cta { transition: none; }
   .keep-home-create-cta:hover, .keep-home-create-cta:active { transform: none; }
 }
+
+
+/* Signed-in home collection: the rich outer shell frames quiet, ivory Keeps. */
+.keep-creations-frame {
+  background:
+    radial-gradient(ellipse at 100% 0%, rgba(179,149,111,.14), transparent 53%),
+    linear-gradient(135deg, #171613 0%, #24201C 60%, #2C261F 100%);
+  border: 1px solid rgba(133,112,89,.72);
+  box-shadow:
+    0 17px 40px rgba(36,27,19,.13),
+    inset 0 1px rgba(255,251,246,.12);
+}
+.keep-creations-frame::before {
+  content: "";
+  position: absolute;
+  inset: 6px;
+  border: 1px solid rgba(241,226,206,.12);
+  border-radius: 18px;
+  pointer-events: none;
+  z-index: 0;
+}
+.keep-creations-frame .keep-editorial-surface {
+  background: #FCFAF6;
+  border-color: #DCD2C8;
+  box-shadow: 0 3px 16px rgba(9,8,7,.075);
+}
