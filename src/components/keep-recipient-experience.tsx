@@ -249,35 +249,6 @@ export function KeepRecipientExperience({
       return;
     }
     if (listening) {
-        if (listenIntroTimer.current) window.clearTimeout(listenIntroTimer.current);
-        listenIntroTimer.current = null;
-        element.pause();
-        void listenMix.current?.pause();
-        setListening(false);
-      } else {
-        if (Number.isFinite(element.duration) && element.currentTime >= element.duration - 0.1) {
-          element.currentTime = 0;
-          setListenProgress(0);
-        }
-        setListening(true);
-        // Do not start the voice clock until the selected music has genuinely
-        // started playing (a large MP3 may need to buffer on cellular).
-        const controller = listenMix.current;
-        void (controller?.play() ?? Promise.reject(new Error("Music unavailable"))).then(() => {
-          if (!listenHasStarted.current && element.currentTime < 0.05) {
-            listenIntroTimer.current = window.setTimeout(() => {
-              listenIntroTimer.current = null;
-              listenHasStarted.current = true;
-              void element.play().catch(() => setListening(false));
-            }, KEEP_MUSIC_LEAD_SECONDS * 1000);
-          } else {
-            void element.play().catch(() => setListening(false));
-          }
-        }).catch(() => setListening(false));
-      }
-      return;
-    }
-    if (listening) {
       if (timer.current) window.clearInterval(timer.current);
       timer.current = null;
       setListening(false);
