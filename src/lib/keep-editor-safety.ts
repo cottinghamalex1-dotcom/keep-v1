@@ -23,7 +23,7 @@ export function removeEditableMoment(project: KeepProject, id: string): KeepProj
 /** True when a real voice already has a durable recording we must not overwrite
  * with a new take that failed to save to IndexedDB. */
 export function shouldPreserveExistingVoice(
-  previousAudioId: string | undefined, incomingStored: boolean,
+  previousVoiceAvailable: boolean, incomingStored: boolean,
 ): boolean {
-  return !!previousAudioId && !incomingStored;
+  return previousVoiceAvailable && !incomingStored;
 }
