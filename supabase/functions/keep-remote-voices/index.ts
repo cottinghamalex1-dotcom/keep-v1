@@ -146,7 +146,7 @@ Deno.serve(async req => {
         const inviteValues={
           ...(existing?.id?{id:existing.id}:{}), keep_id:keepId,owner_id:user.id,contributor_id:contributorId,
           contributor_name:contributorName,creator_name:creatorName,recipient_name:recipientName,occasion,
-          script_parts:parts,token_hash:hash,pending_uploads:{},upload_attempts:0,
+          script_parts:parts,token_hash:hash,pending_uploads:{},upload_attempts:0,pending_media:{},media_upload_attempts:0,
           expires_at:new Date(Date.now()+30*86400*1000).toISOString(),
           updated_at:new Date().toISOString(),
           ...(scriptChanged?{email_sent_at:null}:{})
@@ -261,7 +261,7 @@ Deno.serve(async req => {
       const {data:objects,error:storageError}=await admin.storage.from(BUCKET).list(folder,{limit:30,search:filename});
       const uploaded=objects?.find(item=>item.name===filename);
       const actualSize=Number(uploaded?.metadata?.size??0);
-      if(storageError||!uploaded||actualSize<100||actualSize>pending.size+1024||actualSize>(pending.kind==="video"?41943040:15728640))
+      if(storageError||!uploaded||actualSize<100||Math.abs(actualSize-pending.size)>1024||actualSize>(pending.kind==="video"?41943040:15728640))
         return error("The uploaded photo or video could not be verified. Try again.",409);
       const {error:writeError}=await admin.from("keep_remote_media").insert({
         id:mediaId,invite_id:invite.id,kind:pending.kind,file_path:pending.path,
