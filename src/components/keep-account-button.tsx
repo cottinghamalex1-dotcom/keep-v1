@@ -35,7 +35,7 @@ export function KeepAccountButton() {
           <Link to="/my-keeps" onClick={close} className="block py-2">See all my Keeps</Link>
         </div>}
         <Link to="/personalize" onClick={close} className="flex items-center gap-3 py-3"><PenLine className="size-4 text-[#6A5849]"/>Personalize my cards</Link>
-        <Link to="/app#account" onClick={close} className="flex items-center gap-3 py-3"><UserRound className="size-4 text-[#6A5849]"/>Account</Link>
+        <a href="/app#account" onClick={close} className="flex items-center gap-3 py-3"><UserRound className="size-4 text-[#6A5849]"/>Account</a>
         {admin && <Link to="/admin" onClick={close} className="flex items-center gap-3 py-3"><Shield className="size-4 text-[#6A5849]"/>Keep admin</Link>}
       </>}
       <div className="my-3 border-t border-border/80" />
