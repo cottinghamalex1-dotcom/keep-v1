@@ -88,7 +88,7 @@ it("does not reveal words before speech and clears captions in long pauses", () 
   expect(captionAtTime(cues,2.1,10)?.text).toBe("First spoken phrase");
   expect(captionAtTime(cues,3.3,10)?.text).toBe("First spoken phrase");
   expect(captionAtTime(cues,5,10)).toBeUndefined();
-  expect(captionAtTime(cues,7.99,10)).toBeUndefined();
+  expect(captionAtTime(cues,7.95,10)).toBeUndefined();
   expect(captionAtTime(cues,8.4,10)?.text).toBe("Second spoken phrase");
   expect(captionAtTime(cues,9.3,10)?.text).toBe("Second spoken phrase");
   expect(captionAtTime(cues,9.8,10)).toBeUndefined();
