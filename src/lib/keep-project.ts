@@ -8,6 +8,7 @@ export type MediaItem = {
   url: string; // object URL (uploads) or bundled asset (samples) — never persisted for uploads
   name?: string | undefined;
   mimeType?: string | undefined;
+  remoteMediaId?: string | undefined; // prevents re-importing a contributor moment
   sampleIndex?: number | undefined;
   persisted?: boolean | undefined; // blob saved in IndexedDB
   displayDurationSec?: number | undefined; // how long this moment stays on screen in watch mode

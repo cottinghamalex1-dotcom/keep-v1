@@ -6,6 +6,7 @@ export type RemoteScriptPart = { index: number; text: string };
 export type RemoteInviteStatus = {
   id: string; contributorId: string; contributorName: string;
   total: number; completed: number; expiresAt: string; emailSent: boolean;
+  mediaCount: number; mediaEmailSent?: boolean;
 };
 export type RemoteRecording = {
   paragraphIndex: number; contributorId: string; textFingerprint: string;
@@ -13,7 +14,7 @@ export type RemoteRecording = {
 };
 export type RemoteInviteDetails = {
   creatorName: string; recipientName: string; occasion: string | null;
-  contributorName: string; expiresAt: string;
+  contributorName: string; expiresAt: string; mediaCount: number;
   parts: (RemoteScriptPart & { completed: boolean })[];
 };
 type JsonResult = Record<string, unknown>;
@@ -49,6 +50,34 @@ export const remoteOwnerDownload = (keepId:string) =>
   callRemoteOwner<{recordings:RemoteRecording[]}>({action:"owner-download",keepId});
 export const revokeRemoteInvite = (keepId:string,inviteId:string) =>
   callRemoteOwner<{revoked:boolean}>({action:"owner-revoke",keepId,inviteId});
+
+export type RemoteMediaItem = {
+  id:string; contributorId:string; contributorName:string; kind:"image"|"video";
+  name:string; mimeType:string; bytes:number; durationSec:number|null; signedUrl:string; uploadedAt:string;
+};
+export const listRemoteMedia = (keepId:string)=>
+  callRemoteOwner<{media:RemoteMediaItem[]}>({action:"owner-media",keepId});
+
+export async function uploadRemoteMedia(token:string,file:File,kind:"image"|"video",durationSec?:number):Promise<{saved:boolean;mediaId:string;count:number;emailSent:boolean}> {
+  const max=kind==="video" ? 40*1024*1024 : 15*1024*1024;
+  if(!file.size || file.size>max)throw new Error(kind==="video"?"Please use a video under 40 MB.":"Please use a photo under 15 MB.");
+  const mimeType=file.type.toLowerCase().split(";")[0]||{
+    jpg:"image/jpeg",jpeg:"image/jpeg",png:"image/png",webp:"image/webp",heic:"image/heic",heif:"image/heif",
+    mp4:"video/mp4",mov:"video/quicktime",webm:"video/webm"
+  }[file.name.split(".").pop()?.toLowerCase()??""]||"";
+  const {signedUrl,path,mediaId}=await callApi<{signedUrl:string;path:string;mediaId:string}>({
+    action:"prepare-media",token,kind,fileName:file.name,mimeType,size:file.size,durationSec,
+  });
+  const url=new URL(signedUrl,"https://lwkzhpwugtosbidxvdcr.supabase.co");
+  const uploaded=await fetch(url.toString(),{
+    method:"PUT",headers:{"Content-Type":mimeType,"x-upsert":"false"},
+    body:file,referrerPolicy:"no-referrer"
+  });
+  if(!uploaded.ok)throw new Error("Your photo or video didn't finish uploading. Please retry.");
+  return callApi<{saved:boolean;mediaId:string;count:number;emailSent:boolean}>({
+    action:"complete-media",token,mediaId,path
+  });
+}
 
 export const resolveRemoteInvitation = (token:string) =>
   callApi<RemoteInviteDetails>({action:"resolve",token});
