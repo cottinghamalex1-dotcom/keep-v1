@@ -10,6 +10,7 @@ import { KeepVoiceEditor } from "@/components/keep-voice-editor";
 import { KeepRemoteInviteManager } from "@/components/keep-remote-invite-manager";
 import { remoteOwnerDownload, type RemoteMediaItem } from "@/lib/keep-remote";
 import { KeepPhotosEditor } from "@/components/keep-photos-editor";
+import { KeepMomentsUploader } from "@/components/keep-moments-uploader";
 import { KeepStudioResize, DEFAULT_PREVIEW_SIZE, constrainPreviewSize } from "@/components/keep-studio-resize";
 import { KeepTeleprompter } from "@/components/keep-teleprompter";
 import { KeepVoiceTransition } from "@/components/keep-voice-transition";
@@ -2014,6 +2015,13 @@ function KeepApp() {
         </> : <p className="mt-3 text-sm leading-6 text-muted-foreground">Add a message or record your voice to see a personalized recommendation. For a 2–3 minute Keep, start with about 30–45 photos, and sprinkle in a few short videos if you wish.</p>}
         <p className="mt-3 border-t border-border/50 pt-3 text-[11px] leading-5 text-muted-foreground">Just a guide — use as many or as few moments as you'd like. You can always add more later.</p>
       </div>
+      <KeepMomentsUploader
+        moments={personalMedia}
+        busy={busy}
+        onAdd={() => addInput.current?.click()}
+        onRemove={removeMemory}
+        onContinue={() => { setStyleTouched(false); go("storyStyle"); }}
+      />
       <aside aria-label="iPhone photo upload tip" className="mb-5 flex items-start gap-3 rounded-xl border border-[#DAD0C5] bg-[#F0EAE2]/65 px-4 py-4">
         <CircleHelp className="mt-0.5 size-5 shrink-0 text-[#79654F]" strokeWidth={1.6} aria-hidden="true" />
         <div>
@@ -2028,13 +2036,6 @@ function KeepApp() {
           <p className="mt-1 text-[12px] leading-5 text-[#675B50]">Short clips of <strong>10 seconds or less</strong> usually tell the story best. For longer videos, Keep will <strong>automatically compress</strong> the file on your device when possible (up to 90 seconds). This can take a little while. The video plays muted so your narration and music stay front and center.</p>
         </div>
       </aside>
-      <div className="keep-creator-photo-grid grid grid-cols-3 gap-1">
-        {personalMedia.map((m, i) => <div key={m.id} className="relative aspect-square overflow-hidden bg-card"><MediaView item={m} thumb alt={m.name ?? "Your memory"} className="h-full w-full object-cover" /><button type="button" aria-label={"Remove memory " + (i+1)} onClick={() => removeMemory(i)} className="absolute right-1 top-1 rounded-full bg-black/70 p-2 text-white"><X className="size-4" /></button></div>)}
-        <button type="button" onClick={() => addInput.current?.click()} disabled={busy} className="flex aspect-square flex-col items-center justify-center gap-2 border border-border text-xs text-muted-foreground"><Plus className="size-5" />{busy ? "Adding…" : "Add moments"}</button>
-      </div>
-      <p className="mt-4 text-xs text-muted-foreground">{personalMedia.length} personal moments added</p>
-      <div className="mt-10">{nextButton("Continue", () => { setStyleTouched(false); go("storyStyle"); })}</div>
-      <Button variant="bare" size="touch" className="mt-3 w-full text-muted-foreground" onClick={() => { setStyleTouched(false); go("storyStyle"); }}>Continue without more photos</Button>
       {/* Keep the optional selfie alternative below the photos and the primary continue actions. */}
       <aside aria-label="Optional selfie video" className="mt-9 rounded-[20px] border border-[#CDB7A2] bg-[#F6EFE5] px-4 py-4">
         <div className="flex items-center gap-2"><Camera className="size-5 text-[#795F47]"/>
