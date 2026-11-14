@@ -27,7 +27,7 @@ export function makeReadingFrames(
       // Stay within roughly 3–4 lines on a phone; use real caption
       // timestamps to turn each set of spoken phrases into one moment.
       if (count >= 12 || !next || count >= 9 && next.text.split(/\s+/u).length > 5) {
-        groups.push({ start: Math.max(0,start), end: next ? Math.max(cue.end,next.start) : Math.min(seconds,cue.end), text });
+        groups.push({ start: Math.max(0,start), end: Math.min(seconds,Math.max(start+.1,cue.end+0.55)), text });
         text = "";
         count = 0;
       }
@@ -44,6 +44,9 @@ export function makeReadingFrames(
 }
 export function frameAtTime(frames: ReadingFrame[], time: number): number {
   if (!frames.length || !Number.isFinite(time) || time < 0) return -1;
-  for (let i=frames.length-1;i>=0;i--) if (time + 0.015 >= frames[i]!.start) return i;
+  for (let i=frames.length-1;i>=0;i--) {
+    const frame=frames[i]!;
+    if(time + 0.015 >= frame.start) return time <= frame.end + 0.15 ? i : -1;
+  }
   return -1;
 }
