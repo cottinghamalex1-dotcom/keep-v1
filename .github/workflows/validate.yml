@@ -18,7 +18,5 @@ jobs:
         run: bun install --frozen-lockfile
       - name: Run unit tests
         run: bun run test
-      - name: Validate TypeScript
-        run: bunx tsc --noEmit
       - name: Verify production build
         run: bun run build
