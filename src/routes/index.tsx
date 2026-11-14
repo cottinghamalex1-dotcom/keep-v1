@@ -1143,6 +1143,9 @@ function KeepApp() {
                 memories: (old.selfieVideos ?? []).length
                   ? composeSelfieStory(nextBase, old.selfieVideos ?? [], old.finalVoiceRecording?.durationSec ?? 150, old)
                   : scenes.map(moment => moment.id === replacementId ? replacement : moment),
+                // Replacing a photo should not move it to the end of the
+                // recipient's manually arranged photo-gallery order.
+                readMemoryOrder: old.readMemoryOrder.map(id => id === replacementId ? replacement.id : id),
               };
             });
             for (const unused of items.slice(1)) { releaseUrls([unused.url]); if (unused.persisted) void deleteBlobs([unused.id]); }
