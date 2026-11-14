@@ -43,7 +43,7 @@ export function makeReadingFrames(
   return grouped.map((text,i)=>({ text,start:i*seconds/grouped.length,end:(i+1)*seconds/grouped.length }));
 }
 export function frameAtTime(frames: ReadingFrame[], time: number): number {
-  if (!frames.length) return -1;
-  for (let i=frames.length-1;i>=0;i--) if (time + 0.04 >= frames[i]!.start) return i;
-  return 0;
+  if (!frames.length || !Number.isFinite(time) || time < 0) return -1;
+  for (let i=frames.length-1;i>=0;i--) if (time + 0.015 >= frames[i]!.start) return i;
+  return -1;
 }
