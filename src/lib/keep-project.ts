@@ -146,7 +146,10 @@ export function saveDraft(p: KeepProject) {
       selfieBaseMedia: (p.selfieBaseMedia??[]).filter(m=>m.source!=="upload"||m.persisted)
         .map(m=>({...m,url:m.source==="text"?m.url:""})),
       interviewAnswers: p.interviewAnswers.map(({ audioUrl: _a, ...a }) => a),
-      finalVoiceRecording: p.finalVoiceRecording ? { ...p.finalVoiceRecording, audioUrl: undefined } : null,
+      // A recording without a saved blob cannot be restored after a reload.
+      // Preserve the written message rather than restoring a phantom voice.
+      finalVoiceRecording: p.finalVoiceRecording && (p.finalVoiceRecording.demo || p.finalVoiceRecording.audioId)
+        ? { ...p.finalVoiceRecording, audioUrl: undefined } : null,
       voiceParts: p.voiceParts?.map(({ audioUrl: _url, ...part }) => part),
     };
     localStorage.setItem(DRAFT_KEY, JSON.stringify(lite));
