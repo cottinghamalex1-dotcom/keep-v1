@@ -52,7 +52,7 @@ export function KeepVoiceTransition({
 
         <div className="keep-voice-transition-orb relative mx-auto mt-8 flex size-[118px] items-center justify-center rounded-full border border-[#D8C4AC] bg-gradient-to-br from-[#FAF3E9] via-[#F2E5D4] to-[#E5D4BE]">
           <div className="keep-voice-transition-halo absolute -inset-3 rounded-full border border-[#D7BD9B]/40" aria-hidden="true"/>
-          {processing
+          {processing || missingRecording
             ? <Mic2 aria-hidden="true" className="relative size-9 text-[#876849]" strokeWidth={1.3}/>
             : <Check aria-hidden="true" className="keep-voice-transition-check relative size-10 text-[#846644]" strokeWidth={1.55}/>}
           <Sparkles aria-hidden="true" className="absolute -right-4 top-0 size-5 text-[#C8A571]" strokeWidth={1.45}/>
@@ -65,10 +65,10 @@ export function KeepVoiceTransition({
         <div className="mx-auto mt-7 max-w-[335px]" aria-live="polite">
           <div role="progressbar" aria-label="Preparing your recording" aria-valuemin={0} aria-valuemax={100}
             aria-valuenow={processing ? undefined : missingRecording ? 0 : 100}
-            aria-valuetext={processing ? (isSaving ? "Saving recording" : "Syncing captions") : "Preparation complete"}
+            aria-valuetext={processing ? (isSaving ? "Saving recording" : "Syncing captions") : missingRecording ? "Recording missing" : "Preparation complete"}
             className="relative h-1.5 overflow-hidden rounded-full bg-[#E8DDD0]">
             <div className={processing ? "keep-voice-transition-progress-loading absolute inset-y-0 left-0 w-[38%] rounded-full bg-gradient-to-r from-[#B99C78] via-[#816346] to-[#CBB392]"
-              : "keep-voice-transition-progress-complete absolute inset-0 rounded-full bg-gradient-to-r from-[#B9A17F] to-[#826548]"} />
+              : missingRecording ? "absolute inset-y-0 left-0 w-0" : "keep-voice-transition-progress-complete absolute inset-0 rounded-full bg-gradient-to-r from-[#B9A17F] to-[#826548]"} />
           </div>
           <p role="status" className="mt-3 text-[10px] font-semibold tracking-[.08em] text-[#8D755D]">
             {isSaving ? "SAVING YOUR VOICE" : isSyncing ? "SYNCING YOUR WORDS" : missingRecording ? "RECORDING NOT FOUND" : needsCaptionReview ? "VOICE READY · CAPTIONS TO REVIEW" : "READY FOR THE NEXT MOMENT"}
