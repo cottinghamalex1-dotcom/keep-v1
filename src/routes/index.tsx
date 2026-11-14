@@ -742,16 +742,18 @@ function KeepApp() {
       // Preserve every recognized word and reconstruct estimated cue timing.
       const corrected = recoverCaptionTiming(timed.words, cues, recordedDuration);
       // A finished transcription must never overwrite a newer recording.
-      if (request !== captionSyncToken.current) return;
+      if (request !== captionSyncToken.current) return false;
       setProject((o) => sourceAudioId && o.finalVoiceRecording?.audioId !== sourceAudioId ? o : ({
         ...o, captionTranscript: timed.transcript, captionWords: corrected.words,
         captionCues: corrected.cues, captionTimingEstimated: corrected.repaired,
       }));
       if (corrected.repaired) toast.info("Some caption timing was unreliable, so we spaced the phrases across your recording. Please review.");
+      return true;
     } catch {
-      if (request !== captionSyncToken.current) return;
+      if (request !== captionSyncToken.current) return false;
       setCaptionSyncError(true);
       toast.error("Captions couldn't sync. Please retry before sharing your Keep.");
+      return false;
     } finally {
       if (request === captionSyncToken.current) setCaptionSyncing(false);
     }
@@ -915,15 +917,30 @@ function KeepApp() {
     }finally{setGroupBusy(false);}
   };
 
-  const retryCaptionSync = async () => {
-    if (!rec?.audioUrl) return;
+  const retryCaptionSync = async (): Promise<boolean> => {
+    if (!rec?.audioUrl || rec.demo || captionSyncing) return false;
     try {
       const response = await fetch(rec.audioUrl);
+      if (!response.ok) throw new Error("Recording unavailable");
       const blob = await response.blob();
-      await syncFinalCaptions(blob, rec.mimeType, rec.durationSec, rec.audioId);
+      if (!blob.size) throw new Error("Recording is empty");
+      return await syncFinalCaptions(blob, rec.mimeType, rec.durationSec, rec.audioId);
     } catch {
       setCaptionSyncError(true);
       setCaptionSyncing(false);
+      toast.error("Couldn't read the recording to sync captions. Your voice is unchanged.");
+      return false;
+    }
+  };
+  const resyncCaptionsFromVoice = async () => {
+    if (!rec?.audioUrl || rec.demo || captionSyncing) return;
+    if (project.captionCues.length && !window.confirm("Re-syncing captions will replace manual caption wording and timing. Your recorded voice stays unchanged. Continue?")) return;
+    setEditorPlaying(false);
+    editorAudioRef.current?.pause();
+    const synced = await retryCaptionSync();
+    if (synced) {
+      seekEditor(0);
+      toast.success("Captions re-synced with your voice. Preview to check their timing.");
     }
   };
   useEffect(() => {
@@ -2011,7 +2028,15 @@ function KeepApp() {
           <p className="mt-1 text-[12px] leading-5 text-[#675B50]">Short clips of <strong>10 seconds or less</strong> usually tell the story best. For longer videos, Keep will <strong>automatically compress</strong> the file on your device when possible (up to 90 seconds). This can take a little while. The video plays muted so your narration and music stay front and center.</p>
         </div>
       </aside>
-      <aside aria-label="Optional selfie video" className="mb-5 rounded-[20px] border border-[#CDB7A2] bg-[#F6EFE5] px-4 py-4">
+      <div className="keep-creator-photo-grid grid grid-cols-3 gap-1">
+        {personalMedia.map((m, i) => <div key={m.id} className="relative aspect-square overflow-hidden bg-card"><MediaView item={m} thumb alt={m.name ?? "Your memory"} className="h-full w-full object-cover" /><button type="button" aria-label={"Remove memory " + (i+1)} onClick={() => removeMemory(i)} className="absolute right-1 top-1 rounded-full bg-black/70 p-2 text-white"><X className="size-4" /></button></div>)}
+        <button type="button" onClick={() => addInput.current?.click()} disabled={busy} className="flex aspect-square flex-col items-center justify-center gap-2 border border-border text-xs text-muted-foreground"><Plus className="size-5" />{busy ? "Adding…" : "Add moments"}</button>
+      </div>
+      <p className="mt-4 text-xs text-muted-foreground">{personalMedia.length} personal moments added</p>
+      <div className="mt-10">{nextButton("Continue", () => { setStyleTouched(false); go("storyStyle"); })}</div>
+      <Button variant="bare" size="touch" className="mt-3 w-full text-muted-foreground" onClick={() => { setStyleTouched(false); go("storyStyle"); }}>Continue without more photos</Button>
+      {/* Keep the optional selfie alternative below the photos and the primary continue actions. */}
+      <aside aria-label="Optional selfie video" className="mt-9 rounded-[20px] border border-[#CDB7A2] bg-[#F6EFE5] px-4 py-4">
         <div className="flex items-center gap-2"><Camera className="size-5 text-[#795F47]"/>
           <h3 className="font-display text-[24px]">No photos? Show your face.</h3></div>
         <p className="mt-2 text-xs leading-6 text-[#6D5D4D]">
@@ -2027,13 +2052,6 @@ function KeepApp() {
         </Button>
         <p className="mt-2 text-[11px] leading-5 text-[#887463]">Recording here replaces the narration with the new take so your voice and face stay in sync.</p>
       </aside>
-      <div className="keep-creator-photo-grid grid grid-cols-3 gap-1">
-        {personalMedia.map((m, i) => <div key={m.id} className="relative aspect-square overflow-hidden bg-card"><MediaView item={m} thumb alt={m.name ?? "Your memory"} className="h-full w-full object-cover" /><button type="button" aria-label={"Remove memory " + (i+1)} onClick={() => removeMemory(i)} className="absolute right-1 top-1 rounded-full bg-black/70 p-2 text-white"><X className="size-4" /></button></div>)}
-        <button type="button" onClick={() => addInput.current?.click()} disabled={busy} className="flex aspect-square flex-col items-center justify-center gap-2 border border-border text-xs text-muted-foreground"><Plus className="size-5" />{busy ? "Adding…" : "Add moments"}</button>
-      </div>
-      <p className="mt-4 text-xs text-muted-foreground">{personalMedia.length} personal moments added</p>
-      <div className="mt-10">{nextButton("Continue", () => { setStyleTouched(false); go("storyStyle"); })}</div>
-      <Button variant="bare" size="touch" className="mt-3 w-full text-muted-foreground" onClick={() => { setStyleTouched(false); go("storyStyle"); }}>Continue without more photos</Button>
     </div></>}
     {screen === "storyStyle" && <>{top()}<KeepFinishingChoices
       captionStyle={project.captionStyle}
@@ -2164,6 +2182,8 @@ function KeepApp() {
           onRegroup={(wordsPerCue) => patch({captionWordsPerCue:wordsPerCue,...(project.captionWords?.length ? {captionCues:groupTimedWords(project.captionWords,wordsPerCue)}:{})})}
           onRestore={() => patch({captionCues:groupTimedWords(project.captionWords ?? [],project.captionWordsPerCue ?? 5)})}
           onRetrySync={() => void retryCaptionSync()}
+          onResync={() => void resyncCaptionsFromVoice()}
+          onPreviewSync={() => { setEditorPlaying(false); editorAudioRef.current?.pause(); seekEditor(0); openCreatorPreview("watch"); }}
         />}
         {editorPanel === "Style" && <KeepStyleEditor
           looks={styles}
@@ -2232,7 +2252,7 @@ function KeepApp() {
 
       </div>
       <nav className="keep-studio-tools" aria-label="Editing tools">
-        {([{ panel: "Memories", label: "Photos", Icon: Images }, { panel: "Captions", label: "Captions", Icon: MessageCircle }, { panel: "Music", label: "Music", Icon: Music2 }, { panel: "Voice", label: "Voice", Icon: Mic }, { panel: "Selfie", label: "Selfie", Icon: Camera }, { panel: "Style", label: "Style", Icon: Sparkles }] as const).map(({ panel, label, Icon }) => <button key={label} type="button" aria-pressed={editorPanel === panel} onClick={() => { stopMusicSample(); setMusicSampling(""); setCompareOriginalStyle(false); setEditorPanel(panel); }}><Icon /><span>{label}</span></button>)}
+        {([{ panel: "Memories", label: "Photos", Icon: Images }, { panel: "Captions", label: "Captions", Icon: MessageCircle }, { panel: "Music", label: "Music", Icon: Music2 }, { panel: "Voice", label: "Voice", Icon: Mic }, { panel: "Style", label: "Style", Icon: Sparkles }, { panel: "Selfie", label: "Selfie", Icon: Camera }] as const).map(({ panel, label, Icon }) => <button key={label} type="button" aria-pressed={editorPanel === panel} onClick={() => { stopMusicSample(); setMusicSampling(""); setCompareOriginalStyle(false); setEditorPanel(panel); }}><Icon /><span>{label}</span></button>)}
       </nav>
 
       {previewChooserOpen && sheet("Preview your Keep", () => { setPreviewChooserOpen(false); setReadArrangeOpen(false); }, <div className="pb-2">
