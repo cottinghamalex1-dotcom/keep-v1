@@ -72,4 +72,51 @@ describe("shared recording teleprompter", () => {
     });
     expect(viewport.scrollTop).toBeGreaterThan(0);
   });
+
+  it("keeps the reading area clipped separately from the opaque controls in both modes", () => {
+    const play = vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue(undefined);
+    const stream = {} as MediaStream;
+    const { rerender } = render(<KeepTeleprompter {...props} />);
+    const viewport = screen.getByLabelText("Auto-scrolling teleprompter script");
+    const slower = screen.getByRole("button", { name: "Slower teleprompter scrolling" });
+    expect(viewport.closest("section")).toHaveClass("grid");
+    expect(viewport.parentElement).toHaveClass("overflow-hidden");
+    expect(viewport).toHaveClass("h-full");
+    expect(viewport.contains(slower)).toBe(false);
+
+    rerender(<KeepTeleprompter {...props} cameraStream={stream} isRecording />);
+    expect(screen.getByLabelText("Live front camera preview")).toBeInTheDocument();
+    expect(viewport.parentElement).toHaveClass("overflow-hidden");
+    expect(viewport.contains(slower)).toBe(false);
+    play.mockRestore();
+  });
+
+  it("moves even when mobile Safari rounds each scrollTop assignment to an integer", () => {
+    let frame: FrameRequestCallback | undefined;
+    vi.stubGlobal("requestAnimationFrame", vi.fn((cb: FrameRequestCallback) => { frame = cb; return 1; }));
+    vi.stubGlobal("cancelAnimationFrame", vi.fn());
+    render(<KeepTeleprompter {...props} text={"word ".repeat(350)} isRecording />);
+    const viewport = screen.getByLabelText("Auto-scrolling teleprompter script") as HTMLElement;
+    let position = 0;
+    Object.defineProperty(viewport, "scrollHeight", { configurable: true, value: 700 });
+    Object.defineProperty(viewport, "clientHeight", { configurable: true, value: 300 });
+    Object.defineProperty(viewport, "scrollTop", {
+      configurable: true,
+      get: () => position,
+      set: (value: number) => { position = Math.floor(value); },
+    });
+    act(() => {
+      for (let time = 1000; time < 3500; time += 16) frame?.(time);
+    });
+    expect(position).toBeGreaterThan(0);
+  });
+
+  it("explains that auto-scroll pauses with the recording and resumes automatically", () => {
+    const { rerender } = render(<KeepTeleprompter {...props} isRecording isPaused elapsed={9} />);
+    expect(screen.getByRole("status")).toHaveTextContent("Auto-scroll will resume");
+    expect(screen.getByRole("button", { name: "Scrolling paused with recording" })).toBeDisabled();
+    rerender(<KeepTeleprompter {...props} isRecording isPaused={false} elapsed={10} />);
+    expect(screen.getByRole("status")).toHaveTextContent("AUTO-SCROLLING");
+    expect(screen.getByRole("button", { name: "Pause auto-scroll" })).toBeEnabled();
+  });
 });
