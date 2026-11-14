@@ -16,6 +16,7 @@ describe("hands-free reading frames",()=>{
     expect(frameAtTime(frames,15)).toBeGreaterThan(0);
     expect(frameAtTime([{start:2,end:4,text:"First words"}],0)).toBe(-1);
     expect(frameAtTime([{start:2,end:4,text:"First words"}],2.05)).toBe(0);
+    expect(frameAtTime([{start:2,end:4,text:"First words"}],5)).toBe(-1);
     expect(frames.at(-1)?.text).toContain("memory");
   });
   it("offers a timed estimated fallback for older Keeps with missing caption data",()=>{
