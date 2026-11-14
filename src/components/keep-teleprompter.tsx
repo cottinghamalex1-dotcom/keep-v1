@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Pause, Play, RotateCcw } from "lucide-react";
+import { Minus, Plus, Pause, Play, RotateCcw } from "lucide-react";
 
 type Props = {
   text: string;
@@ -39,13 +39,15 @@ export function KeepTeleprompter({ text, label, speaker, isRecording, isPaused, 
     const wordCount = Math.max(1, (text.match(/\S+/gu) ?? []).length);
     // A natural speaking pace provides a useful starting speed. The creator
     // can slow down, speed up, pause following, or scroll with a finger.
-    const suggestedSeconds = Math.max(8, wordCount / 165 * 60);
+    const suggestedSeconds = Math.max(8, wordCount / 175 * 60);
     const tick = (now: number) => {
       const element = viewport.current;
       if (element && last) {
         const seconds = Math.min(0.1, Math.max(0, (now - last) / 1000));
         const distance = Math.max(0, element.scrollHeight - element.clientHeight);
-        const pixelsPerSecond = Math.max(9, Math.min(55, distance / suggestedSeconds));
+        // Full travel is paced against the actual script length, without a
+        // hard pixel-speed cap that can strand longer scripts below the viewport.
+        const pixelsPerSecond = distance / suggestedSeconds;
         element.scrollTop = Math.min(distance, element.scrollTop + seconds * pixelsPerSecond * speed);
       }
       last = now;
@@ -89,21 +91,26 @@ export function KeepTeleprompter({ text, label, speaker, isRecording, isPaused, 
       </div>
 
       <div className="relative flex min-h-0 flex-1 flex-col">
-        <div ref={viewport} tabIndex={0} aria-label="Teleprompter script. Swipe to adjust your reading position." onTouchStart={() => { if (moving) setFollowing(false); }} onWheel={() => { if (moving) setFollowing(false); }} onKeyDown={event => { if (["ArrowUp", "ArrowDown", "PageUp", "PageDown"].includes(event.key) && moving) setFollowing(false); }}
-          className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 pt-6 pb-20 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#B69B7B] sm:px-8 sm:pt-8">
+        <div ref={viewport} tabIndex={0} aria-label="Auto-scrolling teleprompter script"
+          className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#B69B7B] sm:px-8"
+          style={{ paddingTop: "clamp(64px, 16dvh, 140px)", paddingBottom: "clamp(150px, 32dvh, 260px)" }}>
           <p className="whitespace-pre-wrap font-display text-[clamp(25px,6.5vw,36px)] leading-[1.46] tracking-[-.018em]">{text}</p>
         </div>
         <div className="pointer-events-none absolute inset-x-0 bottom-0 h-8 bg-gradient-to-t from-[#FAF6EF] to-transparent" aria-hidden="true" />
       </div>
 
       <div className="shrink-0 border-t border-[#E5D9CB] bg-[#F5EEE4] px-3 py-2.5 sm:px-5">
-        <div className="flex items-center justify-between gap-2">
-          <button type="button" className="min-h-10 rounded-lg px-3 text-xs font-medium text-[#5D4C3A] disabled:opacity-35" disabled={speed <= 0.6} onClick={() => setSpeed(value => Math.max(0.6, Math.round((value - 0.2) * 10) / 10))}>Slower</button>
-          <div className="text-center">
-            <span className="block text-[9px] font-semibold uppercase tracking-[.15em] text-[#8C7965]">Teleprompter speed</span>
+        <p role="status" className="mb-2 text-center text-[10px] font-semibold tracking-[.07em] text-[#6A5849]">
+          {isRecording ? (isPaused ? "Recording paused · Words will resume moving" : following ? "● AUTO-SCROLLING WITH YOUR VOICE" : "Auto-scroll paused") :
+            rehearsing ? "● PRACTICE AUTO-SCROLLING" : "Words scroll automatically when recording starts"}
+        </p>
+        <div className="mb-2 flex items-center justify-between gap-2">
+          <button type="button" aria-label="Slower teleprompter scrolling" className="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl border border-[#BCA88F] bg-[#FFFDF8] px-3 text-[12px] font-semibold text-[#48382A] shadow-[0_2px_5px_rgba(43,30,18,.08)] transition-colors hover:bg-[#ECE1D2] active:bg-[#E8D9C7] disabled:cursor-not-allowed disabled:opacity-35" disabled={speed <= 0.6} onClick={() => setSpeed(value => Math.max(0.6, Math.round((value - 0.2) * 10) / 10))}><Minus className="size-4" /> Slower</button>
+          <div className="min-w-[66px] text-center">
+            <span className="block text-[9px] font-semibold uppercase tracking-[.11em] text-[#8C7965]">Speed</span>
             <span className="text-sm font-semibold tabular-nums text-[#30251C]">{speed.toFixed(1)}×</span>
           </div>
-          <button type="button" className="min-h-10 rounded-lg px-3 text-xs font-medium text-[#5D4C3A] disabled:opacity-35" disabled={speed >= 2.0} onClick={() => setSpeed(value => Math.min(2, Math.round((value + 0.2) * 10) / 10))}>Faster</button>
+          <button type="button" aria-label="Faster teleprompter scrolling" className="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl border border-[#BCA88F] bg-[#FFFDF8] px-3 text-[12px] font-semibold text-[#48382A] shadow-[0_2px_5px_rgba(43,30,18,.08)] transition-colors hover:bg-[#ECE1D2] active:bg-[#E8D9C7] disabled:cursor-not-allowed disabled:opacity-35" disabled={speed >= 2.0} onClick={() => setSpeed(value => Math.min(2, Math.round((value + 0.2) * 10) / 10))}>Faster <Plus className="size-4" /></button>
         </div>
         {isRecording ? (
           <button type="button" onClick={() => setFollowing(value => !value)} className="flex min-h-10 w-full items-center justify-center gap-2 rounded-lg border border-[#DED0BE] bg-[#FFF9F2] px-4 text-xs font-medium text-[#4C3A2B]">
