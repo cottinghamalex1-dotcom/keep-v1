@@ -286,7 +286,7 @@ export function KeepPlayer({ name, from, year, onExit, onFinish, recipient = fal
     else showControls();
   }}>
     {audioUrl && <audio ref={audio} crossOrigin="anonymous" src={audioUrl} playsInline preload="auto" onPlay={() => { setVoiceEnded(false); tailRemainingRef.current=KEEP_MUSIC_TAIL_SECONDS*1000; }} onLoadedMetadata={(event) => { const duration = event.currentTarget.duration; if (Number.isFinite(duration) && duration > 0) setMasterDuration(duration); }} onEnded={() => setVoiceEnded(true)} onTimeUpdate={(e) => { const a = e.currentTarget; const d = Number.isFinite(a.duration) && a.duration > 0 ? a.duration : audioDuration || 1; setAudioTime(a.currentTime); setScene((current) => { const index = sceneIndexAt(items, a.currentTime, d); return current < 0 || current === index ? current : index; }); }} />}
-    {item && !end && <><CinematicMedia item={item} nextItem={nextItem} followingItem={items[scene + 2]} sceneKey={scene} motionIndex={scene} playing={playing && (voiceStarted || !item?.isSelfie)} duration={targetSceneSeconds} onFirstFrameReady={()=>setMediaReady(true)}
+    {item && !end && <><CinematicMedia item={item} nextItem={nextItem} followingItem={items[scene + 2]} sceneKey={scene} motionIndex={scene} playing={playing && (voiceStarted || !item?.isSelfie || !mediaReady)} duration={targetSceneSeconds} onFirstFrameReady={()=>setMediaReady(true)}
       sceneElapsed={audioUrl && voiceStarted && scene >= 0
         ? filmSceneElapsed(items, scene, audioTime, masterDuration || audioDuration)
         : undefined}
