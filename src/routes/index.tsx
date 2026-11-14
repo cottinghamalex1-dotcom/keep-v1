@@ -839,7 +839,7 @@ function KeepApp() {
       const signature=project.messageParagraphs.map((p,i)=>{
         const part=imported.find(item=>item.paragraphIndex===i && item.contributorId===speakerFor(i) && item.textFingerprint===p.trim());
         return [speakerFor(i),p.trim(),part?.audioId??""].join("::");
-      }).join("\\n");
+      }).join("\n");
       captionSyncToken.current++;
       const oldFinal=project.finalVoiceRecording;
       if(oldFinal?.audioUrl)releaseUrls([oldFinal.audioUrl]);
