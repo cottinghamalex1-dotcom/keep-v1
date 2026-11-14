@@ -26,7 +26,8 @@ export function KeepAccountButton() {
     <button type="button" aria-label="Open navigation menu" aria-expanded={open} onClick={() => setOpen(!open)} className="inline-flex size-10 items-center justify-center rounded-full border border-border bg-card text-foreground"><Menu className="size-5" /></button>
     {open && <div className="absolute right-0 top-12 z-[100] w-[min(310px,85vw)] rounded-2xl border border-border/80 bg-card p-4 text-foreground shadow-2xl">
       <p className="mb-3 text-xs uppercase tracking-[.2em] text-[#6A5849]">Menu</p>
-      <Link to="/shop" onClick={close} className="flex items-center gap-3 py-3"><Home className="size-4 text-[#6A5849]" />Website home</Link>
+      <Link to="/app" onClick={close} className="flex items-center gap-3 py-3"><Home className="size-4 text-[#6A5849]" />Home</Link>
+      <Link to="/shop" onClick={close} className="flex items-center gap-3 py-3"><Gift className="size-4 text-[#6A5849]"/>Shop packages</Link>
       <Link to="/app" onClick={close} className="flex items-center gap-3 py-3"><LogIn className="size-4 text-[#6A5849]" />{signedIn?"My Keep home":"Log in"}</Link>
       {signedIn && <>
         <button onClick={() => setKeepsOpen(!keepsOpen)} className="flex w-full items-center gap-3 py-3 text-left"><Gift className="size-4 text-[#6A5849]" />My Keeps<ChevronDown className={"ml-auto size-4 "+(keepsOpen?"rotate-180":"")} /></button>
