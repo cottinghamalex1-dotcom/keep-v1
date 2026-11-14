@@ -50,7 +50,9 @@ describe("Moments uploader", () => {
     expect(screen.getByRole("button", { name: /Adding your moments/ })).toBeDisabled();
     rerender(<KeepMomentsUploader moments={samples} busy {...actions} />);
     expect(screen.getByRole("button", { name: "Adding…" })).toBeDisabled();
-    fireEvent.click(screen.getByRole("button", { name: "Continue", exact: true }));
-    expect(actions.onContinue).toHaveBeenCalledOnce();
+    expect(screen.getByRole("button", { name: "Adding your moments…" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Continue without more photos" })).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "Adding your moments…" }));
+    expect(actions.onContinue).not.toHaveBeenCalled();
   });
 });
