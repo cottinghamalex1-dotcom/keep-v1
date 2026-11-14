@@ -56,7 +56,7 @@ function OrderCard({ row, purchase, keepToken, onPatch, saving }: {
       <span className={"rounded-full px-3 py-1 text-xs " + (row.shipped ? "bg-[#E3EFE4] text-[#34643D]" : row.issue_flag ? "bg-[#F8E1DA] text-[#A14F37]" : "bg-[#F2EAE0] text-[#6F5A44]")}>{row.shipped ? "Shipped" : row.issue_flag ? "Needs attention" : "In queue"}</span>
     </div>
     <div className="mt-5 grid grid-cols-3 gap-2 sm:grid-cols-6">
-      {steps.map(({key,title,label:stepLabel}) => <label key={key} title={title} className="flex cursor-pointer flex-col items-center gap-2 rounded-xl border border-[#E7DED4] bg-[#FCF9F5] px-1 py-3 text-center text-[11px]">
+      {steps.map(({key,label:stepLabel}) => <label key={key} className="flex cursor-pointer flex-col items-center gap-2 rounded-xl border border-[#E7DED4] bg-[#FCF9F5] px-1 py-3 text-center text-[11px]">
         <input type="checkbox" className="size-5 accent-[#4A624D]" checked={row[key]} disabled={saving} onChange={e => void onPatch(row.purchase_id, {[key]:e.target.checked})} />
         <span>{stepLabel}</span>
       </label>)}
