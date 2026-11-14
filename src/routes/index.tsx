@@ -992,7 +992,13 @@ function KeepApp() {
   const photoDrag = useRef<{ x: number; y: number; focusX: number; focusY: number; width: number; height: number } | null>(null);
   const updateSelectedMoment = (changes: Partial<MediaItem>) => setProject((prev) => {
     const moments = prev.memories.length ? prev.memories : sampleMemories();
-    return { ...prev, memories: moments.map((m, i) => i === frame % moments.length ? { ...m, ...changes } : m) };
+    const target=moments[frame % moments.length];
+    if(!target || target.isSelfie)return prev;
+    return {
+      ...prev,
+      memories:moments.map((m,i)=>i===frame % moments.length?{...m,...changes}:m),
+      selfieBaseMedia:(prev.selfieBaseMedia??[]).map(m=>m.id===target.id?{...m,...changes}:m)
+    };
   });
   const addFiles = async (e: ChangeEvent<HTMLInputElement>, replaceIndex?: number) => {
     const files = Array.from(e.target.files ?? []);
@@ -1067,8 +1073,26 @@ function KeepApp() {
       }
       if (items.length) {
         if (replaceIndex !== undefined) {
-          patch({ memories: frames.length ? frames.map((m, i) => (i === replaceIndex ? { ...items[0]!, displayDurationSec: items[0]!.kind === "video" ? items[0]!.displayDurationSec : m.displayDurationSec ?? 7, focusX: m.focusX, focusY: m.focusY, zoom: m.zoom, motion: m.motion, transition: m.transition } : m)) : shown.map((m, i) => (i === replaceIndex ? { ...items[0]!, displayDurationSec: items[0]!.displayDurationSec } : m)) });
-          toast.success("Moment updated");
+          const target=(frames.length?frames:shown)[replaceIndex];
+          if(target?.isSelfie) {
+            toast.info("To replace your selfie, use the Selfie Video editor.");
+          } else {
+            const replacement={...items[0]!,displayDurationSec:items[0]!.kind==="video"
+              ? items[0]!.displayDurationSec:target?.displayDurationSec??7,
+              focusX:target?.focusX,focusY:target?.focusY,zoom:target?.zoom,
+              motion:target?.motion,transition:target?.transition};
+            setProject(old=>{
+              const source=old.memories.length?old.memories:sampleMemories();
+              const scenes=source.map((m,i)=>i===replaceIndex?replacement:m);
+              const base=old.selfieBaseMedia?.length?old.selfieBaseMedia:withoutSelfieScenes(old.memories);
+              const nextBase=base.map(m=>m.id===target?.id?replacement:m);
+              return {...old,selfieBaseMedia:nextBase,
+                memories:(old.selfieVideos??[]).length
+                  ?composeSelfieStory(nextBase,old.selfieVideos??[],old.finalVoiceRecording?.durationSec??150,old)
+                  :scenes};
+            });
+            toast.success("Moment updated");
+          }
         } else {
           patch({ memories: composeSelfieStory([...(project.selfieBaseMedia?.length?project.selfieBaseMedia:withoutSelfieScenes(frames)),...items],project.selfieVideos??[],rec?.durationSec??150,project),
             selfieBaseMedia:[...(project.selfieBaseMedia?.length?project.selfieBaseMedia:withoutSelfieScenes(frames)),...items] });
@@ -1139,10 +1163,17 @@ function KeepApp() {
   };
   const removeMemory = (i: number) => {
     const list = frames.length ? frames : shown;
-    if(list[i]?.isSelfie){setEditorPanel("Selfie");toast.info("Edit or hide the selfie in the Selfie Video controls.");return;}
-    // Blob and object URL are kept so Undo can bring this moment back.
-    patch({ memories: list.filter((_, j) => j !== i) });
-    setFrame((f) => Math.max(0, Math.min(f, list.length - 2)));
+    const item=list[i];
+    if(item?.isSelfie){setEditorPanel("Selfie");toast.info("Edit or hide the selfie in the Selfie Video controls.");return;}
+    // Keep original blobs so Undo can restore the photo or video.
+    setProject(old=>{
+      const base=(old.selfieBaseMedia?.length?old.selfieBaseMedia:withoutSelfieScenes(old.memories))
+        .filter(m=>m.id!==item?.id);
+      return {...old,selfieBaseMedia:base,memories:(old.selfieVideos??[]).length
+        ?composeSelfieStory(base,old.selfieVideos??[],old.finalVoiceRecording?.durationSec??150,old)
+        :list.filter((_,j)=>j!==i)};
+    });
+    setFrame(f=>Math.max(0,Math.min(f,list.length-2)));
   };
   const moveMemory = (from: number, to: number) => {
     const list = [...(frames.length ? frames : shown)];
@@ -1162,26 +1193,28 @@ function KeepApp() {
     editorAudioRef.current?.pause();
     if (editorAudioRef.current) editorAudioRef.current.currentTime = time;
     setEditorTime(time);
-    patch({ memories: list });
+    patch({ memories: list, selfieBaseMedia:list.filter(item=>!item.isSelfie) });
     setFrame(to);
   };
   const duplicateMoment = async (index:number, firstDuration?:number, secondDuration?:number) => {
     const item = shown[index];
     if (!item) return;
+    if(item.isSelfie){setEditorPanel("Selfie");toast.info("Use the Selfie Video editor to change selfie footage.");return;}
     const id = newId("media");
     let persisted = item.persisted;
     let url = item.url;
     if (item.source === "upload") {
-      const blob = await getBlob(item.id);
+      const blob = await getBlob(item.blobId??item.id);
       if (!blob) { toast.error("The original photo is missing. Please re-add it."); return; }
       persisted = await putBlob(id,blob);
       url = URL.createObjectURL(blob);
     }
-    const copy:MediaItem = {...item,id,url,persisted,displayDurationSec:secondDuration??item.displayDurationSec};
+    const copy:MediaItem = {...item,id,blobId:id,url,persisted,displayDurationSec:secondDuration??item.displayDurationSec};
     const list = [...shown];
     if(firstDuration!==undefined) list[index]={...item,displayDurationSec:firstDuration};
     list.splice(index+1,0,copy);
-    patch({memories:list});
+    const base=list.filter(moment=>!moment.isSelfie);
+    patch({memories:list,selfieBaseMedia:base});
     setFrame(index+1);
     toast.success(firstDuration!==undefined?"Moment split into two clips.":"Moment duplicated.");
   };
@@ -2144,7 +2177,7 @@ function KeepApp() {
           setProject(old=>{
             const selfies=(old.selfieVideos??[]).filter(item=>item.id!==id);
             return {...old,selfieVideos:selfies,
-              memories:composeSelfieStory(withoutSelfieScenes(old.memories),selfies,
+              memories:composeSelfieStory(old.selfieBaseMedia?.length?old.selfieBaseMedia:withoutSelfieScenes(old.memories),selfies,
                 old.finalVoiceRecording?.durationSec??150,old)};
           });
         }}
