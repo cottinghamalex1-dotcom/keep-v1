@@ -48,6 +48,10 @@ export function CinematicMedia({
 }: Props) {
   const key = String(sceneKey ?? item.url);
   const [failedScenes,setFailedScenes]=useState<Set<string>>(()=>new Set());
+  // Keep the last decoded photo available if Safari briefly paints black
+  // while buffering a video. Never replace it with an undecoded image.
+  const [lastReadyStill, setLastReadyStill] = useState<string | null>(item.kind === "image" && item.url ? item.url : null);
+  const [bufferingVideos, setBufferingVideos] = useState<Set<string>>(() => new Set());
   const [state, setState] = useState<State>(() => ({
     slots: [{ key, item, duration, imageClassName, index: motionIndex }, null], active: 0, pending: null, revealed: false,
   }));
@@ -120,26 +124,32 @@ export function CinematicMedia({
   }, [item.url, item.kind, nextItem?.url, nextItem?.kind, followingItem?.url, followingItem?.kind]);
 
   useEffect(() => {
-    for (const video of videos.current) {
-      if (!video) continue;
-      if (playing) void video.play()?.catch(() => undefined);
-      else video.pause();
-    }
-  }, [playing, state.slots[0]?.key, state.slots[1]?.key, state.pending]);
+    // Hidden incoming videos must only buffer, not play. On mobile Safari,
+    // two simultaneous decoders can blank the visible video and drop frames.
+    const foreground = state.pending !== null && state.revealed ? state.pending : state.active;
+    videos.current.forEach((video, slot) => {
+      if (!video) return;
+      if (playing && slot === foreground) {
+        if (video.paused) void video.play()?.catch(() => undefined);
+      } else video.pause();
+    });
+  }, [playing, state.active, state.pending, state.revealed, state.slots[0]?.key, state.slots[1]?.key]);
 
   useEffect(()=>{
-    // Selfie outro shares the opening video's underlying file. Seek the second
-    // visual scene to the end of the take, while narration stays on its own clock.
-    const active=state.slots[state.active];
-    const offset=active?.item.videoStartSec;
-    if(active?.key!==key || typeof offset!=="number")return;
-    const video=videos.current[state.active];
-    if(!video || !Number.isFinite(video.duration))return;
-    const wanted=Math.max(0,Math.min(Math.max(0,video.duration-.05),offset+(sceneElapsed??0)));
-    if(Math.abs(video.currentTime-wanted)>.4){
-      try{video.currentTime=wanted;}catch{/* metadata may still be loading */}
+    // The narration clock owns video time too. A pending clip remains paused
+    // until its first frame appears; it must not run ahead while invisible.
+    const foreground = state.pending !== null && state.revealed ? state.pending : state.active;
+    const visible = state.slots[foreground];
+    if (!visible || visible.key !== key || visible.item.kind !== "video") return;
+    if (typeof sceneElapsed !== "number" || !Number.isFinite(sceneElapsed)) return;
+    const video = videos.current[foreground];
+    if (!video || video.readyState < 1 || !Number.isFinite(video.duration)) return;
+    const offset = visible.item.videoStartSec ?? 0;
+    const wanted = Math.max(0, Math.min(Math.max(0, video.duration - 0.05), offset + sceneElapsed));
+    if (Math.abs(video.currentTime - wanted) > 0.65) {
+      try { video.currentTime = wanted; } catch { /* Safari may still be preparing this clip. */ }
     }
-  },[sceneElapsed,state.active,state.slots,key]);
+  }, [sceneElapsed, state.active, state.pending, state.revealed, state.slots, key]);
 
   const canRevealVideo = (video:HTMLVideoElement, scene:Scene) => {
     const offset=scene.item.videoStartSec;
@@ -224,7 +234,7 @@ export function CinematicMedia({
       ? <video
           key={scene.key}
           ref={(node) => { videos.current[slot] = node; }}
-          src={moment.url} muted playsInline loop={!moment.isSelfie} autoPlay={playing}
+          src={moment.url} muted playsInline loop={!moment.isSelfie} autoPlay={false}
           preload="auto" onLoadedMetadata={(event)=>{
              if(typeof moment.videoStartSec==="number" && moment.videoStartSec>0.05) {
                try{event.currentTarget.currentTime=Math.min(Math.max(0,event.currentTarget.duration-.05),moment.videoStartSec);}catch{/* Safari not ready */}
