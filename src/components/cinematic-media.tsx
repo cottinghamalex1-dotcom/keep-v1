@@ -143,10 +143,18 @@ export function CinematicMedia({
     if (!visible || visible.key !== key || visible.item.kind !== "video") return;
     if (typeof sceneElapsed !== "number" || !Number.isFinite(sceneElapsed)) return;
     const video = videos.current[foreground];
-    if (!video || video.readyState < 1 || !Number.isFinite(video.duration)) return;
+    if (!video || video.seeking || video.readyState < 2 || !Number.isFinite(video.duration) || video.duration <= 0) return;
     const offset = visible.item.videoStartSec ?? 0;
-    const wanted = Math.max(0, Math.min(Math.max(0, video.duration - 0.05), offset + sceneElapsed));
-    if (Math.abs(video.currentTime - wanted) > 0.65) {
+    // Small regular clips loop naturally. Modulo is essential: clamping a
+    // 5-second video at its final frame while the photo scene lasts 15 seconds
+    // repeatedly seeks Safari at every tick and causes black flashes.
+    const loop = !visible.item.isSelfie;
+    const wanted = loop
+      ? (offset + sceneElapsed) % video.duration
+      : Math.max(0, Math.min(video.duration - 0.05, offset + sceneElapsed));
+    const difference = Math.abs(video.currentTime - wanted);
+    const drift = loop ? Math.min(difference, Math.abs(video.duration - difference)) : difference;
+    if (drift > 1.0 && !bufferingVideos.has(visible.key)) {
       try { video.currentTime = wanted; } catch { /* Safari may still be preparing this clip. */ }
     }
   }, [sceneElapsed, state.active, state.pending, state.revealed, state.slots, key]);
@@ -302,8 +310,12 @@ export function CinematicMedia({
   };
 
   return <div className={`isolate overflow-hidden bg-[#171719] ${className}`}>
-    {lastReadyStill && <img src={lastReadyStill} alt="" aria-hidden="true"
-      className="pointer-events-none absolute inset-0 h-full w-full object-cover" />}
+    {lastReadyStill
+      ? <img src={lastReadyStill} alt="" aria-hidden="true"
+          className="pointer-events-none absolute inset-0 h-full w-full object-cover" />
+      : <div aria-hidden="true" className="pointer-events-none absolute inset-0 flex items-center justify-center bg-[#E9E0D5]">
+          <span className="font-display text-5xl tracking-[-.07em] text-[#564739]">Keep</span>
+        </div>}
     <style>{`@keyframes keep-cinematic-move {from {transform:var(--keep-from)} to {transform:var(--keep-to)}} @media (prefers-reduced-motion:reduce) {[style*="keep-cinematic-move"] {animation:none!important}}`}</style>
     {state.slots.map((scene, slot) => scene && <div key={slot} className="absolute inset-0 will-change-[opacity]"
       style={{
