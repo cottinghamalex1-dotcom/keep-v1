@@ -122,7 +122,7 @@ function MyKeeps() {
             toast.success("Link copied");
           } catch { toast.error("Copy unavailable. Open the Keep to copy its address."); }
         })()}
-        onDelete={keep=>void remove(keep as KeepRecord)}
+        onDelete={keep=>{ const selected = keeps.find(item=>item.id===keep.id); if (selected) void remove(selected); }}
       />}
     </div>
   </main>;
