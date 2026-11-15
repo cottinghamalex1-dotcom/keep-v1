@@ -35,6 +35,7 @@ import { Button } from "@/components/ui/button";
 import { KeepPlayer, memoryImages, memoryLabels } from "@/components/keep-player";
 import { KeepRecipientExperience, type KeepExperienceMode } from "@/components/keep-recipient-experience";
 import { KeepOpeningPersonalization } from "@/components/keep-opening-personalization";
+import { defaultKeepOrder, keepOrderQuote, keepMoney, normalizeExtraCards, type KeepTier } from "@/lib/keep-pricing";
 import { KeepErrorBoundary } from "@/components/keep-error-boundary";
 import { KeepLengthGuide } from "@/components/keep-length-guide";
 import { checkKeepVideo, KEEP_VIDEO_MAX_BYTES, KEEP_VIDEO_MAX_SOURCE_BYTES, KEEP_VIDEO_MAX_SECONDS, readKeepVideoDuration } from "@/lib/keep-video-upload";
@@ -248,6 +249,7 @@ function KeepApp() {
   const [publishing, setPublishing] = useState(false);
   const [publishStatus, setPublishStatus] = useState("");
   const [publishError, setPublishError] = useState("");
+  const [engravingOfferOpen, setEngravingOfferOpen] = useState(false);
   const publishingLock = useRef(false);
   const [setting, setSetting] = useState("");
   const [voiceFinalizing, setVoiceFinalizing] = useState(false);
@@ -1640,6 +1642,9 @@ function KeepApp() {
   }, [screen, editorTime, editorPlaying, shown.length, editorDuration, editorMediaTotal]);
 
   const engraving = project.cardEngraving;
+  const keepOrder = { ...defaultKeepOrder(), ...project.keepOrder };
+  const keepQuote = keepOrderQuote(keepOrder, project.voiceMode === "together" ? (project.contributors?.length ?? 2) : 1);
+  const patchKeepOrder = (updates: Partial<typeof keepOrder>) => patch({ keepOrder: { ...keepOrder, ...updates } });
   const updateEngraving = (i: number, value: string) => patch({ cardEngraving: engraving.map((v, j) => (j === i ? value.toUpperCase() : v)) });
   // Publishing happens as part of finishing, not through a separate "Update" action.
   // A published Keep is always republished under its original ID/token.
@@ -1723,6 +1728,10 @@ function KeepApp() {
     // Re-publish an existing Keep, then return to Your Creations. Show progress
     // and any validation errors right here in the editor rather than silently failing.
     if (next.publicationToken) { setPublishError(""); void finishAndShare(next); return; }
+    if ((next.keepOrder?.tier ?? "basic") === "basic" && !next.keepOrder?.engravingOfferSeen) {
+      const withOfferSeen = { ...next, keepOrder: { ...defaultKeepOrder(), ...next.keepOrder, engravingOfferSeen: true } };
+      setProject(withOfferSeen); saveDraft(withOfferSeen); setEngravingOfferOpen(true);
+    }
     go("card");
   };
   const totalSec = rec?.durationSec ?? 150;
