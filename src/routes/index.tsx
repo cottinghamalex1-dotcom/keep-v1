@@ -39,6 +39,7 @@ import { KeepErrorBoundary } from "@/components/keep-error-boundary";
 import { KeepLengthGuide } from "@/components/keep-length-guide";
 import { checkKeepVideo, KEEP_VIDEO_MAX_BYTES, KEEP_VIDEO_MAX_SOURCE_BYTES, KEEP_VIDEO_MAX_SECONDS, readKeepVideoDuration } from "@/lib/keep-video-upload";
 import { compressKeepVideo, keepCompressedSizeText, shouldCompressKeepVideo } from "@/lib/keep-video-compression";
+import { keepOptimizedPhotoId, keepPhotoSavings, optimizeKeepPhoto, shouldOptimizeKeepPhoto } from "@/lib/keep-photo-optimization";
 import { countKeepWords, estimateKeepSeconds, formatKeepTime } from "@/lib/keep-length";
 import { useRecorder } from "@/hooks/use-recorder";
 import { joinKeepVoiceParts } from "@/lib/keep-collaborative-audio";
@@ -1064,6 +1065,9 @@ function KeepApp() {
     const items: MediaItem[] = [];
     const skipped: string[] = [];
     let processed = 0;
+    let optimizedPhotoCount = 0;
+    let originalPhotoBytes = 0;
+    let optimizedPhotoBytes = 0;
     try {
       for (const f of supported) {
         try {
@@ -1109,11 +1113,27 @@ function KeepApp() {
             }
           }
           const id = newId("media");
+          // Keep the original image for editing and account backup. A smaller
+          // viewing version is saved only if the quality guard approves it.
+          let optimizedPhoto: Blob | null = null;
+          if (kind === "image" && shouldOptimizeKeepPhoto(f)) {
+            setMediaImport({ total: supported.length, completed: processed, detail: "Optimizing photo without losing detail…" });
+            optimizedPhoto = await optimizeKeepPhoto(f, { name: f.name });
+          }
           const persisted = await putBlob(id, savedFile);
           // Never point an uploaded video at a transient URL that cannot be
           // restored from IndexedDB after closing Safari.
           if (kind === "video" && !persisted) throw new Error("This video couldn't be saved on your device. Try a shorter clip.");
-          items.push({ id, kind, source: "upload", url: URL.createObjectURL(savedFile), name: savedFile.name, mimeType: savedFile.type, persisted, displayDurationSec });
+          const optimizedSaved = optimizedPhoto && persisted
+            ? await putBlob(keepOptimizedPhotoId(id), optimizedPhoto)
+            : false;
+          const displayBlob = optimizedSaved && optimizedPhoto ? optimizedPhoto : savedFile;
+          if (optimizedSaved && optimizedPhoto) {
+            optimizedPhotoCount++;
+            originalPhotoBytes += f.size;
+            optimizedPhotoBytes += optimizedPhoto.size;
+          }
+          items.push({ id, kind, source: "upload", url: URL.createObjectURL(displayBlob), name: savedFile.name, mimeType: savedFile.type, persisted, displayDurationSec });
         } catch (error) {
           skipped.push(`${f.name}: ${error instanceof Error ? error.message : "This file could not be added."}`);
         } finally {
@@ -1131,7 +1151,7 @@ function KeepApp() {
             toast.info(target?.isSelfie
               ? "Replace selfies in the Selfie Video editor."
               : "That moment has changed. Select it again before replacing.");
-            for (const item of items) { releaseUrls([item.url]); if (item.persisted) void deleteBlobs([item.id]); }
+            for (const item of items) { releaseUrls([item.url]); if (item.persisted) void deleteBlobs([item.id, keepOptimizedPhotoId(item.id)]); }
           } else {
             const incoming = items[0]!;
             setProject(old => {
@@ -1157,7 +1177,7 @@ function KeepApp() {
                 readMemoryOrder: old.readMemoryOrder.map(id => id === replacementId ? replacement.id : id),
               };
             });
-            for (const unused of items.slice(1)) { releaseUrls([unused.url]); if (unused.persisted) void deleteBlobs([unused.id]); }
+            for (const unused of items.slice(1)) { releaseUrls([unused.url]); if (unused.persisted) void deleteBlobs([unused.id, keepOptimizedPhotoId(unused.id)]); }
             toast.success("Moment updated");
           }
         } else {
@@ -1175,6 +1195,10 @@ function KeepApp() {
           toast.success(`${items.length} ${items.length === 1 ? "moment" : "moments"} added`);
         }
       }
+      if (optimizedPhotoCount > 0) toast.success(
+        `${optimizedPhotoCount} ${optimizedPhotoCount === 1 ? "photo" : "photos"} optimized — ${keepPhotoSavings(originalPhotoBytes, optimizedPhotoBytes)}% less image data, originals preserved.`,
+        { duration: 5500 },
+      );
       if (skipped.length) toast.error(skipped.length === 1 ? skipped[0]! : `${skipped.length} files skipped. ${skipped[0]}`, { duration: 8000 });
       if (items.some((item) => !item.persisted)) toast.warning("Some photos may not be stored on this device. Keep this page open until your account finishes syncing.");
       if (supported.length !== files.length) toast.info("Some selected files weren't recognized as photos or videos.");

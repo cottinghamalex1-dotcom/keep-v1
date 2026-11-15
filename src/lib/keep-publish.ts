@@ -1,5 +1,6 @@
 import { activeKeepSession, type KeepSession } from './keep-cloud';
-import { getBlob } from './keep-media-store';
+import { getBlob, putBlob } from './keep-media-store';
+import { keepOptimizedPhotoId, optimizeKeepPhoto, shouldOptimizeKeepPhoto } from './keep-photo-optimization';
 import type { KeepProject, MediaItem } from './keep-project';
 
 const endpoint = 'https://lwkzhpwugtosbidxvdcr.supabase.co';
@@ -49,6 +50,24 @@ export async function publishKeep(p: KeepProject, keepId: string, progress: (mes
       if(m.source==='upload')blob=(await getBlob(sourceKey))??undefined;
       else{const response=await fetch(m.url);if(response.ok)blob=await response.blob();}
       if(!blob)throw new Error('A photo or video is missing. Reopen your saved draft or add that memory again.');
+      if (m.kind === "image" && m.source === "upload") {
+        // Preserve the full-quality source in the owner's local/cloud draft.
+        // Send only a separately verified, quality-checked rendering to the
+        // recipient. Older drafts without an optimized copy are handled here.
+        const sourceId = m.blobId ?? m.id;
+        const zoomed = typeof m.zoom === "number" && m.zoom > 1.45;
+        let optimized = zoomed ? null : await getBlob(keepOptimizedPhotoId(sourceId));
+        if (!optimized && shouldOptimizeKeepPhoto({ size: blob.size, type: blob.type, name: m.name })) {
+          progress(`Preparing photo ${memories.length + 1} of ${p.memories.length} for smooth playback…`);
+          optimized = await optimizeKeepPhoto(blob, { zoom: m.zoom, name: m.name });
+          if (optimized && !zoomed) void putBlob(keepOptimizedPhotoId(sourceId), optimized);
+        }
+        if (optimized && optimized.size > 0 && optimized.size < blob.size) blob = optimized;
+      } else if (m.kind === "image" && shouldOptimizeKeepPhoto({ size: blob.size, type: blob.type })) {
+        // Optimize bundled stills too; video and animated GIFs are untouched.
+        const optimized = await optimizeKeepPhoto(blob);
+        if (optimized && optimized.size < blob.size) blob = optimized;
+      }
       storagePath=await upload(blob,`memory-${memories.length}`);
       uploadedSourcePaths.set(sourceKey,storagePath);
     }
