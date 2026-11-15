@@ -21,6 +21,7 @@ import { KeepSelfiePrompt } from "@/components/keep-selfie-prompt";
 import { composeSelfieStory, withoutSelfieScenes } from "@/lib/keep-selfie-story";
 import { KeepFinishingChoices } from "@/components/keep-finishing-choices";
 import { KeepAskAIModal, KeepWordChanges } from "@/components/keep-ask-ai-modal";
+import { KeepInterviewIntro } from "@/components/keep-interview-intro";
 import { arrangeWords, spreadMemories, recommendedStyle } from "@/lib/keep-story-layout";
 import { filmTotal, sceneBoundary, sceneDuration, sceneElapsed, sceneIndexAt, sceneSeekTime } from "@/lib/keep-film-timing";
 import { captionAtTime, recoverCaptionTiming } from "@/lib/keep-caption-timing";
@@ -482,14 +483,22 @@ function KeepApp() {
     setAiBusy(kind); setAiError(null);
     try { await fn(); } catch { setAiError({ kind, retry: () => void runAi(kind, fn) }); } finally { setAiBusy(null); }
   };
-  const startInterview = () => {
-    go("interview");
+  const requestFirstInterviewQuestion = () => {
     if (!aiReady || project.interviewQuestion) return;
     void runAi("start", async () => {
       const r = await fetchNextQuestion(aiContext([]));
       if (r.done) throw new Error("no question");
       patch({ interviewQuestion: r.question, questionIndex: 0, interviewAnswers: [], interviewSummary: "" });
     });
+  };
+  const startInterview = () => {
+    go("interview");
+    // Let the creator read the reminders before the first question arrives.
+    if (project.interviewWelcomeSeen) requestFirstInterviewQuestion();
+  };
+  const acknowledgeInterviewTips = () => {
+    patch({ interviewWelcomeSeen: true });
+    requestFirstInterviewQuestion();
   };
   const setTypedAnswer = (text: string) => {
     if (!currentAnswer && !text) return;
@@ -993,7 +1002,7 @@ function KeepApp() {
   const photoCount = personalMedia.filter(m => m.kind === "image").length;
   const videoCount = personalMedia.filter(m => m.kind === "video").length;
   // Narration-first photo guidance: use the real voice recording when available,
-  // otherwise estimate speaking time from the current message (~140 words/minute).
+  // otherwise estimate speaking time from the current message at a brisk reading pace.
   const narrationWordCount = countKeepWords(project.messageParagraphs.join(" "));
   const intendedSpeakingTime = formatKeepTime(estimateKeepSeconds(narrationWordCount));
   const estimatedNarrationSec = narrationWordCount ? estimateKeepSeconds(narrationWordCount) : 0;
@@ -1791,13 +1800,13 @@ function KeepApp() {
       <div className={`shrink-0 px-6 pt-4 ${interviewKeyboardOpen ? "pb-2" : "pb-4"}`}>
         <div className="flex items-center justify-between gap-3">
           <p className="eyebrow !text-[10px]">YOUR STORY, YOUR WORDS</p>
-          <p className="text-[11px] tabular-nums text-muted-foreground">Question {q + 1} · about 7 total</p>
+          <p className="text-[11px] tabular-nums text-muted-foreground">Question {q + 1} · 8–10 total</p>
         </div>
-        <div className="mt-3 grid h-[5px] gap-1.5" style={{ gridTemplateColumns: `repeat(${Math.max(7, q + 1)}, minmax(0, 1fr))` }}
+        <div className="mt-3 grid h-[5px] gap-1.5" style={{ gridTemplateColumns: "repeat(10, minmax(0, 1fr))" }}
              role="progressbar" aria-label="Interview progress" aria-valuemin={0}
-             aria-valuemax={Math.max(7, q + 1)} aria-valuenow={Math.min(q + 1, Math.max(7, q + 1))}
-             aria-valuetext={`Question ${q + 1} of approximately 7; the interview may finish a little sooner or later.`}>
-          {Array.from({ length: Math.max(7, q + 1) }, (_, i) =>
+             aria-valuemax={10} aria-valuenow={Math.min(q + 1, 10)}
+             aria-valuetext={`Question ${q + 1} of 8 to 10. Some stories need one or two extra questions.`}>
+          {Array.from({ length: 10 }, (_, i) =>
             <span key={i} className={`h-[4px] rounded-full ${i < completedAnswers ? "bg-accent" : i === q ? "bg-accent/60" : "bg-border"}`} />)}
         </div>
       </div>
@@ -1854,6 +1863,8 @@ function KeepApp() {
         </div>}
       </div>
     </div>}
+    {screen === "interview" && q === 0 && !project.interviewWelcomeSeen &&
+      <KeepInterviewIntro onReady={acknowledgeInterviewTips} />}
     {screen === "summary" && <>{top()}<div className="flex keep-min-screen-minus-100 flex-col px-7 pb-10 pt-12"><div className="flex-1">{title("Your story", "I think we have it.")}<p className="max-w-md font-display text-[22px] leading-[1.55] text-foreground/88 page-enter sm:text-[24px]">{project.interviewSummary || "You've shared what matters. Let's put it into words."}</p></div><div className="mt-16 space-y-3">{nextButton("Create My Message", createAiMessage, !aiReady)}<Button variant="quiet" size="touch" className="w-full" onClick={() => go("write")}>Write it myself</Button></div></div></>}
     {screen === "messageGenerating" && <div className="relative flex keep-min-screen flex-col overflow-hidden px-7 pb-[max(40px,env(safe-area-inset-bottom))] pt-[max(36px,env(safe-area-inset-top))]">
       <div className="pointer-events-none absolute inset-x-[-25%] top-[20%] h-72 rounded-full bg-accent/[0.06] blur-3xl" />

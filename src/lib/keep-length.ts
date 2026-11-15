@@ -1,7 +1,9 @@
 /** Keep's preferred spoken length is a flexible guideline, never a limit. */
-export const KEEP_WORDS_PER_MINUTE = 170;
-export const KEEP_TARGET_MIN_WORDS = 340;
-export const KEEP_TARGET_MAX_WORDS = 390;
+// Most creators read their words briskly; a cautious estimate is more useful
+// than promising a longer finished recording. Actual timing comes from the audio.
+export const KEEP_WORDS_PER_MINUTE = 195;
+export const KEEP_TARGET_MIN_WORDS = 450;
+export const KEEP_TARGET_MAX_WORDS = 500;
 
 export function countKeepWords(text: string): number {
   return (text.trim().match(/\S+/gu) ?? []).length;

@@ -1,4 +1,5 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { enforceInterviewStep } from "./interview-policy.ts";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -217,28 +218,28 @@ Return three suggestions only.`,
         },
         instructions: `You are the invisible interviewer inside KEEP, a product that helps people preserve meaningful words and memories.
 
-Your job is not to sound like an AI, therapist, coach, or questionnaire. Help the creator uncover concrete, emotionally resonant material for an approximately 2–3 minute spoken message to someone they care about.
+Your job is not to sound like an AI, therapist, coach, or questionnaire. Help the creator uncover enough authentic, emotionally resonant material for a personal, full 2–3 minute spoken message to someone they care about.
 
 Rules:
 - Ask exactly one question at a time.
 - Follow a deliberate broad-to-specific arc, using the number of substantive answers and what the creator has actually shared.
 - The FIRST question is supplied by the app and explores the central message, meaning, and big picture. Do not jump into a specific anecdote immediately afterward.
 - For answers 1–2: stay expansive. Ask why this person, relationship, moment, or chapter matters and what feeling, gratitude, or truth is underneath it. Invite the creator to tell the story in their own way. Don't ask for narrow details yet unless they raise something they want to explore.
-- For answers 3–5: gradually zoom in. Invite specific stories, ordinary moments, sensory details, turning points, or examples that illuminate the themes the creator introduced; ask about one thread at a time.
-- For answers 6 onward: explore what changed, what the recipient should carry forward, what remains unsaid, and a satisfying emotional ending. Gather missing concrete material when needed.
+- For answers 3–6: gradually zoom in. Invite specific stories, ordinary moments, sensory details, turning points, or examples that illuminate themes the creator introduced; ask about one thread at a time.
+- For answers 7 onward: explore what changed, what the recipient should carry forward, what remains unsaid, and a satisfying emotional ending. Ask about a missing concrete memory when needed.
 - Make every follow-up connect naturally to the recipient, stated intention, and previous answers without assuming facts.
 - Follow meaningful details and emotional rabbit trails instead of marching through a checklist.
 - Prefer real memories, everyday details, gratitude, change over time, and what the creator hopes the recipient understands, but only after the big picture has emerged.
 - Do not invent facts or assume feelings the creator has not expressed.
 - Avoid clichés, therapy language, melodrama, and repetitive questions.
 - Keep every question SHORT, warm, and conversational: ONE straightforward question, ideally 12–22 words and no more than 28 words. Never stack multiple questions, suggest a long list of examples, or put an answer in the question. Let the creator provide the details.
-- The finished message should usually land around 2–3 spoken minutes. Gather enough real personal material to support roughly 340–390 spoken words without padding; brevity and emotional specificity matter more than volume.
-- Keep the interview respectful of time: prefer 6–7 substantive answers. You may finish after 5 if the answers already provide the meaning and personal material needed for a compelling message. By 8 substantive answers, finish the interview rather than asking more. Do not repeat or force an anecdote that the creator has not offered.
+- The finished message should usually land around 2–3 spoken minutes, including for a brisk speaker. Gather enough REAL material for approximately 450–500 spoken words when supported, without inventing or padding. Emotional specificity matters more than word count.
+- Ask 8–10 meaningful questions in total (the app already supplies the first). Prefer 9 answered questions, and use the 10th only if it would uncover a useful missing real detail or a stronger personal ending. NEVER finish before 8 answered questions and ALWAYS finish by 10. Avoid repetition even if answers are brief; continue naturally. If an answer is thin, ask a fresh question that invites a real detail without pressuring the creator.
 - When there is enough material for a specific, personal message, set done=true, question="", and write a concise 2–4 sentence summary of the emotional through-line in summary.
 - Otherwise set done=false, provide the next question, and set summary="".`,
         input: JSON.stringify(context),
       });
-      return json(result);
+      return json(enforceInterviewStep(context.answers.length, result));
     }
 
     if (action === "draft") {
@@ -267,7 +268,7 @@ Writing rules:
 - Avoid greeting-card clichés, inflated sentiment, therapy language, and generic inspiration.
 - Let specific ordinary details do the emotional work.
 - Use contractions when natural.
-- Create 4–7 short, recordable paragraphs, ideally 340–390 words. The finished message should feel like a natural 2–3 minute recording at roughly 170 words per minute. Stay below 450 words by default unless the creator explicitly asks for a longer Keep.
+- Create 6–8 natural, recordable paragraphs, ideally 450–500 words when the interview contains enough real material. This should give a brisk speaker enough substance for a meaningful 2–3 minute recording. Stay below 540 words by default unless the creator specifically asks for longer.
 - Do not pad the message to hit a word count. If the interview genuinely does not support that length, stay shorter rather than inventing or repeating.
 - Build toward a strong, simple ending that says what the creator most wants the recipient to know.
 - Do not mention KEEP, AI, the interview, or drafting.
@@ -282,7 +283,7 @@ Writing rules:
       const countWords = (parts: string[]) => (parts.join(" ").trim().match(/\S+/gu) ?? []).length;
       // Gently bring an unexpectedly long AI-generated draft back into the
       // 2–3-minute sweet spot. Never arbitrarily truncate a personal message.
-      if (countWords(paragraphs) > 450) {
+      if (countWords(paragraphs) > 540) {
         try {
           const shorter = await openAIJson({
             model: "gpt-5.1",
@@ -295,7 +296,7 @@ Writing rules:
               },
               required: ["paragraphs"],
             },
-            instructions: `You are KEEP's attentive editor. Shorten this personal spoken message into a complete, satisfying 2–3 minute Keep, ideally 340–390 words and no more than 450 words. Preserve the creator's exact real facts, specific memories, recognizable voice, recipient, emotional intention, and strongest ending. Remove redundancy and filler rather than deleting the heart of the message. Do not invent or add anything. Use 4–7 short, natural spoken paragraphs. Return only paragraphs.`,
+            instructions: `You are KEEP's attentive editor. Shorten this personal spoken message into a complete, satisfying 2–3 minute Keep, ideally 450–500 words and no more than 540 words. Preserve the creator's exact real facts, specific memories, recognizable voice, recipient, emotional intention, and strongest ending. Remove redundancy and filler rather than deleting the heart of the message. Do not invent or add anything. Use 6–8 short, natural spoken paragraphs. Return only paragraphs.`,
             input: JSON.stringify({ paragraphs, recipientName: context.recipientName, intent: context.intent }),
           });
           const compact = Array.isArray(shorter.paragraphs)
@@ -308,17 +309,17 @@ Writing rules:
       }
       // A short first draft often plays substantially faster than the old estimate.
       // Expand only when the interview contains genuine unused material.
-      if (countWords(paragraphs) < 325) {
+      if (countWords(paragraphs) < 450) {
         try {
           const expanded = await openAIJson({
             model: "gpt-5.1",
             name: "keep_message_expanded",
             schema: { type: "object", additionalProperties: false, properties: { paragraphs: { type: "array", items: { type: "string" } } }, required: ["paragraphs"] },
-            instructions: "Expand this spoken message toward 340–390 words using ONLY unused real details, memories, meaning and phrasing in the supplied interview. Keep it natural and specific, in 4–7 recordable paragraphs. Never invent, repeat, or pad. If the evidence cannot support expansion, return the original message unchanged. Return only paragraphs.",
+            instructions: "Expand this spoken message toward 450–500 words using ONLY unused real details, memories, meaning and phrasing in the supplied interview. Keep it natural and specific, in 6–8 recordable paragraphs. Make a notably fuller script for a brisk speaker. Never invent, repeat, or pad. If the evidence cannot support expansion, return the original message unchanged. Return only paragraphs.",
             input: JSON.stringify({ context, paragraphs }),
           });
           const fuller = Array.isArray(expanded.paragraphs) ? expanded.paragraphs.map((p: unknown) => String(p).trim()).filter(Boolean).slice(0, 8) : [];
-          if (fuller.length && countWords(fuller) > countWords(paragraphs) && countWords(fuller) <= 450) paragraphs = fuller;
+          if (fuller.length && countWords(fuller) > countWords(paragraphs) && countWords(fuller) <= 540) paragraphs = fuller;
         } catch { /* Keep the original draft if expansion is unavailable. */ }
       }
       return json({ paragraphs });

@@ -68,6 +68,8 @@ export type KeepProject = {
   occasion: string;
   intent: string;
   questionIndex: number;
+  /** A once-per-creation reminder before the first guided question. */
+  interviewWelcomeSeen?: boolean;
   interviewAnswers: InterviewAnswer[];
   messageSource: "demo" | "own" | "ai" | null;
   interviewQuestion: string;
@@ -124,7 +126,7 @@ export const sampleMemories = (): MediaItem[] =>
 
 export function newProject(): KeepProject {
   return {
-    active: false, stage: "recipient", recipientName: "", openingMessage: "", engraveOpeningMessage: false, openingMessageSuggestions: [], openingSuggestionsFor: "", relationship: "", occasion: "Anniversary", intent: "", questionIndex: 0, interviewQuestion: "", interviewSummary: "",
+    active: false, stage: "recipient", recipientName: "", openingMessage: "", engraveOpeningMessage: false, openingMessageSuggestions: [], openingSuggestionsFor: "", relationship: "", occasion: "Anniversary", intent: "", questionIndex: 0, interviewWelcomeSeen: false, interviewQuestion: "", interviewSummary: "",
     interviewAnswers: [], messageSource: null, writtenText: "", messageParagraphs: [], voiceMode: "solo", voiceRecordingLocation: "in_person", contributors: [], paragraphSpeakers: [], voiceParts: [], finalVoiceRecording: null, captionTranscript: "", captionCues: [], captionWords: [], captionWordsPerCue: 5, captionLines: 2, captionPosition: "bottom", creationStyle: "memories", memories: [], selfieVideos: [], selfieBaseMedia: [], selfiePresentation: "auto", selfieBookendSeconds: 4, readMemoryOrder: [],
     musicMood: "Warm + Nostalgic", voiceMusicBalance: "Balanced", musicMix: 50, voiceVolume: 60, musicVolume: 60, audioMixVersion: 2, captionStyle: "Reel", visualStyle: "Natural", cardEngraving: ["", "FROM ALEX", "2026"],
   };
