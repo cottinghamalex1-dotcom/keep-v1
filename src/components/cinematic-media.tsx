@@ -204,15 +204,13 @@ export function CinematicMedia({
   const renderMedia = (scene: Scene, slot: Slot) => {
     const moment = scene.item;
     if(failedScenes.has(scene.key)){
-      // Never leave recipients staring at a black frame if a mobile browser
-      // cannot decode one of the supplied videos. Show the next still moment
-      // where possible, otherwise retain the branded opening artwork.
-      const still=[nextItem,followingItem].find(m=>m?.kind==="image"&&m.url)?.url;
-      return <div className="absolute inset-0 flex flex-col items-center justify-center overflow-hidden bg-gradient-to-b from-[#3C332F] via-[#241F1E] to-[#171413] px-8 text-center">
-        {still&&<img src={still} alt="" className="absolute inset-0 h-full w-full object-cover opacity-65" />}
-        <div className="absolute inset-0 bg-black/35"/>
-        <img src="/brand/keep-wordmark-ivory.svg" alt="" className="relative z-10 mb-5 h-10 w-28 object-contain drop-shadow-lg"/>
-        <p className="relative z-10 font-display text-xl italic text-[#F7EEE5] drop-shadow-lg">Some things are worth keeping.</p>
+      // Missing files should not replace a treasured photo with a dark card.
+      // Favor the last successfully loaded photograph; use a light branded
+      // backdrop only when no photo is available at all.
+      const still=lastReadyStill || [nextItem,followingItem].find(m=>m?.kind==="image"&&m.url)?.url;
+      return <div className="absolute inset-0 flex flex-col items-center justify-center overflow-hidden bg-[#E9E0D5] px-8 text-center">
+        {still ? <img src={still} alt="" className="absolute inset-0 h-full w-full object-cover"/>
+          : <span className="font-display text-[45px] text-[#564739]">Keep</span>}
       </div>;
     }
     const x = Math.max(0, Math.min(100, moment.focusX ?? 50));
