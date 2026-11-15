@@ -102,21 +102,25 @@ export function CinematicMedia({
     });
   }, [key, item, duration, imageClassName, motionIndex]);
 
-  // Retain decoded images for the current and next two scenes.
-  // A short-lived Image() could be garbage collected before Safari finishes decoding it.
+  // Start downloading the following two photographs, but decode only the
+  // imminent NEXT image. Decoding three 8–11 MB originals in parallel (plus
+  // the visible DOM frames) created substantial Safari memory pressure.
   useEffect(() => {
-    const wanted = new Set(
-      [item, nextItem, followingItem]
-        .filter((moment): moment is CinematicMoment => !!moment && moment.kind === "image" && !!moment.url)
-        .map((moment) => moment.url),
-    );
-    for (const url of wanted) {
-      if (prefetched.current.has(url)) continue;
-      const image = new Image();
-      image.decoding = "async";
-      prefetched.current.set(url, image);
-      image.src = url;
-      if (typeof image.decode === "function") void image.decode().catch(() => undefined);
+    const upcoming = [item, nextItem, followingItem]
+      .filter((moment): moment is CinematicMoment => !!moment && moment.kind === "image" && !!moment.url);
+    const wanted = new Set(upcoming.map(moment => moment.url));
+    for (const moment of upcoming) {
+      if (!prefetched.current.has(moment.url)) {
+        const image = new Image();
+        image.decoding = "async";
+        prefetched.current.set(moment.url, image);
+        image.src = moment.url;
+      }
+    }
+    if (nextItem?.kind === "image") {
+      const next = prefetched.current.get(nextItem.url);
+      if (next && typeof next.decode === "function")
+        void next.decode().catch(() => undefined);
     }
     for (const url of prefetched.current.keys()) {
       if (!wanted.has(url)) prefetched.current.delete(url);
