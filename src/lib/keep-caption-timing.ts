@@ -95,8 +95,9 @@ export function recoverCaptionTiming(
   return { words: correctedWords, cues: correctedCues, repaired: true };
 }
 
-/** Follow the true narration clock. A caption must never anticipate speech or
- * linger across a long pause: only brief gaps get a graceful 0.4s hold. */
+/** Follow the true narration clock. Brief breaths between consecutive cues
+ * should not repeatedly flash the caption off and back on. Longer silence and
+ * the end of the narration still clear captions promptly. */
 export function captionAtTime(cues: CaptionCue[], time: number, narrationDuration?: number): CaptionCue | undefined {
   if(!cues.length||!Number.isFinite(time)||time<0)return undefined;
   if(narrationDuration && Number.isFinite(narrationDuration) && time>narrationDuration+0.05)return undefined;
@@ -107,8 +108,12 @@ export function captionAtTime(cues: CaptionCue[], time: number, narrationDuratio
     if(time+0.015<cue.start)continue;
     // Prefer the newest phrase when the timestamp provider overlaps words.
     if(time<=cue.end+0.08)return cue;
-    // Leave a tiny post-phrase hold so natural breaths do not flash blank.
-    return time<=cue.end+0.4?cue:undefined;
+    // If the next phrase begins within a typical breath, hold the current
+    // caption until that phrase starts instead of flashing blank for 100ms.
+    // This never shifts the start of the next spoken phrase or survives a long pause.
+    const next = cues[i + 1];
+    if (next && next.start >= cue.end && next.start - cue.end <= 1.05 && time < next.start) return cue;
+    return time <= cue.end + 0.4 ? cue : undefined;
   }
   return undefined;
 }
