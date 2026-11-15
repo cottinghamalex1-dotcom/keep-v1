@@ -2497,7 +2497,20 @@ function KeepApp() {
         {publishError && <p role="alert" className="mt-3 text-sm leading-6 text-[#9B3529]">{publishError}</p>}
         <p className="mt-3 text-center text-[11px] leading-5 text-muted-foreground">Finishing saves your changes and creates or refreshes the same permanent viewing link.</p>
       </div>
-    </div></>}
+    </div>
+    {engravingOfferOpen && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-5 py-8" role="presentation">
+      <section role="dialog" aria-modal="true" aria-label="Special engraving offer" className="max-h-[90dvh] w-full max-w-md overflow-y-auto rounded-2xl border border-[#D8C8B6] bg-[#FBF8F3] p-7 shadow-2xl">
+        <span className="text-[10px] font-semibold uppercase tracking-[.18em] text-[#806A53]">An offer just for your Keep</span>
+        <h2 className="mt-4 font-display text-[clamp(30px,7vw,42px)] leading-tight">Make it unmistakably theirs.</h2>
+        <p className="mt-4 text-sm leading-7 text-[#665B50]">Add a personal message engraved on your metal card. Something they can hold, even before they tap.</p>
+        <div className="mt-6 flex items-baseline gap-3"><strong className="font-display text-4xl font-normal">$14.99</strong><span className="text-sm text-[#8D7D6B] line-through">$30.00</span></div>
+        <p className="mt-1 text-xs font-semibold text-[#77614D]">Special 50% off offer — save $15.01</p>
+        <button type="button" className="keep-premium-action mt-7 flex min-h-12 w-full items-center justify-center rounded-xl px-5 text-sm" onClick={()=>{patchKeepOrder({engravingUpgrade:true,engravingOfferSeen:true});setEngravingOfferOpen(false);}}>Yes, personalize my card</button>
+        <button type="button" className="mt-4 min-h-11 w-full text-xs text-[#6D6257]" onClick={()=>{patchKeepOrder({engravingUpgrade:false,engravingOfferSeen:true});setEngravingOfferOpen(false);}}>No thanks, keep it classic</button>
+        <p className="mt-3 text-center text-[10px] leading-5 text-[#8A7A68]">This saves your selection. Payment comes later at secure checkout.</p>
+      </section>
+    </div>}
+    </>}
 
     {screen === "success" && <div className="mx-auto flex keep-min-screen w-full max-w-xl flex-col px-7 pb-12 pt-10">
       <div className="flex items-center justify-center"><span className="keep-wordmark">Keep</span></div>
