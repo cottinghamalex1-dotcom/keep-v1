@@ -64,3 +64,45 @@ it("preserves the outgoing image until the incoming image is ready to dissolve",
   const layers=container.querySelectorAll('div[style*="opacity"]');
   expect(layers.length).toBeGreaterThanOrEqual(2);
 });
+
+it("never plays a hidden incoming video while the outgoing video is still visible",()=>{
+  const play = vi.spyOn(HTMLMediaElement.prototype,"play").mockResolvedValue();
+  const pause = vi.spyOn(HTMLMediaElement.prototype,"pause").mockImplementation(()=>{});
+  const first={url:"/first-video.mp4",kind:"video" as const};
+  const {container,rerender}=render(<CinematicMedia item={first} sceneKey={0} playing />);
+  const visible=container.querySelector("video")!;
+  expect(play.mock.instances).toContain(visible);
+  rerender(<CinematicMedia item={{url:"/next-video.mp4",kind:"video"}} sceneKey={1} playing />);
+  const videos=[...container.querySelectorAll("video")];
+  expect(videos).toHaveLength(2);
+  const hidden=videos.find(video=>video!==visible)!;
+  expect(play.mock.instances).not.toContain(hidden);
+  expect(pause.mock.instances).toContain(hidden);
+  expect(hidden.autoplay).toBe(false);
+});
+
+it("loops short videos naturally without repeatedly seeking to their final frame",()=>{
+  vi.spyOn(HTMLMediaElement.prototype,"play").mockResolvedValue();
+  const {container,rerender}=render(<CinematicMedia
+    item={{url:"/five-second-clip.mp4",kind:"video"}} sceneKey={0} sceneElapsed={12} playing />);
+  const video=container.querySelector("video")!;
+  Object.defineProperty(video,"readyState",{configurable:true,value:4});
+  Object.defineProperty(video,"duration",{configurable:true,value:5});
+  video.currentTime=2.2;
+  rerender(<CinematicMedia item={{url:"/five-second-clip.mp4",kind:"video"}}
+    sceneKey={0} sceneElapsed={12.1} playing />);
+  expect(video.currentTime).toBeCloseTo(2.2,3);
+  expect(video.loop).toBe(true);
+});
+
+it("retains a real previous photograph as poster while the next clip is loading",()=>{
+  vi.spyOn(HTMLMediaElement.prototype,"play").mockResolvedValue();
+  const photo={url:"/last-good-photo.jpg",kind:"image" as const};
+  const {container,rerender}=render(<CinematicMedia item={photo} sceneKey={0} />);
+  const still=container.querySelector("img")!;
+  fireEvent.load(still);
+  rerender(<CinematicMedia item={{url:"/slow-clip.mp4",kind:"video"}} sceneKey={1} />);
+  const photos=[...container.querySelectorAll("img")].map(img=>img.getAttribute("src"));
+  expect(photos).toContain("/last-good-photo.jpg");
+  expect(container.querySelector("video")).not.toBeNull();
+});
