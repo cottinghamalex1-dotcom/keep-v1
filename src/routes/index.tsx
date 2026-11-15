@@ -1801,6 +1801,18 @@ function KeepApp() {
           <p className="mt-3 text-[11px] leading-5 text-[#74685D]">Keep will blend and polish all voices consistently.</p>
         </div>
       </div>}
+      <aside className="mt-6 rounded-2xl border border-[#D6C6B4] bg-[#F5EEE4] p-5" aria-label="Your Keep package">
+        <h2 className="font-display text-2xl">Your Keep package</h2>
+        <p className="mt-2 text-xs leading-5 text-muted-foreground">Basic includes one speaker. Signature includes all your voices and custom engraving.</p>
+        <div className="mt-4 grid grid-cols-2 gap-2">
+          {(["basic","signature"] as KeepTier[]).map(tier=><button type="button" key={tier} aria-pressed={keepOrder.tier===tier} onClick={()=>patchKeepOrder({tier,engravingUpgrade:tier==="signature"?false:keepOrder.engravingUpgrade})} className={keepOrder.tier===tier?"rounded-xl border border-[#9B7956] bg-white px-3 py-3 text-left text-xs":"rounded-xl border border-[#D5C5B3] bg-white/60 px-3 py-3 text-left text-xs"}>
+            <strong className="block text-sm">{tier==="basic"?"Basic · $69":"Signature · $99"}</strong>
+            <span className="mt-1 block leading-5">{tier==="basic"?"$9 per additional voice":"Every voice included"}</span>
+          </button>)}
+        </div>
+        <p className="mt-4 text-sm font-medium" role="status">{keepOrder.tier==="signature" ? "Recording together is included at no extra charge." : (keepQuote.additionalSpeakers+" additional "+(keepQuote.additionalSpeakers===1?"voice":"voices")+" · "+keepMoney(keepQuote.speakerCents))}</p>
+        <p className="mt-2 text-[11px] leading-5 text-muted-foreground">Pricing preview only. No charges are collected here.</p>
+      </aside>
       <div className="mt-8">{nextButton("Continue",()=>go("intent"),project.voiceMode === "together" && ((project.contributors?.length ?? 0)<2 || (project.contributors ?? []).some(p=>!p.name.trim()) || new Set((project.contributors ?? []).map(p=>p.name.trim().toLowerCase())).size !== (project.contributors?.length ?? 0)))}</div>
     </div></>}
     {screen === "intent" && <>{top("04 / 05")}<div className="px-7 pt-11">{title("The reason behind it", "Why does this Keep matter to you?", "What would you like them to remember?")}<textarea value={project.intent} onChange={(e) => patch({ intent: e.target.value.slice(0, 500) })} placeholder="I want Gigi & Pops to know how special it was watching them experience Disney through our kids' eyes, and I want our family to always remember this trip together." className="min-h-44 w-full resize-none rounded-sm border border-border bg-transparent p-4 text-sm leading-7 outline-none focus:border-accent" /><div className="mt-4 grid grid-cols-2 gap-2"><Button variant={dictating && dictationTargetRef.current === "intent" ? "selected" : "quiet"} className="h-12" onClick={() => toggleDictation("intent")}>{dictating && dictationTargetRef.current === "intent" ? <Square className="mr-2 size-4" fill="currentColor" /> : <Mic className="mr-2 size-4" />}{dictating && dictationTargetRef.current === "intent" ? "Stop" : "Speak"}</Button><Button variant="quiet" className="h-12" onClick={() => document.querySelector<HTMLTextAreaElement>('textarea')?.focus()}><Keyboard aria-hidden="true" className="mr-2 size-4" />Type</Button></div>{dictating && dictationTargetRef.current === "intent" && <p className="mt-3 text-xs leading-5 text-muted-foreground">Speak naturally. Your words will appear above as you talk. Tap Stop when you're finished.</p>}<div className="mt-10">{nextButton("Continue", () => go("path"), !project.intent.trim())}</div></div></>}
