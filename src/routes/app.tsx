@@ -2,13 +2,14 @@ import { viewingLink } from "@/lib/keep-publish";
 import { KeepLibraryCard } from "@/components/keep-library-card";
 import { KeepCreateCTA } from "@/components/keep-create-cta";
 import { KeepCollectionCard } from "@/components/keep-collection-card";
+import { KeepCardCollection } from "@/components/keep-card-collection";
 import { KeepAccountDashboard } from "@/components/keep-account-dashboard";
 import { deleteOwnedKeep, keepDeleteConfirmation } from "@/lib/keep-delete";
 import { clearDraft, loadDraft, projectBlobIds } from "@/lib/keep-project";
 import { deleteBlobs } from "@/lib/keep-media-store";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useCallback, useEffect, useState } from "react";
-import { ArrowRight, CreditCard, Gift, Heart, Home, LockKeyhole, LogOut, Plus, ShieldCheck, UserRound, Menu, ChevronDown, BookOpen, CircleHelp, ExternalLink, Link2, Check, PenLine, Trash2 } from "lucide-react";
+import { ArrowRight, Gift, Heart, Home, LockKeyhole, LogOut, Plus, UserRound, Menu, ChevronDown, BookOpen, CircleHelp, ExternalLink, Link2, Check, PenLine, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/app")({ component: KeepDashboard });
@@ -167,7 +168,7 @@ function KeepDashboard() {
       </form>
       <button className="mt-6 text-sm text-[#6A5849]" onClick={() => setRegister(!register)}>{register ? "Already have an account? Sign in" : "New to Keep? Create an account"}</button>
     </section> : <>
-      <section className={tab === "home" ? "keep-horizon-hero relative mb-9 pt-11 text-center" : "mb-10 pt-4"}>{tab === "home" ? <><h1 className="keep-editorial-title relative z-10">Say what matters.<span className="mt-1 block italic">Keep it forever.</span></h1><p className="keep-page-description relative z-10 mx-auto mt-6">Turn your words and moments into a beautiful, lasting keepsake they can hold onto forever.</p><KeepCreateCTA /></> : <h1 className="keep-editorial-title">{tab === "given" ? "Keeps given" : tab === "received" ? "Keeps received" : "Your account"}</h1>}</section>
+      {(tab === "home" || tab === "account") && <section className={tab === "home" ? "keep-horizon-hero relative mb-9 pt-11 text-center" : "mb-10 pt-4"}>{tab === "home" ? <><h1 className="keep-editorial-title relative z-10">Say what matters.<span className="mt-1 block italic">Keep it forever.</span></h1><p className="keep-page-description relative z-10 mx-auto mt-6">Turn your words and moments into a beautiful, lasting keepsake they can hold onto forever.</p><KeepCreateCTA /></> : <h1 className="keep-editorial-title">Your account</h1>}</section>}
       {tab === "home" && <div className="space-y-4">
 
         {(keeps.length > 0 || cloudDraft?.active) && <section aria-labelledby="your-creations-heading" className="keep-creations-frame relative isolate overflow-hidden rounded-[24px] p-4 sm:p-5">
@@ -196,11 +197,16 @@ function KeepDashboard() {
           </div>
         </section>}
         <div className="grid grid-cols-2 gap-3">
-          <KeepCollectionCard kind="given" count={cards.filter(c => c.creator_id === session.user.id).length} onClick={() => setTab("given")} />
-          <KeepCollectionCard kind="received" count={cards.filter(c => c.recipient_id === session.user.id).length} onClick={() => setTab("received")} />
+          <KeepCollectionCard kind="given" count={cards.filter(c => c.creator_id === session.user.id).length} onClick={() => navigate("given")} />
+          <KeepCollectionCard kind="received" count={cards.filter(c => c.recipient_id === session.user.id).length} onClick={() => navigate("received")} />
         </div>
       </div>}
-      {(tab === "given" || tab === "received") && <div className="space-y-3">{cards.filter(c => tab === "given" ? c.creator_id === session.user.id : c.recipient_id === session.user.id).length ? cards.filter(c => tab === "given" ? c.creator_id === session.user.id : c.recipient_id === session.user.id).map(card => <div key={card.id} className="rounded-xl border border-border/80 p-5"><div className="flex items-center gap-4"><div className="flex h-20 w-14 items-center justify-center rounded-lg bg-secondary"><CreditCard className="text-[#6A5849]" /></div><div><strong className="block">{card.recipient_label || "Physical Keep"}</strong><span className="mt-1 block text-xs capitalize text-muted-foreground">{card.status}</span><span className="mt-2 block text-xs text-muted-foreground">Card ending {card.card_code.slice(-4)}</span></div></div><div className="mt-4 border-t border-border/80 pt-3 text-xs text-muted-foreground"><ShieldCheck className="mr-2 inline size-4" />Card management · Playback requires the physical card</div></div>) : <div className="rounded-xl border border-dashed border-border/80 p-9 text-center"><CreditCard className="mx-auto mb-4 text-[#6A5849]" /><h2 className="font-display text-2xl">Nothing here yet.</h2><p className="mt-3 text-sm leading-6 text-muted-foreground">Your keepsakes will appear here.</p></div>}</div>}
+      {(tab === "given" || tab === "received") && <KeepCardCollection
+        kind={tab}
+        cards={cards.filter(card => tab === "given" ? card.creator_id === session.user.id : card.recipient_id === session.user.id)}
+        keeps={keeps}
+        onBack={() => navigate("home")}
+      />}
       {tab === "account" && <KeepAccountDashboard key={session.user.id + ":" + displayName}
         displayName={displayName} email={session.user.email ?? ""}
         created={keeps.length + (cloudDraft?.active&&!keeps.some(k=>k.id===cloudDraft.publicationId)?1:0)}
