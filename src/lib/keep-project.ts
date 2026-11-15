@@ -1,5 +1,6 @@
 import { memoryImages } from "@/components/keep-player";
 import { getBlob } from "./keep-media-store";
+import { keepOptimizedPhotoId } from "./keep-photo-optimization";
 
 export type MediaItem = {
   id: string;
@@ -191,14 +192,18 @@ export async function hydrateDraftMedia(p: KeepProject) {
   const memories: MediaItem[] = [];
   for (const m of p.memories) {
     if (m.source === "sample" || m.source === "text") { memories.push(m); continue; }
-    const url = await blobUrl(m.blobId ?? m.id);
+    const sourceId = m.blobId ?? m.id;
+    const url = (m.kind === "image" ? await blobUrl(keepOptimizedPhotoId(sourceId)) : undefined)
+      ?? await blobUrl(sourceId);
     if (url) memories.push({ ...m, url });
   }
   const selfieBaseMedia:MediaItem[]=[];
   for(const item of p.selfieBaseMedia??[]){
     if(item.source==="sample"){selfieBaseMedia.push({...item,url:memoryImages[item.sampleIndex??0]??""});continue;}
     if(item.source==="text"){selfieBaseMedia.push(item);continue;}
-    const url=await blobUrl(item.blobId??item.id);
+    const sourceId = item.blobId ?? item.id;
+    const url = (item.kind === "image" ? await blobUrl(keepOptimizedPhotoId(sourceId)) : undefined)
+      ?? await blobUrl(sourceId);
     if(url)selfieBaseMedia.push({...item,url});
   }
   const selfieVideos: MediaItem[]=[];
