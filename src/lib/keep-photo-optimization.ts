@@ -201,6 +201,9 @@ export async function optimizeKeepPhoto(source: Blob, options?: { zoom?: number;
           // An encoder's size grows with quality: first acceptable is enough.
           break;
         }
+        // Avoid a second full round of mobile encoding if a WebP candidate
+        // already passed the conservative visual quality check.
+        if (best) break;
       }
       return best;
     } finally {
