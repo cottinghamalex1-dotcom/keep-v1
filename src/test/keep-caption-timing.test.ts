@@ -78,7 +78,7 @@ it("detects a short phrase stretched across 13 seconds in a 98-second Keep", () 
   expect(recoverCaptionTiming([], repaired.cues, 98.41).repaired).toBe(false);
 });
 
-it("does not reveal words before speech and clears captions in long pauses", () => {
+it("keeps short breaths seamless while clearing captions in long pauses", () => {
   const cues: CaptionCue[] = [
     {text:"First spoken phrase",start:2,end:3},
     {text:"Second spoken phrase",start:8,end:9},
@@ -94,4 +94,17 @@ it("does not reveal words before speech and clears captions in long pauses", () 
   expect(captionAtTime(cues,9.8,10)).toBeUndefined();
   expect(captionAtTime(cues,10.5,10)).toBeUndefined();
   expect(captionAtTime(cues,10.5)).toBeUndefined();
+});
+
+it("holds the previous spoken phrase across a short breath without anticipating the next phrase",()=>{
+  const cues:CaptionCue[]=[
+    {text:"A meaningful memory",start:1,end:3},
+    {text:"And one more thought",start:3.75,end:5.6},
+    {text:"A much later reflection",start:10,end:12},
+  ];
+  expect(captionAtTime(cues,3.65,15)?.text).toBe("A meaningful memory");
+  expect(captionAtTime(cues,3.76,15)?.text).toBe("And one more thought");
+  expect(captionAtTime(cues,6,15)?.text).toBe("And one more thought");
+  expect(captionAtTime(cues,7,15)).toBeUndefined();
+  expect(captionAtTime(cues,9.8,15)).toBeUndefined();
 });

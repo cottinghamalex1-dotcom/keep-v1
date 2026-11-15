@@ -50,3 +50,17 @@ it("seeks to the tapped photo using scaled narration boundaries", () => {
   }
   expect(sceneSeekTime(media, 4, voiceSeconds)).not.toBe(sceneBoundary(media, 3));
 });
+
+it("maps a large collection to the same true narration boundaries without repeated prefix scans",()=>{
+  const media=Array.from({length:140},(_,i)=>({displayDurationSec:i%3===0?1.7:i%3===1?5.2:3.4}));
+  for(const duration of [120,180,260]){
+    expect(sceneIndexAt(media,0,duration)).toBe(0);
+    for(let i=0;i<media.length;i++){
+      const first=i===0?0:sceneBoundary(media,i-1,duration);
+      const last=sceneBoundary(media,i,duration);
+      const midpoint=(first+last)/2;
+      expect(sceneIndexAt(media,midpoint,duration)).toBe(i);
+    }
+    expect(sceneIndexAt(media,duration+0.2,duration)).toBe(media.length-1);
+  }
+});

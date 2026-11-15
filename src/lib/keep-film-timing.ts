@@ -51,9 +51,15 @@ export function sceneElapsed(media: readonly FilmMoment[], index: number, time: 
 export function sceneIndexAt(media: readonly FilmMoment[], time: number, duration?: number): number {
   if (!media.length) return 0;
   const effectiveTime = Math.max(0, Number.isFinite(time) ? time : 0);
-  if (effectiveTime >= sceneBoundary(media, media.length - 1, duration)) return media.length - 1;
-  for (let i = 0; i < media.length; i++) {
-    if (effectiveTime < sceneBoundary(media, i, duration)) return i;
+  const total = filmTotal(media);
+  const scale = total > 0 && duration && Number.isFinite(duration) && duration > 0 ? duration / total : 1;
+  // Run once through the media, not a full prefix sum for *every* scene at
+  // every animation frame. Fifty photos previously meant thousands of repeated
+  // array operations per second on iPhones.
+  let boundary = 0;
+  for (let index = 0; index < media.length; index++) {
+    boundary += clipSeconds(media[index]!);
+    if (effectiveTime < boundary * scale) return index;
   }
   return media.length - 1;
 }

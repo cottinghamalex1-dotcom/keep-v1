@@ -64,33 +64,11 @@ export function KeepPlayer({ name, from, year, onExit, onFinish, recipient = fal
     if (mediaReady) onOpeningFrameReady?.();
   }, [mediaReady, onOpeningFrameReady]);
 
-  // Decode the opening frame before starting the music/voice timeline.
-  // Keep the following two photos warm without keeping the whole film in memory.
-  useEffect(() => {
-    let cancelled = false;
-    const warmers: HTMLImageElement[] = [];
-    const finishWarmup = () => { if (!cancelled) setMediaReady(true); };
-    // A front-camera video needs a decoded frame before the music/narration
-    // timeline starts. Otherwise a slow cellular download opens on black.
-    setMediaReady(false);
-    for (const moment of items.slice(0, 3)) {
-      if (moment.kind !== "image" || !moment.url) continue;
-      const picture = new Image();
-      picture.decoding = "async";
-      warmers.push(picture);
-      if (moment === items[0]) {
-        picture.onload = () => {
-          if (typeof picture.decode === "function") void picture.decode().catch(() => undefined).finally(finishWarmup);
-          else finishWarmup();
-        };
-        picture.onerror = finishWarmup;
-      } else {
-        picture.onload = () => { if (typeof picture.decode === "function") void picture.decode().catch(() => undefined); };
-      }
-      picture.src = moment.url;
-    }
-    return () => { cancelled = true; warmers.forEach((picture) => { picture.onload = null; picture.onerror = null; }); };
-  }, [items]);
+  // The actual on-screen media owns readiness. Previously this component
+  // decoded three large photos in addition to CinematicMedia's warmups, which
+  // kept duplicate full-resolution frames in Safari memory for the entire film.
+  // Wait for CinematicMedia to confirm the visible first frame instead.
+  useEffect(() => { setMediaReady(false); }, [items]);
 
   const showControls = () => {
     setControlsVisible(true);
