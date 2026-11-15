@@ -241,6 +241,10 @@ export function CinematicMedia({
              }
            }}
           onLoadedData={(event) => {
+            setBufferingVideos(old => {
+              if (!old.has(scene.key)) return old;
+              const next = new Set(old); next.delete(scene.key); return next;
+            });
             if(!canRevealVideo(event.currentTarget,scene))return;
             if(isPending)reveal(slot,scene);
             else markFirstReady(scene,isPending);
@@ -255,29 +259,37 @@ export function CinematicMedia({
             if(isPending)reveal(slot,scene);
             else markFirstReady(scene,isPending);
           }}
+          onWaiting={() => { if (scene.key === key && (!isPending || state.revealed))
+            setBufferingVideos(old => new Set(old).add(scene.key)); }}
+          onStalled={() => { if (scene.key === key && (!isPending || state.revealed))
+            setBufferingVideos(old => new Set(old).add(scene.key)); }}
+          onPlaying={(event) => {
+            if (event.currentTarget.readyState >= 2)
+              setBufferingVideos(old => { if (!old.has(scene.key)) return old; const next = new Set(old); next.delete(scene.key); return next; });
+          }}
           onError={() => { if(!isPending){setFailedScenes(old=>new Set(old).add(scene.key));markFirstReady(scene,isPending);} if (isPending) setState((old) => {
             if (old.pending !== slot) return old;
             const slots = [...old.slots] as Layers;
             slots[slot] = null;
             return { ...old, slots, pending: null, revealed: false };
           }); }}
-          className={mediaClass} style={motionStyle}
+          className={mediaClass} style={{ ...motionStyle, opacity: bufferingVideos.has(scene.key) ? 0 : 1 }}
         />
       : <img
           key={scene.key}
           src={moment.url} alt="" decoding="async"
           onLoad={(event) => {
             const element = event.currentTarget;
-            if (!isPending) {
-              // The intro must not fade away until Safari can paint this image,
-              // not just until its compressed bytes have finished downloading.
-              if (typeof element.decode === "function")
-                void element.decode().catch(() => undefined).finally(() => markFirstReady(scene, isPending));
+            const ready = () => {
+              // Ignore a late decode from a scene we have already skipped.
+              if (isPending && scene.key !== key) return;
+              setLastReadyStill(scene.item.url);
+              if (isPending) reveal(slot, scene);
               else markFirstReady(scene, isPending);
-              return;
-            }
-            if (typeof element.decode === "function") void element.decode().catch(() => undefined).finally(() => reveal(slot, scene));
-            else reveal(slot, scene);
+            };
+            if (typeof element.decode === "function")
+              void element.decode().catch(() => undefined).finally(ready);
+            else ready();
           }}
           onError={() => { if(!isPending){setFailedScenes(old=>new Set(old).add(scene.key));markFirstReady(scene,isPending);} if (isPending) setState((old) => {
             if (old.pending !== slot) return old;
@@ -290,6 +302,8 @@ export function CinematicMedia({
   };
 
   return <div className={`isolate overflow-hidden bg-[#171719] ${className}`}>
+    {lastReadyStill && <img src={lastReadyStill} alt="" aria-hidden="true"
+      className="pointer-events-none absolute inset-0 h-full w-full object-cover" />}
     <style>{`@keyframes keep-cinematic-move {from {transform:var(--keep-from)} to {transform:var(--keep-to)}} @media (prefers-reduced-motion:reduce) {[style*="keep-cinematic-move"] {animation:none!important}}`}</style>
     {state.slots.map((scene, slot) => scene && <div key={slot} className="absolute inset-0 will-change-[opacity]"
       style={{
