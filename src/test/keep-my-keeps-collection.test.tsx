@@ -24,7 +24,7 @@ describe("Your Keeps editorial collection", () => {
     render(<KeepMyKeepsCollection {...props(actions())} />);
     expect(screen.getByRole("heading", { name: /The stories you’ve kept/i })).toBeInTheDocument();
     expect(screen.getByText("2", { exact: true })).toBeInTheDocument();
-    expect(screen.getByText("2 Keeps")).not.toBeInTheDocument();
+    expect(screen.queryByText("2 Keeps")).not.toBeInTheDocument();
     expect(screen.getByText("1 ready to share")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Create a Keep/i })).toHaveAttribute("href", "/?create=1");
   });
@@ -48,7 +48,7 @@ describe("Your Keeps editorial collection", () => {
     fireEvent.click(screen.getByRole("button", { name: "Options for Mom" }));
     expect(cb.onToggle).toHaveBeenCalledWith("mom");
     rerender(<KeepMyKeepsCollection {...props(cb, { expandedId: "mom" })} />);
-    const options = screen.getByRole("article", { name: "" });
+    const options = screen.getByRole("button", { name: "Options for Mom" }).closest("article")!;
     expect(within(options).getByRole("link", { name: /Continue editing/i })).toHaveAttribute("href", "/?edit=mom");
     const open = within(options).getByRole("link", { name: /Open this Keep/i });
     expect(open.getAttribute("href")).toContain("recipient-mom-token");
