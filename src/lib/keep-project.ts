@@ -1,6 +1,7 @@
 import { memoryImages } from "@/components/keep-player";
 import { getBlob } from "./keep-media-store";
 import { keepOptimizedPhotoId } from "./keep-photo-optimization";
+import { defaultKeepOrder, type KeepOrderSelection } from "./keep-pricing";
 
 export type MediaItem = {
   id: string;
@@ -115,6 +116,8 @@ export type KeepProject = {
   captionStyle: string;
   visualStyle: string;
   cardEngraving: string[];
+  /** Catalog choices are a quote, not a verified purchase entitlement. */
+  keepOrder?: KeepOrderSelection;
 };
 
 export const DRAFT_KEY = "keep.draft.v1";
@@ -129,7 +132,7 @@ export function newProject(): KeepProject {
   return {
     active: false, stage: "recipient", recipientName: "", openingMessage: "", engraveOpeningMessage: false, openingMessageSuggestions: [], openingSuggestionsFor: "", relationship: "", occasion: "Anniversary", intent: "", questionIndex: 0, interviewWelcomeSeen: false, interviewQuestion: "", interviewSummary: "",
     interviewAnswers: [], messageSource: null, writtenText: "", messageParagraphs: [], voiceMode: "solo", voiceRecordingLocation: "in_person", contributors: [], paragraphSpeakers: [], voiceParts: [], finalVoiceRecording: null, captionTranscript: "", captionCues: [], captionWords: [], captionWordsPerCue: 5, captionLines: 2, captionPosition: "bottom", creationStyle: "memories", memories: [], selfieVideos: [], selfieBaseMedia: [], selfiePresentation: "auto", selfieBookendSeconds: 4, readMemoryOrder: [],
-    musicMood: "Warm + Nostalgic", voiceMusicBalance: "Balanced", musicMix: 50, voiceVolume: 60, musicVolume: 60, audioMixVersion: 2, captionStyle: "Reel", visualStyle: "Natural", cardEngraving: ["", "FROM ALEX", "2026"],
+    musicMood: "Warm + Nostalgic", voiceMusicBalance: "Balanced", musicMix: 50, voiceVolume: 60, musicVolume: 60, audioMixVersion: 2, captionStyle: "Reel", visualStyle: "Natural", cardEngraving: ["", "FROM ALEX", "2026"], keepOrder: defaultKeepOrder(),
   };
 }
 
