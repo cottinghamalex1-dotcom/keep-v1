@@ -1,4 +1,4 @@
-import { ArrowRight, ArrowUpRight, BookOpen, CalendarDays, Check, ChevronDown, ExternalLink, Gift, Heart, Link2, PenLine, Plus, Sparkles, Trash2 } from "lucide-react";
+import { ArrowRight, BookOpen, CalendarDays, Check, ChevronDown, ExternalLink, Heart, Link2, PenLine, Plus, Sparkles, Trash2 } from "lucide-react";
 import { viewingLink } from "@/lib/keep-publish";
 import type { KeepLibraryItem } from "@/components/keep-library-card";
 
@@ -144,7 +144,7 @@ export function KeepMyKeepsCollection({
           <span className="pb-1 text-[11px] leading-5 text-[#CBB69F]">{count === 1 ? "creation" : "creations"}</span>
         </span>
         <span className="pb-1 text-[10px] font-medium tracking-[.025em] text-[#CCB59B]">
-          {ready} {ready === 1 ? "ready to share" : "ready to share"}
+          {ready} ready to share
         </span>
       </div>
     </div>
