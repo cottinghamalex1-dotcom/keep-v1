@@ -17,8 +17,8 @@ export function KeepLengthGuide({ text, className = "" }: Props) {
         style={{ width: `${Math.min(100, words / KEEP_TARGET_MAX_WORDS * 100)}%` }} />
     </div>
     <p className="mt-2 text-[11px] leading-[1.55] text-[#716458]" aria-live="polite">
-      Suggested: {KEEP_TARGET_MIN_WORDS}–{KEEP_TARGET_MAX_WORDS} words (estimated at 170 spoken words/minute). {getKeepLengthFeedback(words)}
+      Suggested: {KEEP_TARGET_MIN_WORDS}–{KEEP_TARGET_MAX_WORDS} words (estimated at a brisk {195} words/minute). {getKeepLengthFeedback(words)}
     </p>
-    {status === "long" && <p className="mt-1 text-[10px] text-[#827466]">This is a guide, not a limit. Your speaking pace may vary.</p>}
+    {status === "long" && <p className="mt-1 text-[10px] text-[#827466]">This is a guide, not a limit. Your actual recording length may vary with your speaking pace.</p>}
   </div>;
 }
