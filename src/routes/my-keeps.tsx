@@ -1,9 +1,9 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { ArrowLeft, ArrowRight, CalendarDays, Check, ChevronDown, ExternalLink, Gift, Heart, ImageIcon, Link2, Plus, PenLine, Trash2 } from "lucide-react";
+import { ArrowLeft, ArrowRight, BookOpen, LockKeyhole } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { KeepAccountButton } from "@/components/keep-account-button";
-import { KeepLibraryCard } from "@/components/keep-library-card";
+import { KeepMyKeepsCollection } from "@/components/keep-my-keeps-collection";
 import { viewingLink } from "@/lib/keep-publish";
 import { deleteOwnedKeep, keepDeleteConfirmation } from "@/lib/keep-delete";
 import { clearDraft, loadDraft, projectBlobIds } from "@/lib/keep-project";
@@ -16,7 +16,6 @@ type Session = {access_token:string; refresh_token:string; expires_at?:number; u
 type KeepRecord = {id:string;owner_id:string;recipient_name:string|null;occasion:string|null;status:string;recipient_token:string;published_at:string|null;created_at:string;published_project?:{openingMessage?:string;messageParagraphs?:string[];memories?:unknown[]}|null};
 type CardRef = {keep_id:string|null};
 type Resolved = {project?:{memories?:{kind:string;url?:string}[]}};
-const fmt = (value:string|null) => value ? new Intl.DateTimeFormat("en-US",{month:"short",day:"numeric",year:"numeric"}).format(new Date(value)) : "Not yet published";
 
 function MyKeeps() {
   const [session,setSession] = useState<Session|null>(null);
@@ -90,20 +89,41 @@ function MyKeeps() {
     }catch(e){toast.error(e instanceof Error?e.message:"Could not delete this Keep");}
     finally{setDeleting(null);}
   };
-  return <main className="min-h-dvh bg-background text-foreground"><div className="mx-auto max-w-[640px] px-6 pb-24 pt-8">
-    <header className="flex items-center justify-between border-b border-border/80 pb-7"><Link to="/app" className="keep-wordmark" aria-label="Keep home">Keep</Link><KeepAccountButton /></header>
-    <div className="pt-10"><Link to="/app" className="inline-flex items-center gap-2 text-xs text-[#6A5849]"><ArrowLeft className="size-3.5"/> Home</Link>
-      <h1 className="keep-editorial-title mt-8">Your Keeps.</h1>
-      <p className="keep-page-description mt-4">The words you've shared. The moments you've made. All in one place.</p>
+  return <main className="min-h-dvh bg-background text-foreground">
+    <div className="mx-auto min-h-dvh max-w-[540px] px-6 pb-20 pt-9">
+      <header className="flex items-center justify-between border-b border-border/70 pb-6">
+        <Link to="/app" className="keep-wordmark" aria-label="Keep home">Keep</Link>
+        <KeepAccountButton />
+      </header>
+      <Link to="/app" className="mb-5 mt-8 inline-flex min-h-10 items-center gap-2 text-xs font-medium text-[#776451] transition-colors hover:text-[#2C221A]">
+        <ArrowLeft className="size-4" aria-hidden="true" strokeWidth={1.6}/> Back to home
+      </Link>
+
+      {loading ? <div role="status" className="mt-6 rounded-[24px] border border-[#DDD0C2] bg-[#F7F1E9] px-7 py-16 text-center">
+        <BookOpen className="mx-auto size-7 text-[#8A735B]" strokeWidth={1.4} aria-hidden="true"/>
+        <p className="mt-5 font-display text-[26px] text-[#46372B]">Gathering your Keeps…</p>
+        <p className="mt-2 text-[12px] text-[#756655]">Your stories are coming together.</p>
+      </div> : !session ? <div className="mt-6 rounded-[24px] border border-[#DDD0C2] bg-[#FFFCF8] px-7 py-12 text-center">
+        <LockKeyhole className="mx-auto size-7 text-[#8A735B]" strokeWidth={1.4} aria-hidden="true"/>
+        <h1 className="mt-5 font-display text-[29px] text-[#32251D]">Your Keeps are waiting.</h1>
+        <p className="mt-3 text-[13px] leading-6 text-[#746758]">Sign in to see your personal collection.</p>
+        <Link to="/app" className="mt-7 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#211B17] text-[13px] font-medium text-[#FFF9F1]">
+          Sign in to view them <ArrowRight className="size-4" aria-hidden="true"/>
+        </Link>
+      </div> : error ? <div role="alert" className="mt-6 rounded-[20px] border border-[#DECABB] bg-[#FFF9F3] px-6 py-8 text-[13px] leading-6 text-[#805442]">{error}</div> :
+      <KeepMyKeepsCollection
+        keeps={keeps} thumbnails={thumbs}
+        expandedId={expanded} copiedId={copied} deletingId={deleting}
+        onToggle={id=>setExpanded(expanded===id?null:id)}
+        onCopy={keep=>void (async()=>{
+          try {
+            await navigator.clipboard.writeText(viewingLink(keep.recipient_token));
+            setCopied(keep.id);
+            toast.success("Link copied");
+          } catch { toast.error("Copy unavailable. Open the Keep to copy its address."); }
+        })()}
+        onDelete={keep=>void remove(keep as KeepRecord)}
+      />}
     </div>
-    <div className="mt-9 flex items-center justify-between gap-4 border-b border-border/80 pb-5"><span className="text-xs uppercase tracking-[.17em] text-muted-foreground">{keeps.length} {keeps.length===1?"creation":"creations"}</span><a href="/?create=1" className="inline-flex items-center gap-2 text-xs text-[#6A5849]"><Plus className="size-4"/> Create a Keep</a></div>
-    {loading ? <p className="py-12 text-sm text-muted-foreground" role="status">Gathering your Keeps…</p> : !session ? <div className="py-14"><p className="keep-section-title">Your Keeps are waiting.</p><Link to="/app" className="keep-premium-action mt-7 px-6 py-3">Sign in to view them <ArrowRight className="size-4"/></Link></div> : error ? <p role="alert" className="py-10 text-sm text-red-700">{error}</p> : keeps.length===0 ? <div className="py-16 text-center"><Heart className="mx-auto size-7 text-[#6A5849]"/><h2 className="keep-section-title mt-5">Your first Keep starts here.</h2><p className="mt-4 text-sm text-muted-foreground">Something meaningful is waiting to be made.</p><a href="/?create=1" className="keep-premium-action mx-auto mt-8 px-6 py-3">Create a Keep <ArrowRight className="size-4"/></a></div> :
-    <div className="mt-6 space-y-3">{keeps.map(keep=>
-      <KeepLibraryCard key={keep.id} keep={keep} thumbnail={thumbs[keep.id]} expanded={expanded===keep.id}
-        copied={copied===keep.id} deleting={deleting===keep.id}
-        onToggle={()=>setExpanded(expanded===keep.id?null:keep.id)}
-        onCopy={()=>void (async()=>{try{await navigator.clipboard.writeText(viewingLink(keep.recipient_token));setCopied(keep.id);toast.success("Link copied");}catch{toast.error("Copy unavailable. Open the Keep to copy its address.");}})()}
-        onDelete={()=>void remove(keep)} />
-    )}</div>}
-  </div></main>;
+  </main>;
 }
