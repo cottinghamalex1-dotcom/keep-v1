@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { createKeepVoiceMix, KEEP_MUSIC_LEAD_SECONDS, KEEP_MUSIC_TAIL_SECONDS, type MusicBalance } from "@/lib/keep-audio";
 import type { AudioMix, CaptionCue } from "@/lib/keep-project";
 import { captionAtTime, recoverCaptionTiming } from "@/lib/keep-caption-timing";
-import { sceneDuration, sceneElapsed as filmSceneElapsed, sceneIndexAt } from "@/lib/keep-film-timing";
+import { filmTotal, sceneDuration, sceneElapsed as filmSceneElapsed, sceneIndexAt } from "@/lib/keep-film-timing";
 import couple from "@/assets/memory-couple.jpg";
 import home from "@/assets/memory-home.jpg";
 import wedding from "@/assets/memory-wedding.jpg";
@@ -32,6 +32,7 @@ export function KeepPlayer({ name, from, year, onExit, onFinish, recipient = fal
   const [muted, setMuted] = useState(false);
   const [blocked, setBlocked] = useState(false);
   const [audioTime, setAudioTime] = useState(0);
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [masterDuration, setMasterDuration] = useState(audioDuration);
   const [voiceStarted, setVoiceStarted] = useState(false);
   const [voiceEnded, setVoiceEnded] = useState(false);
@@ -42,6 +43,8 @@ export function KeepPlayer({ name, from, year, onExit, onFinish, recipient = fal
   const finishSent = useRef(false);
   const voiceStartedRef = useRef(false);
   const introRemainingRef = useRef(KEEP_MUSIC_LEAD_SECONDS * 1000);
+  const introStartedAtRef = useRef(0);
+  const silentElapsedRef = useRef(0);
   const introTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const audio = useRef<HTMLAudioElement>(null);
   const mix = useRef<ReturnType<typeof createKeepVoiceMix>>(null);
@@ -56,7 +59,7 @@ export function KeepPlayer({ name, from, year, onExit, onFinish, recipient = fal
   // Older published Keeps may have provider timestamps that are in range but unusable.
   // Fix playback timing without changing their narration or caption text.
   const playbackCues = useMemo(() => recoverCaptionTiming([], captionCues, masterDuration || audioDuration || 0).cues, [captionCues, masterDuration, audioDuration]);
-  const end = !audioUrl && scene >= 5;
+  const end = !audioUrl && scene >= items.length;
 
   // Keep the intro visible until the first photo/video has actually loaded.
   // Music begins on this same readiness signal, not on a separate black title.
@@ -102,24 +105,53 @@ export function KeepPlayer({ name, from, year, onExit, onFinish, recipient = fal
 
   // Recipients go straight to the light completion page, not a second dark end card.
   useEffect(() => {
-    if (!audioUrl && scene >= 5 && !finishSent.current) {
+    if (!audioUrl && scene >= items.length && !finishSent.current) {
       finishSent.current = true;
       onFinish?.();
     }
-  }, [recipient, audioUrl, scene, onFinish]);
+  }, [recipient, audioUrl, scene, items.length, onFinish]);
 
   // Play the musical lead-in over the first photo, never over a separate title screen.
   const introSeconds = audioUrl ? KEEP_MUSIC_LEAD_SECONDS : 0;
   const targetSceneSeconds = (sceneDuration(items, Math.max(0, scene), audioUrl ? masterDuration : undefined) || 7)
     + (audioUrl && scene === 0 ? introSeconds : 0);
-  // Without a recording, use per-photo timing. With voice, the actual audio
-  // currentTime below is the single clock for pictures, captions and progress.
+  // Silent/photo-only Keeps retain one clock across pause and resume, rather
+  // than restarting the timer for the current image after every interruption.
   useEffect(() => {
-    if (!playing || !mediaReady || end) return;
-    if (audioUrl) return;
-    const timer = window.setTimeout(() => setScene((current) => current + 1), Math.max(700, sceneDuration(items, scene) * 1000));
-    return () => window.clearTimeout(timer);
-  }, [scene, playing, mediaReady, end, audioUrl, items, introSeconds]);
+    if (audioUrl || !playing || !mediaReady || end) return;
+    let last = performance.now();
+    const update = () => {
+      const now = performance.now();
+      const total = filmTotal(items);
+      silentElapsedRef.current = Math.min(total, silentElapsedRef.current + Math.max(0, now - last) / 1000);
+      last = now;
+      setElapsedSeconds(silentElapsedRef.current);
+      const nextScene = silentElapsedRef.current >= total ? items.length : sceneIndexAt(items, silentElapsedRef.current);
+      setScene(current => current === nextScene ? current : nextScene);
+    };
+    const timer = window.setInterval(update, 100);
+    return () => { window.clearInterval(timer); update(); };
+  }, [playing, mediaReady, end, audioUrl, items]);
+
+  // A passive progress display follows real narration time, including its
+  // musical lead-in and outro. It never advances while the voice is buffering.
+  useEffect(() => {
+    if (!audioUrl || !playing || !mediaReady || end) return;
+    const update = () => {
+      if (voiceEnded) {
+        const remaining = Math.max(0, tailRemainingRef.current - Math.max(0, performance.now() - tailStartedAtRef.current));
+        setElapsedSeconds(KEEP_MUSIC_LEAD_SECONDS + (masterDuration || audioDuration || 0) + (KEEP_MUSIC_TAIL_SECONDS - remaining / 1000));
+      } else if (voiceStartedRef.current) {
+        setElapsedSeconds(KEEP_MUSIC_LEAD_SECONDS + (audio.current?.currentTime ?? 0));
+      } else if (introTimerRef.current !== null && introStartedAtRef.current) {
+        const remaining = Math.max(0, introRemainingRef.current - Math.max(0, performance.now() - introStartedAtRef.current));
+        setElapsedSeconds(KEEP_MUSIC_LEAD_SECONDS - remaining / 1000);
+      }
+    };
+    update();
+    const timer = window.setInterval(update, 100);
+    return () => window.clearInterval(timer);
+  }, [audioUrl, playing, mediaReady, end, voiceEnded, masterDuration, audioDuration]);
 
   // Poll the audio's playback position at animation-frame cadence. Never run
   // an independent slideshow timer over a buffered or stalled recording.
@@ -171,7 +203,6 @@ export function KeepPlayer({ name, from, year, onExit, onFinish, recipient = fal
     const a = audio.current;
     if (!a || !audioUrl) return;
     let cancelled = false;
-    let introStartedAt = 0;
     if (!playing || !mediaReady || end) {
       a.pause();
       void mix.current?.pause();
@@ -195,7 +226,7 @@ export function KeepPlayer({ name, from, year, onExit, onFinish, recipient = fal
         if (!a.ended) void a.play().catch(() => { if (!cancelled) setBlocked(true); });
         return;
       }
-      introStartedAt = performance.now();
+      introStartedAtRef.current = performance.now();
       introTimerRef.current = window.setTimeout(() => {
         introTimerRef.current = null;
         if (cancelled) return;
@@ -217,7 +248,7 @@ export function KeepPlayer({ name, from, year, onExit, onFinish, recipient = fal
       if (introTimerRef.current) {
         window.clearTimeout(introTimerRef.current);
         introTimerRef.current = null;
-        introRemainingRef.current = Math.max(0, introRemainingRef.current - (performance.now() - introStartedAt));
+        introRemainingRef.current = Math.max(0, introRemainingRef.current - (performance.now() - introStartedAtRef.current));
       }
     };
   }, [playing, mediaReady, end, audioUrl]);
@@ -269,6 +300,12 @@ export function KeepPlayer({ name, from, year, onExit, onFinish, recipient = fal
       }
     }).catch(() => setBlocked(true));
   };
+  const totalSeconds = audioUrl
+    ? KEEP_MUSIC_LEAD_SECONDS + Math.max(0, masterDuration || audioDuration || 0) + KEEP_MUSIC_TAIL_SECONDS
+    : filmTotal(items);
+  const shownSeconds = Math.max(0, Math.min(totalSeconds, elapsedSeconds));
+  const percent = totalSeconds > 0 ? Math.max(0, Math.min(100, shownSeconds / totalSeconds * 100)) : 0;
+  const stamp = (seconds: number) => Math.floor(seconds / 60) + ":" + String(Math.floor(seconds % 60)).padStart(2, "0");
   const item = scene >= 0 ? items[Math.min(scene, items.length - 1)] : undefined;
   const nextItem = scene >= 0 ? items[scene + 1] : undefined;
   const activeCue = captionAtTime(playbackCues, audioTime, masterDuration || audioDuration);
@@ -310,7 +347,17 @@ export function KeepPlayer({ name, from, year, onExit, onFinish, recipient = fal
             {muted ? <VolumeX className="size-5" strokeWidth={1.7} /> : <Volume2 className="size-5" strokeWidth={1.7} />}
           </button>
         </div>
-      </div>{scene >= 0 && <div className={`absolute left-7 right-7 text-center ${captionPosition === "top" ? "top-28" : captionPosition === "middle" ? "top-1/2 -translate-y-1/2" : "bottom-28"}`}>{!media?.length && <div className="eyebrow mb-5 text-foreground/80">{memoryLabels[scene % memoryLabels.length]}</div>}{captions !== "None" && captionText && <p key={activeCue?.start ?? scene} className={`keep-caption-visible mx-auto max-w-sm leading-snug ${captions === "Film" ? "font-display text-4xl font-normal" : captions === "Story" ? "font-display text-3xl italic" : captions === "Minimal" ? "text-xl font-normal" : captions === "Clean" ? "text-2xl font-medium" : "text-2xl font-semibold"}`} style={{ maxWidth: captionLines === 1 ? "95%" : captionLines === 3 ? "65%" : "80%", whiteSpace: "pre-line", marginInline: "auto" }}>{captionText}</p>}</div>}<div inert={!controlsVisible} aria-hidden={!controlsVisible} className={`pointer-events-none absolute bottom-[max(24px,env(safe-area-inset-bottom))] left-0 right-0 z-30 flex justify-center transition-opacity duration-500 ease-out ${controlsVisible ? "opacity-100" : "opacity-0"}`}>
+      </div>{scene >= 0 && <div className={`absolute left-7 right-7 text-center ${captionPosition === "top" ? "top-28" : captionPosition === "middle" ? "top-1/2 -translate-y-1/2" : "bottom-36"}`}>{!media?.length && <div className="eyebrow mb-5 text-foreground/80">{memoryLabels[scene % memoryLabels.length]}</div>}{captions !== "None" && captionText && <p key={activeCue?.start ?? scene} className={`keep-caption-visible mx-auto max-w-sm leading-snug ${captions === "Film" ? "font-display text-4xl font-normal" : captions === "Story" ? "font-display text-3xl italic" : captions === "Minimal" ? "text-xl font-normal" : captions === "Clean" ? "text-2xl font-medium" : "text-2xl font-semibold"}`} style={{ maxWidth: captionLines === 1 ? "95%" : captionLines === 3 ? "65%" : "80%", whiteSpace: "pre-line", marginInline: "auto" }}>{captionText}</p>}</div>}
+      <div className="pointer-events-none absolute inset-x-7 z-30 text-white drop-shadow-[0_1px_3px_rgba(0,0,0,.65)]" style={{ bottom: "max(22px, env(safe-area-inset-bottom))" }}>
+        <div className="mb-2 flex items-center justify-between text-[11px] font-medium tabular-nums tracking-[.025em]">
+          <span>{stamp(shownSeconds)}</span>
+          <span aria-label="Time remaining">−{stamp(Math.max(0, totalSeconds - shownSeconds))}</span>
+        </div>
+        <div role="progressbar" aria-label="Keep playback progress" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(percent)} className="h-[3px] w-full overflow-hidden rounded-full bg-white/40">
+          <div className="h-full rounded-full bg-white transition-[width] duration-100 ease-linear" style={{ width: percent + "%" }} />
+        </div>
+      </div>
+      <div inert={!controlsVisible} aria-hidden={!controlsVisible} className={`pointer-events-none absolute left-0 right-0 z-30 flex justify-center transition-opacity duration-500 ease-out ${controlsVisible ? "opacity-100" : "opacity-0"}`} style={{ bottom: "calc(max(22px, env(safe-area-inset-bottom)) + 51px)" }}>
       <button type="button" aria-label={playing ? "Pause" : "Play"} onClick={() => { setPlaying(!playing); showControls(); }} className="pointer-events-auto flex size-12 items-center justify-center rounded-full border border-white/25 bg-black/40 text-[#F7F5F2] shadow-lg backdrop-blur-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white">
         {playing ? <Pause className="size-5" fill="currentColor" /> : <Play className="ml-0.5 size-5" fill="currentColor" />}
       </button>
