@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 import { KeepPlayer } from "@/components/keep-player";
 import { KeepRecipientExperience } from "@/components/keep-recipient-experience";
@@ -24,6 +24,20 @@ describe("non-interactive Keep viewing progress", () => {
     expect(screen.queryByRole("slider")).not.toBeInTheDocument();
     expect(container.querySelector('[role="progressbar"] input')).toBeNull();
     expect(progress.querySelectorAll("div")).toHaveLength(1);
+  });
+
+  it("fades the passive progress bar with other controls and reveals it on tap", () => {
+    const { container } = render(<KeepPlayer
+      name="Dad" from="Alex" year="2026" onExit={() => {}}
+      media={media} audioUrl="blob:old-saved" audioDuration={90}
+    />);
+    const progress = screen.getByRole("progressbar", { name: "Keep playback progress" });
+    const wrapper = progress.parentElement!;
+    expect(wrapper).toHaveAttribute("aria-hidden", "false");
+    fireEvent.click(container.firstElementChild!);
+    expect(wrapper).toHaveAttribute("aria-hidden", "true");
+    fireEvent.click(container.firstElementChild!);
+    expect(wrapper).toHaveAttribute("aria-hidden", "false");
   });
 
   it("uses authored scene durations for a Keep without narration", () => {
