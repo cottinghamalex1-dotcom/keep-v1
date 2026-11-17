@@ -5,7 +5,7 @@ import { KeepCardFront } from "@/components/keep-card-front";
 import type { KeepProject } from "@/lib/keep-project";
 import { Button } from "@/components/ui/button";
 
-type OpeningFields = Pick<KeepProject, "openingMessage" | "engraveOpeningMessage" | "openingMessageSuggestions" | "openingSuggestionsFor" | "cardEngraving">;
+type OpeningFields = Pick<KeepProject, "openingMessage" | "closingLine" | "engraveOpeningMessage" | "openingMessageSuggestions" | "openingSuggestionsFor" | "cardEngraving">;
 type Props = {
   project: KeepProject;
   onUpdate: (updates: Partial<OpeningFields>) => void;
@@ -89,6 +89,26 @@ export function KeepOpeningPersonalization({ project, onUpdate, onPreview, disab
         <span className="text-[11px] text-muted-foreground">{selected ? (project.openingMessage ?? "").length : 0}/110 characters</span>
         <Button variant="quiet" size="sm" onClick={onPreview} disabled={disabled}>Preview digital opening <ArrowRight className="size-4" /></Button>
       </div>
+    </section>
+    <section className="mt-10 space-y-4 border-t border-border pt-8" aria-label="Closing words">
+      <div>
+        <p className="text-[10px] font-semibold uppercase tracking-[.17em] text-[#8B725A]">THE FINAL MOMENT</p>
+        <h2 className="mt-3 font-display text-[29px] leading-[1.14]">Leave them with one last thought.</h2>
+        <p className="mt-3 text-xs leading-6 text-muted-foreground">After the final words of your recording, the memories fade to dark and this personal message appears as the music gently finishes.</p>
+      </div>
+      <div className="rounded-[20px] bg-[#191514] px-6 py-9 text-center text-[#F7EDE0] shadow-inner" aria-label="Closing moment preview">
+        <span className="text-[9px] font-semibold uppercase tracking-[.26em] text-[#B6A38F]">FOR {project.recipientName || "YOU"}</span>
+        <p className="mt-5 font-display text-[clamp(27px,7vw,37px)] italic leading-[1.2]">
+          {(project.closingLine ?? "").trim() || "You are so loved."}
+        </p>
+        <div className="mx-auto mt-6 h-px w-9 bg-[#9E8975]" />
+      </div>
+      <label className="block text-xs font-medium text-[#594A3B]" htmlFor="keep-closing-line">Your closing line (optional)</label>
+      <input id="keep-closing-line" aria-label="Your closing line" type="text" maxLength={90} disabled={disabled}
+        value={project.closingLine ?? ""} onChange={e => onUpdate({ closingLine: e.target.value })}
+        placeholder="I love you, Dad."
+        className="w-full rounded-xl border border-border bg-background px-4 py-3 font-display text-[17px] outline-none focus:border-[#A38568]" />
+      <p className="text-[11px] leading-5 text-muted-foreground">Leave blank for “You are so loved.” This is shown, not spoken, and can be changed without recording again.</p>
     </section>
     {engravingEnabled && <section className="mt-10 space-y-4 border-t border-border pt-7">
       <h2 className="font-display text-[27px]">Personalize the card.</h2>
