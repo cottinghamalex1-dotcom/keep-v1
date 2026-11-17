@@ -484,6 +484,14 @@ export function createKeepVoiceMix(audio: HTMLAudioElement, mood: string, balanc
       musicMute.gain.setTargetAtTime(musicMuted ? 0 : 1, at, 0.03);
     },
     restartMusic: (nextMood = currentMood, nextBalance = currentBalance, nextOptions: MixOptions = options) => {
+      // The viewer calls this on mount after constructing the mix. Rebuilding
+      // an identical MP3 bed is unnecessary and can interrupt the opening
+      // music (especially when Safari is still decoding it).
+      if (normalizeMood(nextMood) === normalizeMood(currentMood) &&
+          nextBalance === currentBalance &&
+          nextOptions.fadeIn === options.fadeIn &&
+          nextOptions.fadeOut === options.fadeOut &&
+          nextOptions.ducking === options.ducking) return;
       currentMood = nextMood;
       currentBalance = nextBalance;
       options = { ...nextOptions };
