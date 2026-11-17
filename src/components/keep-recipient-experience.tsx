@@ -9,6 +9,7 @@ import { makeReadingFrames, readingFrameAtTime } from "@/lib/keep-immersive-read
 import type { AudioMix, CaptionCue } from "@/lib/keep-project";
 import { createKeepVoiceMix, KEEP_MUSIC_LEAD_SECONDS, KEEP_MUSIC_TAIL_SECONDS, type MusicBalance } from "@/lib/keep-audio";
 import "./keep-farewell.css";
+import { enterKeepFullscreen, leaveKeepFullscreen } from "@/lib/keep-fullscreen";
 
 export type KeepExperienceMode = "watch" | "listen" | "read";
 
@@ -198,6 +199,9 @@ export function KeepRecipientExperience({
   },[stage,experience,musicMood,voiceMusicBalance,audioMix?.fadeIn,audioMix?.fadeOut,audioMix?.ducking]);
 
   const enter = () => {
+    // Request fullscreen synchronously from the recipient's tap. iPhone Safari
+    // cannot hide its browser chrome, so this is a safe no-op there.
+    enterKeepFullscreen();
     setOpeningFrameReady(false);
     setIntroHandoff(true);
     if (persistVisit) {
@@ -211,6 +215,7 @@ export function KeepRecipientExperience({
   };
 
   const choose = (next: KeepExperienceMode) => {
+    if (next === "watch") enterKeepFullscreen();
     setGalleryOpen(false);
     setExperience(next);
     setListening(false);
@@ -219,6 +224,7 @@ export function KeepRecipientExperience({
   };
 
   const backToChoose = () => {
+    leaveKeepFullscreen();
     setIntroHandoff(false);
     if (timer.current) window.clearInterval(timer.current);
     timer.current = null;
@@ -320,7 +326,7 @@ export function KeepRecipientExperience({
     const watching = stage === "experience";
     return <main className="app-shell relative">
       {watching && <KeepPlayer key="recipient-film"
-        name={name.toUpperCase()} from={from} year={year} subtitle={subtitle} closingLine={closingLine}
+        name={name.toUpperCase()} from={from} year={year} subtitle={subtitle} openingMessage={openingMessage} closingLine={closingLine}
         recipient onExit={backToChoose} onFinish={finishExperience}
         style={style} captions={captions} media={media} audioUrl={audioUrl}
         audioDuration={audioDuration} lines={lines} captionCues={captionCues}
@@ -335,9 +341,7 @@ export function KeepRecipientExperience({
         }}
         className={`absolute inset-0 z-[70] transition-opacity duration-[850ms] ease-in-out motion-reduce:duration-0 ${watching && openingFrameReady ? "pointer-events-none opacity-0" : "opacity-100"}`}>
         <KeepFirstPlayReveal
-          name={name} occasion={subtitle} introduction={openingMessage}
-          from={from} year={year} onOpen={enter} opening={watching}
-          onOtherFormats={() => { setVisited(true); setStage("choose"); }}
+          name={name} onOpen={enter} opening={watching}
           onCreatorExit={creatorPreview ? onCreatorExit : undefined}
         />
       </div>}
@@ -398,14 +402,10 @@ export function KeepRecipientExperience({
           <span className="keep-wordmark !text-[32px]">Keep</span>
         </header>
         <div className="mx-auto flex w-full max-w-[640px] flex-1 flex-col items-center justify-center px-7 py-14 text-center">
-          <div className="mb-9 flex items-center gap-4" aria-hidden="true"><span className="h-px w-8 bg-[#B79F88]" /><span className="font-display text-lg text-[#9E8166]">✦</span><span className="h-px w-8 bg-[#B79F88]" /></div>
-          <p className="mb-6 text-[10px] font-semibold uppercase tracking-[.23em] text-[#907762]">MADE TO BE REMEMBERED</p>
           <h1 className="max-w-[530px] font-display text-[clamp(43px,10.5vw,67px)] leading-[1.12] tracking-[-.055em]">
             Some things are<br /><span className="italic font-normal">worth keeping.</span>
           </h1>
-          <div className="my-9 h-px w-16 bg-[#C9B9A8]" aria-hidden="true" />
-          <p className="max-w-[305px] text-[13px] leading-7 text-[#796E63]">A little piece of someone's heart, made especially for {name}. Here whenever you want to experience it again.</p>
-          <p className="mt-6 font-display text-[17px] italic text-[#8D7763]">{from ? `With love, ${from}` : "With love"}{year ? ` · ${year}` : ""}</p>
+          <p className="mt-10 font-display text-[17px] italic text-[#8D7763]">{from ? `With love, ${from}` : "With love"}{year ? ` · ${year}` : ""}</p>
         </div>
         <footer className="mx-auto w-full max-w-[540px] space-y-3 px-7 pb-[max(46px,env(safe-area-inset-bottom))]">
           <Button variant="keep" size="touch" className="w-full justify-between" onClick={() => setStage("choose")}><RotateCcw className="size-4" /> Experience it again <ArrowRight className="size-4" /></Button>
