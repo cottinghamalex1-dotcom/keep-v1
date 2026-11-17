@@ -41,7 +41,7 @@ it("transitions from the simple cover into a dark dedication inside the film", (
   expect(screen.queryByText("I wanted to make sure these words always found you.")).not.toBeInTheDocument();
   fireEvent.click(screen.getByRole("button", { name: /Experience your Keep/i }));
   expect(screen.getByText("I wanted to make sure these words always found you.")).toBeInTheDocument();
-  expect(screen.getByText("−2:14")).toBeInTheDocument();
+  expect(screen.getByText("−2:10")).toBeInTheDocument();
 });
 
 it("offers concise occasion-aware introductions without adding made-up memories", () => {
