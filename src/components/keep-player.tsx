@@ -26,7 +26,7 @@ type Props = {
   onOpeningFrameReady?: (() => void) | undefined;
 };
 
-export function KeepPlayer({ name, from, year, onExit, onFinish, recipient = false, style = "Natural", captions = "Reel", subtitle, closingLine, media, audioUrl, audioDuration, lines, captionCues = [], musicMood = "Warm + Nostalgic", voiceMusicBalance = "Balanced", voiceVolume = 60, musicVolume = 60, captionPosition = "bottom", captionLines = 2, audioMix, onOpeningFrameReady }: Props) {
+export function KeepPlayer({ name, from, year, onExit, onFinish, style = "Natural", captions = "Reel", subtitle, closingLine, media, audioUrl, audioDuration, lines, captionCues = [], musicMood = "Warm + Nostalgic", voiceMusicBalance = "Balanced", voiceVolume = 60, musicVolume = 60, captionPosition = "bottom", captionLines = 2, audioMix, onOpeningFrameReady }: Props) {
   const [scene, setScene] = useState(0);
   const [playing, setPlaying] = useState(true);
   const [muted, setMuted] = useState(false);
@@ -61,7 +61,7 @@ export function KeepPlayer({ name, from, year, onExit, onFinish, recipient = fal
   // Fix playback timing without changing their narration or caption text.
   const playbackCues = useMemo(() => recoverCaptionTiming([], captionCues, masterDuration || audioDuration || 0).cues, [captionCues, masterDuration, audioDuration]);
   const closing = voiceEnded || silentClosing;
-  const end = false; // The final scene stays mounted while the cinematic farewell fades over it.
+  const end = finishSent.current; // Hold the final frame underneath the farewell until completion.
 
   // Keep the intro visible until the first photo/video has actually loaded.
   // Music begins on this same readiness signal, not on a separate black title.
