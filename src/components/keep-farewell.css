@@ -1,0 +1,16 @@
+/* A dark final frame gives way to the closing invitation. Avoid a white
+   flash when the playback component unmounts after its musical outro. */
+.keep-completion-reveal {
+  animation: keep-completion-appear 1400ms cubic-bezier(.2,.65,.25,1) both;
+}
+
+@keyframes keep-completion-appear {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .keep-completion-reveal {
+    animation: none;
+  }
+}

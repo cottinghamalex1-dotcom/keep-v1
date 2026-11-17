@@ -20,13 +20,13 @@ const styleSlug = (name: string) => name.toLowerCase().replace(/[^a-z0-9]+/g, "-
 export type PlayerMedia = { url: string; kind: "image" | "video"; isSelfie?: boolean | undefined; videoStartSec?: number | undefined; displayDurationSec?: number | undefined; focusX?: number | undefined; focusY?: number | undefined; zoom?: number | undefined; motion?: "in" | "out" | "left" | "right" | undefined; transition?: "fade" | "dissolve" | "cut" | undefined };
 type Props = {
   name: string; from: string; year: string; onExit: () => void; onFinish?: () => void; recipient?: boolean; style?: string; captions?: string;
-  subtitle?: string | undefined; media?: PlayerMedia[] | undefined; audioUrl?: string | undefined; audioDuration?: number | undefined; lines?: string[] | undefined;
+  subtitle?: string | undefined; closingLine?: string | undefined; media?: PlayerMedia[] | undefined; audioUrl?: string | undefined; audioDuration?: number | undefined; lines?: string[] | undefined;
   captionCues?: CaptionCue[] | undefined; musicMood?: string | undefined; voiceMusicBalance?: string | undefined; voiceVolume?: number | undefined; musicVolume?: number | undefined; captionPosition?: "top" | "middle" | "bottom" | undefined; captionLines?: number | undefined; audioMix?: AudioMix | undefined;
   /** Notify the recipient experience once the first real photo/video frame can be displayed. */
   onOpeningFrameReady?: (() => void) | undefined;
 };
 
-export function KeepPlayer({ name, from, year, onExit, onFinish, recipient = false, style = "Natural", captions = "Reel", subtitle, media, audioUrl, audioDuration, lines, captionCues = [], musicMood = "Warm + Nostalgic", voiceMusicBalance = "Balanced", voiceVolume = 60, musicVolume = 60, captionPosition = "bottom", captionLines = 2, audioMix, onOpeningFrameReady }: Props) {
+export function KeepPlayer({ name, from, year, onExit, onFinish, style = "Natural", captions = "Reel", subtitle, closingLine, media, audioUrl, audioDuration, lines, captionCues = [], musicMood = "Warm + Nostalgic", voiceMusicBalance = "Balanced", voiceVolume = 60, musicVolume = 60, captionPosition = "bottom", captionLines = 2, audioMix, onOpeningFrameReady }: Props) {
   const [scene, setScene] = useState(0);
   const [playing, setPlaying] = useState(true);
   const [muted, setMuted] = useState(false);
@@ -36,6 +36,7 @@ export function KeepPlayer({ name, from, year, onExit, onFinish, recipient = fal
   const [masterDuration, setMasterDuration] = useState(audioDuration);
   const [voiceStarted, setVoiceStarted] = useState(false);
   const [voiceEnded, setVoiceEnded] = useState(false);
+  const [silentClosing, setSilentClosing] = useState(false);
   const [voiceBuffering, setVoiceBuffering] = useState(false);
   const [controlsVisible, setControlsVisible] = useState(true);
   const [mediaReady, setMediaReady] = useState(false);
@@ -59,7 +60,8 @@ export function KeepPlayer({ name, from, year, onExit, onFinish, recipient = fal
   // Older published Keeps may have provider timestamps that are in range but unusable.
   // Fix playback timing without changing their narration or caption text.
   const playbackCues = useMemo(() => recoverCaptionTiming([], captionCues, masterDuration || audioDuration || 0).cues, [captionCues, masterDuration, audioDuration]);
-  const end = !audioUrl && scene >= items.length;
+  const closing = voiceEnded || silentClosing;
+  const end = finishSent.current; // Hold the final frame underneath the farewell until completion.
 
   // Keep the intro visible until the first photo/video has actually loaded.
   // Music begins on this same readiness signal, not on a separate black title.
@@ -103,13 +105,17 @@ export function KeepPlayer({ name, from, year, onExit, onFinish, recipient = fal
     return ()=>document.removeEventListener("visibilitychange",onHide);
   },[]);
 
-  // Recipients go straight to the light completion page, not a second dark end card.
+  // The last image is held beneath a dark farewell. The final page must
+  // never abruptly replace the last frame, even for photo-only Keeps.
   useEffect(() => {
-    if (!audioUrl && scene >= items.length && !finishSent.current) {
+    if (audioUrl || !silentClosing || !playing || finishSent.current) return;
+    const timer = window.setTimeout(() => {
+      if (finishSent.current) return;
       finishSent.current = true;
       onFinish?.();
-    }
-  }, [recipient, audioUrl, scene, items.length, onFinish]);
+    }, 4500);
+    return () => window.clearTimeout(timer);
+  }, [audioUrl, silentClosing, playing, onFinish]);
 
   // Play the musical lead-in over the first photo, never over a separate title screen.
   const introSeconds = audioUrl ? KEEP_MUSIC_LEAD_SECONDS : 0;
@@ -118,7 +124,7 @@ export function KeepPlayer({ name, from, year, onExit, onFinish, recipient = fal
   // Silent/photo-only Keeps retain one clock across pause and resume, rather
   // than restarting the timer for the current image after every interruption.
   useEffect(() => {
-    if (audioUrl || !playing || !mediaReady || end) return;
+    if (audioUrl || !playing || !mediaReady || silentClosing) return;
     let last = performance.now();
     const update = () => {
       const now = performance.now();
@@ -126,12 +132,16 @@ export function KeepPlayer({ name, from, year, onExit, onFinish, recipient = fal
       silentElapsedRef.current = Math.min(total, silentElapsedRef.current + Math.max(0, now - last) / 1000);
       last = now;
       setElapsedSeconds(silentElapsedRef.current);
-      const nextScene = silentElapsedRef.current >= total ? items.length : sceneIndexAt(items, silentElapsedRef.current);
+      if (silentElapsedRef.current >= total) {
+        setSilentClosing(true);
+        return;
+      }
+      const nextScene = sceneIndexAt(items, silentElapsedRef.current);
       setScene(current => current === nextScene ? current : nextScene);
     };
     const timer = window.setInterval(update, 100);
     return () => { window.clearInterval(timer); update(); };
-  }, [playing, mediaReady, end, audioUrl, items]);
+  }, [playing, mediaReady, audioUrl, items, silentClosing]);
 
   // A passive progress display follows real narration time, including its
   // musical lead-in and outro. It never advances while the voice is buffering.
@@ -308,12 +318,13 @@ export function KeepPlayer({ name, from, year, onExit, onFinish, recipient = fal
   const stamp = (seconds: number) => Math.floor(seconds / 60) + ":" + String(Math.floor(seconds % 60)).padStart(2, "0");
   const item = scene >= 0 ? items[Math.min(scene, items.length - 1)] : undefined;
   const nextItem = scene >= 0 ? items[scene + 1] : undefined;
+  const finalWords = closingLine?.trim() || "You are so loved.";
   const activeCue = captionAtTime(playbackCues, audioTime, masterDuration || audioDuration);
   // A real recording must never display demo captions as a fallback.
   const captionText = audioUrl ? (voiceStarted && !voiceEnded ? activeCue?.text ?? "" : "") : (scene >= 0 ? words[scene % words.length] : "");
 
   return <div className="relative keep-h-screen min-h-0 w-full overflow-hidden bg-[#F7F5F2] text-foreground" onClick={(event) => {
-    if ((event.target as HTMLElement).closest("button")) return;
+    if (closing || (event.target as HTMLElement).closest("button")) return;
     if (controlsVisible) setControlsVisible(false);
     else showControls();
   }}>
@@ -362,5 +373,16 @@ export function KeepPlayer({ name, from, year, onExit, onFinish, recipient = fal
         {playing ? <Pause className="size-5" fill="currentColor" /> : <Play className="ml-0.5 size-5" fill="currentColor" />}
       </button>
     </div></>}
+    {/* The existing final frame fades into a quiet dark dedication while the
+        original soundtrack completes. No extra blank photo or hard cut. */}
+    <div aria-hidden={!closing}
+      className={`pointer-events-none absolute inset-0 z-[45] flex items-center justify-center bg-[#171311] px-9 text-center text-[#F5EDE5] transition-opacity duration-[1600ms] ease-in-out motion-reduce:duration-0 ${closing ? "opacity-100" : "opacity-0"}`}>
+      <div className={`max-w-[520px] transition-all duration-[1350ms] delay-[1000ms] ease-out motion-reduce:duration-0 motion-reduce:delay-0 ${closing ? "translate-y-0 opacity-100" : "translate-y-4 opacity-0"}`}>
+        <p className="mb-7 text-[10px] font-semibold uppercase tracking-[.26em] text-[#B8A38F]">{name ? `FOR ${name}` : "JUST FOR YOU"}</p>
+        <p className="font-display text-[clamp(36px,9vw,64px)] italic leading-[1.13] tracking-[-.032em]">{finalWords}</p>
+        <div className="mx-auto mt-8 h-px w-11 bg-[#9D8571]" aria-hidden="true" />
+        {from && <p className="mt-6 text-[12px] tracking-[.13em] text-[#D4C4B3]">With love, {from}</p>}
+      </div>
+    </div>
   </div>;
 }
