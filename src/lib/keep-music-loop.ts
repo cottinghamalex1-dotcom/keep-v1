@@ -28,6 +28,18 @@ export function musicLoopPlan(trackSeconds: number, keepSeconds: number): MusicL
   };
 }
 
+/** Keep one music decoder running for short Keeps. A secondary silent
+ * decoder is only needed when the soundtrack may actually have to loop. */
+export function shouldPrepareMusicLoop(keepSeconds: number, trackSeconds?: number): boolean {
+  if (!Number.isFinite(keepSeconds) || keepSeconds <= 0) return false;
+  if (trackSeconds && Number.isFinite(trackSeconds) && trackSeconds > 0) {
+    return musicLoopPlan(trackSeconds, keepSeconds) !== null;
+  }
+  // Before metadata arrives, prefer one decoder for a typical short Keep.
+  // The bundled non-Intentional tracks are approximately three minutes long.
+  return keepSeconds > 155;
+}
+
 export function musicCrossfadeCurves(steps = 64): { outgoing: Float32Array; incoming: Float32Array } {
   const length = Math.max(2, Math.round(steps));
   const outgoing = new Float32Array(length);
