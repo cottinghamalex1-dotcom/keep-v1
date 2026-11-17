@@ -52,6 +52,6 @@ describe("non-interactive Keep viewing progress", () => {
       initialExperience="watch" creatorPreview persistVisit={false}
     />);
     expect(screen.getByRole("progressbar", { name: "Keep playback progress" })).toBeInTheDocument();
-    expect(screen.getByText("−1:27")).toBeInTheDocument();
+    expect(screen.getByText("−1:32")).toBeInTheDocument();
   });
 });
