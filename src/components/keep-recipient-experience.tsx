@@ -8,6 +8,7 @@ import { KeepMemoryGallery } from "@/components/keep-memory-gallery";
 import { makeReadingFrames, readingFrameAtTime } from "@/lib/keep-immersive-reading";
 import type { AudioMix, CaptionCue } from "@/lib/keep-project";
 import { createKeepVoiceMix, KEEP_MUSIC_LEAD_SECONDS, KEEP_MUSIC_TAIL_SECONDS, type MusicBalance } from "@/lib/keep-audio";
+import "./keep-farewell.css";
 
 export type KeepExperienceMode = "watch" | "listen" | "read";
 
@@ -17,6 +18,7 @@ type Props = {
   year: string;
   subtitle?: string | undefined;
   openingMessage?: string | undefined;
+  closingLine?: string | undefined;
   media?: PlayerMedia[] | undefined;
   readMedia?: PlayerMedia[] | undefined;
   audioUrl?: string | undefined;
@@ -55,6 +57,7 @@ export function KeepRecipientExperience({
   year,
   subtitle,
   openingMessage,
+  closingLine,
   media,
   audioUrl,
   audioDuration = 150,
@@ -317,7 +320,7 @@ export function KeepRecipientExperience({
     const watching = stage === "experience";
     return <main className="app-shell relative">
       {watching && <KeepPlayer key="recipient-film"
-        name={name.toUpperCase()} from={from} year={year} subtitle={subtitle}
+        name={name.toUpperCase()} from={from} year={year} subtitle={subtitle} closingLine={closingLine}
         recipient onExit={backToChoose} onFinish={finishExperience}
         style={style} captions={captions} media={media} audioUrl={audioUrl}
         audioDuration={audioDuration} lines={lines} captionCues={captionCues}
@@ -389,8 +392,8 @@ export function KeepRecipientExperience({
   }
 
   if (stage === "ending") {
-    return <main className="app-shell">
-      <section className="relative flex min-h-dvh flex-col overflow-hidden bg-[#F7F5F2] text-[#25201D]">
+    return <main className="app-shell bg-[#171311]">
+      <section className="keep-completion-reveal relative flex min-h-dvh flex-col overflow-hidden bg-[#F7F5F2] text-[#25201D]">
         <header className="mx-auto flex w-full max-w-[640px] items-center justify-center px-7 pt-[max(40px,env(safe-area-inset-top))]">
           <span className="keep-wordmark !text-[32px]">Keep</span>
         </header>
