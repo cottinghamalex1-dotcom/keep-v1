@@ -89,7 +89,10 @@ export function KeepPlayer({ name, from, year, onExit, onFinish, recipient = fal
   };
   useEffect(() => {
     if (controlsTimer.current !== null) window.clearTimeout(controlsTimer.current);
-    if (playing && !end) {
+    // Let recipients see the controls for the first moments of actual playback,
+    // not only while the first photo is still downloading.
+    if (playing && mediaReady && !end) {
+      setControlsVisible(true);
       controlsTimer.current = window.setTimeout(() => {
         setControlsVisible(false);
         controlsTimer.current = null;
@@ -99,7 +102,7 @@ export function KeepPlayer({ name, from, year, onExit, onFinish, recipient = fal
       if (controlsTimer.current !== null) window.clearTimeout(controlsTimer.current);
       controlsTimer.current = null;
     };
-  }, [playing, end]);
+  }, [playing, mediaReady, end]);
 
   // A phone call or backgrounded Safari must not let a hidden video/soundtrack
   // run ahead. Resume only when the recipient presses Play again.
