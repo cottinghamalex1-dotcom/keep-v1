@@ -1,47 +1,47 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
 import { KeepFirstPlayReveal } from "../components/keep-first-play-reveal";
+import { KeepRecipientExperience } from "../components/keep-recipient-experience";
 import { openingMessageIdeas } from "../lib/keep-opening-message";
 
 afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 
-it("shows recipient, occasion, personal introduction and sender without a photo overlay", () => {
+it("starts with only A Keep for, the recipient, and a single experience button", () => {
   const onOpen = vi.fn();
-  const onOtherFormats = vi.fn();
   const { container } = render(
-    <KeepFirstPlayReveal
-      name="Hannah"
-      occasion="Anniversary"
-      introduction="I wanted to make sure these words always found you."
-      from="Alex"
-      year="2026"
-      onOpen={onOpen}
-      onOtherFormats={onOtherFormats}
-    />
+    <KeepFirstPlayReveal name="Dad" onOpen={onOpen} />
   );
-  expect(screen.getByRole("heading", { name: "Hannah" })).toBeTruthy();
-  expect(screen.getByText("I wanted to make sure these words always found you.")).toBeTruthy();
-  expect(screen.getByText("from Alex · 2026")).toBeTruthy();
-  expect(container.querySelector("img, video")).toBeNull();
+  expect(screen.getByText("A KEEP FOR")).toBeInTheDocument();
+  expect(screen.getByRole("heading", { name: "Dad" })).toBeInTheDocument();
+  expect(screen.getAllByRole("button")).toHaveLength(1);
+  expect(screen.queryByText("MADE TO BE REMEMBERED")).not.toBeInTheDocument();
+  expect(container.querySelector("img, video, blockquote")).toBeNull();
   fireEvent.click(screen.getByRole("button", { name: /Experience your Keep/i }));
   expect(onOpen).toHaveBeenCalledTimes(1);
-  fireEvent.click(screen.getByRole("button", { name: /another way to experience/i }));
-  expect(onOtherFormats).toHaveBeenCalledTimes(1);
 });
 
-it("handles long names and missing optional metadata gracefully", () => {
+it("handles long names and leaves the opening dedication for after the tap", () => {
   render(
-    <KeepFirstPlayReveal
-      name="Andi, Crew & Emma"
-      introduction=""
-      onOpen={() => {}}
-      onOtherFormats={() => {}}
-    />
+    <KeepFirstPlayReveal name="Andi, Crew & Emma" onOpen={() => {}} />
   );
-  expect(screen.getByRole("heading", { name: "Andi, Crew & Emma" })).toBeTruthy();
+  expect(screen.getByRole("heading", { name: "Andi, Crew & Emma" })).toBeInTheDocument();
   expect(screen.queryByRole("blockquote")).toBeNull();
-  expect(screen.queryByText("Some things are worth keeping close.")).toBeNull();
   expect(screen.queryByText("undefined")).toBeNull();
+});
+
+it("transitions from the simple cover into a dark dedication inside the film", () => {
+  render(<KeepRecipientExperience
+    name="Dad" from="Alex" year="2026"
+    openingMessage="I wanted to make sure these words always found you."
+    audioUrl="blob:voice" audioDuration={118}
+    media={[{ url: "/dad.jpg", kind: "image" }]}
+    persistVisit={false}
+  />);
+  expect(screen.getByRole("heading", { name: "Dad" })).toBeInTheDocument();
+  expect(screen.queryByText("I wanted to make sure these words always found you.")).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: /Experience your Keep/i }));
+  expect(screen.getByText("I wanted to make sure these words always found you.")).toBeInTheDocument();
+  expect(screen.getByText("−2:10")).toBeInTheDocument();
 });
 
 it("offers concise occasion-aware introductions without adding made-up memories", () => {

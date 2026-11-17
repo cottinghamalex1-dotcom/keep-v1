@@ -3,10 +3,11 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { KeepRecipientExperience } from "@/components/keep-recipient-experience";
 
 vi.mock("@/components/keep-player", () => ({
-  KeepPlayer: ({ onOpeningFrameReady, audioUrl }: {
-    onOpeningFrameReady?: () => void; audioUrl?: string;
+  KeepPlayer: ({ onOpeningFrameReady, onExit, audioUrl }: {
+    onOpeningFrameReady?: () => void; onExit?: () => void; audioUrl?: string;
   }) => <div data-testid="recipient-film" data-audio={audioUrl}>
     <button type="button" onClick={onOpeningFrameReady}>Opening photo decoded</button>
+    <button type="button" onClick={onExit}>Exit preview</button>
   </div>,
 }));
 
@@ -46,9 +47,10 @@ describe("seamless personalized introduction to film", () => {
     expect(screen.getByTestId("recipient-film")).toBeInTheDocument();
   });
 
-  it("keeps the separate formats chooser instead of forcing video playback", () => {
+  it("keeps alternate formats available after leaving the cinematic film", () => {
     render(<KeepRecipientExperience {...props} />);
-    fireEvent.click(screen.getByRole("button", { name: /choose another way to experience it/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Experience your Keep" }));
+    fireEvent.click(screen.getByRole("button", { name: "Exit preview" }));
     expect(screen.getByRole("button", { name: /Watch, Listen & Read/i })).toBeInTheDocument();
     expect(screen.queryByTestId("recipient-film")).not.toBeInTheDocument();
   });
