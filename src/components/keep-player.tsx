@@ -2,7 +2,7 @@ import { CinematicMedia } from "@/components/cinematic-media";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, Volume2, VolumeX, Pause, Play } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { createKeepVoiceMix, KEEP_MUSIC_LEAD_SECONDS, KEEP_MUSIC_TAIL_SECONDS, type MusicBalance } from "@/lib/keep-audio";
+import { createKeepVoiceMix, KEEP_MUSIC_TAIL_SECONDS, type MusicBalance } from "@/lib/keep-audio";
 import type { AudioMix, CaptionCue } from "@/lib/keep-project";
 import { captionAtTime, recoverCaptionTiming } from "@/lib/keep-caption-timing";
 import { filmTotal, sceneDuration, sceneElapsed as filmSceneElapsed, sceneIndexAt } from "@/lib/keep-film-timing";
