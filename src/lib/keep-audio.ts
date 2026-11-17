@@ -219,6 +219,7 @@ function createMusicBed(ctx: AudioContext, destination: AudioNode, mood: string,
   let transitionEndsAt = 0;
   let frame = 0;
   let fallback: ScheduledMusic | null = null;
+  let playbackFailures = 0;
 
   const stopFrame = () => {
     if (frame) cancelAnimationFrame(frame);
@@ -330,10 +331,17 @@ function createMusicBed(ctx: AudioContext, destination: AudioNode, mood: string,
         }
         ensureTicker();
       } catch {
-        // Never let a failed audio decode block the voice/recipient experience.
-        if (stopped || started) return;
+        if (stopped) return;
+        paused = true;
+        stopFrame();
+        playbackFailures++;
+        // Never substitute a newly synthesized, differently harmonized score
+        // for the exact music selected by the creator. Retry the genuine MP3
+        // from a deliberate tap; if decoding is permanently unavailable, let
+        // the spoken memories play by themselves rather than shifting key.
+        if (playbackFailures < 2) throw new Error("The music needs a tap to resume.");
         cleanupTracks();
-        fallback = scheduleMusic(ctx, destination, choice, balance, voiceDuration, introSeconds, options);
+        stopped = true;
       }
     },
     pause: () => {
