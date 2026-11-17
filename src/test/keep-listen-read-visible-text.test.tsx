@@ -26,7 +26,8 @@ afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 describe("Listen and Read: visible spoken words", () => {
   it("shows the actual first passage immediately when Listen and Read is selected", () => {
     render(<KeepRecipientExperience {...props} />);
-    fireEvent.click(screen.getByRole("button", { name: /choose another way to experience it/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Experience your Keep/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Exit preview/i }));
     fireEvent.click(screen.getByRole("button", { name: /^Listen & Read/i }));
     expect(screen.getByText(first)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Play narration" })).toBeInTheDocument();
