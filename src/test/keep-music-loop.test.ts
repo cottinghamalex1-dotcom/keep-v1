@@ -1,7 +1,16 @@
 import { describe, expect, it } from "vitest";
-import { musicCrossfadeCurves, musicLoopPlan } from "@/lib/keep-music-loop";
+import { musicCrossfadeCurves, musicLoopPlan, shouldPrepareMusicLoop } from "@/lib/keep-music-loop";
 
 describe("Keep soundtrack looping", () => {
+  it("uses only one active audio decoder for typical short published Keeps", () => {
+    expect(shouldPrepareMusicLoop(59)).toBe(false);
+    expect(shouldPrepareMusicLoop(126)).toBe(false);
+    expect(shouldPrepareMusicLoop(155)).toBe(false);
+    expect(shouldPrepareMusicLoop(195)).toBe(true);
+    // Once metadata is known, a longer track (Intentional) needs no loop.
+    expect(shouldPrepareMusicLoop(195, 300)).toBe(false);
+    expect(shouldPrepareMusicLoop(195, 180)).toBe(true);
+  });
   it("doesn't interrupt a Keep that finishes before the end of its soundtrack", () => {
     expect(musicLoopPlan(180, 155)).toBeNull();
     expect(musicLoopPlan(300, 190)).toBeNull();
