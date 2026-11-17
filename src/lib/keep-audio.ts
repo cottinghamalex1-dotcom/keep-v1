@@ -1,5 +1,5 @@
 import type { AudioMix, VoiceTone } from "./keep-project";
-import { musicCrossfadeCurves, musicLoopPlan } from "./keep-music-loop";
+import { musicCrossfadeCurves, musicLoopPlan, shouldPrepareMusicLoop } from "./keep-music-loop";
 import { KEEP_VOICE_PROFILES } from "./keep-voice-profiles";
 
 export type MusicBalance = "Soft" | "Balanced" | "Full";
@@ -192,7 +192,7 @@ function createMusicBed(ctx: AudioContext, destination: AudioNode, mood: string,
   // gains are independent of the voice-over ducking/end envelope below.
   const players = [new Audio(musicPath), new Audio(musicPath)] as const;
   const channels = players.map((player, index) => {
-    player.preload = "auto";
+    player.preload = index === 0 ? "auto" : "metadata";
     player.loop = true; // Native fallback if background tabs throttle the handoff.
     const source = ctx.createMediaElementSource(player);
     const gain = ctx.createGain();
@@ -215,6 +215,7 @@ function createMusicBed(ctx: AudioContext, destination: AudioNode, mood: string,
   let paused = true;
   let stopped = false;
   let transitioning = false;
+  let needsSecondary: boolean | null = null;
   let transitionEndsAt = 0;
   let frame = 0;
   let fallback: ScheduledMusic | null = null;
@@ -309,10 +310,20 @@ function createMusicBed(ctx: AudioContext, destination: AudioNode, mood: string,
       try {
         // Start both streams during the same audio-unlock interaction. The
         // secondary goes through a zero-gain WebAudio channel until needed.
-        const activePlayback = channels[active]!.player.play();
-        void channels[1 - active]!.player.play().catch(() => undefined);
+        const foreground = channels[active]!.player;
+        const secondary = channels[1 - active]!.player;
+        const warmSecondary = needsSecondary ?? shouldPrepareMusicLoop(expectedKeepSeconds, foreground.duration);
+        // Playing two full-length MP3s throughout a short Keep wastes a decoder
+        // and can cause audio/video underruns on memory-constrained phones.
+        const activePlayback = foreground.play();
+        if (warmSecondary) void secondary.play().catch(() => undefined);
         await activePlayback;
         if (stopped) return;
+        if (Number.isFinite(foreground.duration) && foreground.duration > 0) {
+          needsSecondary = shouldPrepareMusicLoop(expectedKeepSeconds, foreground.duration);
+          if (!needsSecondary) secondary.pause();
+          else if (secondary.paused) void secondary.play().catch(() => undefined);
+        }
         if (!started) {
           started = true;
           applyMusicEnvelope(musicGain.gain, ctx.currentTime, introSeconds, voiceDuration, level, under, level, options);
