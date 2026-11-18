@@ -94,16 +94,19 @@ export function KeepSavingScreen({
       </div>
       <p className="mt-9 text-[11px] font-semibold uppercase tracking-[.23em] text-[#967D67]">Some things are worth keeping.</p>
       <h1 className="mt-5 font-display text-[clamp(39px,10vw,54px)] leading-[1.09] tracking-[-.045em]">Saving your Keep<span className="font-normal italic">.</span></h1>
-      <p role="status" aria-live="polite" className="mx-auto mt-5 max-w-[340px] text-sm leading-6 text-[#6E6055]">{failure || error || label + " — " + detail}</p>
+
       <div className="mt-12 text-left">
         <div className="mb-3 flex items-center justify-between gap-4">
-          <span className="text-xs font-medium text-[#756554]">{failure ? "Saving paused" : label}</span>
+          <span role="status" aria-live="polite" className="text-xs font-medium text-[#756554]">
+            {failure || error ? "Saving paused" : label}
+          </span>
           <span className="text-[15px] font-semibold tabular-nums text-[#44372D]" aria-label={`${percent}% of saving steps complete`}>{percent}%</span>
         </div>
         <div role="progressbar" aria-label="Keep saving progress" aria-valuemin={0} aria-valuemax={100} aria-valuenow={percent} className="h-[6px] overflow-hidden rounded-full bg-[#E3D7CA]">
           <div className="h-full rounded-full bg-[#967B61] transition-[width] duration-700 ease-out motion-reduce:duration-0" style={{ width: `${percent}%` }} />
         </div>
-        <p className="mt-3 text-[11px] leading-5 text-[#8B7B6D]">The percentage follows completed saving steps. Some steps take longer than others.</p>
+        {(failure || error) && <p role="alert" className="mt-3 text-xs leading-5 text-[#9B3529]">{failure || error}</p>}
+        {!failure && !error && detail && <p className="mt-3 text-xs leading-5 text-[#8B7B6D]">{detail}</p>}
       </div>
       {(failure || error) && <div className="mt-9 space-y-3">
         {publishError && <button type="button" onClick={() => { setHighestPercent(0); onRetryPublish(); }} className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#251F1A] px-5 text-sm font-medium text-white"><RotateCcw size={17}/> Try saving again</button>}
