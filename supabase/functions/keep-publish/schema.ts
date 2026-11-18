@@ -7,6 +7,8 @@ export const manifestSchema = z.object({
   voiceMode: z.enum(['solo','together']).optional(),
   contributors: z.array(z.object({id:text(100),name:text(60)})).max(8).optional(),
   paragraphSpeakers: z.array(text(100)).max(100).optional(),
+  keepOrder: z.object({ tier:z.enum(['basic','signature']), extraCards:z.number().int().min(0).max(10000),
+    extraCardStyle:z.enum(['classic','engraved']), engravingUpgrade:z.boolean() }).optional(),
   cardEngraving: z.array(text(100)).max(3), readMemoryOrder:z.array(text(100)).max(300),
   memories:z.array(z.object({
     id:text(100), kind:z.enum(['image','video']), source:z.enum(['upload','sample','text']), storagePath:text(300),
