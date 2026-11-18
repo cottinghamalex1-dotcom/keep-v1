@@ -2,7 +2,7 @@ import { Link } from "@tanstack/react-router";
 import { ArrowRight, Gift, Menu, PlayCircle, Sparkles, X } from "lucide-react";
 import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { createPortal } from "react-dom";
-import { KeepCardFront } from "@/components/keep-card-front";
+import { KeepMiniCard } from "@/components/keep-mini-card";
 
 /**
  * Full-height, editorial Keep menu. The overlay is portaled to the document
@@ -102,11 +102,11 @@ export function KeepAccountButton() {
 
           <nav aria-label="Keep menu" className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-7 pb-5 pt-3 sm:px-9">
             <div className="space-y-1 border-b border-[#71817F]/55 pb-6">
-              <a href="/shop#packages" onClick={closeMenu} className={primaryLink}>
+              <a href="/shop#package-basic" onClick={closeMenu} className={primaryLink}>
                 <Gift className="size-7 shrink-0 text-[#E4D2BA]" strokeWidth={1.4} aria-hidden="true" />
                 Shop Basic Keep
               </a>
-              <a href="/shop#packages" onClick={closeMenu} className={primaryLink}>
+              <a href="/shop#package-signature" onClick={closeMenu} className={primaryLink}>
                 <Sparkles className="size-7 shrink-0 text-[#E4D2BA]" strokeWidth={1.4} aria-hidden="true" />
                 Shop Signature Keep
               </a>
@@ -124,13 +124,13 @@ export function KeepAccountButton() {
               <Link to="/app" hash="account" onClick={closeMenu} className={secondaryLink}>Account</Link>
             </div>
 
-            <a href="/shop#the-card" onClick={closeMenu} className="group flex items-center gap-5 rounded-xl border border-white/5 bg-[#324746] p-4 transition-colors hover:bg-[#3C5350]">
-              <div className="w-[110px] shrink-0 sm:w-[128px]">
-                <KeepCardFront engraving={["FOR SOMEONE", "SPECIAL"]} className="!rounded-[7px] !shadow-none" />
+            <a href="/shop#package-signature" onClick={closeMenu} className="group flex items-center gap-4 rounded-xl border border-white/10 bg-[#324746] p-3.5 transition-colors hover:bg-[#3C5350] sm:gap-5 sm:p-4">
+              <div className="w-[106px] shrink-0 sm:w-[120px]">
+                <KeepMiniCard variant="signature" className="!rounded-[6px] !shadow-[0_8px_20px_rgba(0,0,0,.22)]" />
               </div>
               <div className="min-w-0">
-                <p className="text-[17px] font-semibold leading-6 text-[#FFF9F1]">The Signature Keep</p>
-                <p className="mt-2 text-[13px] leading-6 text-[#D9D5CE]">Your words, beautifully kept.</p>
+                <p className="text-[16px] font-semibold leading-6 text-[#FFF9F1] sm:text-[17px]">The Signature Keep</p>
+                <p className="mt-1.5 text-[12px] leading-5 text-[#D9D5CE] sm:text-[13px]">Your words, beautifully kept.</p>
               </div>
             </a>
             <a href="mailto:support@keep.com" onClick={closeMenu} className="mt-5 inline-flex min-h-10 items-center text-[13px] text-[#DFD5CA] underline-offset-4 hover:underline">Help &amp; Support</a>
