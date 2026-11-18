@@ -2,7 +2,7 @@
 export type KeepTier = "basic" | "signature";
 export const KEEP_PRICING = {
   basicCents: 7900,
-  basicRetailCents: 10900,
+  basicRetailCents: 9400,
   signatureRetailCents: 12900,
   signatureCents: 9900,
   additionalSpeakerCents: 1900,
