@@ -147,7 +147,8 @@ export function KeepRemoteInviteManager({ project,onContinue,onCombine,onImportM
         const status=statuses.find(item=>item.contributorId===person.id);
         const complete=status?.completed??0;
         const finished=!!status&&status.total===parts.length&&complete===status.total;
-        const url=links[person.id];
+        const expired=!!status&&new Date(status.expiresAt).getTime()<Date.now();
+        const url=expired?undefined:links[person.id];
         return <section key={person.id} className="rounded-[18px] border border-[#D8CCBF] bg-[#FFFDF9] px-4 py-4 shadow-[0_6px_20px_rgba(57,44,29,.045)]">
           <div className="flex items-start justify-between gap-3">
             <div className="flex min-w-0 items-center gap-3">
@@ -182,7 +183,7 @@ export function KeepRemoteInviteManager({ project,onContinue,onCombine,onImportM
             </div>}
           </div>
           {finished&&<div className="mt-3 flex items-center gap-2 text-[11px] text-[#527052]"><CircleCheck className="size-4"/> Voice received and saved to this Keep. {status?.emailSent?"· Creator notified":""}</div>}
-          {status&&!finished&&new Date(status.expiresAt).getTime()<Date.now() && <p className="mt-2 text-[11px] text-[#925E4E]">That invitation has expired. Generate a new link.</p>}
+          {status&&!finished&&expired && <p className="mt-2 text-[11px] text-[#925E4E]">That invitation has expired. Generate a new link.</p>}
           {status&&<button type="button" className="mt-3 inline-flex min-h-8 items-center gap-1.5 text-[10px] text-[#8F705B]" onClick={async()=>{
             if(!window.confirm(`Revoke ${person.name}'s invitation? They will no longer be able to share recordings, photos or videos.`))return;
             try{await revokeRemoteInvite(keepId,status.id);setLinks(old=>{const next={...old};delete next[person.id];return next;});await refresh();}
