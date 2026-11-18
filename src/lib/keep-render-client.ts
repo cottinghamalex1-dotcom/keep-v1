@@ -66,6 +66,12 @@ export async function beginKeepRender(keepId: string, musicMood: string, musicMu
   return requestRender({ action: "start", keepId, musicDurationSec });
 }
 
+/** Retry is explicitly user-initiated and only works for a failed job. */
+export async function retryKeepRender(keepId: string, musicMood: string, musicMuted = false): Promise<KeepRenderStatus> {
+  const musicDurationSec = musicMuted ? undefined : await soundtrackDuration(musicMood);
+  return requestRender({ action: "retry", keepId, musicDurationSec });
+}
+
 export async function refreshKeepRender(keepId: string): Promise<KeepRenderStatus> {
   return requestRender({ action: "status", keepId });
 }
