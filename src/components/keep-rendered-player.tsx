@@ -125,7 +125,7 @@ export function KeepRenderedPlayer({
               scrubbing.current = false;
               seekTo(Number(event.currentTarget.value));
             }}
-            onPointerCancel={() => { scrubbing.current = false; }}
+            onPointerCancel={() => { scrubbing.current = false; setScrubTime(currentTime); }}
             onTouchEnd={(event) => {
               if (scrubbing.current) {
                 scrubbing.current = false;
@@ -138,12 +138,13 @@ export function KeepRenderedPlayer({
               setScrubTime(next);
               if (!scrubbing.current) seekTo(next);
             }}
-            className="h-11 w-full cursor-pointer appearance-none bg-transparent accent-[#F5EDE5] touch-pan-x disabled:opacity-40
-              [&::-webkit-slider-runnable-track]:h-[5px] [&::-webkit-slider-runnable-track]:rounded-full
+            className="h-11 w-full cursor-pointer appearance-none bg-transparent accent-[#F5EDE5] touch-none disabled:opacity-40
+              [&::-webkit-slider-runnable-track]:h-[5px] [&::-webkit-slider-runnable-track]:rounded-full [&::-webkit-slider-runnable-track]:bg-transparent
               [&::-webkit-slider-thumb]:-mt-[8px] [&::-webkit-slider-thumb]:size-[21px]
               [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full
               [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-white
               [&::-webkit-slider-thumb]:bg-[#F5EDE5] [&::-webkit-slider-thumb]:shadow-lg
+              [&::-moz-range-track]:h-[5px] [&::-moz-range-track]:bg-transparent
               [&::-moz-range-thumb]:size-[21px] [&::-moz-range-thumb]:rounded-full
               [&::-moz-range-thumb]:border-2 [&::-moz-range-thumb]:border-white
               [&::-moz-range-thumb]:bg-[#F5EDE5]"
