@@ -33,12 +33,12 @@ const validatedCheckout = (tier: KeepTier) =>
 const packageChoices: Array<{
   tier: KeepTier; name: string; price: string; cards: string; engraving: string; message: string; points: string[]; featured: boolean;
 }> = [
-  { tier: "basic", name: "Basic", price: "$79", cards: "1 card included", engraving: "Keep logo only",
+  { tier: "basic", name: "Basic", price: "$79", cards: "1 card included", engraving: "No Personalized Engraving",
     message: "Start with one beautiful Keep, then choose only the extras you want.",
-    points: ["One matte-black metal NFC card", "One private digital Keep experience", "One voice included; additional voices $19 each", "Optional engraved front offered for $9 (regularly $20)"], featured: false },
-  { tier: "signature", name: "Signature", price: "$99", cards: "1 card included", engraving: "Personalized engraving",
-    message: "Two voices. Your words engraved. A gift made together.",
-    points: ["One matte-black metal NFC card", "Personalized laser engraving included", "Two voices included; additional voices $19 each", "One private digital Keep experience"], featured: true },
+    points: ["One matte-black Keep card", "One private digital Keep experience", "One voice included"], featured: false },
+  { tier: "signature", name: "Signature", price: "$99", cards: "1 card included", engraving: "Personalized Engraving Included",
+    message: "One beautiful Keep, your words engraved, and more:",
+    points: ["One matte-black Keep card", "One private digital Keep experience", "Two voices included (only 1 is needed)", "Personalized engraving included"], featured: true },
 ];
 
 const journey = [
@@ -129,16 +129,9 @@ function PhotoPhone() {
 
 function ShopKeep() {
   return <main className="min-h-dvh bg-[#F7F5F2] text-[#161412]">
-    <div className="bg-[#161412] px-6 py-[11px] text-center text-[10px] font-medium tracking-[.19em] text-[#EEE5DA]">SOME THINGS ARE WORTH KEEPING</div>
     <header className="sticky top-0 z-40 border-b border-[#D8D0C7]/80 bg-[#F7F5F2]/95 backdrop-blur-xl">
       <div className="mx-auto flex h-[76px] max-w-[1240px] items-center justify-between gap-6 px-5 sm:px-8">
         <Link to="/shop" aria-label="Keep home"><BrandMark /></Link>
-        <nav className="hidden items-center gap-9 text-[12px] font-medium text-[#4A4138] md:flex" aria-label="Shop navigation">
-          <a href="#experience" className="hover:text-black">The experience</a>
-          <a href="#how-it-works" className="hover:text-black">How it works</a>
-          <a href="#packages" className="hover:text-black">Packages</a>
-          <Link to="/about" className="hover:text-black">Our story</Link>
-        </nav>
         <div className="flex items-center gap-3">
           <a href="#packages" className="hidden min-h-10 items-center gap-2 rounded-sm bg-[#151312] px-5 text-[12px] font-medium text-[#F7F5F2] sm:flex">Explore Keep <ArrowRight className="size-3.5" /></a>
           <KeepAccountButton />
@@ -226,14 +219,13 @@ function ShopKeep() {
             {p.featured ? <div className="mb-5 inline-flex self-start items-center bg-[#171514] px-3 py-2 text-[10px] font-medium uppercase tracking-[.14em] text-[#F7F5F2]">The signature choice</div> : <div className="mb-5 h-[28px]" />}
             <p className="text-[10px] font-medium uppercase tracking-[.17em] text-[#786859]">{p.cards} · {p.engraving}</p>
             <h3 className="mt-4 font-display text-[35px] tracking-[-.035em]">{p.name}</h3>
-            <p className="mt-2 font-display text-[48px] leading-none tracking-[-.04em]">{p.price} <del className="align-middle font-sans text-xl tracking-normal text-[#786859]">{p.tier === "basic" ? "$109" : "$129"}</del></p>
-            <p className="mt-3 self-start rounded-full bg-[#DED2C3] px-4 py-2 text-sm font-semibold text-[#4C3B2C]">Save $30</p>
+            <p className="mt-2 font-display text-[48px] leading-none tracking-[-.04em]">{p.price} <del className="align-middle font-sans text-xl tracking-normal text-[#786859]">{p.tier === "basic" ? "$94" : "$129"}</del></p>
+            <p className="mt-3 self-start rounded-full bg-[#DED2C3] px-4 py-2 text-sm font-semibold text-[#4C3B2C]">{p.tier === "basic" ? "Save $15" : "Save $30"}</p>
             <p className="mt-5 min-h-16 text-[13px] leading-7 text-[#665D55]">{p.message}</p>
             <div className="my-7 border-t border-[#D5CBBF]" />
             <ul className="mb-8 flex-1 space-y-4 text-[12px] leading-6 text-[#4C453E]">
               {p.points.map(point => <li key={point} className="flex items-start gap-3"><Check className="mt-1 size-4 shrink-0 text-[#796757]"/>{point}</li>)}
               {p.featured && <li className="flex items-start gap-3"><Check className="mt-1 size-4 shrink-0 text-[#796757]"/><span>Extra engraved cards <del>$99</del> <strong>$49 each</strong></span></li>}
-              <li className="flex items-start gap-3"><Check className="mt-1 size-4 shrink-0 text-[#796757]"/>Standard U.S. shipping included</li>
             </ul>
             <PurchaseAction tier={p.tier} smaller />
           </article>)}
