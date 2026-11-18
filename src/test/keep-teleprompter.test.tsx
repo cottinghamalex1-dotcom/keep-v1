@@ -124,7 +124,7 @@ describe("shared recording teleprompter", () => {
     Object.defineProperty(viewport,"scrollTop",{configurable:true,get:()=>pos,set:(v:number)=>{pos=Math.floor(v);}});
     act(()=>{frame?.(1000);frame?.(1016);});
     expect(pos).toBeGreaterThan(0);
-    expect(script.style.transform).toMatch(/translate3d\\(0, -?0\\./);
+    expect(script.style.transform).toContain("translate3d(0, -");
   });
 
   it("offers a guarded restart that discards only the current take",async()=>{
