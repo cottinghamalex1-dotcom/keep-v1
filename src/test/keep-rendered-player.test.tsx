@@ -61,6 +61,9 @@ describe("finished Keep MP4 scrubbing", () => {
     const pause = vi.spyOn(HTMLMediaElement.prototype, "pause").mockImplementation(() => {});
     fireEvent.click(screen.getByRole("button", { name: "Play your Keep" }));
     expect(play).toHaveBeenCalled();
+    // jsdom does not implement the media paused flag; mirror actual browser
+    // behavior after its "play" event so pause uses the real media state.
+    Object.defineProperty(video, "paused", { configurable: true, value: false });
     fireEvent.play(video);
     fireEvent.click(screen.getByRole("button", { name: "Pause your Keep" }));
     expect(pause).toHaveBeenCalled();
