@@ -1795,7 +1795,7 @@ function KeepApp() {
             </button>
             <button type="button" aria-pressed={project.voiceRecordingLocation==="remote"} onClick={()=>patch({voiceRecordingLocation:"remote"})}
               className={`rounded-xl border px-3 py-4 text-left ${project.voiceRecordingLocation==="remote"?"border-[#AD9275] bg-[#EDE1D2]":"border-[#DAD1C8] bg-[#FFFDF9]"}`}>
-              <span className="block text-sm font-semibold">From anywhere</span><span className="mt-1 block text-[11px] leading-5 text-[#776A5D]">Send private recording links by text.</span>
+              <span className="block text-sm font-semibold">From anywhere</span><span className="mt-1 block text-[11px] leading-5 text-[#776A5D]">Record yours here; invite others by text.</span>
             </button>
           </div>
           <p className="mt-3 text-[11px] leading-5 text-[#74685D]">Keep will blend and polish all voices consistently.</p>
@@ -1961,7 +1961,7 @@ function KeepApp() {
           <Plus className="size-4"/> Add paragraph
         </Button>
         {isTogether && project.messageParagraphs.filter(p=>p.trim()).length < 2 && <p className="mt-4 text-xs text-[#806B57]">Create at least two speaking parts so everyone can take a turn.</p>}
-        <div className="mt-5">{nextButton(isTogether ? project.voiceRecordingLocation==="remote" ? "Invite your voices" : "Record together" : "Record Your Keep", () => {
+        <div className="mt-5">{nextButton(isTogether ? project.voiceRecordingLocation==="remote" ? "Record yours & invite others" : "Record together" : "Record Your Keep", () => {
           patch({ messageParagraphs: project.messageParagraphs.filter((p) => p.trim()), paragraphSpeakers: project.messageParagraphs.map((p,i)=>p.trim()?speakerFor(i):"").filter(Boolean) });
           setAppliedAiOriginal(null);
           go(isTogether && project.voiceRecordingLocation==="remote" ? "remoteInvite" : "recordPrep");
