@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { ArrowLeft, Check, LoaderCircle, RotateCcw } from "lucide-react";
-import { beginKeepRender, refreshKeepRender, type KeepRenderStatus } from "@/lib/keep-render-client";
+import { beginKeepRender, refreshKeepRender, retryKeepRender, type KeepRenderStatus } from "@/lib/keep-render-client";
 import { keepSavingProgress } from "@/lib/keep-saving-progress";
 
 type Props = {
@@ -27,6 +27,8 @@ export function KeepSavingScreen({
   const [job, setJob] = useState<KeepRenderStatus | null>(null);
   const [error, setError] = useState("");
   const [highestPercent, setHighestPercent] = useState(0);
+  const [retryAttempt, setRetryAttempt] = useState(0);
+  const [retrying, setRetrying] = useState(false);
   const onReadyRef = useRef(onReady);
   onReadyRef.current = onReady;
   const doneRef = useRef(false);
@@ -61,9 +63,23 @@ export function KeepSavingScreen({
       if (!cancelled) setError(cause instanceof Error ? cause.message : "We couldn't finish saving your Keep.");
     });
     return () => { cancelled = true; if (timeout !== undefined) window.clearTimeout(timeout); };
-  }, [isSaved, keepId, musicMood, musicMuted]);
+  }, [isSaved, keepId, musicMood, musicMuted, retryAttempt]);
 
   const failure = publishError || (job?.status === "failed" ? job.error || "Your video couldn't be saved." : "");
+  const retryFilm = async () => {
+    if (!keepId || retrying) return;
+    setRetrying(true);
+    setError("");
+    try {
+      const next = await retryKeepRender(keepId, musicMood, musicMuted);
+      setJob(next);
+      if (next.status !== "failed") setRetryAttempt(count => count + 1);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Saving couldn't restart. Please try again.");
+    } finally {
+      setRetrying(false);
+    }
+  };
   const { percent: currentPercent, label, detail } = keepSavingProgress(publishing, publishMessage, job);
   // Provider steps may arrive out of order; never make the visible bar jump backwards.
   useEffect(() => { setHighestPercent(value => Math.max(value, currentPercent)); }, [currentPercent]);
@@ -91,6 +107,7 @@ export function KeepSavingScreen({
       </div>
       {(failure || error) && <div className="mt-9 space-y-3">
         {publishError && <button type="button" onClick={() => { setHighestPercent(0); onRetryPublish(); }} className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#251F1A] px-5 text-sm font-medium text-white"><RotateCcw size={17}/> Try saving again</button>}
+        {!publishError && job?.status === "failed" && <button type="button" disabled={retrying} onClick={() => void retryFilm()} className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#251F1A] px-5 text-sm font-medium text-white"><RotateCcw size={17}/>{retrying ? "Trying again…" : "Try saving again"}</button>}
         <button type="button" onClick={onBack} className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl border border-[#CFBFAE] px-5 text-sm text-[#66574A]"><ArrowLeft size={17}/> Back to editor</button>
       </div>}
       {!failure && !error && <p className="mt-12 text-xs leading-6 text-[#8B7B6D]">Please keep this page open while your Keep is being saved.</p>}
