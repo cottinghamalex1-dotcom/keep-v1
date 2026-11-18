@@ -1,6 +1,7 @@
 import { getBlob, putBlob } from "./keep-media-store";
 import { newProject, type KeepProject } from "./keep-project";
 import { memoryImages } from "@/components/keep-player";
+import { keepOptimizedPhotoId } from "./keep-photo-optimization";
 
 const endpoint = "https://lwkzhpwugtosbidxvdcr.supabase.co";
 const publicKey = "sb_publishable_K8_SWJByLhV78h7gY4NySw_4sgjEVTi";
@@ -108,10 +109,19 @@ export async function saveCloudDraft(project:KeepProject,session:KeepSession):Pr
   if (project.finalVoiceRecording && !project.finalVoiceRecording.demo && !project.finalVoiceRecording.audioId)
     throw new Error("Your voice wasn't saved to this device. Keep the editor open and retry recording before relying on cloud backup.");
   return enqueueCloudMutation(session, async () => {
+  // Sync quality-checked photo derivatives before they travel over the network.
+  // Original photos remain untouched on the creator's device for editing.
+  const photoIds = new Set(
+    [...project.memories, ...(project.selfieBaseMedia ?? []), ...(project.selfieVideos ?? [])]
+      .filter(m => m.source === "upload" && m.kind === "image")
+      .map(m => m.blobId ?? m.id)
+  );
   // Do not commit metadata pointing at files that failed to upload.
   for(const id of fileRefs(project)) {
-    const blob=await getBlob(id);
-    if (!blob) throw new Error("A recording or photo is missing from this device. Sync was not completed.");
+    const original=await getBlob(id);
+    if (!original) throw new Error("A recording or photo is missing from this device. Sync was not completed.");
+    const derivative = photoIds.has(id) ? await getBlob(keepOptimizedPhotoId(id)) : null;
+    const blob = derivative && derivative.size > 0 && derivative.size < original.size ? derivative : original;
     await uploadBlob(session,id,blob);
   }
   if (project.publicationId) {
