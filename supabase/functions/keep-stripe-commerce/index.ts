@@ -220,6 +220,40 @@ async function checkoutStatus(req: Request, body: Record<string, unknown>) {
   await recordVerifiedPayment(paid);
   return reply(req, { paid: true, cart: paid.cart, totalCards: paid.cart.extraCards + 1 });
 }
+async function reserveVerifiedKeep(req: Request, body: Record<string, unknown>) {
+  if (!admin || !uuid(body.keepId)) return reply(req, { error: "Invalid Keep reservation." }, 400);
+  const user = await signedInUser(req);
+  if (!user?.email_confirmed_at || !user.email) return reply(req, { error: "Sign in using your verified Stripe receipt email." }, 401);
+  const sessionId = typeof body.sessionId === "string" ? body.sessionId : "";
+  const verified = await validatedPaidSession(sessionId);
+  if (!verified || verified.email !== user.email.toLowerCase()) return reply(req, { error: "No matching verified payment." }, 402);
+  await recordVerifiedPayment(verified);
+  const { data: purchase, error: purchaseError } = await admin.from("keep_purchases")
+    .select("id,owner_id,keep_id,status").eq("stripe_checkout_session_id", sessionId).maybeSingle();
+  if (purchaseError || !purchase) return reply(req, { error: "Purchase record not found." }, 503);
+  if (purchase.keep_id === body.keepId && purchase.owner_id === user.id &&
+      ["reserved", "approved", "in_production", "shipped"].includes(purchase.status))
+    return reply(req, { reserved: true });
+  if (purchase.status !== "paid" || purchase.keep_id || purchase.owner_id)
+    return reply(req, { error: "This purchase is already associated with another Keep." }, 409);
+  const { data: existing, error: keepError } = await admin.from("keeps")
+    .select("id,owner_id,status").eq("id", body.keepId).maybeSingle();
+  if (keepError) return reply(req, { error: "Could not validate your Keep." }, 503);
+  if (existing && (existing.owner_id !== user.id || existing.status !== "draft"))
+    return reply(req, { error: "This Keep cannot accept a new purchase." }, 409);
+  if (!existing) {
+    const { error: createError } = await admin.from("keeps").insert({
+      id: body.keepId, owner_id: user.id, recipient_name: "", status: "draft",
+    });
+    if (createError) return reply(req, { error: "Could not initialize your Keep." }, 409);
+  }
+  const { data, error } = await admin.from("keep_purchases")
+    .update({ owner_id: user.id, keep_id: body.keepId, status: "reserved", updated_at: new Date().toISOString() })
+    .eq("id", purchase.id).eq("status", "paid").is("owner_id", null).is("keep_id", null)
+    .select("id").maybeSingle();
+  if (error || !data) return reply(req, { error: "The payment couldn't be reserved. Please retry." }, 409);
+  return reply(req, { reserved: true });
+}
 async function approvePaidKeep(req: Request, body: Record<string, unknown>) {
   if (!admin || !uuid(body.keepId)) return reply(req, { error: "Invalid Keep approval." }, 400);
   const user = await signedInUser(req);
@@ -305,6 +339,7 @@ Deno.serve(async req => {
     const body = await req.json();
     if (body?.action === "checkout") return await createCheckout(req, body);
     if (body?.action === "status") return await checkoutStatus(req, body);
+    if (body?.action === "reserve") return await reserveVerifiedKeep(req, body);
     if (body?.action === "approve") return await approvePaidKeep(req, body);
     return reply(req, { error: "Invalid checkout action." }, 400);
   } catch (e) {
