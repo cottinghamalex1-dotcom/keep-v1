@@ -71,6 +71,26 @@ describe("seamless personalized introduction to film", () => {
     expect(screen.getByText("Opening your Keep…")).toBeInTheDocument();
   });
 
+  it("prefers a verified MP4 containing its intro and outro, with legacy fallback on errors", () => {
+    const { container } = render(<KeepRecipientExperience {...props} renderedVideoUrl="/film.mp4" />);
+    fireEvent.click(screen.getByRole("button", { name: "Experience your Keep" }));
+    const video = container.querySelector('video[aria-label="Your finished Keep film"]')!;
+    expect(video).not.toBeNull();
+    expect(video).toHaveAttribute("src", "/film.mp4");
+    expect(screen.queryByTestId("recipient-film")).not.toBeInTheDocument();
+    fireEvent.loadedData(video);
+    expect(container.querySelector(".keep-first-play")?.parentElement).toHaveClass("opacity-0");
+    fireEvent.ended(video);
+    expect(screen.getByRole("button", { name: /Experience it again/i })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /Experience it again/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Watch, Listen & Read/i }));
+    expect(container.querySelector('video[aria-label="Your finished Keep film"]')).toBeNull();
+    expect(screen.getByRole("button", { name: "Experience your Keep" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Experience your Keep" }));
+    fireEvent.error(container.querySelector('video[aria-label="Your finished Keep film"]')!);
+    expect(screen.getByTestId("recipient-film")).toBeInTheDocument();
+  });
+
   it("shows direct creator watch previews without a redundant introduction", () => {
     const { container } = render(<KeepRecipientExperience {...props} creatorPreview initialExperience="watch" />);
     expect(screen.getByTestId("recipient-film")).toBeInTheDocument();
