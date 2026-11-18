@@ -20,7 +20,7 @@ describe("loading screens show the correct context", () => {
   });
   it("retains detailed restoration progress only in a personal Keep editor", () => {
     render(<KeepOpeningScreen phase="media"
-      progress={{ completed: 2, total: 4 }} onBack={() => {}} />);
+      progress={{ completed: 2, total: 4, kind: "media" }} onBack={() => {}} />);
     expect(screen.getByText("Getting your Keep ready.")).toBeInTheDocument();
     expect(screen.getByRole("progressbar", { name: "Restoring your Keep" })).toHaveAttribute("aria-valuenow", "50");
   });
