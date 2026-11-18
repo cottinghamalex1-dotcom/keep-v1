@@ -222,7 +222,7 @@ function KeepRemoteContributor() {
           {recorder.canPause&&<button type="button" onClick={recorder.status==="paused"?recorder.resume:recorder.pause} className="flex min-h-12 items-center justify-center gap-2 rounded-xl border border-[#BEB0A1] bg-[#FCF8F3] text-sm">
             {recorder.status==="paused"?<Mic className="size-4"/>:<Pause className="size-4"/>}{recorder.status==="paused"?"Resume":"Pause"}
           </button>}
-          <button type="button" onClick={()=>void finish()} className="flex min-h-12 items-center justify-center gap-2 rounded-xl bg-[#161411] px-4 text-sm font-medium text-white"><Square className="size-4" fill="currentColor"/> {pending.length===1?"Save final section & finish":`Save section ${invite.parts.findIndex(p=>p.index===currentPart!.index)+1} of ${invite.parts.length} & continue`}</button>
+          <button type="button" onClick={()=>void finish()} className="flex min-h-12 items-center justify-center gap-2 rounded-xl bg-[#161411] px-4 text-sm font-medium text-white"><Square className="size-4" fill="currentColor"/> {pending.length===1?"Save final section":"Save & next section"}</button>
         </div>
       : <button type="button" disabled={recorder.status==="requesting"} onClick={async()=>{setError("");setSent(false);if(!(await recorder.start({selfie:selfieSelected})))setError("Allow microphone and camera access, or choose voice only.");}}
           className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#171512] text-sm font-semibold text-[#FAF5ED] disabled:opacity-50"><Mic className="size-4"/> {recorder.status==="requesting"?"Opening microphone…":"Start recording"}</button>}
