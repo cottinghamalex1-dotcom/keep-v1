@@ -23,6 +23,7 @@ function KeepRemoteContributor() {
   const [sending,setSending]=useState(false);
   const [currentIndex,setCurrentIndex]=useState(0);
   const [started,setStarted]=useState(false);
+  const [welcomeOpen,setWelcomeOpen]=useState(true);
   const [selfieSelected,setSelfieSelected]=useState(false);
   const [selfiePreparing,setSelfiePreparing]=useState(false);
   const [selfieRetry,setSelfieRetry]=useState<{blob:Blob;duration:number;partIndex:number;mime:string}|null>(null);
@@ -69,7 +70,7 @@ function KeepRemoteContributor() {
       const next=await resolveRemoteInvitation(token);
       setInvite(next);
       setUploadRetry(null);
-      setStarted(false);
+      // Do not show the introduction again between sections.
       setSent(true);
       if(selfie){
         try{await uploadSelfie(selfie);}
@@ -80,7 +81,7 @@ function KeepRemoteContributor() {
       }
       if(next.parts.every(part=>part.completed))setMediaMode(true);
       const nextPart=next.parts.find(part=>!part.completed);
-      if(nextPart)setCurrentIndex(nextPart.index);
+      if(nextPart){setCurrentIndex(nextPart.index);setStarted(true);}
     }catch(issue){setError(issue instanceof Error?issue.message:"Your recording didn't upload. Tap Retry to send it again.");}
     finally{setSending(false);}
   };
@@ -135,9 +136,9 @@ function KeepRemoteContributor() {
     </section>}
     <KeepRemoteMediaContributor token={token} mediaCount={invite.mediaCount??0}
       onUploaded={count=>setInvite(old=>old?{...old,mediaCount:count}:old)}/>
-    {pending.length>0&&<button type="button" onClick={()=>{setMediaMode(false);setStarted(false);}}
+    {pending.length>0&&<button type="button" onClick={()=>setMediaMode(false)}
       className="mt-4 flex min-h-12 w-full items-center justify-center rounded-xl border border-[#CDBBA9] bg-white text-[12px] font-medium">Return to my voice recording</button>}
-    <button type="button" onClick={()=>{setMediaMode(false);setStarted(false);}} className="mt-3 flex min-h-12 w-full items-center justify-center rounded-xl bg-[#211D19] text-[12px] font-semibold text-[#FFFAF3]">
+    <button type="button" onClick={()=>setMediaMode(false)} className="mt-3 flex min-h-12 w-full items-center justify-center rounded-xl bg-[#211D19] text-[12px] font-semibold text-[#FFFAF3]">
       {pending.length>0?"Save my moments for now":"I'm finished · Thank you"}
     </button>
   </main>;
@@ -152,42 +153,54 @@ function KeepRemoteContributor() {
     <button type="button" onClick={()=>setMediaMode(true)} className="mt-9 flex min-h-12 items-center gap-2 rounded-xl border border-[#BFAE9D] bg-[#FFFCF8] px-5 text-sm font-medium"><ImagePlus className="size-4"/> Add more photos or videos</button>
     <p className="mt-12 font-display text-2xl italic text-[#806B56]">Some things are worth keeping.</p>
   </main>;
+
   if(!started)return <main className="mx-auto min-h-dvh max-w-[590px] bg-[#F7F5F2] px-6 pb-14 pt-7 text-[#30271F]">
-    <div className="flex items-center justify-between"><span className="font-display text-[38px]">Keep</span><span className="rounded-full border border-[#D8C9BA] px-3 py-1.5 text-[10px] text-[#7D6A57]">Private invitation</span></div>
-    <div className="mt-10 rounded-[22px] border border-[#DFD3C5] bg-[#FFFCF7] p-6 shadow-[0_15px_40px_rgba(73,51,27,.055)]">
-      <p className="text-[10px] font-semibold uppercase tracking-[.22em] text-[#8B7159]">A MESSAGE FROM {invite.creatorName.toUpperCase()}</p>
-      <h1 className="mt-5 font-display text-[clamp(39px,10vw,53px)] leading-[1.05] tracking-[-.035em]">Your voice & memories matter, {invite.contributorName}.</h1>
-      <p className="mt-5 text-sm leading-7 text-[#776B60]">
-        {invite.creatorName} is creating a personal Keep for <strong className="font-medium text-[#3B3026]">{invite.recipientName}</strong>
-        {invite.occasion? ` for ${invite.occasion.toLowerCase()}`:""}—and would love for you to be part of it.
-      </p>
-      <div className="mt-7 border-t border-[#E0D6CB] pt-5">
-        <p className="text-[10px] uppercase tracking-[.18em] text-[#8F775E]">IT'S SIMPLE</p>
-        <div className="mt-4 space-y-4">
-          {[
-            ["01","Find somewhere quiet","Your phone is all you need."],
-            ["02","Read your exact words","Your personal script scrolls automatically while you record."],
-            ["03","Share favorite moments (optional)","Add photos and short videos from your phone if you'd like."],
-            ["04","Everything goes back to the creator","Your voice and moments upload privately for the creator to review."],
-          ].map(([number,title,detail])=><div key={number} className="flex items-start gap-4"><span className="font-display text-[26px] italic text-[#9A7D60]">{number}</span>
-            <div><p className="text-sm font-medium">{title}</p><p className="mt-0.5 text-[11px] leading-5 text-[#786C5F]">{detail}</p></div></div>)}
-        </div>
+    <div className="flex items-center justify-between"><span className="font-display text-[38px]">Keep</span><span className="rounded-full border border-[#D8C9BA] px-3 py-1.5 text-[10px] text-[#7D6A57]">PRIVATE RECORDING</span></div>
+    <p className="mt-10 text-[10px] font-semibold uppercase tracking-[.18em] text-[#8D735A]">YOUR RECORDING PLAN</p>
+    <h1 className="mt-3 font-display text-[clamp(38px,10vw,50px)] leading-[1.08] tracking-[-.03em]">A few short sections. One meaningful message.</h1>
+    <p className="mt-4 text-[13px] leading-7 text-[#76695E]">
+      You have {invite.parts.length} {invite.parts.length===1?"section":"sections"} to record for {invite.recipientName}. Your own words appear in the teleprompter, one section at a time.
+    </p>
+    <div className="mt-7 rounded-[20px] border border-[#DFD3C5] bg-[#FFFCF7] p-5">
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-[11px] font-semibold uppercase tracking-[.12em] text-[#8A725A]">YOUR PROGRESS</p>
+        <p className="text-[12px] font-semibold text-[#4E4237]">{invite.parts.length-pending.length} of {invite.parts.length} saved</p>
+      </div>
+      <div className="mt-4 space-y-2">
+        {invite.parts.map((part,index)=><div key={part.index} className="flex items-center gap-3 rounded-xl bg-[#F4EEE6] px-3 py-3">
+          <span className={`flex size-8 shrink-0 items-center justify-center rounded-full text-xs font-semibold ${part.completed?"bg-[#DFEDDB] text-[#456E42]":"bg-[#E7D9C7] text-[#624C37]"}`}>{part.completed?<Check className="size-4"/>:index+1}</span>
+          <span className="flex-1 text-[12px] font-medium">Section {index+1} of {invite.parts.length}</span>
+          <span className="text-[11px] text-[#7A6B5D]">{part.completed?"Saved":part.index===currentPart?.index?"Up next":"To record"}</span>
+        </div>)}
       </div>
     </div>
-    {sent&&<p role="status" className="mt-4 rounded-xl border border-[#D4E3CF] bg-[#EFF7EA] px-4 py-3 text-[12px] text-[#4A6F43]">Your previous part was received. Thank you!</p>}
-    <p className="mt-5 text-center text-xs text-[#786D61]">{pending.length} {pending.length===1?"speaking part":"speaking parts"} remaining · No sign-in needed</p>
-    <button type="button" onClick={()=>{setError("");setStarted(true);}} className="mt-4 flex min-h-14 w-full items-center justify-between rounded-xl bg-[#151310] px-5 text-sm font-semibold text-[#FAF4EB]">
-      I'm ready to record <ArrowRight className="size-5"/>
+    <p className="mt-5 text-center text-[12px] leading-6 text-[#716456]">Find somewhere quiet and use your phone. After each section saves, Keep takes you directly to the next one. No sign-in required.</p>
+    <button type="button" onClick={()=>{setError("");setStarted(true);}} className="mt-5 flex min-h-14 w-full items-center justify-between rounded-xl bg-[#151310] px-5 text-[13px] font-semibold text-[#FAF4EB]">
+      {invite.parts.length-pending.length>0?"Continue recording":`Start section 1 of ${invite.parts.length}`} <ArrowRight className="size-5"/>
     </button>
     <button type="button" onClick={()=>setMediaMode(true)} className="mt-3 flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-[#BBA791] bg-[#FFFCF7] px-3 text-[12px] font-medium text-[#69523E]"><ImagePlus className="size-4"/> Share photos & videos first (optional)</button>
-    <p className="mt-3 flex items-center justify-center gap-1.5 text-[11px] text-[#8A7865]"><ShieldCheck className="size-3.5"/> Your voice, photos and videos are private.</p>
+    <p className="mt-3 flex items-center justify-center gap-1.5 text-[11px] text-[#8A7865]"><ShieldCheck className="size-3.5"/> Your recordings and moments are private.</p>
+    {welcomeOpen&&<div className="fixed inset-0 z-50 flex items-center justify-center bg-[#211C17]/65 px-4 py-7 backdrop-blur-sm">
+      <section role="dialog" aria-modal="true" aria-labelledby="keep-contributor-welcome" className="max-h-[calc(100dvh-3rem)] w-full max-w-[480px] overflow-y-auto rounded-[28px] border border-[#E0D4C8] bg-[#FFFCF7] p-7 text-[#30271F] shadow-[0_25px_80px_rgba(0,0,0,.19)]">
+        <p className="text-[10px] font-semibold uppercase tracking-[.2em] text-[#8F775E]">A PERSONAL INVITATION</p>
+        <h2 id="keep-contributor-welcome" className="mt-6 font-display text-[clamp(37px,9vw,50px)] leading-[1.08] tracking-[-.035em]">Your voice & memories matter, {invite.contributorName}.</h2>
+        <p className="mt-5 text-[13px] leading-7 text-[#776B60]">
+          {invite.creatorName} is creating a personal Keep for <strong className="font-medium text-[#3B3026]">{invite.recipientName}</strong>{invite.occasion?` for ${invite.occasion.toLowerCase()}`:""}—and would love for you to be part of it.
+        </p>
+        <p className="mt-4 text-[12px] leading-6 text-[#776B60]">Everything you record will be shared privately with the creator and woven into this meaningful gift.</p>
+        <button type="button" onClick={()=>setWelcomeOpen(false)} className="mt-7 flex min-h-14 w-full items-center justify-between rounded-xl bg-[#171512] px-5 text-[13px] font-semibold text-[#F8F1E8]">
+          I'm ready <ArrowRight className="size-5"/>
+        </button>
+      </section>
+    </div>}
   </main>;
   return <main className="flex h-[100dvh] min-h-0 flex-col overflow-hidden bg-[#F7F5F2] px-3 pb-[max(8px,env(safe-area-inset-bottom))] pt-[max(7px,env(safe-area-inset-top))] text-[#30271F]">
     <div className="mx-auto flex w-full max-w-[620px] shrink-0 items-center justify-between gap-2 px-2 pb-2">
       <div><p className="text-[10px] font-semibold uppercase tracking-[.15em] text-[#8F775E]">KEEP · REMOTE RECORDING</p>
         <p className="font-display text-[21px]">{invite.contributorName}'s turn</p></div>
-      <p className="text-[11px] text-[#827568]">Part {invite.parts.findIndex(p=>p.index===currentPart!.index)+1} / {invite.parts.length}</p>
+      <p className="text-[11px] text-[#827568]">Section {invite.parts.findIndex(p=>p.index===currentPart!.index)+1} of {invite.parts.length} · {pending.length-1} after this</p>
     </div>
+    {sent&&!recording&&!sending&&<p role="status" className="mx-auto mb-2 w-full max-w-[620px] rounded-lg bg-[#EAF3E6] px-3 py-2 text-center text-[11px] font-semibold text-[#517449]">Section saved successfully · {pending.length} {pending.length===1?"section":"sections"} remaining</p>}
     {!recording&&!sending&&!uploadRetry&&<div className="mx-auto w-full max-w-[620px] shrink-0 pb-2">
       <KeepSelfiePrompt enabled={selfieSelected} preparing={selfiePreparing}
         error={recorder.cameraError} onChoose={()=>void chooseSelfie()}
@@ -209,9 +222,9 @@ function KeepRemoteContributor() {
           {recorder.canPause&&<button type="button" onClick={recorder.status==="paused"?recorder.resume:recorder.pause} className="flex min-h-12 items-center justify-center gap-2 rounded-xl border border-[#BEB0A1] bg-[#FCF8F3] text-sm">
             {recorder.status==="paused"?<Mic className="size-4"/>:<Pause className="size-4"/>}{recorder.status==="paused"?"Resume":"Pause"}
           </button>}
-          <button type="button" onClick={()=>void finish()} className="flex min-h-12 items-center justify-center gap-2 rounded-xl bg-[#161411] px-4 text-sm font-medium text-white"><Square className="size-4" fill="currentColor"/> Finish & send</button>
+          <button type="button" onClick={()=>void finish()} className="flex min-h-12 items-center justify-center gap-2 rounded-xl bg-[#161411] px-4 text-sm font-medium text-white"><Square className="size-4" fill="currentColor"/> {pending.length===1?"Save final section":"Save & next section"}</button>
         </div>
-      : <button type="button" disabled={recorder.status==="requesting"} onClick={async()=>{setError("");if(!(await recorder.start({selfie:selfieSelected})))setError("Allow microphone and camera access, or choose voice only.");}}
+      : <button type="button" disabled={recorder.status==="requesting"} onClick={async()=>{setError("");setSent(false);if(!(await recorder.start({selfie:selfieSelected})))setError("Allow microphone and camera access, or choose voice only.");}}
           className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#171512] text-sm font-semibold text-[#FAF5ED] disabled:opacity-50"><Mic className="size-4"/> {recorder.status==="requesting"?"Opening microphone…":"Start recording"}</button>}
       {!recording&&!sending&&!uploadRetry&&<details className="mt-2 rounded-xl border border-[#D8CAB9] bg-[#FFFCF7] px-3 py-1.5 text-xs">
         <summary className="min-h-9 cursor-pointer py-2 font-medium text-[#6D5745]">Prefer using iPhone Voice Memos instead?</summary>
