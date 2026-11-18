@@ -5,7 +5,7 @@ import { ViewingLink } from "@/components/keep-publish-panel";
 import { KeepCardFront } from "@/components/keep-card-front";
 import { publishKeep } from "@/lib/keep-publish";
 import { KeepSavingScreen } from "@/components/keep-saving-screen";
-import { shotstackRenderingEnabled, type KeepRenderStatus } from "@/lib/keep-render-client";
+import { shotstackRenderingEnabled } from "@/lib/keep-render-client";
 import { KeepCaptionEditor } from "@/components/keep-caption-editor";
 import { KeepMusicEditor } from "@/components/keep-music-editor";
 import { KeepVoiceEditor } from "@/components/keep-voice-editor";
@@ -250,8 +250,6 @@ function KeepApp() {
   };
   const [publishing, setPublishing] = useState(false);
   const [publishStatus, setPublishStatus] = useState("");
-  const [filmRenderStatus, setFilmRenderStatus] = useState<KeepRenderStatus["status"]>("not_started");
-  const [hadPublishedLink, setHadPublishedLink] = useState(false);
   const [publishError, setPublishError] = useState("");
   const [openingEditorOpen, setOpeningEditorOpen] = useState(false);
   const [engravingOfferOpen, setEngravingOfferOpen] = useState(false);
@@ -1681,8 +1679,6 @@ function KeepApp() {
       resetPageScroll();
     }
     setPublishStatus("Saving your Keep…");
-    setFilmRenderStatus("not_started");
-    setHadPublishedLink(!!original.publicationToken);
     const publicationId = current.publicationId || crypto.randomUUID();
     // Keep the in-progress screen until publication succeeds. Persist the ID
     // before uploading so network retries never accidentally create a new link.
@@ -1748,7 +1744,6 @@ function KeepApp() {
     go("card");
   };
   const finishSaving = () => {
-    setFilmRenderStatus("ready");
     const next = { ...project, stage: "card" };
     setProject(next);
     saveDraft(next);
