@@ -36,10 +36,11 @@ describe("Consistent Keep navigation", () => {
     expect(screen.getByRole("link", { name: "How it works" }).getAttribute("href")).toBe("/shop#how-it-works");
     expect(screen.getByRole("dialog", { name: "Keep navigation" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Close navigation menu" })).toBeTruthy();
-    expect(screen.getByRole("link", { name: "Shop Basic Keep" }).getAttribute("href")).toBe("/shop#packages");
-    expect(screen.getByRole("link", { name: "Shop Signature Keep" }).getAttribute("href")).toBe("/shop#packages");
+    expect(screen.getByRole("link", { name: "Shop Basic Keep" }).getAttribute("href")).toBe("/shop#package-basic");
+    expect(screen.getByRole("link", { name: "Shop Signature Keep" }).getAttribute("href")).toBe("/shop#package-signature");
     expect(screen.getByRole("link", { name: /Explore Keep packages/ }).getAttribute("href")).toBe("/shop#packages");
     expect(screen.getByRole("link", { name: "Frequently Asked Questions" }).getAttribute("href")).toBe("/shop#faqs");
+    expect(screen.getByRole("link", { name: /The Signature Keep Your words, beautifully kept/i }).getAttribute("href")).toBe("/shop#package-signature");
     expect(screen.getAllByRole("link", { name: "Our story" }).length).toBeGreaterThan(0);
     expect(document.querySelector('nav[aria-label="Shop navigation"]')).toBeNull();
     expect(screen.queryByText("SOME THINGS ARE WORTH KEEPING")).toBeNull();
@@ -71,6 +72,11 @@ describe("Consistent Keep navigation", () => {
     expect(screen.getByText(/1 card included · Personalized Engraving Included/i)).toBeTruthy();
     expect(screen.getByText("One beautiful Keep, your words engraved, and more:")).toBeTruthy();
     expect(screen.getByText("Two voices included (only 1 is needed)")).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Basic" }).closest("article")?.id).toBe("package-basic");
+    expect(screen.getByRole("heading", { name: "Signature" }).closest("article")?.id).toBe("package-signature");
+    expect(screen.getByRole("img", { name: /Basic Keep card with Keep logo only/ })).toBeTruthy();
+    expect(screen.getByRole("img", { name: /Signature Keep card with personalized engraving preview/ })).toBeTruthy();
+    expect(screen.getAllByText("Checkout opening soon").length).toBeGreaterThanOrEqual(2);
   });
   it("removes the three unwanted links from the dashboard menu", async () => {
     await openMenu("/app");
