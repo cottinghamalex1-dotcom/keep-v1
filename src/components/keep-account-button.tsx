@@ -1,6 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import { ArrowRight, Gift, Menu, PlayCircle, Sparkles, X } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { createPortal } from "react-dom";
 import { KeepCardFront } from "@/components/keep-card-front";
 
@@ -33,12 +33,13 @@ export function KeepAccountButton() {
     };
   }, [open]);
 
-  const handleTabKey = (event: React.KeyboardEvent<HTMLElement>) => {
+  const handleTabKey = (event: ReactKeyboardEvent<HTMLElement>) => {
     if (event.key !== "Tab") return;
     const focusable = panelRef.current?.querySelectorAll<HTMLElement>("a[href], button:not([disabled])");
     if (!focusable?.length) return;
-    const first = focusable[0];
-    const last = focusable[focusable.length - 1];
+    const first = focusable.item(0);
+    const last = focusable.item(focusable.length - 1);
+    if (!first || !last) return;
     if (event.shiftKey && document.activeElement === first) {
       event.preventDefault();
       last.focus();
