@@ -5,6 +5,7 @@ describe("Keep recipient choices", () => {
   const options = relationshipGroups.flatMap((group) => [...group.options]);
   it("replaces Mom and Dad with one Parent category", () => {
     expect(options).toContain("Parent");
+    expect(options).toContain("In-Law");
     expect(options).not.toContain("Mom");
     expect(options).not.toContain("Dad");
   });
