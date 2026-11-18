@@ -184,7 +184,7 @@ export function KeepTeleprompter({ text, label, speaker, isRecording, isPaused, 
         </div>
         {isRecording ? (<>
           <div className={onRestartRecording?"grid grid-cols-2 gap-2":"grid grid-cols-1"}>
-            <button type="button" disabled={isPaused} onClick={() => setFollowing(value => !value)} className="flex min-h-10 items-center justify-center gap-1.5 rounded-lg border border-[#DED0BE] bg-[#FFF9F2] px-2 text-[11px] font-medium text-[#4C3A2B] disabled:cursor-not-allowed disabled:opacity-55">
+            <button type="button" aria-label={isPaused?"Scrolling paused with recording":following?"Pause auto-scroll":"Resume auto-scroll"} disabled={isPaused} onClick={() => setFollowing(value => !value)} className="flex min-h-10 items-center justify-center gap-1.5 rounded-lg border border-[#DED0BE] bg-[#FFF9F2] px-2 text-[11px] font-medium text-[#4C3A2B] disabled:cursor-not-allowed disabled:opacity-55">
               {following ? <Pause className="size-3.5" /> : <Play className="size-3.5" />}
               {isPaused ? "Scroll paused" : following ? "Pause auto-scroll" : "Resume auto-scroll"}
             </button>
