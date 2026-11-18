@@ -40,6 +40,22 @@ describe("non-interactive Keep viewing progress", () => {
     expect(wrapper).toHaveAttribute("aria-hidden", "false");
   });
 
+  it("offers the fullscreen icon beside playback controls and hides it on screen tap", () => {
+    const { container } = render(<KeepPlayer
+      name="Dad" from="Alex" year="2026" onExit={() => {}}
+      media={media} audioUrl="blob:full-screen-film" audioDuration={90}
+    />);
+    const button = screen.getByRole("button", { name: "Enter fullscreen" });
+    expect(button).toHaveAttribute("aria-pressed", "false");
+    expect(button.parentElement?.querySelector('button[aria-label="Mute"]')).not.toBeNull();
+    const controls = button.closest('[aria-hidden="false"]');
+    expect(controls).toBeInTheDocument();
+    fireEvent.click(container.firstElementChild!);
+    expect(controls).toHaveAttribute("aria-hidden", "true");
+    fireEvent.click(container.firstElementChild!);
+    expect(controls).toHaveAttribute("aria-hidden", "false");
+  });
+
   it("uses authored scene durations for a Keep without narration", () => {
     render(<KeepPlayer name="Dad" from="Alex" year="2026" onExit={() => {}} media={media} />);
     expect(screen.getByText("−0:10")).toBeInTheDocument();

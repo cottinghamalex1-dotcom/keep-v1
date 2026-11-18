@@ -1,6 +1,8 @@
 import { CinematicMedia } from "@/components/cinematic-media";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, Volume2, VolumeX, Pause, Play } from "lucide-react";
+import { ArrowLeft, Volume2, VolumeX, Pause, Play, Maximize, Minimize } from "lucide-react";
+import { toast } from "sonner";
+import { toggleKeepFullscreen, leaveKeepFullscreen } from "@/lib/keep-fullscreen";
 import { Button } from "@/components/ui/button";
 import { createKeepVoiceMix, KEEP_MUSIC_TAIL_SECONDS, type MusicBalance } from "@/lib/keep-audio";
 import type { AudioMix, CaptionCue } from "@/lib/keep-project";
@@ -43,6 +45,7 @@ export function KeepPlayer({ name, from, year, onExit, onFinish, recipient = fal
   const [silentClosing, setSilentClosing] = useState(false);
   const [voiceBuffering, setVoiceBuffering] = useState(false);
   const [controlsVisible, setControlsVisible] = useState(true);
+  const [fullscreenActive, setFullscreenActive] = useState(false);
   const [mediaReady, setMediaReady] = useState(false);
   const controlsTimer = useRef<number | null>(null);
   const finishSent = useRef(false);
@@ -103,6 +106,31 @@ export function KeepPlayer({ name, from, year, onExit, onFinish, recipient = fal
       controlsTimer.current = null;
     };
   }, [playing, mediaReady, end]);
+
+  // Keep the icon correct if the browser enters or exits fullscreen through
+  // another control (Escape, system UI, or the initial Experience button).
+  useEffect(() => {
+    const syncFullscreen = () => setFullscreenActive(Boolean(document.fullscreenElement));
+    document.addEventListener("fullscreenchange", syncFullscreen);
+    syncFullscreen();
+    return () => document.removeEventListener("fullscreenchange", syncFullscreen);
+  }, []);
+
+  const onFullscreenTap = () => {
+    // Initiate the browser request in this actual user gesture. Unsupported
+    // iPhone browsers get clear guidance rather than a broken or inert button.
+    void toggleKeepFullscreen().then(success => {
+      if (success) {
+        setFullscreenActive(Boolean(document.fullscreenElement));
+        showControls();
+      } else {
+        toast.info("Fullscreen is not available in this browser.", {
+          description: "On iPhone, open Keep in Safari, use Share → Add to Home Screen, then launch it from your Home Screen for an app-like view.",
+          duration: 7500,
+        });
+      }
+    });
+  };
 
   // A phone call or backgrounded Safari must not let a hidden video/soundtrack
   // run ahead. Resume only when the recipient presses Play again.
@@ -373,13 +401,18 @@ export function KeepPlayer({ name, from, year, onExit, onFinish, recipient = fal
       </div>
       <div inert={!controlsVisible} aria-hidden={!controlsVisible} className={`pointer-events-none absolute inset-x-0 top-0 z-30 bg-gradient-to-b from-black/65 via-black/25 to-transparent px-5 pb-12 pt-[max(22px,env(safe-area-inset-top))] transition-opacity duration-500 ease-out ${controlsVisible ? "opacity-100" : "opacity-0"}`}>
         <div className="flex items-center justify-between gap-3">
-          <button type="button" aria-label="Exit preview" onClick={onExit} className="pointer-events-auto flex size-11 items-center justify-center rounded-full border border-white/20 bg-black/25 text-[#F7F5F2] shadow-sm backdrop-blur-md transition-colors hover:bg-black/40 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white">
+          <button type="button" aria-label="Exit preview" onClick={() => { leaveKeepFullscreen(); onExit(); }} className="pointer-events-auto flex size-11 items-center justify-center rounded-full border border-white/20 bg-black/25 text-[#F7F5F2] shadow-sm backdrop-blur-md transition-colors hover:bg-black/40 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white">
             <ArrowLeft className="size-5" strokeWidth={1.7} />
           </button>
-          <span aria-hidden="true" className="w-[104px]" />
-          <button type="button" aria-label={muted ? "Unmute" : "Mute"} onClick={() => { setMuted(!muted); showControls(); }} className="pointer-events-auto flex size-11 items-center justify-center rounded-full border border-white/20 bg-black/25 text-[#F7F5F2] shadow-sm backdrop-blur-md transition-colors hover:bg-black/40 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white">
-            {muted ? <VolumeX className="size-5" strokeWidth={1.7} /> : <Volume2 className="size-5" strokeWidth={1.7} />}
-          </button>
+          <span aria-hidden="true" className="flex-1" />
+          <div className="flex items-center gap-2">
+            <button type="button" aria-label={muted ? "Unmute" : "Mute"} onClick={() => { setMuted(!muted); showControls(); }} className="pointer-events-auto flex size-11 items-center justify-center rounded-full border border-white/20 bg-black/25 text-[#F7F5F2] shadow-sm backdrop-blur-md transition-colors hover:bg-black/40 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white">
+              {muted ? <VolumeX className="size-5" strokeWidth={1.7} /> : <Volume2 className="size-5" strokeWidth={1.7} />}
+            </button>
+            <button type="button" aria-label={fullscreenActive ? "Exit fullscreen" : "Enter fullscreen"} aria-pressed={fullscreenActive} title={fullscreenActive ? "Exit fullscreen" : "Fullscreen"} onClick={onFullscreenTap} className="pointer-events-auto flex size-11 items-center justify-center rounded-full border border-white/20 bg-black/25 text-[#F7F5F2] shadow-sm backdrop-blur-md transition-colors hover:bg-black/40 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white">
+              {fullscreenActive ? <Minimize className="size-5" strokeWidth={1.7} /> : <Maximize className="size-5" strokeWidth={1.7} />}
+            </button>
+          </div>
         </div>
       </div>{scene >= 0 && <div className={`absolute left-7 right-7 text-center ${captionPosition === "top" ? "top-28" : captionPosition === "middle" ? "top-1/2 -translate-y-1/2" : "bottom-36"}`}>{!media?.length && <div className="eyebrow mb-5 text-foreground/80">{memoryLabels[scene % memoryLabels.length]}</div>}{captions !== "None" && captionText && <p key={activeCue?.start ?? scene} className={`keep-caption-visible mx-auto max-w-sm leading-snug ${captions === "Film" ? "font-display text-4xl font-normal" : captions === "Story" ? "font-display text-3xl italic" : captions === "Minimal" ? "text-xl font-normal" : captions === "Clean" ? "text-2xl font-medium" : "text-2xl font-semibold"}`} style={{ maxWidth: captionLines === 1 ? "95%" : captionLines === 3 ? "65%" : "80%", whiteSpace: "pre-line", marginInline: "auto" }}>{captionText}</p>}</div>}
       <div aria-hidden={!controlsVisible} inert={!controlsVisible} className={`pointer-events-none absolute inset-x-7 z-30 text-white drop-shadow-[0_1px_3px_rgba(0,0,0,.65)] transition-opacity duration-500 ease-out ${controlsVisible ? "opacity-100" : "opacity-0"}`} style={{ bottom: "max(22px, env(safe-area-inset-bottom))" }}>
