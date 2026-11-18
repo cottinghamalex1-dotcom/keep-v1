@@ -1708,6 +1708,12 @@ function KeepApp() {
   const quotePaid = !!verifiedCheckoutCart && keepCheckoutFingerprint(verifiedCheckoutCart) === keepCheckoutFingerprint(checkoutCart);
   const purchaseCurrentKeep = async () => {
     if (stripeBusy) return;
+    if (verifiedCheckoutCart) {
+      const message = "This Keep already has a verified payment. Restore your purchased package and quantities before finishing. Please contact Keep support if you need additional paid upgrades.";
+      setPublishError(message);
+      toast.error(message);
+      return;
+    }
     setStripeBusy(true);
     setPublishError("");
     try {
