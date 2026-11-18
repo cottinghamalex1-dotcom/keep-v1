@@ -26,6 +26,7 @@ export function KeepSavingScreen({
 }: Props) {
   const [job, setJob] = useState<KeepRenderStatus | null>(null);
   const [error, setError] = useState("");
+  const [highestPercent, setHighestPercent] = useState(0);
   const onReadyRef = useRef(onReady);
   onReadyRef.current = onReady;
   const doneRef = useRef(false);
@@ -63,7 +64,10 @@ export function KeepSavingScreen({
   }, [isSaved, keepId, musicMood, musicMuted]);
 
   const failure = publishError || (job?.status === "failed" ? job.error || "Your video couldn't be saved." : "");
-  const { percent, label, detail } = keepSavingProgress(publishing, publishMessage, job);
+  const { percent: currentPercent, label, detail } = keepSavingProgress(publishing, publishMessage, job);
+  // Provider steps may arrive out of order; never make the visible bar jump backwards.
+  useEffect(() => { setHighestPercent(value => Math.max(value, currentPercent)); }, [currentPercent]);
+  const percent = Math.max(highestPercent, currentPercent);
   return <section role="dialog" aria-modal="true" aria-label="Saving your Keep"
     className="flex min-h-dvh flex-col items-center justify-center bg-[#F7F5F2] px-7 py-[max(48px,env(safe-area-inset-top))] text-center text-[#2D2520]">
     <div className="mx-auto w-full max-w-[460px]">
@@ -86,7 +90,7 @@ export function KeepSavingScreen({
         <p className="mt-3 text-[11px] leading-5 text-[#8B7B6D]">The percentage follows completed saving steps. Some steps take longer than others.</p>
       </div>
       {(failure || error) && <div className="mt-9 space-y-3">
-        {publishError && <button type="button" onClick={onRetryPublish} className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#251F1A] px-5 text-sm font-medium text-white"><RotateCcw size={17}/> Try saving again</button>}
+        {publishError && <button type="button" onClick={() => { setHighestPercent(0); onRetryPublish(); }} className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#251F1A] px-5 text-sm font-medium text-white"><RotateCcw size={17}/> Try saving again</button>}
         <button type="button" onClick={onBack} className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl border border-[#CFBFAE] px-5 text-sm text-[#66574A]"><ArrowLeft size={17}/> Back to editor</button>
       </div>}
       {!failure && !error && <p className="mt-12 text-xs leading-6 text-[#8B7B6D]">Please keep this page open while your Keep is being saved.</p>}
