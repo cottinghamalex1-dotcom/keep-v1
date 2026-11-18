@@ -230,6 +230,7 @@ function ShopKeep() {
             <div className="my-7 border-t border-[#D5CBBF]" />
             <ul className="mb-8 flex-1 space-y-4 text-[12px] leading-6 text-[#4C453E]">
               {p.points.map(point => <li key={point} className="flex items-start gap-3"><Check className="mt-1 size-4 shrink-0 text-[#796757]"/>{point}</li>)}
+              {p.featured && <li className="flex items-start gap-3"><Check className="mt-1 size-4 shrink-0 text-[#796757]"/><span>Extra engraved cards <del>$99</del> <strong>$49 each</strong></span></li>
               <li className="flex items-start gap-3"><Check className="mt-1 size-4 shrink-0 text-[#796757]"/>Standard U.S. shipping included</li>
             </ul>
             <PurchaseAction tier={p.tier} smaller />
@@ -252,7 +253,7 @@ function ShopKeep() {
           <h2 className="mt-4 font-display text-[clamp(42px,4.6vw,68px)] leading-[1.1] tracking-[-.035em]">One card. One unforgettable story.</h2>
           <div className="mt-7 flex items-baseline gap-4 border-b border-[#CBBFB2] pb-6"><strong className="font-display text-[46px] font-normal">$99</strong><span className="text-[12px] text-[#665D55]">Standard U.S. shipping included</span></div>
           <ul className="my-8 space-y-4 text-[13px] leading-6 text-[#514A43]">
-            {["One matte-black metal NFC Keep card","Keep logo + your personal message laser-engraved on the front","Multiple people recording together or remotely — included","One private, personalized memory experience","Your voice, photos, short videos, music and captions","Guided Keep AI tools to help find the words","Preview and approve before we prepare your card"].map(item=><li key={item} className="flex gap-3"><Check className="mt-[3px] size-4 shrink-0 text-[#6A5849]"/>{item}</li>)}
+            {["One matte-black metal NFC Keep card","Keep logo + your personal message laser-engraved on the front","Two voices recording together or remotely included; extra voices $19 each","One private, personalized memory experience","Your voice, photos, short videos, music and captions","Guided Keep AI tools to help find the words","Preview and approve before we prepare your card"].map(item=><li key={item} className="flex gap-3"><Check className="mt-[3px] size-4 shrink-0 text-[#6A5849]"/>{item}</li>)}
           </ul>
           <PurchaseAction />
           <p className="mt-5 text-[11px] leading-6 text-[#665D55]">Cards are prepared after the creator approves their finished Keep. U.S. delivery only at launch. Taxes may apply at checkout.</p>
