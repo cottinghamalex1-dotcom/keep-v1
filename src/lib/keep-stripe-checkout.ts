@@ -53,3 +53,7 @@ export async function verifyKeepStripeCheckout(sessionId: string): Promise<{ pai
 export async function reservePaidKeep(keepId: string): Promise<void> {
   await call(COMMERCE, { action: "reserve", keepId });
 }
+
+export async function approvePaidKeep(keepId: string): Promise<void> {
+  await call(URL, { action: "approve", keepId });
+}
