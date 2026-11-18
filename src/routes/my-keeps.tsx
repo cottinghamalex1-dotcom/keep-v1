@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { ArrowLeft, ArrowRight, BookOpen, LockKeyhole } from "lucide-react";
+import { ArrowLeft, ArrowRight, LockKeyhole } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { KeepAccountButton } from "@/components/keep-account-button";
