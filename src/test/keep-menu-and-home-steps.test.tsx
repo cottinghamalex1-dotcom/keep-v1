@@ -28,6 +28,34 @@ afterEach(() => {
 });
 
 describe("Consistent Keep navigation", () => {
+  it("uses one hamburger menu for every shop navigation link and returning-customer login", async () => {
+    await openMenu("/shop");
+    expect(screen.getByRole("navigation", { name: "Keep menu" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Log in / Continue editing" }).getAttribute("href")).toBe("/app");
+    expect(screen.getByRole("link", { name: "The experience" }).getAttribute("href")).toBe("/shop#experience");
+    expect(screen.getByRole("link", { name: "How it works" }).getAttribute("href")).toBe("/shop#how-it-works");
+    expect(screen.getAllByRole("link", { name: "Packages" }).some(el => el.getAttribute("href") === "/shop#packages")).toBe(true);
+    expect(screen.getAllByRole("link", { name: "Our story" }).length).toBeGreaterThan(0);
+    expect(document.querySelector('nav[aria-label="Shop navigation"]')).toBeNull();
+    expect(screen.queryByText("SOME THINGS ARE WORTH KEEPING")).toBeNull();
+  });
+  it("shows the updated savings and package inclusions", async () => {
+    const router = createRouter({
+      routeTree,
+      isServer: false,
+      context: { queryClient: new QueryClient() },
+      history: createMemoryHistory({ initialEntries: ["/shop"] }),
+    });
+    await router.load();
+    render(<RouterProvider router={router} />, { container: document });
+    expect(screen.getByText("$94")).toBeTruthy();
+    expect(screen.getByText("Save $15")).toBeTruthy();
+    expect(screen.getByText("Save $30")).toBeTruthy();
+    expect(screen.getByText("No Personalized Engraving")).toBeTruthy();
+    expect(screen.getByText("Personalized Engraving Included")).toBeTruthy();
+    expect(screen.getByText("One beautiful Keep, your words engraved, and more:")).toBeTruthy();
+    expect(screen.getByText("Two voices included (only 1 is needed)")).toBeTruthy();
+  });
   it("removes the three unwanted links from the dashboard menu", async () => {
     await openMenu("/app");
     expect(screen.queryByText("Keeps given")).toBeNull();
