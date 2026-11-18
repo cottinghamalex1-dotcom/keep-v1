@@ -2,6 +2,7 @@ import { KeepAccountButton } from "@/components/keep-account-button";
 import { KeepCardFront } from "@/components/keep-card-front";
 import { useState } from "react";
 import { keepOrderQuote, keepMoney, type KeepTier } from "@/lib/keep-pricing";
+import { keepStripeCheckoutReady } from "@/lib/keep-stripe-checkout";
 import couple from "@/assets/memory-couple.jpg";
 import wedding from "@/assets/memory-wedding.jpg";
 import home from "@/assets/memory-home.jpg";
@@ -56,9 +57,9 @@ function PurchaseAction({ tier = "signature", smaller = false }: { tier?: KeepTi
   const packageName = packageChoices.find(p => p.tier === tier)!;
   return <div className="w-full">
     <a href={`/?create=1&package=${tier}`} className="flex min-h-12 w-full items-center justify-between gap-3 rounded-sm border border-[#0B0B0B] bg-[#0B0B0B] px-5 py-3 text-xs font-medium text-[#F7F5F2] transition-colors hover:bg-[#302923]">
-      Create your {packageName.name} Keep <ArrowRight className="size-4 shrink-0" />
+      {keepStripeCheckoutReady ? `Create your ${packageName.name} Keep` : `Preview your ${packageName.name} Keep`} <ArrowRight className="size-4 shrink-0" />
     </a>
-    {smaller && <p className="mt-2 text-[10px] leading-4 text-[#74695E]">Create and preview first. Pay securely through Stripe when your Keep is ready.</p>}
+    {smaller && <p className="mt-2 text-[10px] leading-4 text-[#74695E]">{keepStripeCheckoutReady ? "Create and preview first. Pay securely through Stripe when your Keep is ready." : "You can preview the creation process now. Card ordering and payment aren't open yet."}</p>}
   </div>;
 }
 
