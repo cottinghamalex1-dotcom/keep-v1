@@ -429,7 +429,7 @@ function KeepApp() {
       try {
         const verified = await verifyKeepStripeCheckout(sessionId);
         if (!verified.paid || !verified.cart) throw new Error("Stripe hasn't confirmed this payment yet. Please check your receipt and try again.");
-        await reservePaidKeep(project.publicationId!);
+        await reservePaidKeep(project.publicationId!, sessionId);
         if (cancelled) return;
         window.sessionStorage.setItem(key, sessionId);
         setVerifiedCheckoutCart(verified.cart);
