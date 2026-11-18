@@ -37,6 +37,7 @@ import { KeepPlayer, memoryImages, memoryLabels } from "@/components/keep-player
 import { KeepRecipientExperience, type KeepExperienceMode } from "@/components/keep-recipient-experience";
 import { KeepOpeningPersonalization } from "@/components/keep-opening-personalization";
 import { defaultKeepOrder, keepOrderQuote, keepMoney, normalizeExtraCards, type KeepTier } from "@/lib/keep-pricing";
+import { approvePaidKeep, beginKeepStripeCheckout, keepCheckoutFingerprint, keepStripeCheckoutReady, reservePaidKeep, verifyKeepStripeCheckout, type KeepCheckoutCart } from "@/lib/keep-stripe-checkout";
 import { KeepErrorBoundary } from "@/components/keep-error-boundary";
 import { KeepLengthGuide } from "@/components/keep-length-guide";
 import { checkKeepVideo, KEEP_VIDEO_MAX_BYTES, KEEP_VIDEO_MAX_SOURCE_BYTES, KEEP_VIDEO_MAX_SECONDS, readKeepVideoDuration } from "@/lib/keep-video-upload";
@@ -251,6 +252,8 @@ function KeepApp() {
   const [publishing, setPublishing] = useState(false);
   const [publishStatus, setPublishStatus] = useState("");
   const [publishError, setPublishError] = useState("");
+  const [stripeBusy, setStripeBusy] = useState(false);
+  const [verifiedCheckoutCart, setVerifiedCheckoutCart] = useState<KeepCheckoutCart | null>(null);
   const [engravingOfferOpen, setEngravingOfferOpen] = useState(false);
   const publishingLock = useRef(false);
   const [setting, setSetting] = useState("");
@@ -365,7 +368,11 @@ function KeepApp() {
       }
       const createRequested = params.get("create") === "1";
       const canCreate = createRequested && (!next?.active || window.confirm("Start a new Keep? Your current draft will be replaced."));
-      if (canCreate) { setProject({ ...newProject(), publicationId: crypto.randomUUID(), active: true, stage: "recipient" }); window.history.replaceState(null, "", "/"); }
+      if (canCreate) {
+        const tier = params.get("package") === "signature" ? "signature" : "basic";
+        setProject({ ...newProject(), keepOrder: { ...defaultKeepOrder(), tier }, publicationId: crypto.randomUUID(), active: true, stage: "recipient" });
+        window.history.replaceState(null, "", "/");
+      }
       setHistory(canCreate ? ["home"] : []);
       if (!canCreate) { window.location.replace("/app"); return; }
       setScreen("recipient");
@@ -407,6 +414,41 @@ function KeepApp() {
     stopMusicSample();
     if (musicSampleTimer.current) window.clearTimeout(musicSampleTimer.current);
   }, []);
+
+  // Returning from Stripe never grants access on its own. Verify the paid
+  // session with Stripe on the server, then reserve the one purchased Keep.
+  useEffect(() => {
+    if (!hydrated || !keepStripeCheckoutReady || !project.active || !project.publicationId) return;
+    const query = new URLSearchParams(window.location.search);
+    const key = "keep-checkout:" + project.publicationId;
+    const sessionId = query.get("session_id") || window.sessionStorage.getItem(key);
+    if (!sessionId) return;
+    let cancelled = false;
+    setStripeBusy(true);
+    void (async () => {
+      try {
+        const verified = await verifyKeepStripeCheckout(sessionId);
+        if (!verified.paid || !verified.cart) throw new Error("Stripe hasn't confirmed this payment yet. Please check your receipt and try again.");
+        await reservePaidKeep(project.publicationId!);
+        if (cancelled) return;
+        window.sessionStorage.setItem(key, sessionId);
+        setVerifiedCheckoutCart(verified.cart);
+        if (query.get("payment") === "success") {
+          setHistory(["editor"]);
+          setScreen("card");
+          window.history.replaceState(null, "", "/");
+        }
+        toast.success("Your Stripe payment is verified. Review your Keep and finish to approve production.");
+      } catch (error) {
+        if (!cancelled) {
+          const message = error instanceof Error ? error.message : "We couldn't verify your payment.";
+          setPublishError(message);
+          toast.error(message);
+        }
+      } finally { if (!cancelled) setStripeBusy(false); }
+    })();
+    return () => { cancelled = true; };
+  }, [hydrated, project.publicationId]);
 
   const retryMissingRestore = async () => {
     if (restoreRetrying || !project.restoreIncomplete) return;
@@ -1656,12 +1698,44 @@ function KeepApp() {
   const keepOrder = { ...defaultKeepOrder(), ...project.keepOrder };
   const keepQuote = keepOrderQuote(keepOrder, project.voiceMode === "together" ? (project.contributors?.length ?? 2) : 1);
   const patchKeepOrder = (updates: Partial<typeof keepOrder>) => patch({ keepOrder: { ...keepOrder, ...updates } });
+  const checkoutCart: KeepCheckoutCart = {
+    tier: keepOrder.tier,
+    voiceCount: project.voiceMode === "together" ? (project.contributors?.length ?? 2) : 1,
+    extraCards: keepOrder.extraCards,
+    extraCardStyle: keepQuote.extraCardStyle,
+    engravingUpgrade: keepOrder.tier === "basic" && keepOrder.engravingUpgrade,
+  };
+  const quotePaid = !!verifiedCheckoutCart && keepCheckoutFingerprint(verifiedCheckoutCart) === keepCheckoutFingerprint(checkoutCart);
+  const purchaseCurrentKeep = async () => {
+    if (stripeBusy) return;
+    setStripeBusy(true);
+    setPublishError("");
+    try {
+      const session = await activeKeepSession();
+      if (!session) throw new Error("Sign in to your Keep account before checking out. Your draft remains saved.");
+      if (!project.publicationId) throw new Error("Save your Keep draft before checking out.");
+      saveDraft(project);
+      // Confirm cloud backup before sending the customer away to Stripe.
+      await saveCloudDraft(project, session);
+      await beginKeepStripeCheckout(checkoutCart, "editor");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Checkout couldn't be opened.";
+      setPublishError(message);
+      toast.error(message);
+      setStripeBusy(false);
+    }
+  };
+
   const updateEngraving = (i: number, value: string) => patch({ cardEngraving: engraving.map((v, j) => (j === i ? value.toUpperCase() : v)) });
   // Publishing happens as part of finishing, not through a separate "Update" action.
   // A published Keep is always republished under its original ID/token.
   const finishAndShare = async (updated?: KeepProject) => {
     if (publishingLock.current) return;
     const original = updated ?? project;
+    if (keepStripeCheckoutReady && !original.publicationToken && !quotePaid) {
+      setPublishError("Complete your secure Stripe checkout for the current package and upgrades before finishing.");
+      return;
+    }
     if (captionSyncing) { setPublishError("Keep is still syncing your captions. Finish that step before sharing."); return; }
     if (original.captionStyle !== "None" && original.finalVoiceRecording && !original.finalVoiceRecording.demo && !original.captionCues.length) {
       setPublishError("Your captions are missing. Return to the editor, open Captions, and retry syncing before sharing.");
@@ -1691,6 +1765,7 @@ function KeepApp() {
     saveDraft(next);
     try {
       const result = await publishKeep(next, publicationId, setPublishStatus);
+      if (keepStripeCheckoutReady && !original.publicationToken) await approvePaidKeep(result.keepId);
       const complete = { ...next, stage: "success", publicationId: result.keepId, publicationToken: result.token };
       setProject(complete);
       saveDraft(complete);
@@ -2510,12 +2585,12 @@ function KeepApp() {
       </section>
       <KeepOpeningPersonalization project={project} onUpdate={patch} onPreview={() => go("recipientReveal")} disabled={publishing} engravingEnabled={keepQuote.hasAnyEngraving} engravingForExtrasOnly={!keepQuote.hasEngraving && keepQuote.hasAnyEngraving} />
       <div className="mt-10 border-t border-border pt-7">
-        <Button variant="keep" size="touch" className="keep-premium-action w-full justify-between" disabled={publishing || (keepQuote.hasAnyEngraving && !engraving[0]?.trim())} onClick={() => void finishAndShare()}>
-          {publishing ? "Saving your Keep…" : "Finish & share"} <ArrowRight className="size-5" />
+        <Button variant="keep" size="touch" className="keep-premium-action w-full justify-between" disabled={publishing || stripeBusy || (keepQuote.hasAnyEngraving && !engraving[0]?.trim())} onClick={() => { if (keepStripeCheckoutReady && !quotePaid) void purchaseCurrentKeep(); else void finishAndShare(); }}>
+          {stripeBusy ? "Opening secure checkout…" : publishing ? "Saving your Keep…" : keepStripeCheckoutReady && !quotePaid ? `Pay ${keepMoney(keepQuote.totalCents)} securely` : "Finish & share"} <ArrowRight className="size-5" />
         </Button>
         {publishing && <p role="status" className="mt-3 text-center text-xs text-muted-foreground">{publishStatus}</p>}
         {publishError && <p role="alert" className="mt-3 text-sm leading-6 text-[#9B3529]">{publishError}</p>}
-        <p className="mt-3 text-center text-[11px] leading-5 text-muted-foreground">Finishing saves your changes and creates or refreshes the same permanent viewing link.</p>
+        <p className="mt-3 text-center text-[11px] leading-5 text-muted-foreground">{keepStripeCheckoutReady ? "Your payment is processed securely by Stripe. We prepare cards only after you finish and approve your Keep." : "Preview mode: checkout isn't open yet. Finishing saves your private viewing link; no physical card is ordered."}</p>
       </div>
     </div>
     <KeepEngravingOffer open={engravingOfferOpen} onOpenChange={setEngravingOfferOpen} onSelect={engravingUpgrade=>{patchKeepOrder({engravingUpgrade,engravingOfferSeen:true});setEngravingOfferOpen(false);}} />
@@ -2528,7 +2603,7 @@ function KeepApp() {
         <h1 className="keep-editorial-title">Your Keep is ready.</h1>
         <p className="mt-4 text-sm leading-6 text-muted-foreground">A memory worth keeping. Ready to share whenever you are.</p>
         <div className="mt-9"><KeepCardFront engraving={keepQuote.hasEngraving?engraving:[]} openingMessage={project.openingMessage} showOpeningMessage={keepQuote.hasEngraving&&project.engraveOpeningMessage} /></div>
-        <p className="mt-4 text-center text-[11px] leading-5 text-muted-foreground">Physical card ordering is coming next. No card has been ordered or shipped.</p>
+        <p className="mt-4 text-center text-[11px] leading-5 text-muted-foreground">{keepStripeCheckoutReady && quotePaid ? `Your paid order for ${keepQuote.totalCards} ${keepQuote.totalCards === 1 ? "card" : "cards"} has been approved for fulfillment. We will prepare and test the cards before shipping.` : "No physical card has been ordered or shipped."}</p>
       </div>
       <div className="mt-11 space-y-3">
         {project.publicationToken && <ViewingLink token={project.publicationToken} />}
