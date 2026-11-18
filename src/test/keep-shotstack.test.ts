@@ -31,7 +31,7 @@ describe("Shotstack adapter", () => {
 
   it("outputs one portrait H264-compatible MP4 edit with a dark title and personalized farewell", () => {
     const edit = render();
-    expect(edit.output).toEqual({ format: "mp4", size: { width: 1080, height: 1920 }, fps: 30, quality: "high" });
+    expect(edit.output).toEqual({ format: "mp4", size: { width: 1080, height: 1920 }, fps: 30, quality: "high", destinations: [{provider:"shotstack",exclude:true}] });
     expect(edit.timeline.background).toBe("#171311");
     const clips = edit.timeline.tracks.flatMap(t => t.clips);
     expect(clips.some(clip => clip.asset.type === "rich-text" && String(clip.asset.text).includes("A KEEP FOR\nDad"))).toBe(true);
