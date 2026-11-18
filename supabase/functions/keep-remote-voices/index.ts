@@ -244,7 +244,7 @@ Deno.serve(async req => {
         occasion:invite.occasion,contributorName:invite.contributor_name,
         expiresAt:invite.expires_at,mediaCount:guestMedia.length,
         contributorCount:Math.max(1,activeSpeakers.size),
-        totalWordCount:(allWords||fallbackWords).trim().match(/\\S+/gu)?.length??0,
+        totalWordCount:(allWords||fallbackWords).trim().match(/\S+/gu)?.length??0,
         parts:invite.script_parts.map(part=>({...part,completed:complete.includes(part.index)}))
       });
     }
