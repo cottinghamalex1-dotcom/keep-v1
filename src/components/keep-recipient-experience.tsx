@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { ArrowLeft, ArrowRight, BookOpen, Headphones, Images, Pause, Play, RotateCcw, Volume2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { KeepPlayer, type PlayerMedia } from "@/components/keep-player";
+import { KeepRenderedPlayer } from "@/components/keep-rendered-player";
 import { KeepFirstPlayReveal } from "@/components/keep-first-play-reveal";
 import { KeepReadingMusic } from "@/components/keep-reading-music";
 import { KeepMemoryGallery } from "@/components/keep-memory-gallery";
@@ -23,6 +24,7 @@ type Props = {
   media?: PlayerMedia[] | undefined;
   readMedia?: PlayerMedia[] | undefined;
   audioUrl?: string | undefined;
+  renderedVideoUrl?: string | undefined;
   audioDuration?: number | undefined;
   messageParagraphs?: string[] | undefined;
   speakerNames?: string[] | undefined;
@@ -61,6 +63,7 @@ export function KeepRecipientExperience({
   closingLine,
   media,
   audioUrl,
+  renderedVideoUrl,
   audioDuration = 150,
   messageParagraphs,
   speakerNames,
@@ -88,6 +91,7 @@ export function KeepRecipientExperience({
   // media is actually decoded; never expose the player's empty dark backdrop.
   const [introHandoff, setIntroHandoff] = useState(false);
   const [openingFrameReady, setOpeningFrameReady] = useState(false);
+  const [renderedFallback, setRenderedFallback] = useState(false);
   const [experience, setExperience] = useState<KeepExperienceMode>(initialExperience ?? "watch");
   const [listening, setListening] = useState(false);
   const [galleryOpen, setGalleryOpen] = useState(false);
@@ -203,6 +207,7 @@ export function KeepRecipientExperience({
     // cannot hide its browser chrome, so this is a safe no-op there.
     enterKeepFullscreen();
     setOpeningFrameReady(false);
+    setRenderedFallback(false);
     setIntroHandoff(true);
     if (persistVisit) {
       try { localStorage.setItem(visitKey, "1"); } catch { /* private browsing */ }
@@ -221,6 +226,7 @@ export function KeepRecipientExperience({
       setGalleryOpen(false);
       setIntroHandoff(false);
       setOpeningFrameReady(false);
+      setRenderedFallback(false);
       setStage("reveal");
       return;
     }
@@ -333,7 +339,10 @@ export function KeepRecipientExperience({
   if (stage === "reveal" || (stage === "experience" && experience === "watch")) {
     const watching = stage === "experience";
     return <main className="app-shell relative">
-      {watching && <KeepPlayer key="recipient-film"
+      {watching && renderedVideoUrl && !renderedFallback && !creatorPreview && <KeepRenderedPlayer key="recipient-rendered-film"
+        videoUrl={renderedVideoUrl} onExit={backToChoose} onFinish={finishExperience}
+        onOpeningFrameReady={() => setOpeningFrameReady(true)} onPlaybackError={() => setRenderedFallback(true)} />}
+      {watching && (!renderedVideoUrl || renderedFallback || creatorPreview) && <KeepPlayer key="recipient-film"
         name={name.toUpperCase()} from={from} year={year} subtitle={subtitle} openingMessage={openingMessage} closingLine={closingLine}
         recipient onExit={backToChoose} onFinish={finishExperience}
         style={style} captions={captions} media={media} audioUrl={audioUrl}
