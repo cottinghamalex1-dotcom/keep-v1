@@ -1,5 +1,6 @@
 import { KeepAccountButton } from "@/components/keep-account-button";
 import { KeepCardFront } from "@/components/keep-card-front";
+import { KeepMiniCard } from "@/components/keep-mini-card";
 import { KeepPhoneTip } from "@/components/keep-phone-tip";
 import { useState } from "react";
 import { keepOrderQuote, keepMoney, type KeepTier } from "@/lib/keep-pricing";
@@ -65,13 +66,13 @@ function BrandMark({ light = false }: { light?: boolean }) {
 function PurchaseAction({ tier = "signature", smaller = false }: { tier?: KeepTier; smaller?: boolean }) {
   const packageName = packageChoices.find(p => p.tier === tier)!;
   if (!validatedCheckout(tier)) return <div className="w-full">
-    <span aria-disabled="true" className="flex min-h-12 items-center justify-between gap-4 rounded-sm border border-[#0B0B0B] bg-[#0B0B0B] px-5 py-3 text-xs font-medium text-[#F7F5F2] opacity-60">
-      Checkout opening soon <ArrowRight className="size-4 shrink-0" />
+    <span aria-disabled="true" className="flex min-h-[56px] w-full items-center justify-between gap-4 rounded-lg bg-[#253431] px-5 py-4 text-[13px] font-semibold text-[#F8F3EB]">
+      Checkout opening soon <ArrowRight className="size-[18px] shrink-0" />
     </span>
-    {smaller ? <p className="mt-2 text-[10px] leading-4 text-[#74695E]">We’re finishing secure payment verification before opening orders.</p> : null}
+    {smaller ? <p className="mt-3 text-center text-[11px] leading-5 text-[#756A5F]">Secure checkout is being finalized.</p> : null}
   </div>;
-  return <a href={checkoutUrls[tier]} className="flex min-h-12 w-full items-center justify-between gap-3 rounded-sm border border-[#0B0B0B] bg-[#0B0B0B] px-5 py-3 text-xs font-medium text-[#F7F5F2] transition-colors hover:bg-[#302923]">
-    Choose {packageName.name} — {packageName.price} <ArrowRight className="size-4 shrink-0" />
+  return <a href={checkoutUrls[tier]} className="flex min-h-[56px] w-full items-center justify-between gap-3 rounded-lg bg-[#253431] px-5 py-4 text-[13px] font-semibold text-[#F8F3EB] transition-colors hover:bg-[#354943]">
+    Choose {packageName.name} — {packageName.price} <ArrowRight className="size-[18px] shrink-0" />
   </a>;
 }
 
@@ -83,7 +84,7 @@ function AddOnPricePreview() {
   const [extraCardStyle, setExtraCardStyle] = useState<"classic" | "engraved">("classic");
   const [cardCount, setCardCount] = useState(3);
   const quote = keepOrderQuote({ tier, engravingUpgrade, extraCardStyle, extraCards: Math.max(0, cardCount - 1) }, speakerCount);
-  return <section aria-label="Customize your Keep price" className="mx-auto mt-12 max-w-[900px] rounded-sm border border-[#D8D0C7] bg-[#F0EBE5] px-6 py-8 sm:px-9">
+  return <section aria-label="Customize your Keep price" className="mx-auto mt-12 max-w-[1030px] rounded-[24px] border border-[#D7C9B8] bg-[#EDE5DB] px-6 py-9 shadow-[0_12px_35px_rgba(31,25,20,.035)] sm:mt-14 sm:px-10 sm:py-11">
     <p className="text-[10px] font-semibold uppercase tracking-[.17em] text-[#796757]">Make it yours</p>
     <h3 className="mt-3 font-display text-[30px]">A little more love, your way.</h3>
     <p className="mt-2 max-w-[640px] text-xs leading-6 text-[#665D55]">Try a sample order below. Choose your tier, invite as many voices as you wish, and add matching cards for others to keep. This is a price preview, not checkout.</p>
@@ -207,31 +208,76 @@ function ShopKeep() {
       </div>
     </section>
 
-    <section id="packages" className="scroll-mt-24 border-t border-[#D8D0C7] bg-[#F7F5F2]">
-      <div className="mx-auto max-w-[1240px] px-6 py-20 md:px-10 md:py-28">
-        <div className="mx-auto max-w-[670px] text-center">
-          <p className="text-[10px] font-semibold uppercase tracking-[.2em] text-[#6A5849]">The Keep collection</p>
-          <h2 className="mt-5 font-display text-[clamp(41px,4.7vw,67px)] leading-[1.15] tracking-[-.036em]">Every story deserves to be kept.</h2>
-          <p className="mx-auto mt-5 max-w-[525px] text-sm leading-8 text-[#665D55]">Two thoughtful ways to give. Both include one private digital Keep, and both let you add as many matching cards as you want.</p>
+    <section id="packages" className="relative scroll-mt-24 overflow-hidden border-t border-[#D8D0C7] bg-[#F5F1EB]">
+      <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-0 h-[400px] bg-[radial-gradient(ellipse_at_top,rgba(216,202,184,.35),transparent_70%)]" />
+      <div className="relative mx-auto max-w-[1240px] px-5 py-20 sm:px-8 md:py-28">
+        <div className="mx-auto max-w-[680px] text-center">
+          <div className="mx-auto flex items-center justify-center gap-3">
+            <span className="h-px w-8 bg-[#9A8672]" aria-hidden="true" />
+            <p className="text-[10px] font-semibold uppercase tracking-[.23em] text-[#7B6654]">The Keep collection</p>
+            <span className="h-px w-8 bg-[#9A8672]" aria-hidden="true" />
+          </div>
+          <h2 className="mt-6 font-display text-[clamp(43px,5.2vw,72px)] leading-[1.08] tracking-[-.047em]">A beautiful way to <em className="text-[#927B68]">make it last.</em></h2>
+          <p className="mx-auto mt-6 max-w-[510px] text-[14px] leading-8 text-[#655A50]">Two thoughtful ways to give. One meaningful experience, made personal by you and kept forever by them.</p>
         </div>
-        <div className="mx-auto mt-14 grid max-w-[900px] items-stretch gap-5 md:grid-cols-2">
-          {packageChoices.map(p => <article key={p.tier} className={`relative flex flex-col overflow-hidden rounded-sm border p-7 sm:p-8 ${p.featured ? "border-[#171514] bg-[#EDE7E0] shadow-[0_18px_50px_rgba(20,16,13,.09)]" : "border-[#D8D0C7] bg-[#FBF9F6]"}`}>
-            {p.featured ? <div className="mb-5 inline-flex self-start items-center bg-[#171514] px-3 py-2 text-[10px] font-medium uppercase tracking-[.14em] text-[#F7F5F2]">The signature choice</div> : <div className="mb-5 h-[28px]" />}
-            <p className="text-[10px] font-medium uppercase tracking-[.17em] text-[#786859]">{p.cards} · {p.engraving}</p>
-            <h3 className="mt-4 font-display text-[35px] tracking-[-.035em]">{p.name}</h3>
-            <p className="mt-2 font-display text-[48px] leading-none tracking-[-.04em]">{p.price} <del className="align-middle font-sans text-xl tracking-normal text-[#786859]">{p.tier === "basic" ? "$94" : "$129"}</del></p>
-            <p className="mt-3 self-start rounded-full bg-[#DED2C3] px-4 py-2 text-sm font-semibold text-[#4C3B2C]">{p.tier === "basic" ? "Save $15" : "Save $30"}</p>
-            <p className="mt-5 min-h-16 text-[13px] leading-7 text-[#665D55]">{p.message}</p>
-            <div className="my-7 border-t border-[#D5CBBF]" />
-            <ul className="mb-8 flex-1 space-y-4 text-[12px] leading-6 text-[#4C453E]">
-              {p.points.map(point => <li key={point} className="flex items-start gap-3"><Check className="mt-1 size-4 shrink-0 text-[#796757]"/>{point}</li>)}
-              {p.featured && <li className="flex items-start gap-3"><Check className="mt-1 size-4 shrink-0 text-[#796757]"/><span>Extra engraved cards <del>$99</del> <strong>$49 each</strong></span></li>}
-            </ul>
-            <PurchaseAction tier={p.tier} smaller />
-          </article>)}
+
+        <div className="mx-auto mt-12 grid max-w-[1030px] items-stretch gap-6 md:mt-16 md:grid-cols-2 md:gap-7">
+          {packageChoices.map(p => (
+            <article
+              key={p.tier}
+              id={`package-${p.tier}`}
+              aria-labelledby={`package-${p.tier}-title`}
+              className={`relative flex scroll-mt-28 flex-col overflow-hidden rounded-[26px] border shadow-[0_18px_55px_rgba(31,25,20,.065)] transition-shadow duration-300 hover:shadow-[0_24px_65px_rgba(31,25,20,.11)] ${p.featured ? "border-[#99806B] bg-[linear-gradient(145deg,#F0E8DE_0%,#EAE0D4_100%)]" : "border-[#DBD1C6] bg-[#FFFCF8]"}`}
+            >
+              {p.featured && <div aria-hidden="true" className="absolute inset-x-0 top-0 h-[4px] bg-[#76614F]" />}
+              <div className="px-6 pt-7 sm:px-9 sm:pt-9">
+                <div className="flex min-h-8 items-center justify-between gap-3">
+                  <p className="text-[10px] font-semibold uppercase tracking-[.19em] text-[#806B59]">{p.featured ? "02 / Our signature" : "01 / The essentials"}</p>
+                  {p.featured && <span className="rounded-full border border-[#B9A28E] bg-[#FAF5EE]/70 px-3 py-1.5 text-[9px] font-semibold uppercase tracking-[.1em] text-[#5D4A3A]">Signature choice</span>}
+                </div>
+                <div className="mt-5 flex items-center justify-between gap-3 sm:gap-5">
+                  <div className="min-w-0 flex-1">
+                    <h3 id={`package-${p.tier}-title`} className="font-display text-[clamp(43px,5.4vw,59px)] leading-[1.04] tracking-[-.045em] text-[#1A1815]">{p.name}</h3>
+                    <p className="mt-4 max-w-[250px] text-[10px] font-semibold uppercase leading-[1.9] tracking-[.13em] text-[#796959]">{p.cards} · {p.engraving}</p>
+                  </div>
+                  <div className={`relative flex w-[118px] shrink-0 items-center justify-center rounded-[16px] border px-3 py-6 sm:w-[155px] sm:rounded-[20px] sm:px-4 sm:py-8 ${p.featured ? "border-[#CFBEAA] bg-[#DCD1C4]/80" : "border-[#E5DAD0] bg-[#F0E8DF]"}`}>
+                    <div aria-hidden="true" className="pointer-events-none absolute inset-x-6 bottom-3 h-4 rounded-full bg-[#4A3830]/15 blur-lg" />
+                    <KeepMiniCard variant={p.tier} className="relative -rotate-[7deg] shadow-[0_9px_22px_rgba(24,19,15,.26)]" />
+                  </div>
+                </div>
+                <div className="mt-7 flex flex-wrap items-end gap-x-4 gap-y-3">
+                  <strong className="font-display text-[clamp(59px,7vw,76px)] font-normal leading-none tracking-[-.065em] text-[#1A1815]">{p.price}</strong>
+                  <del className="mb-[7px] text-lg text-[#877869]">{p.tier === "basic" ? "$94" : "$129"}</del>
+                  <span className={`mb-[7px] rounded-full px-3.5 py-1.5 text-[11px] font-semibold ${p.featured ? "bg-[#D1C0AA] text-[#493A30]" : "bg-[#E8DDD0] text-[#594637]"}`}>{p.tier === "basic" ? "Save $15" : "Save $30"}</span>
+                </div>
+                <p className="mt-6 max-w-[370px] text-[14px] leading-[1.85] text-[#655A50]">{p.message}</p>
+              </div>
+
+              <div className="mx-6 mt-7 border-t border-[#CDBFB1]/85 sm:mx-9" />
+              <div className="px-6 pb-5 pt-7 sm:px-9">
+                <p className="text-[10px] font-semibold uppercase tracking-[.19em] text-[#786554]">What's included</p>
+                <ul className="mt-5 space-y-4 text-[13px] leading-[1.65] text-[#3D3732]">
+                  {p.points.map(point => <li key={point} className="flex items-start gap-3.5">
+                    <span className="mt-[2px] flex size-5 shrink-0 items-center justify-center rounded-full border border-[#C4B19F] bg-[#F8F4EE]/70"><Check className="size-3 text-[#755D49]" strokeWidth={2} /></span>
+                    <span>{point}</span>
+                  </li>)}
+                  {p.featured && <li className="flex items-start gap-3.5">
+                    <span className="mt-[2px] flex size-5 shrink-0 items-center justify-center rounded-full border border-[#C4B19F] bg-[#F8F4EE]/70"><Check className="size-3 text-[#755D49]" strokeWidth={2} /></span>
+                    <span>Extra engraved cards <del className="text-[#877869]">$99</del> <strong>$49 each</strong></span>
+                  </li>}
+                </ul>
+              </div>
+
+              <div className="mt-auto px-6 pb-7 pt-7 sm:px-9 sm:pb-9">
+                <PurchaseAction tier={p.tier} smaller />
+                <p className="mt-4 text-center text-[11px] leading-5 text-[#756A5F]">One card included · Standard U.S. shipping included</p>
+              </div>
+            </article>
+          ))}
         </div>
+
         <AddOnPricePreview />
-        <p className="mx-auto mt-8 max-w-[680px] text-center text-xs leading-6 text-[#665D55]">One card and one private digital Keep are included in each package. Basic add-ons are optional; Signature includes two voices and front engraving. Extra cards are $39 without engraving or $49 with engraving. Cards are prepared after final approval. Applicable taxes may apply.</p>
+        <p className="mx-auto mt-9 max-w-[680px] text-center text-xs leading-6 text-[#665D55]">Both packages include one private digital Keep. Additional voices are $19 each beyond your package's included voices. Extra cards are $39 without engraving or $49 with engraving. Cards are prepared after final approval. Applicable taxes may apply.</p>
       </div>
     </section>
 
