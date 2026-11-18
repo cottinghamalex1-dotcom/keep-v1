@@ -51,8 +51,8 @@ describe("Consistent Keep navigation", () => {
     expect(screen.getByText("$94")).toBeTruthy();
     expect(screen.getByText("Save $15")).toBeTruthy();
     expect(screen.getByText("Save $30")).toBeTruthy();
-    expect(screen.getByText("No Personalized Engraving")).toBeTruthy();
-    expect(screen.getByText("Personalized Engraving Included")).toBeTruthy();
+    expect(screen.getByText(/1 card included · No Personalized Engraving/i)).toBeTruthy();
+    expect(screen.getByText(/1 card included · Personalized Engraving Included/i)).toBeTruthy();
     expect(screen.getByText("One beautiful Keep, your words engraved, and more:")).toBeTruthy();
     expect(screen.getByText("Two voices included (only 1 is needed)")).toBeTruthy();
   });
