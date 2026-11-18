@@ -7,7 +7,7 @@ const endpoint = 'https://lwkzhpwugtosbidxvdcr.supabase.co';
 const publicKey = 'sb_publishable_K8_SWJByLhV78h7gY4NySw_4sgjEVTi';
 export const viewingLink = (token: string) => `https://keep-v1.vercel.app/recipient?keep=${encodeURIComponent(token)}`;
 export type PublishedProject = Pick<KeepProject, 'recipientName' | 'openingMessage' | 'closingLine' | 'engraveOpeningMessage' | 'occasion' | 'messageParagraphs' | 'readMemoryOrder' | 'musicMood' | 'voiceMusicBalance' | 'voiceVolume' | 'musicVolume' | 'audioMix' | 'captionStyle' | 'captionPosition' | 'captionLines' | 'captionCues' | 'visualStyle' | 'cardEngraving' | 'voiceMode' | 'contributors' | 'paragraphSpeakers'> & {
-  memories: MediaItem[]; voiceUrl?: string; voiceDuration: number;
+  memories: MediaItem[]; voiceUrl?: string; renderedVideoUrl?: string; voiceDuration: number;
 };
 export async function publicationRequest(body: unknown, session?: KeepSession | null) {
   const res = await fetch(endpoint + '/functions/v1/keep-publish', {
@@ -30,12 +30,10 @@ export async function publishKeep(p: KeepProject, keepId: string, progress: (mes
   if (!p.messageParagraphs.some(x => x.trim())) throw new Error('Add your message before publishing.');
   if (!p.memories.length) throw new Error('Create your story before publishing.');
   const prefix = `${session.user.id}/publications/${keepId}/${crypto.randomUUID()}`;
-  let done = 0;
   async function upload(blob: Blob, name: string) {
     const path = `${prefix}/${name}`;
     const res = await fetch(endpoint + '/storage/v1/object/keep-media/' + path, {method:'POST',headers:{apikey:publicKey,Authorization:'Bearer '+session!.access_token,'Content-Type':blob.type || 'application/octet-stream'},body:blob});
     if (!res.ok) throw new Error('A file could not upload. Keep this page open and try publishing again. Your existing link has not changed.');
-    progress(`Saving memories ${++done} of ${p.memories.length + 1}…`);
     return path;
   }
   const memories = [];
@@ -72,10 +70,14 @@ export async function publishKeep(p: KeepProject, keepId: string, progress: (mes
       uploadedSourcePaths.set(sourceKey,storagePath);
     }
     memories.push({id:m.id,kind:m.kind,source:m.source,storagePath,displayDurationSec:m.displayDurationSec,videoStartSec:m.videoStartSec,videoDurationSec:m.videoDurationSec,isSelfie:m.isSelfie,selfieRole:m.selfieRole,focusX:m.focusX,focusY:m.focusY,zoom:m.zoom,motion:m.motion,transition:m.transition});
+    // Each moment is now safely stored, including any reused selfie scenes.
+    // This is a real completed-photo/video milestone, not a simulated count.
+    progress(`Saving ${m.kind === "image" ? "photo" : "video"} ${memories.length} of ${p.memories.length}…`);
   }
   const voice = await getBlob(p.finalVoiceRecording.audioId);
   if (!voice) throw new Error('Your voice recording is missing from this phone. Reopen your saved draft or record it again.');
   const voicePath = await upload(voice, 'voice');
+  progress('Saving your voice recording…');
   progress('Creating your permanent link…');
   return publicationRequest({action:'publish',keepId,project:{...publicationSettings(p),memories,voicePath}}, session);
 }

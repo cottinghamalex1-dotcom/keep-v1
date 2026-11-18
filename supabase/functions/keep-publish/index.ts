@@ -24,8 +24,24 @@ Deno.serve(async(req:Request)=>{
       const {data:signed,error:signError}=await admin.storage.from('keep-media').createSignedUrls(paths,86400);
       if(signError||!signed||signed.some(s=>s.error||!s.signedUrl)) return fail('A memory could not load. Please try again.',503);
       const urls=new Map(signed.map(s=>[s.path,s.signedUrl]));
+      // A ready MP4 is used only for the EXACT published revision. If the
+      // renderer is unavailable or this is an old Keep, retain legacy playback.
+      let renderedVideoUrl: string | undefined;
+      try {
+        const raw = JSON.stringify(keep.published_project);
+        const digest = await crypto.subtle.digest('SHA-256',new TextEncoder().encode(raw));
+        const revision = Array.from(new Uint8Array(digest)).map(n=>n.toString(16).padStart(2,'0')).join('');
+        const {data:ready,error:jobError} = await admin.from('keep_render_jobs').select('render_path')
+          .eq('keep_id',keep.id).eq('revision_hash',revision).eq('status','ready').maybeSingle();
+        if(!jobError&&ready?.render_path) {
+          const {data:video,error:videoError} = await admin.storage.from('keep-media').createSignedUrl(ready.render_path,3600);
+          if(!videoError&&video?.signedUrl) renderedVideoUrl=video.signedUrl;
+        }
+      } catch { /* Preserve the existing published Keep if a render isn't ready. */ }
       const {voicePath,memories,...settings}=project;
-      return reply({project:{...settings,voiceUrl:urls.get(voicePath),memories:memories.map(({storagePath,...m})=>({...m,url:urls.get(storagePath)}))}});
+      return reply({project:{...settings,voiceUrl:urls.get(voicePath),
+        ...(renderedVideoUrl?{renderedVideoUrl}:{}),
+        memories:memories.map(({storagePath,...m})=>({...m,url:urls.get(storagePath)}))}});
     }
     if(body.action!=='publish') return fail('Unknown action',404);
     const auth=req.headers.get('Authorization');

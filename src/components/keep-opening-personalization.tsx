@@ -12,6 +12,7 @@ type Props = {
   onPreview: () => void;
   disabled?: boolean;
   engravingEnabled?: boolean;
+  filmOnly?: boolean;
 };
 
 function fingerprint(project: KeepProject): string {
@@ -22,7 +23,7 @@ function fingerprint(project: KeepProject): string {
 }
 
 /** The chosen message is identical in the first-play reveal and the card preview. */
-export function KeepOpeningPersonalization({ project, onUpdate, onPreview, disabled, engravingEnabled = true }: Props) {
+export function KeepOpeningPersonalization({ project, onUpdate, onPreview, disabled, engravingEnabled = true, filmOnly = false }: Props) {
   const key = fingerprint(project);
   const isCached = project.openingSuggestionsFor === key && project.openingMessageSuggestions?.length === 3;
   const attempted = useRef("");
@@ -50,12 +51,14 @@ export function KeepOpeningPersonalization({ project, onUpdate, onPreview, disab
     cardEngraving: project.cardEngraving.map((line, i) => i === index ? value.toUpperCase() : line),
   });
   return <>
-    <KeepCardFront engraving={engravingEnabled ? project.cardEngraving : []} openingMessage={project.openingMessage} showOpeningMessage={selected && engravingEnabled} />
-    <p className="mt-4 text-center text-[11px] leading-5 text-muted-foreground">{engravingEnabled ? "Engraving preview · Physical card production is not yet connected." : "Basic card preview · Keep logo only. Upgrade to personalize the physical card."}</p>
+    {!filmOnly && <>
+      <KeepCardFront engraving={engravingEnabled ? project.cardEngraving : []} openingMessage={project.openingMessage} showOpeningMessage={selected && engravingEnabled} />
+      <p className="mt-4 text-center text-[11px] leading-5 text-muted-foreground">{engravingEnabled ? "Engraving preview · Physical card production is not yet connected." : "Basic card preview · Keep logo only. Upgrade to personalize the physical card."}</p>
+    </>}
     <section className="mt-9 rounded-[20px] border border-[#D8CCBE] bg-[#F5EDE3]/65 px-5 py-6">
       <div className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[.15em] text-[#8A725C]"><Sparkles className="size-4" /> Inspired by your words</div>
       <h2 className="mt-4 font-display text-[clamp(26px,7vw,34px)] leading-[1.13]">A few words, just for them.</h2>
-      <p className="mt-3 text-xs leading-[1.8] text-[#766A5D]">Keep finds three short, personal dedications in your full message. The one you choose appears in the digital opening and, if engraving is included or added, on the physical card.</p>
+      <p className="mt-3 text-xs leading-[1.8] text-[#766A5D]">Keep finds three short, personal dedications in your full message. {filmOnly ? "Choose the words that appear in the opening of your film." : "The one you choose appears in the digital opening and, if engraving is included or added, on the physical card."}</p>
       {!isCached && status === "loading" && <div role="status" className="mt-5 flex items-center gap-2 text-xs text-[#766A5D]"><Loader2 className="size-4 animate-spin" /> Finding the heart of your message…</div>}
       {!isCached && status === "error" && <div className="mt-5 rounded-xl border border-[#DACBBD] bg-white/60 p-4">
         <p role="alert" className="text-xs leading-5 text-[#766A5D]">Personalized suggestions couldn't load. You can still write your own dedication.</p>
@@ -80,7 +83,7 @@ export function KeepOpeningPersonalization({ project, onUpdate, onPreview, disab
     </section>
     <section className="mt-9 space-y-3">
       <h2 className="font-display text-[27px]">Or write your own.</h2>
-      <p className="text-xs leading-5 text-muted-foreground">One or two meaningful sentences, kept short enough for engraving.</p>
+      <p className="text-xs leading-5 text-muted-foreground">{filmOnly ? "One or two meaningful sentences, kept short enough to read while the music begins." : "One or two meaningful sentences, kept short enough for engraving."}</p>
       <textarea aria-label="Custom opening message" rows={3} maxLength={110}
         value={selected ? (project.openingMessage ?? "") : ""} placeholder="Write a personal dedication…"
         onChange={e => choose(e.target.value)}
@@ -110,7 +113,7 @@ export function KeepOpeningPersonalization({ project, onUpdate, onPreview, disab
         className="w-full rounded-xl border border-border bg-background px-4 py-3 font-display text-[17px] outline-none focus:border-[#A38568]" />
       <p className="text-[11px] leading-5 text-muted-foreground">Leave blank for “You are so loved.” This is shown, not spoken, and can be changed without recording again.</p>
     </section>
-    {engravingEnabled && <section className="mt-10 space-y-4 border-t border-border pt-7">
+    {engravingEnabled && !filmOnly && <section className="mt-10 space-y-4 border-t border-border pt-7">
       <h2 className="font-display text-[27px]">Personalize the card.</h2>
       <p className="text-xs leading-5 text-muted-foreground">These details appear below the dedication, or on their own if you skip it.</p>
       {["To / Title", "From (optional)", "Date (optional)"].map((label, i) => <label key={label} className="block">

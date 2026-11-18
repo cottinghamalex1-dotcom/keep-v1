@@ -1,9 +1,13 @@
 import { KeepAccountButton } from "@/components/keep-account-button";
 import { KeepOpeningScreen } from "@/components/keep-opening-screen";
+import { KeepLoadingScreen } from "@/components/keep-loading-screen";
+import { getKeepEntryIntent } from "@/lib/keep-entry-intent";
 import type { KeepRestoreProgress } from "@/lib/keep-cloud";
 import { ViewingLink } from "@/components/keep-publish-panel";
 import { KeepCardFront } from "@/components/keep-card-front";
 import { publishKeep } from "@/lib/keep-publish";
+import { KeepSavingScreen } from "@/components/keep-saving-screen";
+import { shotstackRenderingEnabled } from "@/lib/keep-render-client";
 import { KeepCaptionEditor } from "@/components/keep-caption-editor";
 import { KeepMusicEditor } from "@/components/keep-music-editor";
 import { KeepVoiceEditor } from "@/components/keep-voice-editor";
@@ -61,12 +65,25 @@ export const Route = createFileRoute("/")({
   component: KeepRoute,
 });
 
-type Screen = "home" | "you" | "detail" | "recipient" | "occasion" | "voices" | "intent" | "path" | "interview" | "summary" | "messageGenerating" | "write" | "message" | "recordPrep" | "record" | "groupRecord" | "remoteInvite" | "recorded" | "memories" | "storyStyle" | "generating" | "editor" | "preview" | "recipientReveal" | "recipientPreview" | "giveReady" | "card" | "success";
+type Screen = "saving" | "home" | "you" | "detail" | "recipient" | "occasion" | "voices" | "intent" | "path" | "interview" | "summary" | "messageGenerating" | "write" | "message" | "recordPrep" | "record" | "groupRecord" | "remoteInvite" | "recorded" | "memories" | "storyStyle" | "generating" | "editor" | "preview" | "recipientReveal" | "recipientPreview" | "giveReady" | "card" | "success";
 type Mode = "Memories" | "Music" | "Captions" | "Style" | "Voice" | "Selfie";
-const creationScreens: Screen[] = ["recipient", "occasion", "voices", "intent", "path", "interview", "summary", "messageGenerating", "write", "message", "recordPrep", "record", "groupRecord", "remoteInvite", "recorded", "memories", "storyStyle", "generating", "editor", "preview", "recipientPreview", "card", "success"];
+const creationScreens: Screen[] = ["recipient", "occasion", "voices", "intent", "path", "interview", "summary", "messageGenerating", "write", "message", "recordPrep", "record", "groupRecord", "remoteInvite", "recorded", "memories", "storyStyle", "generating", "editor", "preview", "recipientPreview", "saving", "card", "success"];
 const resumeScreen = (s: Screen): Screen => (s === "messageGenerating" ? "summary" : s === "generating" ? "memories" : s === "preview" || s === "recipientPreview" ? "editor" : s);
 const occasions = ["Birthday", "Anniversary", "Wedding", "New Baby", "Mother's Day", "Father's Day", "Graduation", "Thank You", "Trip / Adventure", "Milestone", "Celebration of Life", "Family Memories", "Just Because", "Other"];
-const relationships = ["Spouse / Partner", "Mom", "Dad", "Child", "Grandparent", "Sibling", "Friend", "Myself", "Someone else"];
+// The chooser is grouped for quick scanning; saved legacy "Mom"/"Dad"
+// relationships remain valid and appear selected under the new "Parent" label.
+export const relationshipGroups = [
+  { title: "Family & friends", options: [
+    "Spouse / Partner", "Parent", "In-Law", "Child", "Grandparent",
+    "Sibling", "Family Member", "Friend", "Family Friend",
+  ] },
+  { title: "Work & community", options: [
+    "Coworker", "Boss / Mentor", "Neighbor", "Teacher / Coach",
+    "Pastor / Faith Leader", "Service Provider", "Military / Veteran",
+  ] },
+  { title: "Other", options: ["Myself", "Someone else"] },
+] as const;
+const relationships: string[] = relationshipGroups.flatMap((group) => [...group.options]);
 const questions = [
   "Tell me about Hanna. Who is she to you beyond just being your wife?",
   "You said she makes people feel at home. Can you remember a specific moment when you really noticed that?",
@@ -174,6 +191,7 @@ function KeepApp() {
   const [project, setProject] = useState<KeepProject>(newProject);
   const [hydrated, setHydrated] = useState(false);
   const [openingPhase, setOpeningPhase] = useState<"session" | "draft" | "media" | "finishing">("session");
+  const [restoringPersonalKeep, setRestoringPersonalKeep] = useState(false);
   const [openingProgress, setOpeningProgress] = useState<KeepRestoreProgress | null>(null);
   const [cloudSyncAllowed, setCloudSyncAllowed] = useState(true);
   const [restoreRetrying, setRestoreRetrying] = useState(false);
@@ -249,6 +267,7 @@ function KeepApp() {
   const [publishing, setPublishing] = useState(false);
   const [publishStatus, setPublishStatus] = useState("");
   const [publishError, setPublishError] = useState("");
+  const [openingEditorOpen, setOpeningEditorOpen] = useState(false);
   const [engravingOfferOpen, setEngravingOfferOpen] = useState(false);
   const publishingLock = useRef(false);
   const [setting, setSetting] = useState("");
@@ -286,6 +305,12 @@ function KeepApp() {
   const undoLast = useRef<EditSnapshot | null>(null);
   const [, setUndoVersion] = useState(0);
   const name = project.recipientName;
+  const chosenRelationship = project.relationship === "Mom" || project.relationship === "Dad"
+    ? "Parent"
+    : relationships.includes(project.relationship) ? project.relationship
+    : project.relationship ? "Someone else" : "";
+  const savedCustomRelationship = chosenRelationship === "Someone else" && project.relationship !== "Someone else"
+    ? project.relationship : "";
   const q = project.questionIndex;
 
   // Hydrate local media first, then prefer the authenticated account's cloud draft.
@@ -293,9 +318,14 @@ function KeepApp() {
   useEffect(() => {
     let cancelled = false;
     const initialize = async () => {
-      const params = new URLSearchParams(window.location.search);
-      const editId = params.get("edit");
-      const resumeRequested = params.get("resume") === "1" || !!editId;
+      const { editId, resumeRequested, createRequested, redirectToDashboard } = getKeepEntryIntent(window.location.search);
+      // Home is not a Keep restore: go straight to the dashboard instead of
+      // fetching a draft and showing the personal Keep loading experience.
+      if (redirectToDashboard) {
+        window.location.replace("/app");
+        return;
+      }
+      setRestoringPersonalKeep(resumeRequested);
       const local = loadDraft();
       let next = local;
       try {
@@ -361,7 +391,6 @@ function KeepApp() {
         setHydrated(true);
         return;
       }
-      const createRequested = params.get("create") === "1";
       const canCreate = createRequested && (!next?.active || window.confirm("Start a new Keep? Your current draft will be replaced."));
       if (canCreate) { setProject({ ...newProject(), publicationId: crypto.randomUUID(), active: true, stage: "recipient" }); window.history.replaceState(null, "", "/"); }
       setHistory(canCreate ? ["home"] : []);
@@ -1671,6 +1700,10 @@ function KeepApp() {
     publishingLock.current = true;
     setPublishing(true);
     setPublishError("");
+    if (shotstackRenderingEnabled) {
+      setScreen("saving");
+      resetPageScroll();
+    }
     setPublishStatus("Saving your Keep…");
     const publicationId = current.publicationId || crypto.randomUUID();
     // Keep the in-progress screen until publication succeeds. Persist the ID
@@ -1680,7 +1713,7 @@ function KeepApp() {
     saveDraft(next);
     try {
       const result = await publishKeep(next, publicationId, setPublishStatus);
-      const complete = { ...next, stage: "success", publicationId: result.keepId, publicationToken: result.token };
+      const complete = { ...next, stage: shotstackRenderingEnabled ? "saving" : "success", publicationId: result.keepId, publicationToken: result.token };
       setProject(complete);
       saveDraft(complete);
       // The permanent link is updated before we display the success screen.
@@ -1691,6 +1724,7 @@ function KeepApp() {
       } catch {
         toast.info("Your published Keep is saved. A cloud draft backup will retry when you reopen the editor.");
       }
+      if (shotstackRenderingEnabled) return;
       if (original.publicationToken) {
         toast.success("Your Keep has been updated. Its permanent viewing link stays the same.");
         window.location.assign("/app");
@@ -1725,14 +1759,34 @@ function KeepApp() {
       : project;
     if (next !== project) setProject(next);
     saveDraft(next);
-    // Re-publish an existing Keep, then return to Your Creations. Show progress
-    // and any validation errors right here in the editor rather than silently failing.
+    // Save the video before opening the physical-card customization page.
+    if (shotstackRenderingEnabled) { setPublishError(""); void finishAndShare(next); return; }
+    // Legacy production retains the old flow until Shotstack is verified.
     if (next.publicationToken) { setPublishError(""); void finishAndShare(next); return; }
     if ((next.keepOrder?.tier ?? "basic") === "basic" && !next.keepOrder?.engravingOfferSeen) {
       const withOfferSeen = { ...next, keepOrder: { ...defaultKeepOrder(), ...next.keepOrder, engravingOfferSeen: true } };
       setProject(withOfferSeen); saveDraft(withOfferSeen); setEngravingOfferOpen(true);
     }
     go("card");
+  };
+  const finishSaving = () => {
+    const next = { ...project, stage: "card" };
+    setProject(next);
+    saveDraft(next);
+    setHistory((h) => [...h.filter((part) => part !== "saving"), "editor"]);
+    setScreen("card");
+    resetPageScroll();
+  };
+  const finishCardCustomization = () => {
+    if (!shotstackRenderingEnabled || !project.publicationToken) { void finishAndShare(); return; }
+    const next = { ...project, stage: "success" };
+    setProject(next);
+    saveDraft(next);
+    setHistory((h) => [...h, "card"]);
+    setScreen("success");
+    resetPageScroll();
+    void activeKeepSession().then((session) => session ? saveCloudDraft(next, session) : undefined)
+      .catch(() => toast.info("Your card choices are saved on this device. Open the editor to retry cloud backup."));
   };
   const totalSec = rec?.durationSec ?? 150;
 
@@ -1749,7 +1803,9 @@ function KeepApp() {
   const fileInputs = <><input ref={draftInput} type="file" accept=".docx,.pdf,.txt,.md,.rtf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/pdf,text/plain,text/markdown,application/rtf" className="sr-only" aria-label="Upload something you have already written" tabIndex={-1} onChange={(e) => void importDraft(e)} /><input ref={addInput} type="file" accept="image/*,video/mp4,video/quicktime,video/*" multiple className="sr-only" aria-label="Choose photos and videos" tabIndex={-1} onChange={(e) => void addFiles(e)} /><input ref={replaceInput} type="file" accept="image/*,video/mp4,video/quicktime,video/*" className="sr-only" aria-label="Choose a replacement photo or short video" tabIndex={-1} onChange={(e) => { const id = replaceTargetId.current; replaceTargetId.current = null; void addFiles(e, id ?? undefined); }} /></>;
 
   if (resumeError) return <main className="app-shell flex min-h-dvh flex-col px-8 py-10"><a href="/app" className="keep-wordmark" aria-label="Keep home">Keep</a><div className="my-auto max-w-sm"><h1 className="font-display text-[38px] leading-tight">We couldn't open your Keep.</h1><p role="alert" className="mt-5 text-sm leading-7 text-muted-foreground">{resumeError}</p><div className="mt-9 flex flex-col gap-3"><Button variant="keep" size="touch" onClick={() => window.location.reload()}>Try again</Button><a href="/app" className="rounded-xl border border-border px-5 py-3 text-center text-sm">Back to your creations</a></div></div></main>;
-  if (!hydrated) return <KeepOpeningScreen phase={openingPhase} progress={openingProgress} onBack={() => window.location.assign("/app")} />;
+  if (!hydrated) return restoringPersonalKeep
+    ? <KeepOpeningScreen phase={openingPhase} progress={openingProgress} onBack={() => window.location.assign("/app")} />
+    : <KeepLoadingScreen />;
   return <main className={`app-shell keep-creator-app keep-creator-app--${screen}`}>{fileInputs}
     {mediaImport && <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/45 px-6 backdrop-blur-[4px]" role="status" aria-live="polite" aria-label="Adding selected photos and videos to Keep">
       <div className="w-full max-w-xs rounded-[22px] border border-[#DED4C8] bg-[#F7F5F2] px-7 py-8 text-center text-[#181614] shadow-[0_25px_80px_rgba(0,0,0,.27)]">
@@ -1765,7 +1821,57 @@ function KeepApp() {
     <div key={screen} className={`page-enter keep-screen keep-screen--${screen}`}>
     {screen === "you" && <>{top()}<div className="px-7 pt-8">{title("Your space", "Alex.", "The things worth keeping, all in one place.")}<div className="mt-12 border-t border-border">{[{ label: "My cards", Icon: Radio }, { label: "Downloads & backups", Icon: Download }, { label: "Privacy", Icon: LockKeyhole }, { label: "Help", Icon: CircleHelp }].map(({ label, Icon }) => <Button key={label} variant="bare" className="flex h-17 w-full justify-between border-b border-border px-0 text-sm font-normal" onClick={() => setSetting(label)}><span className="flex items-center gap-4"><Icon className="size-4 text-accent" />{label}</span><ChevronRight className="size-4 text-muted-foreground" /></Button>)}{project.active && <Button variant="bare" className="flex h-17 w-full justify-between border-b border-border px-0 text-sm font-normal text-destructive" onClick={() => { if (!window.confirm("Delete your draft Keep? Recordings and photos added to it will be removed from this device.")) return; discard(project); setProject(newProject()); toast.success("Draft deleted"); }}><span className="flex items-center gap-4"><Trash2 className="size-4" />Delete draft Keep</span></Button>}</div><p className="mt-9 text-xs leading-6 text-muted-foreground">Your Keeps are private.</p></div>{setting && sheet(setting, () => setSetting(""), <><p className="mt-5 text-sm leading-7 text-muted-foreground">{setting === "Privacy" ? "Your Keeps are private by default. In this MVP, drafts, recordings and photos stay on this device only. Sharing a card gives its recipient access to that Keep — no account required." : setting === "My cards" ? "HANNA · from Alex · 2026 (sample). Physical card ordering is coming next." : setting === "Downloads & backups" ? "Your draft is saved on this device. Cloud backups and downloads aren't available yet." : "We're here when you need us. Support isn't connected in this preview yet."}</p><Button variant="quiet" className="mt-8 w-full" onClick={() => setSetting("")}>Done</Button></>)}</>}
     {screen === "detail" && <>{top("READY")}<div className="relative mx-4 h-[min(55dvh,520px)] overflow-hidden"><img src={memoryImages[0]} alt="Couple at the coast, illustrative prototype photograph" className="h-full w-full object-cover" /><div className="absolute inset-0 photo-bottom" /><div className="absolute bottom-8 left-6"><p className="eyebrow text-foreground">ANNIVERSARY · 2026</p><h1 className="display mt-3 text-5xl">HANNA</h1><p className="mt-3 text-sm">from Alex · 2:30</p></div></div><div className="space-y-3 px-6 pt-7">{nextButton("Play Keep", () => { setViewingDemo(true); go("preview"); })}<Button variant="quiet" size="touch" className="w-full" onClick={editDemoCopy}><Settings2 /> Edit a copy</Button><Button variant="bare" size="touch" className="w-full" asChild><Link to="/recipient" search={{ keep: "" }}><Radio /> View as recipient</Link></Button></div></>}
-    {screen === "recipient" && <>{top("01 / 04")}<div className="px-7 pt-11">{title("Begin with someone", "Who is this Keep for?")}<div className="grid grid-cols-2 gap-3" role="group" aria-label="Who is this Keep for?">{relationships.map((r) => <Button key={r} type="button" aria-pressed={project.relationship === r} variant="quiet" className={`keep-choice-bubble ${project.relationship === r ? "keep-choice-bubble--selected" : ""}`} onClick={() => { patch({ relationship: r, ...(r === "Myself" ? { recipientName: "Myself" } : project.relationship === "Myself" ? { recipientName: "" } : {}) }); if (r !== "Someone else") setOtherRelationship(""); }}><span className="min-w-0 flex-1 text-left">{r}</span>{project.relationship === r && <span className="keep-choice-check"><Check className="!size-3.5" strokeWidth={2.7} /></span>}</Button>)}</div>{project.relationship === "Someone else" && <div className="mt-8 page-enter"><label htmlFor="other-relationship" className="eyebrow">WHO ARE THEY TO YOU?</label><input id="other-relationship" value={otherRelationship} onChange={(e) => setOtherRelationship(e.target.value.slice(0, 50))} placeholder="My coach" autoComplete="off" className="mt-3 w-full border-0 border-b border-border bg-transparent pb-4 font-display text-3xl outline-none focus:border-accent" /><p className="mt-3 text-xs text-muted-foreground"></p></div>}{project.relationship && project.relationship !== "Myself" && <div className="mt-9 page-enter"><label htmlFor="recipient-name" className="eyebrow">NAME(S)</label><input id="recipient-name" value={name} onChange={(e) => patch({ recipientName: e.target.value.slice(0, 60) })} placeholder="Gigi & Pops" autoComplete="off" className="mt-3 w-full border-0 border-b border-border bg-transparent pb-4 font-display text-3xl outline-none focus:border-accent" /><p className="mt-3 text-xs text-muted-foreground"></p></div>}<div className="mt-10">{nextButton("Continue", () => { if (project.relationship === "Someone else") patch({ relationship: otherRelationship.trim() }); go("occasion"); }, !project.relationship || (project.relationship !== "Myself" && !name.trim()) || (project.relationship === "Someone else" && !otherRelationship.trim()))}</div></div></>}
+    {screen === "recipient" && <>{top("01 / 04")}<div className="px-7 pb-12 pt-11">
+      {title("Begin with someone", "Who is this Keep for?")}
+      <div aria-label="Who is this Keep for?" className="space-y-7">
+        {relationshipGroups.map((group) => <section key={group.title} aria-label={group.title}>
+          <h2 className="mb-3 text-[11px] font-semibold uppercase tracking-[.14em] text-[#817365]">{group.title}</h2>
+          <div className="grid grid-cols-2 gap-3" role="group" aria-label={group.title + " relationships"}>
+            {group.options.map((relationship) => <Button key={relationship} type="button"
+              aria-pressed={chosenRelationship === relationship} variant="quiet"
+              className={`keep-choice-bubble min-h-16 h-auto py-3 ${chosenRelationship === relationship ? "keep-choice-bubble--selected" : ""}`}
+              onClick={() => {
+                patch({ relationship, ...(relationship === "Myself" ? { recipientName: "Myself" }
+                  : chosenRelationship === "Myself" ? { recipientName: "" } : {}) });
+                if (relationship !== "Someone else") setOtherRelationship("");
+                else if (savedCustomRelationship) setOtherRelationship(savedCustomRelationship);
+              }}>
+              <span className="min-w-0 flex-1 text-left leading-snug">{relationship}</span>
+              {chosenRelationship === relationship && <span className="keep-choice-check">
+                <Check className="!size-3.5" strokeWidth={2.7}/>
+              </span>}
+            </Button>)}
+          </div>
+        </section>)}
+      </div>
+      {chosenRelationship === "Someone else" && <div className="mt-8 page-enter">
+        <label htmlFor="other-relationship" className="eyebrow">WHO ARE THEY TO YOU?</label>
+        <input id="other-relationship"
+          value={otherRelationship || savedCustomRelationship}
+          onChange={(e) => {
+            // Editing a previously saved custom relationship must allow clearing
+            // the old value instead of restoring it on every keystroke.
+            if (savedCustomRelationship) patch({ relationship: "Someone else" });
+            setOtherRelationship(e.target.value.slice(0, 50));
+          }}
+          placeholder="My coach" autoComplete="off"
+          className="mt-3 w-full border-0 border-b border-border bg-transparent pb-4 font-display text-3xl outline-none focus:border-accent" />
+      </div>}
+      {!!chosenRelationship && chosenRelationship !== "Myself" && <div className="mt-9 page-enter">
+        <label htmlFor="recipient-name" className="eyebrow">NAME(S)</label>
+        <input id="recipient-name" value={name}
+          onChange={(e) => patch({ recipientName: e.target.value.slice(0, 60) })}
+          placeholder="Gigi & Pops" autoComplete="off"
+          className="mt-3 w-full border-0 border-b border-border bg-transparent pb-4 font-display text-3xl outline-none focus:border-accent" />
+      </div>}
+      <div className="mt-10">
+        {nextButton("Continue", () => {
+          if (chosenRelationship === "Someone else") patch({ relationship: (otherRelationship || savedCustomRelationship).trim() });
+          go("occasion");
+        }, !chosenRelationship || (chosenRelationship !== "Myself" && !name.trim())
+          || (chosenRelationship === "Someone else" && !(otherRelationship || savedCustomRelationship).trim()))}
+      </div>
+    </div></>}
     {screen === "occasion" && <>{top("02 / 04")}<div className="px-7 pt-11">{title("Give it a moment", "What are you keeping?", "Choose an occasion or moment.")}<div className="grid grid-cols-2 gap-3" role="group" aria-label="Choose an occasion or moment">{occasions.map((o) => <Button key={o} type="button" aria-pressed={project.occasion === o} variant="quiet" className={`keep-choice-bubble ${project.occasion === o ? "keep-choice-bubble--selected" : ""}`} onClick={() => { patch({ occasion: o }); if (o !== "Other") setOtherOccasion(""); }}><span className="min-w-0 flex-1 text-left">{o}</span>{project.occasion === o && <span className="keep-choice-check"><Check className="!size-3.5" strokeWidth={2.7} /></span>}</Button>)}</div>{project.occasion === "Other" && <div className="mt-8 page-enter"><label className="eyebrow" htmlFor="other-occasion">TELL US WHAT IT'S FOR</label><input id="other-occasion" value={otherOccasion} onChange={(e) => setOtherOccasion(e.target.value.slice(0, 80))} placeholder="Our family Disney trip with Gigi & Pops" className="mt-3 w-full border-0 border-b border-border bg-transparent pb-4 font-display text-3xl outline-none focus:border-accent" /><p className="mt-3 text-xs text-muted-foreground"></p></div>}<div className="mt-12">{nextButton("Continue", () => { if (project.occasion === "Other") patch({ occasion: otherOccasion.trim() }); go("voices"); }, project.occasion === "Other" && !otherOccasion.trim())}</div></div></>}
     {screen === "voices" && <>{top("03 / 05")}<div className="mx-auto max-w-[620px] px-7 pb-12 pt-9">
       {title("The voices behind it", "Will anyone create this Keep with you?", "Most Keeps are made by one person. You can also bring several voices together in one gift.")}
@@ -2214,7 +2320,12 @@ function KeepApp() {
         </div>
       </div>
 
-      {(publishing || publishError) && <div className={`mx-4 mt-2 rounded-xl border px-4 py-3 text-xs leading-5 ${publishError ? "border-[#BE7363] bg-[#3B2826] text-[#FFE5DF]" : "border-[#927B61] bg-[#302922] text-[#F7EBDD]"}`} role={publishError ? "alert" : "status"}>{publishError || publishStatus || "Saving changes to your Keep…"}</div>}
+      {shotstackRenderingEnabled && <button type="button"
+        className="mx-auto mt-2 flex min-h-9 items-center gap-2 rounded-full border border-[#AD9880]/40 bg-[#2C2620]/70 px-4 text-[11px] text-[#F5EDE2]"
+        onClick={() => { setEditorPlaying(false); setOpeningEditorOpen(true); }}>
+        <Sparkles className="size-3.5" /> Personalize opening &amp; ending <ArrowRight className="size-3.5" />
+      </button>}
+      {!shotstackRenderingEnabled && (publishing || publishError) && <div className={`mx-4 mt-2 rounded-xl border px-4 py-3 text-xs leading-5 ${publishError ? "border-[#BE7363] bg-[#3B2826] text-[#FFE5DF]" : "border-[#927B61] bg-[#302922] text-[#F7EBDD]"}`} role={publishError ? "alert" : "status"}>{publishError || publishStatus || "Saving changes to your Keep…"}</div>}
       {rec?.audioUrl && !rec.demo && <audio ref={editorAudioRef} src={rec.audioUrl} preload="metadata" onWaiting={() => {if(editorPlaying)void editorMixRef.current?.pause();}} onStalled={() => {if(editorPlaying)void editorMixRef.current?.pause();}} onPlaying={() => {if(editorPlaying)void editorMixRef.current?.play().catch(()=>undefined);}} onTimeUpdate={(e) => { const time = e.currentTarget.currentTime; setEditorTime(time); setFrame(editorSceneAt(time)); }} onEnded={() => {
         if (editorDuration > (rec?.durationSec ?? 0) + 0.1) return;
         setEditorTime(editorDuration);
@@ -2398,6 +2509,19 @@ function KeepApp() {
         }}><Icon /><span>{label}</span></button>)}
       </nav>
 
+      {openingEditorOpen && <div className="fixed inset-0 z-[90] flex items-end justify-center bg-black/75 px-2 pt-10 sm:items-center sm:px-6" role="presentation">
+        <section role="dialog" aria-modal="true" aria-label="Personalize your opening and ending"
+          className="max-h-[92dvh] w-full max-w-[540px] overflow-y-auto rounded-t-3xl bg-[#F7F5F2] px-6 pb-[max(36px,env(safe-area-inset-bottom))] pt-6 text-[#2D251F] shadow-2xl sm:rounded-3xl">
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="font-display text-[30px]">Opening &amp; ending</h2>
+            <Button variant="bare" size="icon" aria-label="Close opening and ending" onClick={() => setOpeningEditorOpen(false)}><X /></Button>
+          </div>
+          <p className="mt-2 text-xs leading-6 text-[#75675B]">Choose the words that will open and close your film before saving it.</p>
+          <KeepOpeningPersonalization project={project} onUpdate={patch} engravingEnabled={keepQuote.hasEngraving} filmOnly
+            onPreview={() => { setOpeningEditorOpen(false); openCreatorPreview("watch"); }} />
+          <Button variant="keep" size="touch" className="mt-8 w-full" onClick={() => setOpeningEditorOpen(false)}>Keep these words <Check className="size-4" /></Button>
+        </section>
+      </div>}
       {previewChooserOpen && sheet("Preview your Keep", () => { setPreviewChooserOpen(false); setReadArrangeOpen(false); }, <div className="pb-2">
         <p className="mt-2 text-xs leading-5 text-muted-foreground">Choose how you want to check it. Previewing is optional — you can come back and make changes anytime.</p>
         <div className="mt-5 space-y-2">
@@ -2467,6 +2591,14 @@ function KeepApp() {
       onCreatorExit={() => { setScreen("card"); resetPageScroll(); }}
       onCreatorContinue={() => { setScreen("card"); resetPageScroll(); }}
     />}
+    {screen === "saving" && shotstackRenderingEnabled && <KeepSavingScreen
+      keepId={!publishing && project.publicationToken ? project.publicationId : undefined}
+      musicMood={project.musicMood} musicMuted={!!project.audioMix?.musicMuted}
+      publishing={publishing} publishMessage={publishStatus} publishError={publishError}
+      onReady={finishSaving}
+      onRetryPublish={() => { void finishAndShare(project); }}
+      onBack={() => { setScreen("editor"); resetPageScroll(); }}
+    />}
     {screen === "card" && <>{top()}<div className="mx-auto max-w-xl px-7 pb-14 pt-7">
       {title("The final touch", "Give it somewhere to live.", "Share this same Keep on as many cards as you wish.")}
       <section className="mb-8 rounded-2xl border border-[#D4C2AC] bg-[#F6EDE2] p-5" aria-label="Keep card add-ons">
@@ -2490,14 +2622,33 @@ function KeepApp() {
           <p className="pt-2 text-[11px] leading-5">Preview only. No extra cards, collaborators or engraving have been purchased yet. Taxes may apply at checkout.</p>
         </div>
       </section>
-      <KeepOpeningPersonalization project={project} onUpdate={patch} onPreview={() => go("recipientReveal")} disabled={publishing} engravingEnabled={keepQuote.hasEngraving} />
+      {shotstackRenderingEnabled ? <>
+          <div className="mt-9"><KeepCardFront engraving={keepQuote.hasEngraving ? engraving : []}
+            openingMessage={project.openingMessage} showOpeningMessage={keepQuote.hasEngraving && project.engraveOpeningMessage} /></div>
+          {keepQuote.hasEngraving && <section aria-label="Physical card personalization" className="mt-9 space-y-4 rounded-2xl border border-[#D8CCBE] bg-[#F5EDE3]/65 px-5 py-6">
+            <h2 className="font-display text-[28px]">Make the card theirs.</h2>
+            <p className="text-xs leading-6 text-[#796B60]">Personalize the physical card that opens this finished Keep.</p>
+            {["To / Title", "From (optional)", "Date (optional)"].map((label, i) => <label key={label} className="block">
+              <span className="eyebrow">{label}</span>
+              <input aria-label={`Card ${label}`} maxLength={22} value={project.cardEngraving[i] ?? ""}
+                onChange={(e) => updateEngraving(i, e.target.value)}
+                className="mt-2 w-full border-0 border-b border-[#D1C3B7] bg-transparent pb-3 text-sm tracking-widest outline-none focus:border-accent" />
+            </label>)}
+          </section>}
+          <p className="mt-6 text-center text-xs leading-6 text-muted-foreground">
+            Your film is already saved. To change the opening or ending of the film, return to the editor and save it again.
+          </p>
+        </> : <KeepOpeningPersonalization project={project} onUpdate={patch}
+          onPreview={() => go("recipientReveal")} disabled={publishing} engravingEnabled={keepQuote.hasEngraving} />}
       <div className="mt-10 border-t border-border pt-7">
-        <Button variant="keep" size="touch" className="keep-premium-action w-full justify-between" disabled={publishing || (keepQuote.hasEngraving && !engraving[0]?.trim())} onClick={() => void finishAndShare()}>
+        <Button variant="keep" size="touch" className="keep-premium-action w-full justify-between" disabled={publishing || (keepQuote.hasEngraving && !engraving[0]?.trim())} onClick={finishCardCustomization}>
           {publishing ? "Saving your Keep…" : "Finish & share"} <ArrowRight className="size-5" />
         </Button>
         {publishing && <p role="status" className="mt-3 text-center text-xs text-muted-foreground">{publishStatus}</p>}
         {publishError && <p role="alert" className="mt-3 text-sm leading-6 text-[#9B3529]">{publishError}</p>}
-        <p className="mt-3 text-center text-[11px] leading-5 text-muted-foreground">Finishing saves your changes and creates or refreshes the same permanent viewing link.</p>
+        <p className="mt-3 text-center text-[11px] leading-5 text-muted-foreground">{shotstackRenderingEnabled
+          ? "Your Keep film is already saved. Finish choosing the card details and continue to sharing."
+          : "Finishing saves your changes and creates or refreshes the same permanent viewing link."}</p>
       </div>
     </div>
     {engravingOfferOpen && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-5 py-8" role="presentation">
