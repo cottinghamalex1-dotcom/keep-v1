@@ -12,8 +12,10 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AboutRouteImport } from './routes/about'
 import { Route as AppRouteImport } from './routes/app'
+import { Route as ContributeRouteImport } from './routes/contribute'
 import { Route as MyKeepsRouteImport } from './routes/my-keeps'
 import { Route as RecipientRouteImport } from './routes/recipient'
+import { Route as ShopRouteImport } from './routes/shop'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -30,6 +32,11 @@ const AppRoute = AppRouteImport.update({
   path: '/app',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ContributeRoute = ContributeRouteImport.update({
+  id: '/contribute',
+  path: '/contribute',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const MyKeepsRoute = MyKeepsRouteImport.update({
   id: '/my-keeps',
   path: '/my-keeps',
@@ -40,43 +47,78 @@ const RecipientRoute = RecipientRouteImport.update({
   path: '/recipient',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ShopRoute = ShopRouteImport.update({
+  id: '/shop',
+  path: '/shop',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
   '/app': typeof AppRoute
+  '/contribute': typeof ContributeRoute
   '/my-keeps': typeof MyKeepsRoute
   '/recipient': typeof RecipientRoute
+  '/shop': typeof ShopRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
   '/app': typeof AppRoute
+  '/contribute': typeof ContributeRoute
   '/my-keeps': typeof MyKeepsRoute
   '/recipient': typeof RecipientRoute
+  '/shop': typeof ShopRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
   '/app': typeof AppRoute
+  '/contribute': typeof ContributeRoute
   '/my-keeps': typeof MyKeepsRoute
   '/recipient': typeof RecipientRoute
+  '/shop': typeof ShopRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/about' | '/app' | '/my-keeps' | '/recipient'
+  fullPaths:
+    | '/'
+    | '/about'
+    | '/app'
+    | '/contribute'
+    | '/my-keeps'
+    | '/recipient'
+    | '/shop'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/about' | '/app' | '/my-keeps' | '/recipient'
-  id: '__root__' | '/' | '/about' | '/app' | '/my-keeps' | '/recipient'
+  to:
+    | '/'
+    | '/about'
+    | '/app'
+    | '/contribute'
+    | '/my-keeps'
+    | '/recipient'
+    | '/shop'
+  id:
+    | '__root__'
+    | '/'
+    | '/about'
+    | '/app'
+    | '/contribute'
+    | '/my-keeps'
+    | '/recipient'
+    | '/shop'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AboutRoute: typeof AboutRoute
   AppRoute: typeof AppRoute
+  ContributeRoute: typeof ContributeRoute
   MyKeepsRoute: typeof MyKeepsRoute
   RecipientRoute: typeof RecipientRoute
+  ShopRoute: typeof ShopRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -102,6 +144,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/contribute': {
+      id: '/contribute'
+      path: '/contribute'
+      fullPath: '/contribute'
+      preLoaderRoute: typeof ContributeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/my-keeps': {
       id: '/my-keeps'
       path: '/my-keeps'
@@ -116,6 +165,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof RecipientRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/shop': {
+      id: '/shop'
+      path: '/shop'
+      fullPath: '/shop'
+      preLoaderRoute: typeof ShopRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -123,8 +179,10 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AboutRoute: AboutRoute,
   AppRoute: AppRoute,
+  ContributeRoute: ContributeRoute,
   MyKeepsRoute: MyKeepsRoute,
   RecipientRoute: RecipientRoute,
+  ShopRoute: ShopRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

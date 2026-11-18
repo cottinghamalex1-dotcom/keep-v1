@@ -230,7 +230,7 @@ function ShopKeep() {
             <div className="my-7 border-t border-[#D5CBBF]" />
             <ul className="mb-8 flex-1 space-y-4 text-[12px] leading-6 text-[#4C453E]">
               {p.points.map(point => <li key={point} className="flex items-start gap-3"><Check className="mt-1 size-4 shrink-0 text-[#796757]"/>{point}</li>)}
-              {p.featured && <li className="flex items-start gap-3"><Check className="mt-1 size-4 shrink-0 text-[#796757]"/><span>Extra engraved cards <del>$99</del> <strong>$49 each</strong></span></li>
+              {p.featured && <li className="flex items-start gap-3"><Check className="mt-1 size-4 shrink-0 text-[#796757]"/><span>Extra engraved cards <del>$99</del> <strong>$49 each</strong></span></li>}
               <li className="flex items-start gap-3"><Check className="mt-1 size-4 shrink-0 text-[#796757]"/>Standard U.S. shipping included</li>
             </ul>
             <PurchaseAction tier={p.tier} smaller />
