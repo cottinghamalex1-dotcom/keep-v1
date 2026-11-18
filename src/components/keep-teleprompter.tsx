@@ -9,13 +9,15 @@ type Props = {
   isPaused: boolean;
   elapsed: number;
   cameraStream?: MediaStream | null;
+  onRestartRecording?: () => void | Promise<void>;
+  restartNonce?: number;
 };
 
 /**
  * One premium reading surface shared by solo and multi-person recording.
  * Scroll only the script, not the record controls or status indicator.
  */
-export function KeepTeleprompter({ text, label, speaker, isRecording, isPaused, elapsed, cameraStream }: Props) {
+export function KeepTeleprompter({ text, label, speaker, isRecording, isPaused, elapsed, cameraStream, onRestartRecording, restartNonce = 0 }: Props) {
   const camera=useRef<HTMLVideoElement>(null);
   useEffect(()=>{
     const node=camera.current;
@@ -26,6 +28,10 @@ export function KeepTeleprompter({ text, label, speaker, isRecording, isPaused, 
   },[cameraStream]);
   const filming=!!cameraStream;
   const viewport = useRef<HTMLDivElement>(null);
+  const scriptElement = useRef<HTMLParagraphElement>(null);
+  const manualScrollUntil = useRef(0);
+  const [confirmRestart,setConfirmRestart]=useState(false);
+  const [restarting,setRestarting]=useState(false);
   const previousRecording = useRef(false);
   // Keep fractional scroll progress: mobile Safari rounds scrollTop to whole pixels,
   // so reading it back every animation frame can leave auto-scroll stuck at zero.
@@ -35,6 +41,7 @@ export function KeepTeleprompter({ text, label, speaker, isRecording, isPaused, 
     scrollTarget.current = 0;
     lastAppliedScroll.current = 0;
     if (viewport.current) viewport.current.scrollTop = 0;
+    if (scriptElement.current) scriptElement.current.style.transform = "translate3d(0, 0, 0)";
   };
   const [speed, setSpeed] = useState(1);
   const [following, setFollowing] = useState(true);
@@ -55,28 +62,34 @@ export function KeepTeleprompter({ text, label, speaker, isRecording, isPaused, 
     if (!moving || !following) return;
     let raf = 0;
     let last = 0;
-    scrollTarget.current = viewport.current?.scrollTop ?? 0;
-    lastAppliedScroll.current = scrollTarget.current;
+    const viewportElement = viewport.current;
+    if (viewportElement && Math.abs(viewportElement.scrollTop - lastAppliedScroll.current) > 2) {
+      scrollTarget.current = viewportElement.scrollTop;
+    }
     const wordCount = Math.max(1, (text.match(/\S+/gu) ?? []).length);
-    // A natural speaking pace provides a useful starting speed. The creator
-    // can slow down, speed up, pause following, or scroll with a finger.
     const suggestedSeconds = Math.max(8, wordCount / 175 * 60);
     const tick = (now: number) => {
       const element = viewport.current;
       if (element) {
-        // If the creator scrolls with a finger, follow from their new position.
-        if (Math.abs(element.scrollTop - lastAppliedScroll.current) > 2) {
+        const userMoved = Math.abs(element.scrollTop - lastAppliedScroll.current) > 2;
+        if (userMoved || now < manualScrollUntil.current) {
+          // Respect finger scrolling or momentum: no competing RAF scroll writes.
           scrollTarget.current = element.scrollTop;
-        }
-        if (last) {
+          lastAppliedScroll.current = element.scrollTop;
+          if (scriptElement.current) scriptElement.current.style.transform = "translate3d(0, 0, 0)";
+        } else if (last) {
           const seconds = Math.min(0.1, Math.max(0, (now - last) / 1000));
           const distance = Math.max(0, element.scrollHeight - element.clientHeight);
           const pixelsPerSecond = distance / suggestedSeconds;
-          // Accumulate subpixel progress instead of repeatedly adding less than
-          // one pixel to Safari's rounded scrollTop (which otherwise never moves).
           scrollTarget.current = Math.min(distance, scrollTarget.current + seconds * pixelsPerSecond * speed);
           element.scrollTop = scrollTarget.current;
           lastAppliedScroll.current = element.scrollTop;
+          // iOS Safari snaps scrollTop to integer pixels. A fractional
+          // compositor transform fills the gaps for continuous movement,
+          // while native scroll remains fully available for gestures.
+          const fraction = scrollTarget.current - lastAppliedScroll.current;
+          if (scriptElement.current) scriptElement.current.style.transform =
+            `translate3d(0, ${(-fraction).toFixed(3)}px, 0)`;
         }
       }
       last = now;
@@ -85,6 +98,26 @@ export function KeepTeleprompter({ text, label, speaker, isRecording, isPaused, 
     raf = window.requestAnimationFrame(tick);
     return () => window.cancelAnimationFrame(raf);
   }, [moving, following, speed, text]);
+
+  useEffect(() => {
+    if (restartNonce>0) {
+      resetScroll();
+      setFollowing(true);
+      setRehearsing(false);
+      setConfirmRestart(false);
+    }
+  }, [restartNonce]);
+
+  const markManualScroll = () => {
+    manualScrollUntil.current = performance.now() + 1400;
+  };
+  const restartTake = async () => {
+    if(!onRestartRecording||restarting)return;
+    setConfirmRestart(false);
+    setRestarting(true);
+    try {await onRestartRecording();}
+    finally {setRestarting(false);}
+  };
 
   const restart = () => {
     resetScroll();
@@ -128,10 +161,10 @@ export function KeepTeleprompter({ text, label, speaker, isRecording, isPaused, 
             <span className="rounded-full border border-white/25 bg-black/40 px-3 py-1.5 text-[10px] font-semibold tracking-[.06em] text-white backdrop-blur-md">FRONT CAMERA · LOOK INTO THE LENS</span>
           </div>
         </>}
-        <div ref={viewport} tabIndex={0} aria-label="Auto-scrolling teleprompter script"
+        <div ref={viewport} tabIndex={0} aria-label="Auto-scrolling teleprompter script" onTouchStart={markManualScroll} onTouchMove={markManualScroll} onWheel={markManualScroll}
           className="relative z-10 h-full min-h-0 overflow-y-auto overscroll-contain px-5 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#B69B7B] sm:px-8"
           style={{ WebkitOverflowScrolling: "touch", paddingTop: filming ? "clamp(72px, 13dvh, 110px)" : "clamp(44px, 9dvh, 84px)", paddingBottom: "clamp(90px, 18dvh, 160px)" }}>
-          <p className={`whitespace-pre-wrap font-display tracking-[-.018em] ${filming?"text-[clamp(22px,5.2vw,29px)] leading-[1.42] text-white [text-shadow:0_2px_12px_rgba(0,0,0,.9)]":"text-[clamp(24px,5.8vw,33px)] leading-[1.45]"}`}>{text}</p>
+          <p ref={scriptElement} className={`whitespace-pre-wrap font-display tracking-[-.018em] ${filming?"text-[clamp(22px,5.2vw,29px)] leading-[1.42] text-white [text-shadow:0_2px_12px_rgba(0,0,0,.9)]":"text-[clamp(24px,5.8vw,33px)] leading-[1.45]"}`}>{text}</p>
         </div>
         <div className={`pointer-events-none absolute inset-x-0 bottom-0 h-8 bg-gradient-to-t to-transparent ${filming?"from-[#151311]":"from-[#FAF6EF]"}`} aria-hidden="true" />
       </div>
@@ -149,12 +182,24 @@ export function KeepTeleprompter({ text, label, speaker, isRecording, isPaused, 
           </div>
           <button type="button" aria-label="Faster teleprompter scrolling" className="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl border border-[#BCA88F] bg-[#FFFDF8] px-3 text-[12px] font-semibold text-[#48382A] shadow-[0_2px_5px_rgba(43,30,18,.08)] transition-colors hover:bg-[#ECE1D2] active:bg-[#E8D9C7] disabled:cursor-not-allowed disabled:opacity-35" disabled={speed >= 2.0} onClick={() => setSpeed(value => Math.min(2, Math.round((value + 0.2) * 10) / 10))}>Faster <Plus className="size-4" /></button>
         </div>
-        {isRecording ? (
-          <button type="button" disabled={isPaused} onClick={() => setFollowing(value => !value)} className="flex min-h-10 w-full items-center justify-center gap-2 rounded-lg border border-[#DED0BE] bg-[#FFF9F2] px-4 text-xs font-medium text-[#4C3A2B] disabled:cursor-not-allowed disabled:opacity-55">
-            {following ? <Pause className="size-3.5" /> : <Play className="size-3.5" />}
-            {isPaused ? "Scrolling paused with recording" : following ? "Pause auto-scroll" : "Resume auto-scroll"}
-          </button>
-        ) : (
+        {isRecording ? (<>
+          <div className={onRestartRecording?"grid grid-cols-2 gap-2":"grid grid-cols-1"}>
+            <button type="button" aria-label={isPaused?"Scrolling paused with recording":following?"Pause auto-scroll":"Resume auto-scroll"} disabled={isPaused} onClick={() => setFollowing(value => !value)} className="flex min-h-10 items-center justify-center gap-1.5 rounded-lg border border-[#DED0BE] bg-[#FFF9F2] px-2 text-[11px] font-medium text-[#4C3A2B] disabled:cursor-not-allowed disabled:opacity-55">
+              {following ? <Pause className="size-3.5" /> : <Play className="size-3.5" />}
+              {isPaused ? "Scroll paused" : following ? "Pause auto-scroll" : "Resume auto-scroll"}
+            </button>
+            {onRestartRecording&&<button type="button" aria-label="Start over current recording" disabled={restarting} onClick={()=>setConfirmRestart(true)} className="flex min-h-10 items-center justify-center gap-1.5 rounded-lg border border-[#C8B7A4] bg-[#F0E6D8] px-2 text-[11px] font-semibold text-[#503B2A] disabled:opacity-55">
+              <RotateCcw className="size-3.5"/> {restarting?"Restarting…":"Start over"}
+            </button>}
+          </div>
+          {confirmRestart&&<div role="alertdialog" aria-label="Restart recording confirmation" className="mt-2 rounded-xl border border-[#C9B39B] bg-[#FFFCF7] p-3">
+            <p className="text-[11px] leading-5 text-[#5A4736]">Discard this unfinished take and record this section again? Your previously saved sections stay safe.</p>
+            <div className="mt-2 grid grid-cols-2 gap-2">
+              <button type="button" onClick={()=>setConfirmRestart(false)} className="min-h-10 rounded-lg border border-[#D3C4B4] text-[11px] font-medium text-[#5A4736]">Keep recording</button>
+              <button type="button" onClick={()=>void restartTake()} className="min-h-10 rounded-lg bg-[#211D19] text-[11px] font-semibold text-white">Discard & restart</button>
+            </div>
+          </div>}
+        </>) : (
           <div className="flex gap-2">
             <button type="button" onClick={beginRehearsal} className="flex min-h-10 flex-1 items-center justify-center gap-2 rounded-lg border border-[#DED0BE] bg-[#FFF9F2] px-3 text-xs font-medium text-[#4C3A2B]">
               {rehearsing ? <Pause className="size-3.5" /> : <Play className="size-3.5" />}

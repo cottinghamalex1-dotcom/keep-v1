@@ -15,6 +15,8 @@ export type RemoteRecording = {
 export type RemoteInviteDetails = {
   creatorName: string; recipientName: string; occasion: string | null;
   contributorName: string; expiresAt: string; mediaCount: number;
+  /** Counts only voices assigned actual script sections, including the creator. */
+  contributorCount?: number; totalWordCount?: number;
   parts: (RemoteScriptPart & { completed: boolean })[];
 };
 type JsonResult = Record<string, unknown>;

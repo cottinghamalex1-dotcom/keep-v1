@@ -218,6 +218,7 @@ function KeepApp() {
   const [readArrangeIndex, setReadArrangeIndex] = useState(0);
   const [returnToEditorAfterRecording, setReturnToEditorAfterRecording] = useState(false);
   const [groupPartIndex, setGroupPartIndex] = useState(0);
+  const [recordRestartNonce,setRecordRestartNonce]=useState(0);
   const [selfieSelected, setSelfieSelected] = useState(false);
   const [selfiePreparing, setSelfiePreparing] = useState(false);
   const [groupBusy, setGroupBusy] = useState(false);
@@ -734,6 +735,15 @@ function KeepApp() {
     setSelfiePreparing(false);
     if(success)setSelfieSelected(true);
     else toast.error("Front camera unavailable. Voice-only recording is still available.");
+  };
+  const restartCurrentRecording=async()=>{
+    // Only the current unsaved take is discarded. Existing saved voices remain untouched.
+    recorder.cancel();
+    setRecordRestartNonce(value=>value+1);
+    const ok=await recorder.start({selfie:selfieSelected});
+    if(!ok)toast.error(selfieSelected
+      ?"The camera or microphone couldn't restart. Try voice only."
+      :"The microphone couldn't restart. Tap Start recording to try again.");
   };
   const startFinal = async () => {
     if (rec?.audioUrl && !rec.demo && (project.selfieVideos??[]).length && !selfieSelected &&
@@ -2022,7 +2032,8 @@ function KeepApp() {
           error={recorder.cameraError} onChoose={()=>void chooseSelfie()} onVoiceOnly={()=>{recorder.disableSelfie();setSelfieSelected(false);}} /></div>}
         <KeepTeleprompter text={project.messageParagraphs.join("\n\n")} label="YOUR MESSAGE" speaker="Your voice"
           cameraStream={selfieSelected?recorder.previewStream:null}
-          isRecording={isRecording} isPaused={recorder.status === "paused"} elapsed={recorder.elapsed} />
+          isRecording={isRecording} isPaused={recorder.status === "paused"} elapsed={recorder.elapsed}
+          onRestartRecording={restartCurrentRecording} restartNonce={recordRestartNonce} />
         <div className="shrink-0 pt-3">
           {micUnavailable ? <>
             <p role="alert" className="mb-2 text-center text-xs text-destructive">{micMessage}</p>
@@ -2062,7 +2073,8 @@ function KeepApp() {
           error={recorder.cameraError} onChoose={()=>void chooseSelfie()} onVoiceOnly={()=>{recorder.disableSelfie();setSelfieSelected(false);}} /></div>}
         <KeepTeleprompter key={groupPartIndex} text={project.messageParagraphs[groupPartIndex] ?? ""} label={"PART " + (groupPartIndex+1) + " OF " + project.messageParagraphs.length}
           speaker={speakerName(groupPartIndex)} cameraStream={selfieSelected?recorder.previewStream:null}
-          isRecording={isRecording} isPaused={recorder.status === "paused"} elapsed={recorder.elapsed} />
+          isRecording={isRecording} isPaused={recorder.status === "paused"} elapsed={recorder.elapsed}
+          onRestartRecording={restartCurrentRecording} restartNonce={recordRestartNonce} />
         <div className="shrink-0 space-y-2 pt-2.5">
           {!isRecording && readyPart(groupPartIndex)?.audioUrl && <audio src={readyPart(groupPartIndex)!.audioUrl} controls preload="none" className="h-10 w-full" aria-label={"Review " + speakerName(groupPartIndex) + "'s saved recording"} />}
           {micUnavailable && <p role="alert" className="text-center text-xs text-destructive">{micMessage} A real voice recording is needed for each part.</p>}

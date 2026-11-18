@@ -28,6 +28,8 @@ function KeepRemoteContributor() {
   const [selfiePreparing,setSelfiePreparing]=useState(false);
   const [selfieRetry,setSelfieRetry]=useState<{blob:Blob;duration:number;partIndex:number;mime:string}|null>(null);
   const [mediaMode,setMediaMode]=useState(false);
+  const [mediaBusy,setMediaBusy]=useState(false);
+  const [restartNonce,setRestartNonce]=useState(0);
   const [uploadRetry,setUploadRetry]=useState<{blob:Blob;duration:number}|null>(null);
   const [sent,setSent]=useState(false);
   const recorder=useRecorder();
@@ -85,6 +87,14 @@ function KeepRemoteContributor() {
     }catch(issue){setError(issue instanceof Error?issue.message:"Your recording didn't upload. Tap Retry to send it again.");}
     finally{setSending(false);}
   };
+  const restartSection=async()=>{
+    if(sending)return;
+    recorder.cancel(); // Discard this unsaved take; previously uploaded sections stay safe.
+    setRestartNonce(value=>value+1);
+    setSent(false);setError("");setUploadRetry(null);
+    const success=await recorder.start({selfie:selfieSelected});
+    if(!success)setError("Couldn't restart the microphone or camera. Try Start recording again.");
+  };
   const finish=async()=>{
     const result=await recorder.stop();
     if(!result||result.durationSec<.25){setError("That recording was too short. Try again.");return;}
@@ -119,9 +129,9 @@ function KeepRemoteContributor() {
       <span className="rounded-full border border-[#D8C9BA] px-3 py-1.5 text-[10px] text-[#7D6A57]">Private invitation</span></div>
     <p className="mt-9 text-[10px] font-semibold uppercase tracking-[.18em] text-[#8D735A]">A KEEP FOR {invite.recipientName.toUpperCase()}</p>
     <h1 className="mt-3 font-display text-[clamp(36px,9vw,49px)] leading-[1.1] tracking-[-.03em]">The moments that matter.</h1>
-    <p className="mb-6 mt-3 text-[13px] leading-6 text-[#76695E]">Your voice and memories make this gift more personal. Photos and videos are completely optional.</p>
+    <p className="mb-6 mt-3 text-[13px] leading-6 text-[#76695E]">Your voice makes this gift personal. Your favorite photos and short videos help bring the memories to life—share the moments you want them to relive.</p>
     {selfieRetry&&<section className="mb-5 rounded-xl border border-[#C9B095] bg-[#FFF9ED] p-4">
-      <p className="text-[12px] font-semibold">Your voice was received. The optional selfie still needs to upload.</p>
+      <p className="text-[12px] font-semibold">Your voice was received. The selfie video still needs to upload.</p>
       <p className="mt-1 text-[11px] leading-5 text-[#776454]">Retry without re-recording your voice.</p>
       <button type="button" disabled={sending} onClick={async()=>{
         setSending(true);setError("");
@@ -135,10 +145,11 @@ function KeepRemoteContributor() {
       {error&&<p role="alert" className="mt-2 text-[11px] text-[#9D4C3B]">{error}</p>}
     </section>}
     <KeepRemoteMediaContributor token={token} mediaCount={invite.mediaCount??0}
-      onUploaded={count=>setInvite(old=>old?{...old,mediaCount:count}:old)}/>
+      contributorCount={invite.contributorCount??1} totalWordCount={invite.totalWordCount??0}
+      onBusyChange={setMediaBusy} onUploaded={count=>setInvite(old=>old?{...old,mediaCount:count}:old)}/>
     {pending.length>0&&<button type="button" onClick={()=>setMediaMode(false)}
-      className="mt-4 flex min-h-12 w-full items-center justify-center rounded-xl border border-[#CDBBA9] bg-white text-[12px] font-medium">Return to my voice recording</button>}
-    <button type="button" onClick={()=>setMediaMode(false)} className="mt-3 flex min-h-12 w-full items-center justify-center rounded-xl bg-[#211D19] text-[12px] font-semibold text-[#FFFAF3]">
+      disabled={mediaBusy} className="mt-4 flex min-h-12 w-full items-center justify-center rounded-xl border border-[#CDBBA9] bg-white text-[12px] font-medium disabled:opacity-50">Return to my voice recording</button>}
+    <button type="button" disabled={mediaBusy} onClick={()=>setMediaMode(false)} className="mt-3 flex min-h-12 w-full items-center justify-center rounded-xl bg-[#211D19] text-[12px] font-semibold text-[#FFFAF3] disabled:opacity-50">
       {pending.length>0?"Save my moments for now":"I'm finished · Thank you"}
     </button>
   </main>;
@@ -178,7 +189,7 @@ function KeepRemoteContributor() {
     <button type="button" onClick={()=>{setError("");setStarted(true);}} className="mt-5 flex min-h-14 w-full items-center justify-between rounded-xl bg-[#151310] px-5 text-[13px] font-semibold text-[#FAF4EB]">
       {invite.parts.length-pending.length>0?"Continue recording":`Start section 1 of ${invite.parts.length}`} <ArrowRight className="size-5"/>
     </button>
-    <button type="button" onClick={()=>setMediaMode(true)} className="mt-3 flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-[#BBA791] bg-[#FFFCF7] px-3 text-[12px] font-medium text-[#69523E]"><ImagePlus className="size-4"/> Share photos & videos first (optional)</button>
+    <button type="button" onClick={()=>setMediaMode(true)} className="mt-3 flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-[#BBA791] bg-[#FFFCF7] px-3 text-[12px] font-medium text-[#69523E]"><ImagePlus className="size-4"/> Share photos & videos first</button>
     <p className="mt-3 flex items-center justify-center gap-1.5 text-[11px] text-[#8A7865]"><ShieldCheck className="size-3.5"/> Your recordings and moments are private.</p>
     {welcomeOpen&&<div className="fixed inset-0 z-50 flex items-center justify-center bg-[#211C17]/65 px-4 py-7 backdrop-blur-sm">
       <section role="dialog" aria-modal="true" aria-labelledby="keep-contributor-welcome" className="max-h-[calc(100dvh-3rem)] w-full max-w-[480px] overflow-y-auto rounded-[28px] border border-[#E0D4C8] bg-[#FFFCF7] p-7 text-[#30271F] shadow-[0_25px_80px_rgba(0,0,0,.19)]">
@@ -209,7 +220,8 @@ function KeepRemoteContributor() {
     <div className="mx-auto flex w-full max-w-[620px] min-h-0 flex-1 flex-col">
       <KeepTeleprompter key={currentPart!.index} label="YOUR EXACT WORDS" speaker={invite.contributorName}
         text={currentPart!.text} cameraStream={selfieSelected?recorder.previewStream:null}
-        isRecording={recording} isPaused={recorder.status==="paused"} elapsed={recorder.elapsed}/>
+        isRecording={recording} isPaused={recorder.status==="paused"} elapsed={recorder.elapsed}
+        onRestartRecording={restartSection} restartNonce={restartNonce}/>
     </div>
     <div className="mx-auto w-full max-w-[620px] shrink-0 pt-2">
       {error&&<p role="alert" className="mb-2 rounded-lg border border-[#E0B0A7] bg-[#FFF1ED] px-3 py-2 text-[11px] text-[#9A4339]">{error}</p>}

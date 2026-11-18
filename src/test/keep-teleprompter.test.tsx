@@ -111,6 +111,34 @@ describe("shared recording teleprompter", () => {
     expect(position).toBeGreaterThan(0);
   });
 
+  it("uses fractional GPU movement on browsers that only scroll whole pixels",()=>{
+    let frame:FrameRequestCallback|undefined;
+    vi.stubGlobal("requestAnimationFrame",vi.fn((cb:FrameRequestCallback)=>{frame=cb;return 1;}));
+    vi.stubGlobal("cancelAnimationFrame",vi.fn());
+    render(<KeepTeleprompter {...props} isRecording />);
+    const viewport=screen.getByLabelText("Auto-scrolling teleprompter script") as HTMLElement;
+    const script=viewport.querySelector("p") as HTMLElement;
+    Object.defineProperty(viewport,"scrollHeight",{configurable:true,value:1500});
+    Object.defineProperty(viewport,"clientHeight",{configurable:true,value:300});
+    let pos=0;
+    Object.defineProperty(viewport,"scrollTop",{configurable:true,get:()=>pos,set:(v:number)=>{pos=Math.floor(v);}});
+    act(()=>{frame?.(1000);frame?.(1016);});
+    expect(pos).toBeGreaterThan(0);
+    expect(script.style.transform).toContain("translate3d(0, -");
+  });
+
+  it("offers a guarded restart that discards only the current take",async()=>{
+    const restart=vi.fn().mockResolvedValue(undefined);
+    render(<KeepTeleprompter {...props} isRecording onRestartRecording={restart}/>);
+    fireEvent.click(screen.getByRole("button",{name:"Start over current recording"}));
+    expect(screen.getByRole("alertdialog",{name:"Restart recording confirmation"})).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button",{name:"Keep recording"}));
+    expect(restart).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button",{name:"Start over current recording"}));
+    fireEvent.click(screen.getByRole("button",{name:"Discard & restart"}));
+    expect(restart).toHaveBeenCalledTimes(1);
+  });
+
   it("explains that auto-scroll pauses with the recording and resumes automatically", () => {
     const { rerender } = render(<KeepTeleprompter {...props} isRecording isPaused elapsed={9} />);
     expect(screen.getByRole("status")).toHaveTextContent("Auto-scroll will resume");

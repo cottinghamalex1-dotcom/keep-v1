@@ -2,9 +2,12 @@ import { useRef, useState, type ChangeEvent } from "react";
 import { CheckCircle2, ImagePlus, Images, Loader2, Video } from "lucide-react";
 import { uploadRemoteMedia } from "@/lib/keep-remote";
 import { prepareRemoteMoment, REMOTE_MEDIA_LIMIT } from "@/lib/keep-remote-media-prep";
+import { remoteMomentGuide } from "@/lib/keep-remote-moment-guide";
 
-type Props={token:string;mediaCount:number;onUploaded:(count:number)=>void};
-export function KeepRemoteMediaContributor({token,mediaCount,onUploaded}:Props) {
+type Props={token:string;mediaCount:number;onUploaded:(count:number)=>void;
+  contributorCount?:number;totalWordCount?:number;onBusyChange?:(busy:boolean)=>void};
+export function KeepRemoteMediaContributor({token,mediaCount,onUploaded,contributorCount=1,totalWordCount=0,onBusyChange}:Props) {
+  const guide=remoteMomentGuide(totalWordCount,contributorCount);
   const input=useRef<HTMLInputElement>(null);
   const [busy,setBusy]=useState(false);
   const [status,setStatus]=useState("");
@@ -17,7 +20,7 @@ export function KeepRemoteMediaContributor({token,mediaCount,onUploaded}:Props) 
     if(!files.length||busy)return;
     const available=Math.max(0,REMOTE_MEDIA_LIMIT-mediaCount);
     if(files.length>available) {setError(`You can share up to ${REMOTE_MEDIA_LIMIT} moments. Please choose ${available} or fewer.`);return;}
-    setBusy(true);setError("");
+    setBusy(true);onBusyChange?.(true);setError("");
     let count=mediaCount;
     const success:string[]=[];
     let failure="";
@@ -37,25 +40,32 @@ export function KeepRemoteMediaContributor({token,mediaCount,onUploaded}:Props) 
         }
       }
     }finally{
-      setBusy(false);setStatus("");
+      setBusy(false);onBusyChange?.(false);setStatus("");
       if(success.length){setRecent(old=>[...success,...old].slice(0,8));setAdded(v=>v+success.length);}
       if(failure)setError(failure+" Previously uploaded moments are safely saved. Try the remaining files again.");
     }
   };
   const disabled=busy||mediaCount>=REMOTE_MEDIA_LIMIT;
-  return <section aria-label="Optional photos and videos" className="rounded-[22px] border border-[#DCD0C0] bg-[#FFFCF8] p-5 shadow-[0_12px_32px_rgba(56,39,23,.05)]">
+  return <section aria-label="Share photos and videos" className="rounded-[22px] border border-[#DCD0C0] bg-[#FFFCF8] p-5 shadow-[0_12px_32px_rgba(56,39,23,.05)]">
     <div className="flex items-center gap-3">
       <span className="flex size-11 items-center justify-center rounded-full border border-[#DDCDBA] bg-[#F5EADC]"><Images className="size-5 text-[#80664D]"/></span>
       <div className="min-w-0">
-        <p className="text-[10px] font-semibold uppercase tracking-[.17em] text-[#8B755D]">OPTIONAL · SHARE YOUR MOMENTS</p>
+        <p className="text-[10px] font-semibold uppercase tracking-[.17em] text-[#8B755D]">SHARE THE MOMENTS THAT MATTER</p>
         <h2 className="mt-1 font-display text-[27px] leading-none text-[#2F281F]">Add photos & videos.</h2>
       </div>
     </div>
     <p className="mt-4 text-[12px] leading-6 text-[#6D6156]">
-      Have favorite memories with the recipient? Choose photos from your camera roll, and add a few short video clips if you'd like.
-      Keep will send them directly to the creator to review and include.
+      Your favorite photos and short videos make this gift come alive. Think of the meaningful people, little details,
+      and moments worth remembering. Share the ones you'd love the recipient to see again.
+      Keep sends them privately to the creator to include in the final story.
     </p>
-    <p className="mt-2 rounded-lg bg-[#F3EBE0] px-3 py-2 text-[11px] leading-5 text-[#715E4C]">
+    <div className="mt-4 rounded-xl border border-[#E1D2C0] bg-[#F5ECE0] px-4 py-4">
+      <p className="text-[10px] font-semibold uppercase tracking-[.12em] text-[#87694D]">YOUR SUGGESTED CONTRIBUTION</p>
+      <p className="mt-1 font-display text-[30px] leading-tight text-[#382B21]">{guide.min}–{guide.max} <span className="text-[20px]">photos & short videos</span></p>
+      <p className="mt-2 text-[11px] leading-5 text-[#715E4C]">That's your share of about {guide.totalMin}–{guide.totalMax} moments for the whole Keep, divided across {guide.people} {guide.people===1?"contributor":"contributors"}. Mostly photos work beautifully, with a few short videos.</p>
+      <p className="mt-2 text-[11px] leading-5 text-[#715E4C]">This is a helpful goal, not a requirement. Even a few favorite memories are worth sharing.</p>
+    </div>
+    <p className="mt-3 rounded-lg bg-[#F3EBE0] px-3 py-2 text-[11px] leading-5 text-[#715E4C]">
       Mostly photos work best. For videos, aim for <strong>10 seconds or less</strong>.
       Keep automatically tries to compress larger clips before uploading.
     </p>
@@ -68,7 +78,7 @@ export function KeepRemoteMediaContributor({token,mediaCount,onUploaded}:Props) 
     </button>
     {busy&&<p role="status" className="mt-3 text-center text-[11px] leading-5 text-[#7D6A58]">{status}</p>}
     {error&&<p role="alert" className="mt-3 rounded-lg border border-[#E4C2B8] bg-[#FFF0EB] p-3 text-[11px] leading-5 text-[#8F453B]">{error}</p>}
-    <p className="mt-3 text-center text-[11px] text-[#817260]">{mediaCount} / {REMOTE_MEDIA_LIMIT} moments shared securely</p>
+    <p className="mt-3 text-center text-[11px] text-[#817260]">{mediaCount} shared securely · Up to {REMOTE_MEDIA_LIMIT} per person</p>
     {!!recent.length&&<div className="mt-4 border-t border-[#E4DACD] pt-3">
       <p className="mb-2 flex items-center gap-1.5 text-[11px] font-semibold text-[#517349]"><CheckCircle2 className="size-4"/> {added} moment{added===1?"":"s"} sent successfully</p>
       <ul className="space-y-1">{recent.map((name,i)=><li key={name+i} className="flex items-center gap-2 truncate text-[11px] text-[#77695C]"><CheckCircle2 className="size-3.5 shrink-0 text-[#64835A]"/><span className="truncate">{name}</span></li>)}</ul>

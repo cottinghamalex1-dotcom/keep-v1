@@ -223,10 +223,28 @@ Deno.serve(async req => {
     const complete=completedIndices(invite,recordings);
     const guestMedia=await mediaFor([invite.id]);
     if(action==="resolve") {
+      // Give invited contributors the same photo/video guidance as the creator.
+      // Read only the counts from the saved Keep; never expose other speakers'
+      // words or their private media through a contributor token.
+      const {data:keep}=await admin.from("keeps").select("draft_project")
+        .eq("id",invite.keep_id).eq("owner_id",invite.owner_id).maybeSingle();
+      const draft=keep?.draft_project as {
+        contributors?:{id:string}[]; messageParagraphs?:string[]; paragraphSpeakers?:string[];
+      } | null;
+      const paragraphs=draft?.messageParagraphs??[];
+      const contributors=draft?.contributors??[];
+      const activeSpeakers=new Set(paragraphs.map((paragraph,index)=>{
+        if(!paragraph?.trim())return "";
+        return draft?.paragraphSpeakers?.[index] || contributors[index % Math.max(1,contributors.length)]?.id || "";
+      }).filter(Boolean));
+      const allWords=paragraphs.filter(part=>typeof part==="string" && part.trim()).join(" ");
+      const fallbackWords=invite.script_parts.map(part=>part.text).join(" ");
       return answer({
         creatorName:invite.creator_name,recipientName:invite.recipient_name,
         occasion:invite.occasion,contributorName:invite.contributor_name,
         expiresAt:invite.expires_at,mediaCount:guestMedia.length,
+        contributorCount:Math.max(1,activeSpeakers.size),
+        totalWordCount:(allWords||fallbackWords).trim().match(/\S+/gu)?.length??0,
         parts:invite.script_parts.map(part=>({...part,completed:complete.includes(part.index)}))
       });
     }
