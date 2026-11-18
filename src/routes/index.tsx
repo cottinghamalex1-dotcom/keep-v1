@@ -4,6 +4,8 @@ import type { KeepRestoreProgress } from "@/lib/keep-cloud";
 import { ViewingLink } from "@/components/keep-publish-panel";
 import { KeepCardFront } from "@/components/keep-card-front";
 import { publishKeep } from "@/lib/keep-publish";
+import { KeepRenderingStatus } from "@/components/keep-rendering-status";
+import { shotstackRenderingEnabled, type KeepRenderStatus } from "@/lib/keep-render-client";
 import { KeepCaptionEditor } from "@/components/keep-caption-editor";
 import { KeepMusicEditor } from "@/components/keep-music-editor";
 import { KeepVoiceEditor } from "@/components/keep-voice-editor";
@@ -248,6 +250,8 @@ function KeepApp() {
   };
   const [publishing, setPublishing] = useState(false);
   const [publishStatus, setPublishStatus] = useState("");
+  const [filmRenderStatus, setFilmRenderStatus] = useState<KeepRenderStatus["status"]>("not_started");
+  const [hadPublishedLink, setHadPublishedLink] = useState(false);
   const [publishError, setPublishError] = useState("");
   const [engravingOfferOpen, setEngravingOfferOpen] = useState(false);
   const publishingLock = useRef(false);
@@ -1672,6 +1676,8 @@ function KeepApp() {
     setPublishing(true);
     setPublishError("");
     setPublishStatus("Saving your Keep…");
+    setFilmRenderStatus("not_started");
+    setHadPublishedLink(!!original.publicationToken);
     const publicationId = current.publicationId || crypto.randomUUID();
     // Keep the in-progress screen until publication succeeds. Persist the ID
     // before uploading so network retries never accidentally create a new link.
@@ -1691,7 +1697,7 @@ function KeepApp() {
       } catch {
         toast.info("Your published Keep is saved. A cloud draft backup will retry when you reopen the editor.");
       }
-      if (original.publicationToken) {
+      if (original.publicationToken && !shotstackRenderingEnabled) {
         toast.success("Your Keep has been updated. Its permanent viewing link stays the same.");
         window.location.assign("/app");
         return;
@@ -2518,13 +2524,18 @@ function KeepApp() {
       <div className="flex items-center justify-center"><span className="keep-wordmark">Keep</span></div>
       <div className="pt-12">
         <div className="mb-7 flex size-12 items-center justify-center rounded-full border border-[#B8A89A] text-[#6A5849]"><Check className="size-5" /></div>
-        <h1 className="keep-editorial-title">Your Keep is ready.</h1>
-        <p className="mt-4 text-sm leading-6 text-muted-foreground">A memory worth keeping. Ready to share whenever you are.</p>
+        <h1 className="keep-editorial-title">{shotstackRenderingEnabled && filmRenderStatus !== "ready" ? "Your Keep is saved." : "Your Keep is ready."}</h1>
+        <p className="mt-4 text-sm leading-6 text-muted-foreground">{shotstackRenderingEnabled && filmRenderStatus !== "ready"
+          ? "Your moments are safe. We're preparing one complete film with its opening and ending."
+          : "A memory worth keeping. Ready to share whenever you are."}</p>
+        {shotstackRenderingEnabled && project.publicationId && <KeepRenderingStatus
+          keepId={project.publicationId} musicMood={project.musicMood}
+          musicMuted={!!project.audioMix?.musicMuted} onStatusChange={setFilmRenderStatus} />}
         <div className="mt-9"><KeepCardFront engraving={keepQuote.hasEngraving?engraving:[]} openingMessage={project.openingMessage} showOpeningMessage={keepQuote.hasEngraving&&project.engraveOpeningMessage} /></div>
         <p className="mt-4 text-center text-[11px] leading-5 text-muted-foreground">Physical card ordering is coming next. No card has been ordered or shipped.</p>
       </div>
       <div className="mt-11 space-y-3">
-        {project.publicationToken && <ViewingLink token={project.publicationToken} />}
+        {project.publicationToken && (!shotstackRenderingEnabled || filmRenderStatus === "ready" || hadPublishedLink) && <ViewingLink token={project.publicationToken} />}
         <Button variant="quiet" size="touch" className="w-full" onClick={() => go("editor")}>Back to editor</Button>
         <Button asChild variant="quiet" size="touch" className="w-full"><Link to="/app">Back to Keeps</Link></Button>
         <p className="pt-2 text-center text-[11px] leading-5 text-muted-foreground">Your draft is saved as you edit. Tapping Done in the editor refreshes this same viewing link.</p>
