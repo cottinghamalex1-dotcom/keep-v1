@@ -1839,7 +1839,12 @@ function KeepApp() {
         <label htmlFor="other-relationship" className="eyebrow">WHO ARE THEY TO YOU?</label>
         <input id="other-relationship"
           value={otherRelationship || savedCustomRelationship}
-          onChange={(e) => setOtherRelationship(e.target.value.slice(0, 50))}
+          onChange={(e) => {
+            // Editing a previously saved custom relationship must allow clearing
+            // the old value instead of restoring it on every keystroke.
+            if (savedCustomRelationship) patch({ relationship: "Someone else" });
+            setOtherRelationship(e.target.value.slice(0, 50));
+          }}
           placeholder="My coach" autoComplete="off"
           className="mt-3 w-full border-0 border-b border-border bg-transparent pb-4 font-display text-3xl outline-none focus:border-accent" />
       </div>}
