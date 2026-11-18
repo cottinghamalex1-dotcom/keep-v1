@@ -70,7 +70,7 @@ it("opens a private, manually navigated photo gallery without creating a fourth 
   expect(screen.getByText("Watch, Listen & Read")).toBeTruthy();
   expect(screen.getByText("Listen & Read")).toBeTruthy();
   expect(screen.getByText("Read")).toBeTruthy();
-  fireEvent.click(screen.getByRole("button", { name: /Want to linger on the photos & videos/ }));
+  fireEvent.click(screen.getByRole("button", { name: /Want to see the photos & videos/ }));
   expect(screen.getByRole("dialog", { name: "Look through your memories" })).toBeTruthy();
   expect(screen.getByText("Moment 1 of 2")).toBeTruthy();
   expect(screen.getByRole("button", { name: "Play background music" })).toBeTruthy();

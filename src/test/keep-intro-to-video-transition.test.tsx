@@ -3,11 +3,12 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { KeepRecipientExperience } from "@/components/keep-recipient-experience";
 
 vi.mock("@/components/keep-player", () => ({
-  KeepPlayer: ({ onOpeningFrameReady, onExit, audioUrl }: {
-    onOpeningFrameReady?: () => void; onExit?: () => void; audioUrl?: string;
+  KeepPlayer: ({ onOpeningFrameReady, onExit, onFinish, audioUrl }: {
+    onOpeningFrameReady?: () => void; onExit?: () => void; onFinish?: () => void; audioUrl?: string;
   }) => <div data-testid="recipient-film" data-audio={audioUrl}>
     <button type="button" onClick={onOpeningFrameReady}>Opening photo decoded</button>
     <button type="button" onClick={onExit}>Exit preview</button>
+    <button type="button" onClick={onFinish}>Finish film</button>
   </div>,
 }));
 
@@ -53,6 +54,21 @@ describe("seamless personalized introduction to film", () => {
     fireEvent.click(screen.getByRole("button", { name: "Exit preview" }));
     expect(screen.getByRole("button", { name: /Watch, Listen & Read/i })).toBeInTheDocument();
     expect(screen.queryByTestId("recipient-film")).not.toBeInTheDocument();
+  });
+
+  it("always replays the title, dedication and film after choosing Watch again", () => {
+    const { container } = render(<KeepRecipientExperience {...props} />);
+    fireEvent.click(screen.getByRole("button", { name: "Experience your Keep" }));
+    expect(screen.getByTestId("recipient-film")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Finish film" }));
+    expect(screen.getByText(/Some things are/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /Experience it again/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Watch, Listen & Read/i }));
+    expect(container.querySelector(".keep-first-play")).not.toBeNull();
+    expect(screen.queryByTestId("recipient-film")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Experience your Keep" }));
+    expect(screen.getByTestId("recipient-film")).toBeInTheDocument();
+    expect(screen.getByText("Opening your Keep…")).toBeInTheDocument();
   });
 
   it("shows direct creator watch previews without a redundant introduction", () => {

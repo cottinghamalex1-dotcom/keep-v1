@@ -215,7 +215,15 @@ export function KeepRecipientExperience({
   };
 
   const choose = (next: KeepExperienceMode) => {
-    if (next === "watch") enterKeepFullscreen();
+    // Every Watch replay must return to the personal cover first. Entering the
+    // film directly skips the cinematic dedication and music-first opening.
+    if (next === "watch") {
+      setGalleryOpen(false);
+      setIntroHandoff(false);
+      setOpeningFrameReady(false);
+      setStage("reveal");
+      return;
+    }
     setGalleryOpen(false);
     setExperience(next);
     setListening(false);
@@ -425,7 +433,7 @@ export function KeepRecipientExperience({
           <Button variant="quiet" className="keep-editorial-surface h-auto w-full justify-between p-5 text-left" onClick={() => choose("listen")}><span className="flex items-center gap-4"><Headphones className="size-5" /><span><strong className="block font-normal">Listen &amp; Read</strong><small className="mt-1 block font-normal text-muted-foreground">Listen to their voice while reading every word</small></span></span><ArrowRight /></Button>
           <Button variant="quiet" className="keep-editorial-surface h-auto w-full justify-between p-5 text-left" onClick={() => choose("read")}><span className="flex items-center gap-4"><BookOpen className="size-5" /><span><strong className="block font-normal">Read</strong><small className="mt-1 block font-normal text-muted-foreground">Just the written message, no media</small></span></span><ArrowRight /></Button>
         </div>
-        {!!media?.length && <button type="button" className="mx-auto mt-6 block text-center text-[13px] text-[#7B6754] underline decoration-[#A58F78] underline-offset-4 hover:text-[#33291F]" onClick={() => setGalleryOpen(true)}>Want to linger on the photos &amp; videos?</button>}
+        {!!media?.length && <button type="button" className="mx-auto mt-6 block text-center text-[13px] text-[#7B6754] underline decoration-[#A58F78] underline-offset-4 hover:text-[#33291F]" onClick={() => setGalleryOpen(true)}>Want to see the photos &amp; videos?</button>}
       </div>
     </div></main>{galleryOpen && !!media?.length && <KeepMemoryGallery media={media} musicMood={musicMood} onClose={() => setGalleryOpen(false)} />}</>;
   }
