@@ -167,7 +167,7 @@ Deno.serve(async (req: Request) => {
     } catch {
       // Ingestion can safely be retried on another status poll; never publish
       // a missing/partial video or mark a failed provider URL as ready.
-      return reply({ id: job.id, status: "rendering", message: "Verifying the finished film." });
+      return reply({ id: job.id, status: "rendering", providerStatus: "verifying", message: "Verifying the finished film." });
     }
   }
   if (request.action !== "start") return fail("Unknown action.", 404);
