@@ -24,7 +24,7 @@ function Recipient() {
   for(const m of project.memories) if(!readMedia.some(x=>x.id===m.id))readMedia.push(m);
   const speakers = project.voiceMode === 'together' ? (project.contributors ?? []).map(c=>c.name.trim()).filter(Boolean) : [];
   return <KeepRecipientExperience key={keep} name={project.recipientName} from={speakers.length ? speakers.join(' & ') : (project.cardEngraving[1]||'').replace(/^FROM\s+/i,'')} year={project.cardEngraving[2]||''} speakerNames={project.voiceMode === 'together' ? (project.paragraphSpeakers ?? []).map(id => (project.contributors ?? []).find(c => c.id === id)?.name || '') : undefined}
-    subtitle={project.occasion} openingMessage={project.openingMessage} closingLine={project.closingLine} media={project.memories} readMedia={readMedia} audioUrl={project.voiceUrl} audioDuration={project.voiceDuration}
+    subtitle={project.occasion} openingMessage={project.openingMessage} closingLine={project.closingLine} media={project.memories} readMedia={readMedia} audioUrl={project.voiceUrl} renderedVideoUrl={project.renderedVideoUrl} audioDuration={project.voiceDuration}
     messageParagraphs={project.messageParagraphs} style={project.visualStyle} captions={project.captionStyle} lines={project.captionCues.map(c=>c.text)} captionCues={project.captionCues}
     musicMood={project.musicMood} voiceMusicBalance={project.voiceMusicBalance} voiceVolume={project.voiceVolume} musicVolume={project.musicVolume}
     captionPosition={project.captionPosition} captionLines={project.captionLines} audioMix={project.audioMix} persistVisit={false} />;
