@@ -275,7 +275,7 @@ function ShopKeep() {
       </div>
     </section>
 
-    <section className="mx-auto max-w-[900px] px-6 py-20 md:py-28">
+    <section id="faqs" className="scroll-mt-24 mx-auto max-w-[900px] px-6 py-20 md:py-28">
       <p className="text-center text-[10px] uppercase tracking-[.2em] text-[#6A5849]">Good to know</p>
       <h2 className="mt-5 text-center font-display text-[clamp(39px,4.4vw,59px)] tracking-[-.035em]">A few thoughtful answers.</h2>
       <div className="mt-12 border-t border-[#D8D0C7]">

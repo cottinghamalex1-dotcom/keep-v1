@@ -34,10 +34,26 @@ describe("Consistent Keep navigation", () => {
     expect(screen.getByRole("link", { name: "Log in / Continue editing" }).getAttribute("href")).toBe("/app");
     expect(screen.getByRole("link", { name: "The experience" }).getAttribute("href")).toBe("/shop#experience");
     expect(screen.getByRole("link", { name: "How it works" }).getAttribute("href")).toBe("/shop#how-it-works");
-    expect(screen.getAllByRole("link", { name: "Packages" }).some(el => el.getAttribute("href") === "/shop#packages")).toBe(true);
+    expect(screen.getByRole("dialog", { name: "Keep navigation" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Close navigation menu" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Shop Basic Keep" }).getAttribute("href")).toBe("/shop#packages");
+    expect(screen.getByRole("link", { name: "Shop Signature Keep" }).getAttribute("href")).toBe("/shop#packages");
+    expect(screen.getByRole("link", { name: /Explore Keep packages/ }).getAttribute("href")).toBe("/shop#packages");
+    expect(screen.getByRole("link", { name: "Frequently Asked Questions" }).getAttribute("href")).toBe("/shop#faqs");
     expect(screen.getAllByRole("link", { name: "Our story" }).length).toBeGreaterThan(0);
     expect(document.querySelector('nav[aria-label="Shop navigation"]')).toBeNull();
     expect(screen.queryByText("SOME THINGS ARE WORTH KEEPING")).toBeNull();
+  });
+  it("closes the full-height menu and restores page scrolling", async () => {
+    await openMenu("/shop");
+    expect(document.body.style.overflow).toBe("hidden");
+    fireEvent.click(screen.getByRole("button", { name: "Close navigation menu" }));
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Keep navigation" })).toBeNull());
+    expect(document.body.style.overflow).toBe("");
+    fireEvent.click(screen.getByRole("button", { name: "Open navigation menu" }));
+    expect(screen.getByRole("dialog", { name: "Keep navigation" })).toBeTruthy();
+    fireEvent.keyDown(document, { key: "Escape" });
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Keep navigation" })).toBeNull());
   });
   it("shows the updated savings and package inclusions", async () => {
     const router = createRouter({
