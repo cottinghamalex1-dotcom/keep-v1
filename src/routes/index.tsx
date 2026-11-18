@@ -72,7 +72,7 @@ const occasions = ["Birthday", "Anniversary", "Wedding", "New Baby", "Mother's D
 // relationships remain valid and appear selected under the new "Parent" label.
 export const relationshipGroups = [
   { title: "Family & friends", options: [
-    "Spouse / Partner", "Parent", "Child", "Grandparent",
+    "Spouse / Partner", "Parent", "In-Law", "Child", "Grandparent",
     "Sibling", "Family Member", "Friend", "Family Friend",
   ] },
   { title: "Work & community", options: [
