@@ -2,6 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { ArrowLeft, CheckCircle2, Film, LoaderCircle, PlayCircle, RefreshCw } from "lucide-react";
 import { activeKeepSession } from "@/lib/keep-cloud";
+import { KeepRenderedPlayer } from "@/components/keep-rendered-player";
 import { beginKeepRender, refreshKeepRender, shotstackRenderingEnabled, type KeepRenderStatus } from "@/lib/keep-render-client";
 
 export const Route = createFileRoute("/render-test")({ component: RenderTest });
@@ -25,6 +26,7 @@ function RenderTest() {
   const [job, setJob] = useState<StatusWithUrl | null>(null);
   const [busy, setBusy] = useState(false);
   const [filmError, setFilmError] = useState("");
+  const [watchingFilm, setWatchingFilm] = useState(false);
   const activeRef = useRef(true);
 
   useEffect(() => {
@@ -86,6 +88,7 @@ function RenderTest() {
     setJob(null);
     setError("");
     setFilmError("");
+    setWatchingFilm(false);
     setBusy(true);
     try {
       const current = await refreshKeepRender(keep.id);
@@ -168,9 +171,10 @@ function RenderTest() {
           </div>}
           {job?.status === "ready" && <div className="mt-5">
             <p role="status" className="mb-4 flex items-center gap-2 text-sm text-[#526C4A]"><CheckCircle2 size={19} /> MP4 render complete</p>
-            {job.videoUrl ? <video className="aspect-[9/16] w-full rounded-xl bg-black object-contain" src={job.videoUrl}
-              controls playsInline preload="metadata" aria-label="Shotstack sandbox MP4 video"
-              onError={() => setFilmError("The MP4 couldn't play on this device. Please report this error.")} />
+            {job.videoUrl ? <button type="button" onClick={() => setWatchingFilm(true)}
+              className="flex min-h-14 w-full items-center justify-center gap-3 rounded-xl bg-[#211C18] px-6 text-sm font-semibold text-white">
+              <PlayCircle size={21} /> Watch your Keep and explore the timeline
+            </button>
             : <p className="text-sm text-[#806A53]">The video is saved but the playback link is unavailable. Refresh the status.</p>}
             {filmError && <p role="alert" className="mt-3 text-sm text-[#9E3328]">{filmError}</p>}
           </div>}
@@ -187,6 +191,11 @@ function RenderTest() {
       <p className="mt-10 text-xs leading-5 text-[#8B7C70]">
         Testing only. The Shotstack watermark is expected. Playback is private to the signed-in creator and the video link expires.
       </p>
+      {watchingFilm && job?.status === "ready" && job.videoUrl && <div className="fixed inset-0 z-[100] bg-[#171311]" role="dialog" aria-modal="true" aria-label="Watch and scrub your finished Keep">
+        <KeepRenderedPlayer key={job.videoUrl} videoUrl={job.videoUrl}
+          onExit={() => setWatchingFilm(false)} onFinish={() => setWatchingFilm(false)}
+          onOpeningFrameReady={() => {}} onPlaybackError={() => { setFilmError("The MP4 couldn't play on this device. Please report this error."); setWatchingFilm(false); }} />
+      </div>}
     </div>
   </main>;
 }
