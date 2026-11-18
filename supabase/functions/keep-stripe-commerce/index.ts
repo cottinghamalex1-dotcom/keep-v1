@@ -220,6 +220,42 @@ async function checkoutStatus(req: Request, body: Record<string, unknown>) {
   await recordVerifiedPayment(paid);
   return reply(req, { paid: true, cart: paid.cart, totalCards: paid.cart.extraCards + 1 });
 }
+async function approvePaidKeep(req: Request, body: Record<string, unknown>) {
+  if (!admin || !uuid(body.keepId)) return reply(req, { error: "Invalid Keep approval." }, 400);
+  const user = await signedInUser(req);
+  if (!user?.email_confirmed_at || !user.email) return reply(req, { error: "Sign in to approve your Keep." }, 401);
+  const { data: keep, error: keepError } = await admin.from("keeps")
+    .select("id,owner_id,status,published_at,published_project")
+    .eq("id", body.keepId).eq("owner_id", user.id).maybeSingle();
+  if (keepError || !keep || keep.status !== "ready" || !keep.published_at)
+    return reply(req, { error: "Finish and publish your Keep before approving production." }, 409);
+  const { data: paid, error: purchaseError } = await admin.from("keep_purchases")
+    .select("id,status,package_tier,voice_count,extra_logo_cards,extra_engraved_cards,basic_engraving_upgrade,purchaser_email")
+    .eq("keep_id", keep.id).eq("owner_id", user.id).not("stripe_checkout_session_id", "is", null).maybeSingle();
+  if (purchaseError || !paid || paid.purchaser_email !== user.email.toLowerCase() ||
+      !["reserved", "approved"].includes(paid.status))
+    return reply(req, { error: "Your verified payment couldn't be matched to this Keep." }, 402);
+  const project = keep.published_project ?? {};
+  const order = project.keepOrder ?? {};
+  const voices = project.voiceMode === "together" ? (project.contributors?.length ?? 2) : 1;
+  const extraCards = Number(order.extraCards ?? 0);
+  const engravedExtras = order.extraCardStyle === "engraved" ? extraCards : 0;
+  const logoExtras = extraCards - engravedExtras;
+  if (order.tier !== paid.package_tier || voices > paid.voice_count ||
+      engravedExtras > paid.extra_engraved_cards || logoExtras > paid.extra_logo_cards ||
+      (order.tier === "basic" && !!order.engravingUpgrade && !paid.basic_engraving_upgrade))
+    return reply(req, { error: "The finished Keep includes upgrades not covered by your payment." }, 409);
+  if (paid.status === "reserved") {
+    const { error: approvalError } = await admin.from("keep_purchases")
+      .update({ status: "approved", approved_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+      .eq("id", paid.id).eq("status", "reserved");
+    if (approvalError) return reply(req, { error: "Couldn't approve production." }, 503);
+  }
+  const { error: fulfillmentError } = await admin.from("keep_fulfillment")
+    .update({ engraving_approved: true, updated_at: new Date().toISOString() }).eq("purchase_id", paid.id);
+  if (fulfillmentError) return reply(req, { error: "Couldn't approve fulfillment." }, 503);
+  return reply(req, { approved: true });
+}
 async function signatureIsValid(raw: string, header: string) {
   if (!STRIPE_WEBHOOK_SECRET || !header) return false;
   const parts = Object.fromEntries(header.split(",").map(x => x.split("=", 2)));
@@ -269,6 +305,7 @@ Deno.serve(async req => {
     const body = await req.json();
     if (body?.action === "checkout") return await createCheckout(req, body);
     if (body?.action === "status") return await checkoutStatus(req, body);
+    if (body?.action === "approve") return await approvePaidKeep(req, body);
     return reply(req, { error: "Invalid checkout action." }, 400);
   } catch (e) {
     console.error("Keep Stripe commerce error:", e instanceof Error ? e.message : "unknown");
