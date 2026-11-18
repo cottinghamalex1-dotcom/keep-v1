@@ -15,7 +15,7 @@ describe("finishing a Keep", () => {
     musicMood: "Warm + Nostalgic",
     musicMuted: false,
     publishing: true,
-    publishMessage: "Saving memories 2 of 4…",
+    publishMessage: "Saving photo 2 of 4…",
     onReady: vi.fn(),
     onRetryPublish: vi.fn(),
     onBack: vi.fn(),
@@ -25,6 +25,8 @@ describe("finishing a Keep", () => {
     expect(screen.getByRole("dialog", { name: "Saving your Keep" })).toBeInTheDocument();
     expect(screen.getByRole("progressbar", { name: "Keep saving progress" })).toHaveAttribute("aria-valuenow", "21");
     expect(screen.getByText("21%")).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("Saving photo 2 of 4");
+    expect(screen.queryByText(/Saving your memories —/i)).toBeNull();
     expect(screen.queryByText(/Shotstack|preprocessing|render status/i)).toBeNull();
     expect(screen.queryByText(/Give it somewhere to live/i)).toBeNull();
     expect(screen.queryByText(/Your Keep is ready/i)).toBeNull();
