@@ -1,5 +1,6 @@
 import { compressKeepVideo, shouldCompressKeepVideo } from "./keep-video-compression";
 import { checkKeepVideo, KEEP_VIDEO_MAX_SOURCE_BYTES, readKeepVideoDuration } from "./keep-video-upload";
+import { optimizeKeepPhoto, shouldOptimizeKeepPhoto } from "./keep-photo-optimization";
 
 const PHOTO_LIMIT=15*1024*1024;
 const PHOTO_COMPRESS_AFTER=5*1024*1024;
@@ -17,6 +18,16 @@ export async function prepareRemotePhoto(file:File):Promise<File> {
   } as Record<string,string>)[ext];
   if(!["image/jpeg","image/png","image/webp","image/heic","image/heif"].includes(mime??""))
     throw new Error("Please choose a JPG, PNG, WebP or iPhone photo.");
+  // Optimize even ordinary 1–5 MB phone photos before the network upload.
+  // The shared quality guard refuses visible degradation or poor savings.
+  if(shouldOptimizeKeepPhoto(file)) {
+    const optimized=await optimizeKeepPhoto(file,{name:file.name});
+    if(optimized && optimized.size>100 && optimized.size<file.size) {
+      const extension=optimized.type==="image/webp"?"webp":"jpg";
+      return new File([optimized],file.name.replace(/\\.[^.]*$/,"")+"."+extension,
+        {type:optimized.type,lastModified:Date.now()});
+    }
+  }
   if(file.size<=PHOTO_COMPRESS_AFTER)return file;
   try {
     const bitmap=await createImageBitmap(file);
