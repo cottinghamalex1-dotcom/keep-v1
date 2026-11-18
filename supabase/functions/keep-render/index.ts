@@ -83,6 +83,12 @@ function planFromProject(p: Record<string, unknown>) {
 type Job = { id: string; status: string; provider_render_id: string | null; revision_hash: string;
   expected_duration_seconds: number; render_path: string | null; error_message: string | null };
 const publicStatus = (job: Job) => ({ id: job.id, status: job.status, error: job.error_message ?? undefined });
+/** Only the authenticated creator may receive this short-lived private test URL. */
+async function ownerStatus(job: Job) {
+  if (job.status !== "ready" || !job.render_path) return publicStatus(job);
+  const { data, error } = await admin.storage.from("keep-media").createSignedUrl(job.render_path, 1800);
+  return { ...publicStatus(job), ...(error || !data?.signedUrl ? {} : { videoUrl: data.signedUrl }) };
+}
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: cors });
@@ -127,7 +133,7 @@ Deno.serve(async (req: Request) => {
   if (request.action === "status") {
     if (!job) return reply({ status: "not_started" });
     if (job.status === "ready" || job.status === "failed" || !job.provider_render_id)
-      return reply(publicStatus(job));
+      return reply(await ownerStatus(job));
     try {
       const result = await providerCall("/render/" + encodeURIComponent(job.provider_render_id));
       const shot = result?.response;
@@ -157,7 +163,7 @@ Deno.serve(async (req: Request) => {
         status: "ready", render_path: path, error_message: null, updated_at: new Date().toISOString(),
       }).eq("id", job.id).eq("status", "rendering");
       if (updateError) throw new Error("The completed film could not be finalized.");
-      return reply({ id: job.id, status: "ready" });
+      return reply(await ownerStatus({ ...job, status: "ready", render_path: path }));
     } catch {
       // Ingestion can safely be retried on another status poll; never publish
       // a missing/partial video or mark a failed provider URL as ready.
@@ -165,7 +171,7 @@ Deno.serve(async (req: Request) => {
     }
   }
   if (request.action !== "start") return fail("Unknown action.", 404);
-  if (job) return reply(publicStatus(job));
+  if (job) return reply(await ownerStatus(job));
   if (!Deno.env.get("SHOTSTACK_API_KEY"))
     return fail("Rendering is not enabled yet. Your existing Keep is still available.", 503);
   if (project.audioMix && typeof project.audioMix !== "object")
