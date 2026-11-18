@@ -1,6 +1,7 @@
 import { viewingLink } from "@/lib/keep-publish";
 import { KeepLibraryCard } from "@/components/keep-library-card";
 import { KeepCreateCTA } from "@/components/keep-create-cta";
+import { KeepPhoneTip } from "@/components/keep-phone-tip";
 import { KeepCollectionCard } from "@/components/keep-collection-card";
 import { KeepCardCollection } from "@/components/keep-card-collection";
 import { KeepAccountDashboard } from "@/components/keep-account-dashboard";
@@ -168,7 +169,7 @@ function KeepDashboard() {
       </form>
       <button className="mt-6 text-sm text-[#6A5849]" onClick={() => setRegister(!register)}>{register ? "Already have an account? Sign in" : "New to Keep? Create an account"}</button>
     </section> : <>
-      {(tab === "home" || tab === "account") && <section className={tab === "home" ? "keep-horizon-hero relative mb-9 pt-11 text-center" : "mb-10 pt-4"}>{tab === "home" ? <><h1 className="keep-editorial-title relative z-10">Say what matters.<span className="mt-1 block italic">Keep it forever.</span></h1><p className="keep-page-description relative z-10 mx-auto mt-6">Turn your words and moments into a beautiful, lasting keepsake they can hold onto forever.</p><KeepCreateCTA /></> : <h1 className="keep-editorial-title">Your account</h1>}</section>}
+      {(tab === "home" || tab === "account") && <section className={tab === "home" ? "keep-horizon-hero relative mb-9 pt-11 text-center" : "mb-10 pt-4"}>{tab === "home" ? <><h1 className="keep-editorial-title relative z-10">Say what matters.<span className="mt-1 block italic">Keep it forever.</span></h1><p className="keep-page-description relative z-10 mx-auto mt-6">Turn your words and moments into a beautiful, lasting keepsake they can hold onto forever.</p><KeepCreateCTA /><KeepPhoneTip /></> : <h1 className="keep-editorial-title">Your account</h1>}</section>}
       {tab === "home" && <div className="space-y-4">
 
         {(keeps.length > 0 || cloudDraft?.active) && <section aria-labelledby="your-creations-heading" className="keep-creations-frame relative isolate overflow-hidden rounded-[24px] p-4 sm:p-5">

@@ -1,5 +1,6 @@
 import { KeepAccountButton } from "@/components/keep-account-button";
 import { KeepCardFront } from "@/components/keep-card-front";
+import { KeepPhoneTip } from "@/components/keep-phone-tip";
 import { useState } from "react";
 import { keepOrderQuote, keepMoney, type KeepTier } from "@/lib/keep-pricing";
 import couple from "@/assets/memory-couple.jpg";
@@ -209,6 +210,7 @@ function ShopKeep() {
             <p className="mt-3 text-[12px] leading-[1.9] text-[#665D55]">{copy}</p>
           </article>)}
         </div>
+        <KeepPhoneTip />
       </div>
     </section>
 
