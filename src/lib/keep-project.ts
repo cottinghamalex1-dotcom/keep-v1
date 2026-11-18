@@ -141,7 +141,7 @@ export function newProject(): KeepProject {
 export const stageLabels: Record<string, string> = {
   recipient: "Choosing who it's for", occasion: "Choosing the occasion", voices: "Choosing the voices", remoteInvite: "Collecting voices remotely", groupRecord: "Recording together", path: "Finding the words", interview: "In the interview",
   summary: "Story gathered", write: "Writing the message", message: "Shaping the message", recordPrep: "Getting ready to record", record: "Recording your voice",
-  recorded: "Voice recorded", memories: "Adding memories", editor: "In the editor", card: "Designing the card", success: "Ready",
+  recorded: "Voice recorded", memories: "Adding memories", editor: "In the editor", saving: "Saving your Keep", card: "Designing the card", success: "Ready",
 };
 
 export function saveDraft(p: KeepProject) {
