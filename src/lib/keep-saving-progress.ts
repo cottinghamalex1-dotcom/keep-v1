@@ -11,14 +11,28 @@ export function keepSavingProgress(
   job?: KeepRenderStatus | null,
 ): { percent: number; label: string; detail: string } {
   if (publishing) {
-    const match = publishMessage.match(/Saving memories (\d+) of (\d+)/i);
-    const completed = match ? Number(match[1]) : 0;
-    const count = match ? Number(match[2]) : 0;
-    const percentage = count > 0 ? Math.min(34, 8 + Math.round(26 * completed / count)) : 8;
+    const match = publishMessage.match(/Saving (photo|video) (\d+) of (\d+)/i);
+    if (match) {
+      const completed = Number(match[2]);
+      const count = Number(match[3]);
+      // Count only photos/videos that were actually saved; no time-based guesses.
+      const percentage = count > 0 ? Math.min(34, 8 + Math.round(26 * completed / count)) : 8;
+      return {
+        percent: percentage,
+        label: `Saving ${match[1]!.toLowerCase()} ${completed} of ${count}`,
+        detail: "",
+      };
+    }
+    if (/voice recording/i.test(publishMessage)) {
+      return { percent: 36, label: "Saving your voice", detail: "" };
+    }
+    if (/permanent link/i.test(publishMessage)) {
+      return { percent: 37, label: "Finishing your memories", detail: "" };
+    }
     return {
-      percent: percentage,
-      label: "Saving your memories",
-      detail: publishMessage || "Getting your photos, videos and voice ready.",
+      percent: 8,
+      label: /Preparing photo/i.test(publishMessage) ? "Preparing your photos" : "Saving your memories",
+      detail: "",
     };
   }
   if (!job || job.status === "not_started") {
