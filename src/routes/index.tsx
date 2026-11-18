@@ -2549,9 +2549,26 @@ function KeepApp() {
           <p className="pt-2 text-[11px] leading-5">Preview only. No extra cards, collaborators or engraving have been purchased yet. Taxes may apply at checkout.</p>
         </div>
       </section>
-      <KeepOpeningPersonalization project={project} onUpdate={patch} onPreview={() => go("recipientReveal")} disabled={publishing} engravingEnabled={keepQuote.hasEngraving} />
+      {shotstackRenderingEnabled ? <>
+          <div className="mt-9"><KeepCardFront engraving={keepQuote.hasEngraving ? engraving : []}
+            openingMessage={project.openingMessage} showOpeningMessage={keepQuote.hasEngraving && project.engraveOpeningMessage} /></div>
+          {keepQuote.hasEngraving && <section aria-label="Physical card personalization" className="mt-9 space-y-4 rounded-2xl border border-[#D8CCBE] bg-[#F5EDE3]/65 px-5 py-6">
+            <h2 className="font-display text-[28px]">Make the card theirs.</h2>
+            <p className="text-xs leading-6 text-[#796B60]">Personalize the physical card that opens this finished Keep.</p>
+            {["To / Title", "From (optional)", "Date (optional)"].map((label, i) => <label key={label} className="block">
+              <span className="eyebrow">{label}</span>
+              <input aria-label={`Card ${label}`} maxLength={22} value={project.cardEngraving[i] ?? ""}
+                onChange={(e) => updateEngraving(i, e.target.value)}
+                className="mt-2 w-full border-0 border-b border-[#D1C3B7] bg-transparent pb-3 text-sm tracking-widest outline-none focus:border-accent" />
+            </label>)}
+          </section>}
+          <p className="mt-6 text-center text-xs leading-6 text-muted-foreground">
+            Your film is already saved. To change the opening or ending of the film, return to the editor and save it again.
+          </p>
+        </> : <KeepOpeningPersonalization project={project} onUpdate={patch}
+          onPreview={() => go("recipientReveal")} disabled={publishing} engravingEnabled={keepQuote.hasEngraving} />}
       <div className="mt-10 border-t border-border pt-7">
-        <Button variant="keep" size="touch" className="keep-premium-action w-full justify-between" disabled={publishing || (keepQuote.hasEngraving && !engraving[0]?.trim())} onClick={() => void finishAndShare()}>
+        <Button variant="keep" size="touch" className="keep-premium-action w-full justify-between" disabled={publishing || (keepQuote.hasEngraving && !engraving[0]?.trim())} onClick={finishCardCustomization}>
           {publishing ? "Saving your Keep…" : "Finish & share"} <ArrowRight className="size-5" />
         </Button>
         {publishing && <p role="status" className="mt-3 text-center text-xs text-muted-foreground">{publishStatus}</p>}
@@ -2577,18 +2594,13 @@ function KeepApp() {
       <div className="flex items-center justify-center"><span className="keep-wordmark">Keep</span></div>
       <div className="pt-12">
         <div className="mb-7 flex size-12 items-center justify-center rounded-full border border-[#B8A89A] text-[#6A5849]"><Check className="size-5" /></div>
-        <h1 className="keep-editorial-title">{shotstackRenderingEnabled && filmRenderStatus !== "ready" ? "Your Keep is saved." : "Your Keep is ready."}</h1>
-        <p className="mt-4 text-sm leading-6 text-muted-foreground">{shotstackRenderingEnabled && filmRenderStatus !== "ready"
-          ? "Your moments are safe. We're preparing one complete film with its opening and ending."
-          : "A memory worth keeping. Ready to share whenever you are."}</p>
-        {shotstackRenderingEnabled && project.publicationId && <KeepRenderingStatus
-          keepId={project.publicationId} musicMood={project.musicMood}
-          musicMuted={!!project.audioMix?.musicMuted} onStatusChange={setFilmRenderStatus} />}
+        <h1 className="keep-editorial-title">Your Keep is ready.</h1>
+        <p className="mt-4 text-sm leading-6 text-muted-foreground">A memory worth keeping. Ready to share whenever you are.</p>
         <div className="mt-9"><KeepCardFront engraving={keepQuote.hasEngraving?engraving:[]} openingMessage={project.openingMessage} showOpeningMessage={keepQuote.hasEngraving&&project.engraveOpeningMessage} /></div>
         <p className="mt-4 text-center text-[11px] leading-5 text-muted-foreground">Physical card ordering is coming next. No card has been ordered or shipped.</p>
       </div>
       <div className="mt-11 space-y-3">
-        {project.publicationToken && (!shotstackRenderingEnabled || filmRenderStatus === "ready" || hadPublishedLink) && <ViewingLink token={project.publicationToken} />}
+        {project.publicationToken && <ViewingLink token={project.publicationToken} />}
         <Button variant="quiet" size="touch" className="w-full" onClick={() => go("editor")}>Back to editor</Button>
         <Button asChild variant="quiet" size="touch" className="w-full"><Link to="/app">Back to Keeps</Link></Button>
         <p className="pt-2 text-center text-[11px] leading-5 text-muted-foreground">Your draft is saved as you edit. Tapping Done in the editor refreshes this same viewing link.</p>
