@@ -2,6 +2,7 @@ import { KeepAccountButton } from "@/components/keep-account-button";
 import { KeepCardFront } from "@/components/keep-card-front";
 import { useState } from "react";
 import { keepOrderQuote, keepMoney, type KeepTier } from "@/lib/keep-pricing";
+import { keepStripeCheckoutReady } from "@/lib/keep-stripe-checkout";
 import couple from "@/assets/memory-couple.jpg";
 import wedding from "@/assets/memory-wedding.jpg";
 import home from "@/assets/memory-home.jpg";
@@ -19,16 +20,7 @@ export const Route = createFileRoute("/shop")({
   component: ShopKeep,
 });
 
-// Stripe-hosted links stay disabled until each tier's webhook, engraving and fulfillment are tested.
-const checkoutUrls: Record<KeepTier, string> = {
-  basic: (import.meta.env["VITE_KEEP_STRIPE_BASIC_PAYMENT_LINK_URL"] as string | undefined)?.trim() ?? "",
-  signature: (import.meta.env["VITE_KEEP_STRIPE_PAYMENT_LINK_URL"] as string | undefined)?.trim() ?? "",
-};
-// Deliberately locked for the prelaunch catalog until tax, fulfillment and paid entitlements pass acceptance tests.
-const checkoutEnabled = false;
-const validatedCheckout = (tier: KeepTier) =>
-  checkoutEnabled && /^https:\/\/buy\.stripe\.com\/[a-zA-Z0-9_]+(?:\?.*)?$/.test(checkoutUrls[tier]);
-
+// Customers create and preview their Keep first; the final order is paid in Stripe Checkout.
 const packageChoices: Array<{
   tier: KeepTier; name: string; price: string; cards: string; engraving: string; message: string; points: string[]; featured: boolean;
 }> = [
@@ -63,17 +55,13 @@ function BrandMark({ light = false }: { light?: boolean }) {
 
 function PurchaseAction({ tier = "signature", smaller = false }: { tier?: KeepTier; smaller?: boolean }) {
   const packageName = packageChoices.find(p => p.tier === tier)!;
-  if (!validatedCheckout(tier)) return <div className="w-full">
-    <span aria-disabled="true" className="flex min-h-12 items-center justify-between gap-4 rounded-sm border border-[#0B0B0B] bg-[#0B0B0B] px-5 py-3 text-xs font-medium text-[#F7F5F2] opacity-60">
-      Checkout opening soon <ArrowRight className="size-4 shrink-0" />
-    </span>
-    {smaller ? <p className="mt-2 text-[10px] leading-4 text-[#74695E]">We’re finishing secure payment verification before opening orders.</p> : null}
+  return <div className="w-full">
+    <a href={`/?create=1&package=${tier}`} className="flex min-h-12 w-full items-center justify-between gap-3 rounded-sm border border-[#0B0B0B] bg-[#0B0B0B] px-5 py-3 text-xs font-medium text-[#F7F5F2] transition-colors hover:bg-[#302923]">
+      {keepStripeCheckoutReady ? `Create your ${packageName.name} Keep` : `Preview your ${packageName.name} Keep`} <ArrowRight className="size-4 shrink-0" />
+    </a>
+    {smaller && <p className="mt-2 text-[10px] leading-4 text-[#74695E]">{keepStripeCheckoutReady ? "Create and preview first. Pay securely through Stripe when your Keep is ready." : "You can preview the creation process now. Card ordering and payment aren't open yet."}</p>}
   </div>;
-  return <a href={checkoutUrls[tier]} className="flex min-h-12 w-full items-center justify-between gap-3 rounded-sm border border-[#0B0B0B] bg-[#0B0B0B] px-5 py-3 text-xs font-medium text-[#F7F5F2] transition-colors hover:bg-[#302923]">
-    Choose {packageName.name} — {packageName.price} <ArrowRight className="size-4 shrink-0" />
-  </a>;
 }
-
 
 function AddOnPricePreview() {
   const [tier, setTier] = useState<KeepTier>("basic");

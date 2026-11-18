@@ -1,0 +1,30 @@
+name: Keep checkout quality checks
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "src/**"
+      - "supabase/**"
+      - "package.json"
+      - ".github/workflows/keep-checkout-ci.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+      - name: Test pricing and checkout math
+        run: npm test
+      - name: Verify production app build
+        run: npm run build

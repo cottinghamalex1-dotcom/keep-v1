@@ -24,7 +24,7 @@ Deno.serve(async(req:Request)=>{
       const {data:signed,error:signError}=await admin.storage.from('keep-media').createSignedUrls(paths,86400);
       if(signError||!signed||signed.some(s=>s.error||!s.signedUrl)) return fail('A memory could not load. Please try again.',503);
       const urls=new Map(signed.map(s=>[s.path,s.signedUrl]));
-      const {voicePath,memories,...settings}=project;
+      const {voicePath,memories,keepOrder:_checkoutPreferences,...settings}=project;
       return reply({project:{...settings,voiceUrl:urls.get(voicePath),memories:memories.map(({storagePath,...m})=>({...m,url:urls.get(storagePath)}))}});
     }
     if(body.action!=='publish') return fail('Unknown action',404);
@@ -38,6 +38,23 @@ Deno.serve(async(req:Request)=>{
     if(!parsed.success) return fail('Some Keep details are missing or invalid. Return to the editor and try again.');
     const project=parsed.data;
     let paths:string[];try {paths=ownedPaths(project,user.id,body.keepId);} catch{return fail('These memories do not belong to this Keep.',403);}
+    // Paid enforcement is enabled only when the Stripe checkout rollout has passed testing.
+    if (Deno.env.get('KEEP_REQUIRE_STRIPE_PAYMENT') === 'true') {
+      const cart=project.keepOrder;
+      if (!cart) return fail('Choose and pay for your Keep package before publishing.',402);
+      const {data:purchase,error:purchaseError}=await admin.from('keep_purchases')
+        .select('id,status,package_tier,voice_count,extra_logo_cards,extra_engraved_cards,basic_engraving_upgrade')
+        .eq('keep_id',body.keepId).eq('owner_id',user.id).not('stripe_checkout_session_id','is',null).maybeSingle();
+      if(purchaseError||!purchase||!['reserved','approved','in_production','shipped'].includes(purchase.status))
+        return fail('A verified Stripe purchase is required before publishing.',402);
+      const voices=project.voiceMode==='together' ? (project.contributors?.length ?? 2) : 1;
+      const engravedExtras=cart.extraCardStyle==='engraved' ? cart.extraCards : 0;
+      const logoExtras=cart.extraCards-engravedExtras;
+      if(cart.tier!==purchase.package_tier||voices>purchase.voice_count||
+         engravedExtras>purchase.extra_engraved_cards||logoExtras>purchase.extra_logo_cards||
+         (cart.tier==='basic'&&cart.engravingUpgrade&&!purchase.basic_engraving_upgrade))
+        return fail('Your Keep selections include upgrades that have not been purchased.',402);
+    }
     // Check every file with the owner's credentials before making the snapshot visible.
     const {data:signed,error:signError}=await client.storage.from('keep-media').createSignedUrls(paths,60);
     if(signError||!signed||signed.some(s=>s.error||!s.signedUrl)) return fail('A memory has not finished uploading. Please try publishing again.',409);
