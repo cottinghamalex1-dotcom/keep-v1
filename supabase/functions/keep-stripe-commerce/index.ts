@@ -218,7 +218,7 @@ async function checkoutStatus(req: Request, body: Record<string, unknown>) {
   if (!paid) return reply(req, { paid: false });
   if (paid.email !== user.email.toLowerCase()) return reply(req, { error: "Sign in using the email on your Stripe receipt." }, 403);
   await recordVerifiedPayment(paid);
-  return reply(req, { paid: true, tier: paid.cart.tier, totalCards: paid.cart.extraCards + 1 });
+  return reply(req, { paid: true, cart: paid.cart, totalCards: paid.cart.extraCards + 1 });
 }
 async function signatureIsValid(raw: string, header: string) {
   if (!STRIPE_WEBHOOK_SECRET || !header) return false;
