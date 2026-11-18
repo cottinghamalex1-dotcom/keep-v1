@@ -12,6 +12,7 @@ type Props = {
   onPreview: () => void;
   disabled?: boolean;
   engravingEnabled?: boolean;
+  engravingForExtrasOnly?: boolean;
 };
 
 function fingerprint(project: KeepProject): string {
@@ -22,7 +23,7 @@ function fingerprint(project: KeepProject): string {
 }
 
 /** The chosen message is identical in the first-play reveal and the card preview. */
-export function KeepOpeningPersonalization({ project, onUpdate, onPreview, disabled, engravingEnabled = true }: Props) {
+export function KeepOpeningPersonalization({ project, onUpdate, onPreview, disabled, engravingEnabled = true, engravingForExtrasOnly = false }: Props) {
   const key = fingerprint(project);
   const isCached = project.openingSuggestionsFor === key && project.openingMessageSuggestions?.length === 3;
   const attempted = useRef("");
@@ -51,7 +52,7 @@ export function KeepOpeningPersonalization({ project, onUpdate, onPreview, disab
   });
   return <>
     <KeepCardFront engraving={engravingEnabled ? project.cardEngraving : []} openingMessage={project.openingMessage} showOpeningMessage={selected && engravingEnabled} />
-    <p className="mt-4 text-center text-[11px] leading-5 text-muted-foreground">{engravingEnabled ? "Engraving preview · Physical card production is not yet connected." : "Basic card preview · Keep logo only. Upgrade to personalize the physical card."}</p>
+    <p className="mt-4 text-center text-[11px] leading-5 text-muted-foreground">{engravingForExtrasOnly ? "Extra card engraving preview · Your included Basic card keeps the Keep logo only." : engravingEnabled ? "Engraving preview · Physical card production is not yet connected." : "Basic card preview · Keep logo only. Upgrade to personalize the physical card."}</p>
     <section className="mt-9 rounded-[20px] border border-[#D8CCBE] bg-[#F5EDE3]/65 px-5 py-6">
       <div className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[.15em] text-[#8A725C]"><Sparkles className="size-4" /> Inspired by your words</div>
       <h2 className="mt-4 font-display text-[clamp(26px,7vw,34px)] leading-[1.13]">A few words, just for them.</h2>

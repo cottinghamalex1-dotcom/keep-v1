@@ -1,18 +1,25 @@
 /** Shared, display-only catalog math. Checkout must verify entitlements server-side before fulfillment. */
 export type KeepTier = "basic" | "signature";
 export const KEEP_PRICING = {
-  basicCents: 6900,
+  basicCents: 7900,
+  basicRetailCents: 10900,
+  signatureRetailCents: 12900,
   signatureCents: 9900,
-  additionalSpeakerCents: 900,
-  discountedBasicEngravingCents: 1499,
-  regularBasicEngravingCents: 3000,
+  additionalSpeakerCents: 1900,
+  additionalSpeakerRetailCents: 3900,
+  discountedBasicEngravingCents: 900,
+  regularBasicEngravingCents: 2000,
   extraCardCents: 3900,
+  engravedExtraCardCents: 4900,
+  engravedExtraCardRetailCents: 9900,
 } as const;
 
 export type KeepOrderSelection = {
   tier: KeepTier;
   /** The number of cards beyond the single card in the base package. */
   extraCards: number;
+  /** Extra cards can have a different finish from the included card. */
+  extraCardStyle?: "classic" | "engraved";
   /** Basic-only optional engraved front, offered at completion. */
   engravingUpgrade: boolean;
   /** Prevents the promotional pop-up from reopening automatically on every edit. */
@@ -32,23 +39,29 @@ export function normalizeExtraCards(value: number): number {
 }
 
 export function keepOrderQuote(
-  order: Pick<KeepOrderSelection, "tier" | "extraCards" | "engravingUpgrade">,
+  order: Pick<KeepOrderSelection, "tier" | "extraCards" | "engravingUpgrade" | "extraCardStyle">,
   speakerCount: number,
 ) {
   const tier = order.tier === "signature" ? "signature" : "basic";
   const includedCardCount = 1;
   const extraCards = normalizeExtraCards(order.extraCards);
-  const additionalSpeakers = Math.max(0, Math.floor(Number.isFinite(speakerCount) ? speakerCount : 1) - 1);
+  const includedVoices = tier === "signature" ? 2 : 1;
+  const additionalSpeakers = Math.max(0, Math.floor(Number.isFinite(speakerCount) ? speakerCount : 1) - includedVoices);
+  const hasEngraving = tier === "signature" || order.engravingUpgrade;
+  // Older drafts inherited their base card finish. Preserve that selection.
+  const extraCardStyle = order.extraCardStyle ?? (hasEngraving ? "engraved" : "classic");
+  const extraCardUnitCents = extraCardStyle === "engraved" ? KEEP_PRICING.engravedExtraCardCents : KEEP_PRICING.extraCardCents;
   const baseCents = tier === "signature" ? KEEP_PRICING.signatureCents : KEEP_PRICING.basicCents;
-  const speakerCents = tier === "signature" ? 0 : additionalSpeakers * KEEP_PRICING.additionalSpeakerCents;
+  const speakerCents = additionalSpeakers * KEEP_PRICING.additionalSpeakerCents;
   const engravingCents = tier === "basic" && order.engravingUpgrade ? KEEP_PRICING.discountedBasicEngravingCents : 0;
-  const extraCardsCents = extraCards * KEEP_PRICING.extraCardCents;
+  const extraCardsCents = extraCards * extraCardUnitCents;
   return {
     tier, includedCardCount, extraCards, totalCards: includedCardCount + extraCards,
-    additionalSpeakers, baseCents, speakerCents, engravingCents, extraCardsCents,
+    includedVoices, extraCardStyle, extraCardUnitCents, additionalSpeakers, baseCents, speakerCents, engravingCents, extraCardsCents,
     totalCents: baseCents + speakerCents + engravingCents + extraCardsCents,
-    hasEngraving: tier === "signature" || order.engravingUpgrade,
-    // Multiple voices are included at no extra charge on Signature.
+    hasEngraving,
+    hasAnyEngraving: hasEngraving || (extraCards > 0 && extraCardStyle === "engraved"),
+    // Signature includes the second voice; further contributors are paid add-ons.
     includesCollaborators: tier === "signature",
   };
 }

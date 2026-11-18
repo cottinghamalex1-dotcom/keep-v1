@@ -13,7 +13,7 @@ export const Route = createFileRoute("/shop")({
   head: () => ({
     meta: [
       { title: "Keep — Some things are worth keeping" },
-      { name: "description", content: "A meaningful metal keepsake card in two options: Basic $69 and Signature $99. Optional extra voices, engraving and additional cards." },
+      { name: "description", content: "A meaningful metal keepsake card in two options: Basic $79 and Signature $99. Optional extra voices, engraving and additional cards." },
     ],
   }),
   component: ShopKeep,
@@ -32,12 +32,12 @@ const validatedCheckout = (tier: KeepTier) =>
 const packageChoices: Array<{
   tier: KeepTier; name: string; price: string; cards: string; engraving: string; message: string; points: string[]; featured: boolean;
 }> = [
-  { tier: "basic", name: "Basic", price: "$69", cards: "1 card included", engraving: "Keep logo only",
+  { tier: "basic", name: "Basic", price: "$79", cards: "1 card included", engraving: "Keep logo only",
     message: "Start with one beautiful Keep, then choose only the extras you want.",
-    points: ["One matte-black metal NFC card", "One private digital Keep experience", "One voice included; additional voices $9 each", "Optional engraved front offered for $14.99 (regularly $30)"], featured: false },
+    points: ["One matte-black metal NFC card", "One private digital Keep experience", "One voice included; additional voices $19 each", "Optional engraved front offered for $9 (regularly $20)"], featured: false },
   { tier: "signature", name: "Signature", price: "$99", cards: "1 card included", engraving: "Personalized engraving",
-    message: "All the meaningful details included, even when the whole family joins in.",
-    points: ["One matte-black metal NFC card", "Personalized laser engraving included", "Multiple people can record together or remotely at no extra charge", "One private digital Keep experience"], featured: true },
+    message: "Two voices. Your words engraved. A gift made together.",
+    points: ["One matte-black metal NFC card", "Personalized laser engraving included", "Two voices included; additional voices $19 each", "One private digital Keep experience"], featured: true },
 ];
 
 const journey = [
@@ -48,12 +48,12 @@ const journey = [
 ];
 
 const questions = [
-  { q: "What exactly am I purchasing?", a: "Basic includes one logo-only card and one creator; add voices for $9 per additional person and an optional $14.99 engraving upgrade at the end. Signature includes personalized engraving and unlimited collaborators at no extra charge. Both include one digital Keep with optional additional cards for $39 each." },
+  { q: "What exactly am I purchasing?", a: "Basic includes one logo-only card and one creator; add voices for $19 per additional person and an optional $9 engraving upgrade at the end. Signature includes personalized engraving and two voices; each voice beyond two is $19. Both include one digital Keep with additional cards for $39 without engraving or $49 with engraving." },
   { q: "Do I need to know how to edit videos?", a: "Not at all. Keep guides you step by step. You can write or record a message yourself, or use Keep AI to help find the words." },
   { q: "When will my Keep ship?", a: "After you've created, previewed and approved your finished Keep, we'll prepare the physical card for shipping. The timeline starts after your approval, not at checkout." },
   { q: "Is standard shipping included?", a: "Yes. Standard shipping to U.S. addresses is included in both base package prices. International shipping is not available at launch. Applicable sales tax is additional." },
-  { q: "Can several people record the same Keep?", a: "Yes. Basic includes one speaker, with each additional person $9. Signature includes multi-person recording at no extra charge. Contributors can record in the same room or from different places." },
-  { q: "Can I buy five or ten cards for the same Keep?", a: "Yes. Each additional card is $39. Choose as many as you need after creating your Keep. All cards open the same finished Keep, and inherit the card style selected for your order." },
+  { q: "Can several people record the same Keep?", a: "Yes. Basic includes one speaker, with each additional person $19. Signature includes two voices, with each additional person $19. Contributors can record in the same room or from different places." },
+  { q: "Can I buy five or ten cards for the same Keep?", a: "Yes. Each additional card is $39 without engraving or $49 with engraving (retail $99). Choose as many as you need after creating your Keep. All cards open the same finished Keep, and use the finish you select for extra cards." },
   { q: "Does the recipient need an app?", a: "No app is needed. With a compatible NFC-enabled smartphone, they can tap their Keep card to open their private viewing link." },
 ];
 
@@ -79,23 +79,26 @@ function AddOnPricePreview() {
   const [tier, setTier] = useState<KeepTier>("basic");
   const [speakerCount, setSpeakerCount] = useState(2);
   const [engravingUpgrade, setEngravingUpgrade] = useState(false);
+  const [extraCardStyle, setExtraCardStyle] = useState<"classic" | "engraved">("classic");
   const [cardCount, setCardCount] = useState(3);
-  const quote = keepOrderQuote({ tier, engravingUpgrade, extraCards: Math.max(0, cardCount - 1) }, speakerCount);
+  const quote = keepOrderQuote({ tier, engravingUpgrade, extraCardStyle, extraCards: Math.max(0, cardCount - 1) }, speakerCount);
   return <section aria-label="Customize your Keep price" className="mx-auto mt-12 max-w-[900px] rounded-sm border border-[#D8D0C7] bg-[#F0EBE5] px-6 py-8 sm:px-9">
     <p className="text-[10px] font-semibold uppercase tracking-[.17em] text-[#796757]">Make it yours</p>
     <h3 className="mt-3 font-display text-[30px]">A little more love, your way.</h3>
     <p className="mt-2 max-w-[640px] text-xs leading-6 text-[#665D55]">Try a sample order below. Choose your tier, invite as many voices as you wish, and add matching cards for others to keep. This is a price preview, not checkout.</p>
     <div className="mt-6 grid gap-4 sm:grid-cols-2">
-      <label className="text-xs text-[#514A43]">Your package<select aria-label="Package" value={tier} onChange={e => setTier(e.target.value as KeepTier)} className="mt-2 block min-h-12 w-full rounded-sm border border-[#CFC2B6] bg-[#FBF9F6] px-4 text-sm"><option value="basic">Basic — $69</option><option value="signature">Signature — $99</option></select></label>
-      <label className="text-xs text-[#514A43]">Number of voices<input aria-label="Number of voices" type="number" min="1" step="1" value={speakerCount} onChange={e => setSpeakerCount(Math.max(1, Number(e.target.value) || 1))} className="mt-2 block min-h-12 w-full rounded-sm border border-[#CFC2B6] bg-[#FBF9F6] px-4 text-sm" /></label>
-      <label className="text-xs text-[#514A43]">Total matching cards (1 included)<input aria-label="Total cards" type="number" min="1" step="1" value={cardCount} onChange={e => setCardCount(Math.max(1, Number(e.target.value) || 1))} className="mt-2 block min-h-12 w-full rounded-sm border border-[#CFC2B6] bg-[#FBF9F6] px-4 text-sm" /></label>
-      {tier === "basic" ? <label className="flex items-center gap-3 self-end rounded-sm border border-[#D7C8BA] bg-[#FBF9F6] p-4 text-xs leading-5"><input type="checkbox" checked={engravingUpgrade} onChange={e => setEngravingUpgrade(e.target.checked)} className="size-4" /> Add discounted engraving for $14.99 <span className="text-[#8D7760] line-through">$30</span></label> : <div className="flex items-center gap-2 self-end rounded-sm border border-[#D7C8BA] bg-[#FBF9F6] p-4 text-xs"><Check className="size-4 text-[#796757]" /> Engraving and all voices included</div>}
+      <label className="text-xs text-[#514A43]">Your package<select aria-label="Package" value={tier} onChange={e => setTier(e.target.value as KeepTier)} className="mt-2 block min-h-12 w-full rounded-sm border border-[#CFC2B6] bg-[#FBF9F6] px-4 text-sm"><option value="basic">Basic — $79</option><option value="signature">Signature — $99</option></select></label>
+      <label className="text-xs text-[#514A43]">Number of voices<input aria-label="Number of voices" type="number" min="1" step="1" value={speakerCount} onChange={e => setSpeakerCount(Math.max(1, Math.floor(Number(e.target.value) || 1)))} className="mt-2 block min-h-12 w-full rounded-sm border border-[#CFC2B6] bg-[#FBF9F6] px-4 text-sm" /></label>
+      <label className="text-xs text-[#514A43]">Total matching cards (1 included)<input aria-label="Total cards" type="number" min="1" step="1" value={cardCount} onChange={e => setCardCount(Math.max(1, Math.floor(Number(e.target.value) || 1)))} className="mt-2 block min-h-12 w-full rounded-sm border border-[#CFC2B6] bg-[#FBF9F6] px-4 text-sm" /></label>
+      {tier === "basic" ? <label className="flex items-center gap-3 self-end rounded-sm border border-[#D7C8BA] bg-[#FBF9F6] p-4 text-xs leading-5"><input type="checkbox" checked={engravingUpgrade} onChange={e => setEngravingUpgrade(e.target.checked)} className="size-4" /> Add discounted engraving for $9 <span className="text-[#8D7760] line-through">$20</span></label> : <div className="flex items-center gap-2 self-end rounded-sm border border-[#D7C8BA] bg-[#FBF9F6] p-4 text-xs"><Check className="size-4 text-[#796757]" /> Engraving and two voices included</div>}
+      <label className="text-xs text-[#514A43]">Extra card finish<select aria-label="Extra card finish" value={extraCardStyle} onChange={e => setExtraCardStyle(e.target.value as "classic" | "engraved")} className="mt-2 block min-h-12 w-full rounded-sm border border-[#CFC2B6] bg-[#FBF9F6] px-4 text-sm"><option value="classic">Keep logo · $39 each</option><option value="engraved">Laser engraved · $49 each (retail $99)</option></select></label>
     </div>
+    <p className="mt-4 text-xs leading-6 text-[#665D55]">{quote.includedVoices} {quote.includedVoices === 1 ? "voice" : "voices"} included. Each additional voice <del>$39</del> <strong>$19</strong>. Engraved extra cards <del>$99</del> <strong>$49</strong>.</p>
     <div className="mt-6 space-y-2 border-t border-[#D5C8BB] pt-5 text-xs leading-6 text-[#665D55]">
       <div className="flex justify-between"><span>{tier === "basic" ? "Basic" : "Signature"} with 1 card</span><span>{keepMoney(quote.baseCents)}</span></div>
       <div className="flex justify-between"><span>Additional voices ({quote.additionalSpeakers})</span><span>{quote.speakerCents ? keepMoney(quote.speakerCents) : "Included"}</span></div>
       <div className="flex justify-between"><span>Personalized engraving</span><span>{quote.hasEngraving ? quote.engravingCents ? keepMoney(quote.engravingCents) : "Included" : "Not selected"}</span></div>
-      <div className="flex justify-between"><span>Extra cards ({quote.extraCards} × $39)</span><span>{keepMoney(quote.extraCardsCents)}</span></div>
+      <div className="flex justify-between"><span>Extra cards ({quote.extraCards} × {keepMoney(quote.extraCardUnitCents)})</span><span>{keepMoney(quote.extraCardsCents)}</span></div>
       <div className="mt-3 flex justify-between border-t border-[#D5C8BB] pt-4 text-base font-medium text-[#171514]"><span>Estimated order total</span><span>{keepMoney(quote.totalCents)}</span></div>
       <p className="text-[10px] leading-5">Taxes, if applicable, are calculated at checkout. No payment is collected in this preview.</p>
     </div>
@@ -221,7 +224,8 @@ function ShopKeep() {
             {p.featured ? <div className="mb-5 inline-flex self-start items-center bg-[#171514] px-3 py-2 text-[10px] font-medium uppercase tracking-[.14em] text-[#F7F5F2]">The signature choice</div> : <div className="mb-5 h-[28px]" />}
             <p className="text-[10px] font-medium uppercase tracking-[.17em] text-[#786859]">{p.cards} · {p.engraving}</p>
             <h3 className="mt-4 font-display text-[35px] tracking-[-.035em]">{p.name}</h3>
-            <p className="mt-2 font-display text-[48px] leading-none tracking-[-.04em]">{p.price}</p>
+            <p className="mt-2 font-display text-[48px] leading-none tracking-[-.04em]">{p.price} <del className="align-middle font-sans text-xl tracking-normal text-[#786859]">{p.tier === "basic" ? "$109" : "$129"}</del></p>
+            <p className="mt-3 self-start rounded-full bg-[#DED2C3] px-4 py-2 text-sm font-semibold text-[#4C3B2C]">Save $30</p>
             <p className="mt-5 min-h-16 text-[13px] leading-7 text-[#665D55]">{p.message}</p>
             <div className="my-7 border-t border-[#D5CBBF]" />
             <ul className="mb-8 flex-1 space-y-4 text-[12px] leading-6 text-[#4C453E]">
@@ -232,7 +236,7 @@ function ShopKeep() {
           </article>)}
         </div>
         <AddOnPricePreview />
-        <p className="mx-auto mt-8 max-w-[680px] text-center text-xs leading-6 text-[#665D55]">One card and one private digital Keep are included in each package. Basic add-ons are optional; Signature includes multi-person recording and front engraving. Each extra card is $39. Cards are prepared after final approval. Applicable taxes may apply.</p>
+        <p className="mx-auto mt-8 max-w-[680px] text-center text-xs leading-6 text-[#665D55]">One card and one private digital Keep are included in each package. Basic add-ons are optional; Signature includes two voices and front engraving. Extra cards are $39 without engraving or $49 with engraving. Cards are prepared after final approval. Applicable taxes may apply.</p>
       </div>
     </section>
 

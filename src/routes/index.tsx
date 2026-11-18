@@ -31,6 +31,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useRef, useState, type ChangeEvent, type ReactNode, type CSSProperties } from "react";
 import { ArrowLeft, ArrowRight, BookOpen, Camera, Check, ChevronLeft, ChevronRight, Headphones, CircleHelp, Download, Ellipsis, GripVertical, Images, LockKeyhole, MessageCircle, Mic, Keyboard, Music2, FileUp, Loader2, Pause, Play, Plus, Radio, RotateCcw, Settings2, Sparkles, Square, Trash2, Undo2, Redo2, VolumeX, X } from "lucide-react";
 import { toast } from "sonner";
+import { KeepEngravingOffer } from "@/components/keep-engraving-offer";
 import { Button } from "@/components/ui/button";
 import { KeepPlayer, memoryImages, memoryLabels } from "@/components/keep-player";
 import { KeepRecipientExperience, type KeepExperienceMode } from "@/components/keep-recipient-experience";
@@ -1813,14 +1814,15 @@ function KeepApp() {
       </div>}
       <aside className="mt-6 rounded-2xl border border-[#D6C6B4] bg-[#F5EEE4] p-5" aria-label="Your Keep package">
         <h2 className="font-display text-2xl">Your Keep package</h2>
-        <p className="mt-2 text-xs leading-5 text-muted-foreground">Basic includes one speaker. Signature includes all your voices and custom engraving.</p>
+        <p className="mt-2 text-xs leading-5 text-muted-foreground">Basic includes one speaker. Signature includes two voices and custom engraving.</p>
         <div className="mt-4 grid grid-cols-2 gap-2">
           {(["basic","signature"] as KeepTier[]).map(tier=><button type="button" key={tier} aria-pressed={keepOrder.tier===tier} onClick={()=>patchKeepOrder({tier,engravingUpgrade:tier==="signature"?false:keepOrder.engravingUpgrade})} className={keepOrder.tier===tier?"rounded-xl border border-[#9B7956] bg-white px-3 py-3 text-left text-xs":"rounded-xl border border-[#D5C5B3] bg-white/60 px-3 py-3 text-left text-xs"}>
-            <strong className="block text-sm">{tier==="basic"?"Basic · $69":"Signature · $99"}</strong>
-            <span className="mt-1 block leading-5">{tier==="basic"?"$9 per additional voice":"Every voice included"}</span>
+            <span className="mb-1 block text-[11px] text-[#796450]"><del>{tier === "basic" ? "$109" : "$129"}</del> · Save $30</span><strong className="block text-sm">{tier==="basic"?"Basic · $79":"Signature · $99"}</strong>
+            <span className="mt-1 block leading-5">{tier==="basic"?"1 voice included":"2 voices + engraving included"}</span>
           </button>)}
         </div>
-        <p className="mt-4 text-sm font-medium" role="status">{keepOrder.tier==="signature" ? "Recording together is included at no extra charge." : (keepQuote.additionalSpeakers+" additional "+(keepQuote.additionalSpeakers===1?"voice":"voices")+" · "+keepMoney(keepQuote.speakerCents))}</p>
+        <p className="mt-4 text-sm font-medium" role="status">{keepQuote.additionalSpeakers === 0 ? `${keepQuote.includedVoices} ${keepQuote.includedVoices === 1 ? "voice" : "voices"} included in your package.` : (keepQuote.additionalSpeakers+" additional "+(keepQuote.additionalSpeakers===1?"voice":"voices")+" · "+keepMoney(keepQuote.speakerCents))}</p>
+        <p className="mt-3 text-xs leading-5 text-[#5D5144]">Each voice beyond your included {keepQuote.includedVoices}: <del className="text-[#8D7D6B]">$39</del> <strong>$19 per person</strong>.</p>
         <p className="mt-2 text-[11px] leading-5 text-muted-foreground">Pricing preview only. No charges are collected here.</p>
       </aside>
       <div className="mt-8">{nextButton("Continue",()=>go("intent"),project.voiceMode === "together" && ((project.contributors?.length ?? 0)<2 || (project.contributors ?? []).some(p=>!p.name.trim()) || new Set((project.contributors ?? []).map(p=>p.name.trim().toLowerCase())).size !== (project.contributors?.length ?? 0)))}</div>
@@ -2483,28 +2485,32 @@ function KeepApp() {
       {title("The final touch", "Give it somewhere to live.", "Share this same Keep on as many cards as you wish.")}
       <section className="mb-8 rounded-2xl border border-[#D4C2AC] bg-[#F6EDE2] p-5" aria-label="Keep card add-ons">
         <p className="text-[10px] font-semibold uppercase tracking-widest text-[#796450]">Your Keep order</p>
-        <h2 className="mt-2 font-display text-[28px]">{keepOrder.tier==="signature"?"Signature — $99":"Basic — $69"}</h2>
+        <h2 className="mt-2 font-display text-[28px]">{keepOrder.tier==="signature"?"Signature — $99":"Basic — $79"}</h2>
         <p className="mt-2 text-xs leading-6 text-[#6C5B4B]">One card included. Add matching cards for others to keep, each opening the same finished Keep.</p>
-        <label className="mt-4 block text-xs font-medium text-[#594A3B]">Additional cards ($39 each, no fixed limit)
+        <label className="mt-4 block text-xs font-medium text-[#594A3B]">Additional cards ({keepMoney(keepQuote.extraCardUnitCents)} each, no fixed limit)
           <input type="number" min="0" step="1" inputMode="numeric" aria-label="Number of additional cards" value={keepOrder.extraCards} onChange={e=>patchKeepOrder({extraCards:normalizeExtraCards(Number(e.target.value))})} className="mt-2 block w-full rounded-xl border border-[#C9B69F] bg-white px-4 py-3 text-base" />
         </label>
+        <label className="mt-4 block text-xs font-medium text-[#594A3B]">Extra card finish
+          <select aria-label="Extra card finish" value={keepQuote.extraCardStyle} onChange={e=>patchKeepOrder({extraCardStyle:e.target.value as "classic" | "engraved"})} className="mt-2 block w-full rounded-xl border border-[#C9B69F] bg-white px-4 py-3 text-base"><option value="classic">Keep logo · $39 each</option><option value="engraved">Laser engraved · $49 each (retail $99)</option></select>
+        </label>
+        <p className="mt-2 text-xs leading-5 text-[#746451]">Engraved extra cards: <del>$99</del> <strong>$49 each</strong>. Your included card keeps its own finish.</p>
         <p className="mt-2 text-[11px] leading-5 text-[#746451]">Total physical cards: {keepQuote.totalCards}. Every card opens this one Keep.</p>
         {keepOrder.tier==="basic" && <button type="button" onClick={()=>setEngravingOfferOpen(true)} className="mt-4 w-full rounded-xl border border-[#B99F7F] bg-white px-4 py-3 text-left text-xs font-medium">
-          {keepQuote.hasEngraving ? "Engraving upgrade selected — $14.99 · Change" : "Personalized engraving just $14.99 (regularly $30)"}
+          {keepQuote.hasEngraving ? "Engraving upgrade selected — $9 · Change" : "Personalized engraving just $9 (regularly $20)"}
         </button>}
-        {keepOrder.tier==="signature" && <p className="mt-4 flex items-center gap-2 text-xs text-[#5D5144]"><Check className="size-4"/> Engraving and multi-person recording included</p>}
+        {keepOrder.tier==="signature" && <p className="mt-4 flex items-center gap-2 text-xs text-[#5D5144]"><Check className="size-4"/> Engraving and two voices included</p>}
         <div className="mt-5 space-y-2 border-t border-[#D1BDA7] pt-4 text-xs text-[#6C5B4B]">
           <div className="flex justify-between"><span>Base package</span><span>{keepMoney(keepQuote.baseCents)}</span></div>
           <div className="flex justify-between"><span>Additional voices ({keepQuote.additionalSpeakers})</span><span>{keepQuote.speakerCents?keepMoney(keepQuote.speakerCents):"Included"}</span></div>
           <div className="flex justify-between"><span>Engraving</span><span>{keepQuote.engravingCents?keepMoney(keepQuote.engravingCents):keepQuote.hasEngraving?"Included":"Not selected"}</span></div>
-          <div className="flex justify-between"><span>Additional cards ({keepQuote.extraCards})</span><span>{keepMoney(keepQuote.extraCardsCents)}</span></div>
+          <div className="flex justify-between"><span>{keepQuote.extraCardStyle === "engraved" ? "Engraved" : "Logo-only"} extra cards ({keepQuote.extraCards})</span><span>{keepMoney(keepQuote.extraCardsCents)}</span></div>
           <div className="flex justify-between border-t border-[#D1BDA7] pt-3 text-sm font-semibold text-[#342B22]"><span>Estimated total</span><span>{keepMoney(keepQuote.totalCents)}</span></div>
           <p className="pt-2 text-[11px] leading-5">Preview only. No extra cards, collaborators or engraving have been purchased yet. Taxes may apply at checkout.</p>
         </div>
       </section>
-      <KeepOpeningPersonalization project={project} onUpdate={patch} onPreview={() => go("recipientReveal")} disabled={publishing} engravingEnabled={keepQuote.hasEngraving} />
+      <KeepOpeningPersonalization project={project} onUpdate={patch} onPreview={() => go("recipientReveal")} disabled={publishing} engravingEnabled={keepQuote.hasAnyEngraving} engravingForExtrasOnly={!keepQuote.hasEngraving && keepQuote.hasAnyEngraving} />
       <div className="mt-10 border-t border-border pt-7">
-        <Button variant="keep" size="touch" className="keep-premium-action w-full justify-between" disabled={publishing || (keepQuote.hasEngraving && !engraving[0]?.trim())} onClick={() => void finishAndShare()}>
+        <Button variant="keep" size="touch" className="keep-premium-action w-full justify-between" disabled={publishing || (keepQuote.hasAnyEngraving && !engraving[0]?.trim())} onClick={() => void finishAndShare()}>
           {publishing ? "Saving your Keep…" : "Finish & share"} <ArrowRight className="size-5" />
         </Button>
         {publishing && <p role="status" className="mt-3 text-center text-xs text-muted-foreground">{publishStatus}</p>}
@@ -2512,18 +2518,7 @@ function KeepApp() {
         <p className="mt-3 text-center text-[11px] leading-5 text-muted-foreground">Finishing saves your changes and creates or refreshes the same permanent viewing link.</p>
       </div>
     </div>
-    {engravingOfferOpen && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-5 py-8" role="presentation">
-      <section role="dialog" aria-modal="true" aria-label="Special engraving offer" className="max-h-[90dvh] w-full max-w-md overflow-y-auto rounded-2xl border border-[#D8C8B6] bg-[#FBF8F3] p-7 shadow-2xl">
-        <span className="text-[10px] font-semibold uppercase tracking-[.18em] text-[#806A53]">An offer just for your Keep</span>
-        <h2 className="mt-4 font-display text-[clamp(30px,7vw,42px)] leading-tight">Make it unmistakably theirs.</h2>
-        <p className="mt-4 text-sm leading-7 text-[#665B50]">Add a personal message engraved on your metal card. Something they can hold, even before they tap.</p>
-        <div className="mt-6 flex items-baseline gap-3"><strong className="font-display text-4xl font-normal">$14.99</strong><span className="text-sm text-[#8D7D6B] line-through">$30.00</span></div>
-        <p className="mt-1 text-xs font-semibold text-[#77614D]">Special 50% off offer — save $15.01</p>
-        <button type="button" className="keep-premium-action mt-7 flex min-h-12 w-full items-center justify-center rounded-xl px-5 text-sm" onClick={()=>{patchKeepOrder({engravingUpgrade:true,engravingOfferSeen:true});setEngravingOfferOpen(false);}}>Yes, personalize my card</button>
-        <button type="button" className="mt-4 min-h-11 w-full text-xs text-[#6D6257]" onClick={()=>{patchKeepOrder({engravingUpgrade:false,engravingOfferSeen:true});setEngravingOfferOpen(false);}}>No thanks, keep it classic</button>
-        <p className="mt-3 text-center text-[10px] leading-5 text-[#8A7A68]">This saves your selection. Payment comes later at secure checkout.</p>
-      </section>
-    </div>}
+    <KeepEngravingOffer open={engravingOfferOpen} onOpenChange={setEngravingOfferOpen} onSelect={engravingUpgrade=>{patchKeepOrder({engravingUpgrade,engravingOfferSeen:true});setEngravingOfferOpen(false);}} />
     </>}
 
     {screen === "success" && <div className="mx-auto flex keep-min-screen w-full max-w-xl flex-col px-7 pb-12 pt-10">
