@@ -1779,10 +1779,10 @@ function KeepApp() {
       </div>
       {project.voiceMode === "together" && <div className="mt-6 rounded-2xl border border-border bg-white/40 p-5">
         <h2 className="font-display text-2xl">Who will speak?</h2>
-        <p className="mt-2 text-xs leading-5 text-muted-foreground">Add each person's first name. Later you'll assign exactly what each person says, then choose whether to record together or remotely.</p>
+        <p className="mt-2 text-xs leading-5 text-muted-foreground">Add every person who will speak, including yourself. You can be any voice on this list; when recording remotely, just choose your name and record right here—no text to yourself.</p>
         <div className="mt-5 space-y-3">{(project.contributors ?? []).map((person,i) => <div key={person.id} className="flex items-center gap-2">
           <label className="min-w-0 flex-1"><span className="mb-1 block text-[10px] font-medium uppercase tracking-widest text-muted-foreground">Voice {i+1}</span>
-            <input aria-label={`Voice ${i+1} name`} placeholder={i===0?"Your name":i===1?"Second person's name":"Contributor name"} maxLength={60} value={person.name} onChange={event=>patch({contributors:(project.contributors ?? []).map(p=>p.id===person.id?{...p,name:event.target.value}:p)})} className="w-full rounded-lg border border-border bg-background px-4 py-3 text-base outline-none focus:border-accent"/></label>
+            <input aria-label={`Voice ${i+1} name`} placeholder={i===0?"First speaker's name":i===1?"Second speaker's name":"Another speaker's name"} maxLength={60} value={person.name} onChange={event=>patch({contributors:(project.contributors ?? []).map(p=>p.id===person.id?{...p,name:event.target.value}:p)})} className="w-full rounded-lg border border-border bg-background px-4 py-3 text-base outline-none focus:border-accent"/></label>
           {(project.contributors?.length ?? 0) > 2 && <button type="button" aria-label={`Remove ${person.name || `voice ${i+1}`}`} className="mt-5 rounded-lg border border-border p-3 text-muted-foreground" onClick={()=>patch({contributors:(project.contributors ?? []).filter(p=>p.id!==person.id)})}><Trash2 className="size-4"/></button>}
         </div>)}</div>
         {(project.contributors?.length ?? 0) < 8 && <Button variant="bare" size="sm" className="mt-3" onClick={()=>patch({contributors:[...(project.contributors ?? []),{id:newId("speaker"),name:""}]})}><Plus className="size-4"/> Add another voice</Button>}

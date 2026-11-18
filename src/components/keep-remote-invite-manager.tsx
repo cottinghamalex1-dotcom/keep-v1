@@ -29,8 +29,6 @@ export function KeepRemoteInviteManager({ project,onContinue,onCombine,onImportM
   const [sharedMedia,setSharedMedia]=useState<RemoteMediaItem[]>([]);
   const [selectedMedia,setSelectedMedia]=useState<string[]>([]);
   const keepId=project.publicationId||"";
-  // Voice 1 is identified as "Your name" in the creation journey.
-  const creatorContributorId=project.contributors?.[0]?.id||"";
   const people=useMemo(()=> (project.contributors??[]).filter(person=>getSpeakerParts(project,person.id).length>0),
     [project.contributors,project.messageParagraphs,project.paragraphSpeakers]);
   const refresh=useCallback(async ()=>{
@@ -128,17 +126,17 @@ export function KeepRemoteInviteManager({ project,onContinue,onCombine,onImportM
     <p className="text-[10px] font-semibold uppercase tracking-[.2em] text-[#8F775E]">CREATE TOGETHER · FROM ANYWHERE</p>
     <h1 className="mt-4 font-display text-[clamp(38px,10vw,55px)] leading-[1.12] tracking-[-.035em]">Every voice belongs.</h1>
     <p className="mt-4 text-[14px] leading-7 text-[#6F6256]">
-      Record your own words right here—there's no need to text yourself a link. For everyone else, send a private invitation.
-      Each person's sections and optional photos or videos save privately to this same Keep.
+      Find your name below and tap Record here—no need to text yourself a link, whether you are the first speaker or the last.
+      For someone recording elsewhere, create their private invitation and share it by text. Every section saves to this same Keep.
     </p>
     <label className="mt-7 block text-xs text-[#6A5849]">
-      Your name (shown in the invitation)
+      Name shown as the Keep creator (on invitations)
       <input value={creatorName} onChange={e=>setCreatorName(e.target.value.slice(0,60))} placeholder="Diane"
         className="mt-2 min-h-12 w-full rounded-xl border border-[#D7CABD] bg-[#FFFDF9] px-4 text-[16px] text-[#35291F] outline-none focus:border-[#8F775E]" />
     </label>
     {message && <p role="status" className="mt-4 rounded-xl border border-[#D8C7B2] bg-[#FBF2E7] p-3 text-[12px] leading-5">{message}</p>}
     <div className="mt-6 flex items-center justify-between">
-      <h2 className="font-display text-[27px]">Record & invite your people</h2>
+      <h2 className="font-display text-[27px]">Choose your voice</h2>
       <button type="button" disabled={loading} onClick={()=>void refresh()} className="inline-flex min-h-10 items-center gap-1.5 text-xs text-[#6A5849] disabled:opacity-40">
         <RefreshCw className="size-4" /> Refresh
       </button>
@@ -149,8 +147,8 @@ export function KeepRemoteInviteManager({ project,onContinue,onCombine,onImportM
         const status=statuses.find(item=>item.contributorId===person.id);
         const complete=status?.completed??0;
         const finished=!!status&&status.total===parts.length&&complete===status.total;
-        const isCreator=person.id===creatorContributorId;
-        const url=links[person.id];
+        const expired=!!status&&new Date(status.expiresAt).getTime()<Date.now();
+        const url=expired?undefined:links[person.id];
         return <section key={person.id} className="rounded-[18px] border border-[#D8CCBF] bg-[#FFFDF9] px-4 py-4 shadow-[0_6px_20px_rgba(57,44,29,.045)]">
           <div className="flex items-start justify-between gap-3">
             <div className="flex min-w-0 items-center gap-3">
@@ -160,30 +158,32 @@ export function KeepRemoteInviteManager({ project,onContinue,onCombine,onImportM
               </div>
             </div>
             <span className={`shrink-0 rounded-full px-2.5 py-1 text-[10px] font-semibold ${finished?"bg-[#E7F1E5] text-[#437045]":"bg-[#F2E9DC] text-[#8B6B45]"}`}>
-              {finished?"Complete":status?`${complete} of ${parts.length} saved`:isCreator?"Ready to record":"Not invited"}
+              {finished?"Complete":status?`${complete} of ${parts.length} saved`:"Not started"}
             </span>
           </div>
-          <div className="mt-4">
-            {isCreator ? <>
-              <button type="button" disabled={!!busyId||finished} onClick={()=>void invite(person.id,person.name,true)}
-                className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#171512] px-3 text-[13px] font-semibold text-[#F8F0E6] disabled:opacity-55">
-                <Mic className="size-4" /> {busyId===person.id?"Opening my recording…":finished?"My voice is saved":complete>0?`Continue my recording · ${parts.length-complete} left`:"Record my part here"}
-              </button>
-              <p className="mt-2 text-[11px] leading-5 text-[#756656]">This is your part. Record on this phone; each section uploads to this Keep automatically. No text message needed.</p>
-              {url&&!finished&&<a href={url} target="_blank" rel="noopener noreferrer" className="mt-2 flex min-h-10 items-center justify-center gap-2 rounded-xl border border-[#BEA994] text-[11px] font-semibold"><ArrowRight className="size-4"/> Open my recording</a>}
-            </> : <>
-              <button type="button" disabled={!!busyId} onClick={()=>void invite(person.id,person.name)}
-                className="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-[#171512] px-3 text-[12px] font-semibold text-[#F8F0E6] disabled:opacity-50">
-                <Link2 className="size-4" /> {busyId===person.id?"Preparing link…":status?"Refresh private invitation link":"Create private voice + moments link"}
-              </button>
-              {url && <div className="mt-2 grid grid-cols-2 gap-2">
-                <button type="button" onClick={()=>void share(person.name,url)} className="flex min-h-11 items-center justify-center gap-2 rounded-xl border border-[#BEA994] text-[11px] font-medium"><MessageCircle className="size-4"/> Share by text</button>
-                <button type="button" onClick={()=>void copy(person.name,url)} className="flex min-h-11 items-center justify-center gap-2 rounded-xl border border-[#BEA994] text-[11px] font-medium"><Clipboard className="size-4"/> Copy invite</button>
-              </div>}
-            </>}
+
+          <div className="mt-4 space-y-2">
+            <button type="button" disabled={!!busyId||finished} onClick={()=>{
+              if(url){
+                const tab=window.open(url,"_blank","noopener,noreferrer");
+                if(!tab)setMessage("Your recording is ready. Tap the Open recording link below.");
+              }else void invite(person.id,person.name,true);
+            }} className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#171512] px-3 text-[12px] font-semibold text-[#F8F0E6] disabled:opacity-55">
+              <Mic className="size-4" /> {busyId===person.id?"Opening recording…":finished?"All sections received":complete>0?`I'm ${person.name} · Continue recording`:`I'm ${person.name} · Record here`}
+            </button>
+            {!finished&&<p className="text-[11px] leading-5 text-[#756656]">If this is your name, record directly on this device. Each section saves to the Keep automatically.</p>}
+            {url&&!finished&&<a href={url} target="_blank" rel="noopener noreferrer" className="flex min-h-10 items-center justify-center gap-2 rounded-xl border border-[#BEA994] text-[11px] font-semibold"><ArrowRight className="size-4"/> Open recording link</a>}
+            <button type="button" disabled={!!busyId||!!url} onClick={()=>void invite(person.id,person.name)}
+              className="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-[#C8B5A1] bg-[#FFFCF7] px-3 text-[12px] font-semibold text-[#594735] disabled:opacity-55">
+              <Link2 className="size-4"/> {busyId===person.id?"Preparing invitation…":url?"Private link ready":`Invite ${person.name} to record remotely`}
+            </button>
+            {url&&<div className="grid grid-cols-2 gap-2">
+              <button type="button" onClick={()=>void share(person.name,url)} className="flex min-h-11 items-center justify-center gap-2 rounded-xl border border-[#BEA994] text-[11px] font-medium"><MessageCircle className="size-4"/> Share by text</button>
+              <button type="button" onClick={()=>void copy(person.name,url)} className="flex min-h-11 items-center justify-center gap-2 rounded-xl border border-[#BEA994] text-[11px] font-medium"><Clipboard className="size-4"/> Copy invite</button>
+            </div>}
           </div>
-          {finished && <div className="mt-3 flex items-center gap-2 text-[11px] text-[#527052]"><CircleCheck className="size-4"/> {isCreator?"Your voice has been received and added to this Keep.":`Voice received ${status?.emailSent?"· Email sent":""}. They can still use this link for photos and videos.`}</div>}
-          {status&&!finished&&new Date(status.expiresAt).getTime()<Date.now() && <p className="mt-2 text-[11px] text-[#925E4E]">That invitation has expired. Generate a new link.</p>}
+          {finished&&<div className="mt-3 flex items-center gap-2 text-[11px] text-[#527052]"><CircleCheck className="size-4"/> Voice received and saved to this Keep. {status?.emailSent?"· Creator notified":""}</div>}
+          {status&&!finished&&expired && <p className="mt-2 text-[11px] text-[#925E4E]">That invitation has expired. Generate a new link.</p>}
           {status&&<button type="button" className="mt-3 inline-flex min-h-8 items-center gap-1.5 text-[10px] text-[#8F705B]" onClick={async()=>{
             if(!window.confirm(`Revoke ${person.name}'s invitation? They will no longer be able to share recordings, photos or videos.`))return;
             try{await revokeRemoteInvite(keepId,status.id);setLinks(old=>{const next={...old};delete next[person.id];return next;});await refresh();}
