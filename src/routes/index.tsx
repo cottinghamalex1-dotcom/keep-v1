@@ -4,7 +4,7 @@ import type { KeepRestoreProgress } from "@/lib/keep-cloud";
 import { ViewingLink } from "@/components/keep-publish-panel";
 import { KeepCardFront } from "@/components/keep-card-front";
 import { publishKeep } from "@/lib/keep-publish";
-import { KeepRenderingStatus } from "@/components/keep-rendering-status";
+import { KeepSavingScreen } from "@/components/keep-saving-screen";
 import { shotstackRenderingEnabled, type KeepRenderStatus } from "@/lib/keep-render-client";
 import { KeepCaptionEditor } from "@/components/keep-caption-editor";
 import { KeepMusicEditor } from "@/components/keep-music-editor";
@@ -63,9 +63,9 @@ export const Route = createFileRoute("/")({
   component: KeepRoute,
 });
 
-type Screen = "home" | "you" | "detail" | "recipient" | "occasion" | "voices" | "intent" | "path" | "interview" | "summary" | "messageGenerating" | "write" | "message" | "recordPrep" | "record" | "groupRecord" | "remoteInvite" | "recorded" | "memories" | "storyStyle" | "generating" | "editor" | "preview" | "recipientReveal" | "recipientPreview" | "giveReady" | "card" | "success";
+type Screen = "saving" | "home" | "you" | "detail" | "recipient" | "occasion" | "voices" | "intent" | "path" | "interview" | "summary" | "messageGenerating" | "write" | "message" | "recordPrep" | "record" | "groupRecord" | "remoteInvite" | "recorded" | "memories" | "storyStyle" | "generating" | "editor" | "preview" | "recipientReveal" | "recipientPreview" | "giveReady" | "card" | "success";
 type Mode = "Memories" | "Music" | "Captions" | "Style" | "Voice" | "Selfie";
-const creationScreens: Screen[] = ["recipient", "occasion", "voices", "intent", "path", "interview", "summary", "messageGenerating", "write", "message", "recordPrep", "record", "groupRecord", "remoteInvite", "recorded", "memories", "storyStyle", "generating", "editor", "preview", "recipientPreview", "card", "success"];
+const creationScreens: Screen[] = ["recipient", "occasion", "voices", "intent", "path", "interview", "summary", "messageGenerating", "write", "message", "recordPrep", "record", "groupRecord", "remoteInvite", "recorded", "memories", "storyStyle", "generating", "editor", "preview", "recipientPreview", "saving", "card", "success"];
 const resumeScreen = (s: Screen): Screen => (s === "messageGenerating" ? "summary" : s === "generating" ? "memories" : s === "preview" || s === "recipientPreview" ? "editor" : s);
 const occasions = ["Birthday", "Anniversary", "Wedding", "New Baby", "Mother's Day", "Father's Day", "Graduation", "Thank You", "Trip / Adventure", "Milestone", "Celebration of Life", "Family Memories", "Just Because", "Other"];
 const relationships = ["Spouse / Partner", "Mom", "Dad", "Child", "Grandparent", "Sibling", "Friend", "Myself", "Someone else"];
@@ -253,6 +253,7 @@ function KeepApp() {
   const [filmRenderStatus, setFilmRenderStatus] = useState<KeepRenderStatus["status"]>("not_started");
   const [hadPublishedLink, setHadPublishedLink] = useState(false);
   const [publishError, setPublishError] = useState("");
+  const [openingEditorOpen, setOpeningEditorOpen] = useState(false);
   const [engravingOfferOpen, setEngravingOfferOpen] = useState(false);
   const publishingLock = useRef(false);
   const [setting, setSetting] = useState("");
@@ -1675,6 +1676,10 @@ function KeepApp() {
     publishingLock.current = true;
     setPublishing(true);
     setPublishError("");
+    if (shotstackRenderingEnabled) {
+      setScreen("saving");
+      resetPageScroll();
+    }
     setPublishStatus("Saving your Keep…");
     setFilmRenderStatus("not_started");
     setHadPublishedLink(!!original.publicationToken);
@@ -1686,7 +1691,7 @@ function KeepApp() {
     saveDraft(next);
     try {
       const result = await publishKeep(next, publicationId, setPublishStatus);
-      const complete = { ...next, stage: "success", publicationId: result.keepId, publicationToken: result.token };
+      const complete = { ...next, stage: shotstackRenderingEnabled ? "saving" : "success", publicationId: result.keepId, publicationToken: result.token };
       setProject(complete);
       saveDraft(complete);
       // The permanent link is updated before we display the success screen.
@@ -1697,7 +1702,8 @@ function KeepApp() {
       } catch {
         toast.info("Your published Keep is saved. A cloud draft backup will retry when you reopen the editor.");
       }
-      if (original.publicationToken && !shotstackRenderingEnabled) {
+      if (shotstackRenderingEnabled) return;
+      if (original.publicationToken) {
         toast.success("Your Keep has been updated. Its permanent viewing link stays the same.");
         window.location.assign("/app");
         return;
@@ -1731,14 +1737,35 @@ function KeepApp() {
       : project;
     if (next !== project) setProject(next);
     saveDraft(next);
-    // Re-publish an existing Keep, then return to Your Creations. Show progress
-    // and any validation errors right here in the editor rather than silently failing.
+    // Save the video before opening the physical-card customization page.
+    if (shotstackRenderingEnabled) { setPublishError(""); void finishAndShare(next); return; }
+    // Legacy production retains the old flow until Shotstack is verified.
     if (next.publicationToken) { setPublishError(""); void finishAndShare(next); return; }
     if ((next.keepOrder?.tier ?? "basic") === "basic" && !next.keepOrder?.engravingOfferSeen) {
       const withOfferSeen = { ...next, keepOrder: { ...defaultKeepOrder(), ...next.keepOrder, engravingOfferSeen: true } };
       setProject(withOfferSeen); saveDraft(withOfferSeen); setEngravingOfferOpen(true);
     }
     go("card");
+  };
+  const finishSaving = () => {
+    setFilmRenderStatus("ready");
+    const next = { ...project, stage: "card" };
+    setProject(next);
+    saveDraft(next);
+    setHistory((h) => [...h.filter((part) => part !== "saving"), "editor"]);
+    setScreen("card");
+    resetPageScroll();
+  };
+  const finishCardCustomization = () => {
+    if (!shotstackRenderingEnabled || !project.publicationToken) { void finishAndShare(); return; }
+    const next = { ...project, stage: "success" };
+    setProject(next);
+    saveDraft(next);
+    setHistory((h) => [...h, "card"]);
+    setScreen("success");
+    resetPageScroll();
+    void activeKeepSession().then((session) => session ? saveCloudDraft(next, session) : undefined)
+      .catch(() => toast.info("Your card choices are saved on this device. Open the editor to retry cloud backup."));
   };
   const totalSec = rec?.durationSec ?? 150;
 
