@@ -25,7 +25,7 @@ type Clip = {
 };
 export type ShotstackEdit = {
   timeline: { background: string; tracks: Array<{ clips: Clip[] }> };
-  output: { format: "mp4"; size: { width: 1080; height: 1920 }; fps: 30; quality: "high" };
+  output: { format: "mp4"; size: { width: 1080; height: 1920 }; fps: 30; quality: "high"; destinations: [{provider:"shotstack";exclude:true}] };
 };
 const round = (v: number) => Math.round(v * 1000) / 1000;
 const clamp = (v: number, min: number, max: number) => Math.min(max, Math.max(min, v));
@@ -88,7 +88,7 @@ export function buildShotstackEdit(
   const opening: Clip[] = [textClip("A KEEP FOR\n" + introText, 0.5, Math.max(1, intro - 0.5), 58)];
   const closing: Clip[] = tail > 1 ? [
     {
-      asset: { type: "shape", shape: "rectangle", fill: { color: "#171311", opacity: 1 } },
+      asset: { type: "shape", shape: "rectangle", rectangle: { width: 1080, height: 1920 }, fill: { color: "#171311", opacity: 1 } },
       start: round(voiceEnd + 0.55), length: round(Math.max(0.1, tail - 0.55)),
       transition: { in: "fade", out: "none" },
     },
@@ -143,6 +143,6 @@ export function buildShotstackEdit(
   }
   return {
     timeline: { background: "#171311", tracks: tracks.filter(track => track.clips.length > 0) },
-    output: { format: "mp4", size: { width: 1080, height: 1920 }, fps: 30, quality: "high" },
+    output: { format: "mp4", size: { width: 1080, height: 1920 }, fps: 30, quality: "high", destinations: [{provider:"shotstack",exclude:true}] },
   };
 }
