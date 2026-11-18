@@ -1,7 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { defaultKeepOrder, keepOrderQuote, normalizeExtraCards } from "@/lib/keep-pricing";
+import { KEEP_PRICING, defaultKeepOrder, keepOrderQuote, normalizeExtraCards } from "@/lib/keep-pricing";
 
 describe("Keep package pricing", () => {
+  it("shows the updated Basic retail comparison without changing the $79 price", () => {
+    expect(KEEP_PRICING.basicCents).toBe(7900);
+    expect(KEEP_PRICING.basicRetailCents).toBe(9400);
+    expect(KEEP_PRICING.basicRetailCents - KEEP_PRICING.basicCents).toBe(1500);
+    expect(KEEP_PRICING.signatureRetailCents - KEEP_PRICING.signatureCents).toBe(3000);
+  });
   it.each([[1, 7900], [2, 9800], [3, 11700], [8, 21200]])("quotes Basic with %i voices", (voices, total) => {
     expect(keepOrderQuote(defaultKeepOrder(), voices).totalCents).toBe(total);
   });
