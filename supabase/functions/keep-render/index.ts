@@ -170,8 +170,19 @@ Deno.serve(async (req: Request) => {
       return reply({ id: job.id, status: "rendering", providerStatus: "verifying", message: "Verifying the finished film." });
     }
   }
-  if (request.action !== "start") return fail("Unknown action.", 404);
-  if (job) return reply(await ownerStatus(job));
+  if (request.action !== "start" && request.action !== "retry") return fail("Unknown action.", 404);
+  if (job && request.action === "start") return reply(await ownerStatus(job));
+  if (request.action === "retry" && (!job || job.status !== "failed"))
+    return reply(job ? await ownerStatus(job) : { status: "not_started" });
+  // An explicit user retry can resubmit a failed revision. Never retry a
+  // still-active job: that could generate duplicate billable videos.
+  if (request.action === "retry" && job) {
+    const { data: reset, error: resetError } = await admin.from("keep_render_jobs")
+      .update({ status: "queued", provider_render_id: null, error_message: null,
+        updated_at: new Date().toISOString() })
+      .eq("id", job.id).eq("status", "failed").select("id").maybeSingle();
+    if (resetError || !reset) return fail("The saved film couldn't be restarted. Please try again.", 409);
+  }
   if (!Deno.env.get("SHOTSTACK_API_KEY"))
     return fail("Rendering is not enabled yet. Your existing Keep is still available.", 503);
   if (project.audioMix && typeof project.audioMix !== "object")
@@ -187,14 +198,20 @@ Deno.serve(async (req: Request) => {
   try { renderPlan = planFromProject(project); } catch { return fail("The Keep timeline is incomplete."); }
   const intro = Math.min(14, Math.max(7.5, 5.5 + String(project.openingMessage ?? "").trim().length / 26));
   const expected = t(renderPlan.durationSec + intro - renderPlan.voice.startSec);
-  const { data: inserted, error: insertError } = await admin.from("keep_render_jobs").insert({
-    keep_id: keepId, owner_id: owner, revision_hash: revision, expected_duration_seconds: expected,
-    status: "queued",
-  }).select("id").single();
-  if (insertError || !inserted) {
-    const { data: existing } = await admin.from("keep_render_jobs").select("*")
-      .eq("keep_id", keepId).eq("revision_hash", revision).eq("owner_id", owner).maybeSingle();
-    return existing ? reply(publicStatus(existing as Job)) : fail("Unable to queue the film.", 503);
+  let insertedId: string;
+  if (request.action === "retry" && job) {
+    insertedId = job.id;
+  } else {
+    const { data: inserted, error: insertError } = await admin.from("keep_render_jobs").insert({
+      keep_id: keepId, owner_id: owner, revision_hash: revision, expected_duration_seconds: expected,
+      status: "queued",
+    }).select("id").single();
+    if (insertError || !inserted) {
+      const { data: existing } = await admin.from("keep_render_jobs").select("*")
+        .eq("keep_id", keepId).eq("revision_hash", revision).eq("owner_id", owner).maybeSingle();
+      return existing ? reply(publicStatus(existing as Job)) : fail("Unable to queue the film.", 503);
+    }
+    insertedId = inserted.id;
   }
   try {
     const { data: signed, error: signError } = await admin.storage.from("keep-media")
@@ -220,13 +237,13 @@ Deno.serve(async (req: Request) => {
     if (!uuid(result?.response?.id)) throw new Error("The provider did not create a render job.");
     await admin.from("keep_render_jobs").update({
       status: "rendering", provider_render_id: result.response.id, updated_at: new Date().toISOString(),
-    }).eq("id", inserted.id).eq("status", "queued");
-    return reply({ id: inserted.id, status: "rendering" }, 202);
+    }).eq("id", insertedId).eq("status", "queued");
+    return reply({ id: insertedId, status: "rendering" }, 202);
   } catch {
     await admin.from("keep_render_jobs").update({
       status: "failed", error_message: "Could not submit the film. No published Keep was changed.",
       updated_at: new Date().toISOString(),
-    }).eq("id", inserted.id);
-    return fail("Rendering could not be started. Your existing Keep remains available.", 503);
+    }).eq("id", insertedId);
+    return fail("Saving couldn't be restarted. Your existing Keep remains available.", 503);
   }
 });
