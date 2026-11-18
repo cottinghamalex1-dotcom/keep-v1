@@ -2,7 +2,6 @@ import { activeKeepSession } from "./keep-cloud";
 import type { KeepTier } from "./keep-pricing";
 
 const URL = "https://lwkzhpwugtosbidxvdcr.supabase.co/functions/v1/keep-stripe-commerce";
-const COMMERCE = "https://lwkzhpwugtosbidxvdcr.supabase.co/functions/v1/keep-commerce";
 const PUBLISHABLE = "sb_publishable_K8_SWJByLhV78h7gY4NySw_4sgjEVTi";
 
 /** Checkout is never silently enabled: webhook, tax, test purchases and secrets must all pass. */
@@ -50,8 +49,8 @@ export async function verifyKeepStripeCheckout(sessionId: string): Promise<{ pai
 }
 
 /** A paid package grants exactly one creation, not one creation per extra card. */
-export async function reservePaidKeep(keepId: string): Promise<void> {
-  await call(COMMERCE, { action: "reserve", keepId });
+export async function reservePaidKeep(keepId: string, sessionId: string): Promise<void> {
+  await call(URL, { action: "reserve", keepId, sessionId });
 }
 
 export async function approvePaidKeep(keepId: string): Promise<void> {
