@@ -2247,7 +2247,12 @@ function KeepApp() {
         </div>
       </div>
 
-      {(publishing || publishError) && <div className={`mx-4 mt-2 rounded-xl border px-4 py-3 text-xs leading-5 ${publishError ? "border-[#BE7363] bg-[#3B2826] text-[#FFE5DF]" : "border-[#927B61] bg-[#302922] text-[#F7EBDD]"}`} role={publishError ? "alert" : "status"}>{publishError || publishStatus || "Saving changes to your Keep…"}</div>}
+      {shotstackRenderingEnabled && <button type="button"
+        className="mx-auto mt-2 flex min-h-9 items-center gap-2 rounded-full border border-[#AD9880]/40 bg-[#2C2620]/70 px-4 text-[11px] text-[#F5EDE2]"
+        onClick={() => { setEditorPlaying(false); setOpeningEditorOpen(true); }}>
+        <Sparkles className="size-3.5" /> Personalize opening &amp; ending <ArrowRight className="size-3.5" />
+      </button>}
+      {!shotstackRenderingEnabled && (publishing || publishError) && <div className={`mx-4 mt-2 rounded-xl border px-4 py-3 text-xs leading-5 ${publishError ? "border-[#BE7363] bg-[#3B2826] text-[#FFE5DF]" : "border-[#927B61] bg-[#302922] text-[#F7EBDD]"}`} role={publishError ? "alert" : "status"}>{publishError || publishStatus || "Saving changes to your Keep…"}</div>}
       {rec?.audioUrl && !rec.demo && <audio ref={editorAudioRef} src={rec.audioUrl} preload="metadata" onWaiting={() => {if(editorPlaying)void editorMixRef.current?.pause();}} onStalled={() => {if(editorPlaying)void editorMixRef.current?.pause();}} onPlaying={() => {if(editorPlaying)void editorMixRef.current?.play().catch(()=>undefined);}} onTimeUpdate={(e) => { const time = e.currentTarget.currentTime; setEditorTime(time); setFrame(editorSceneAt(time)); }} onEnded={() => {
         if (editorDuration > (rec?.durationSec ?? 0) + 0.1) return;
         setEditorTime(editorDuration);
@@ -2431,6 +2436,19 @@ function KeepApp() {
         }}><Icon /><span>{label}</span></button>)}
       </nav>
 
+      {openingEditorOpen && <div className="fixed inset-0 z-[90] flex items-end justify-center bg-black/75 px-2 pt-10 sm:items-center sm:px-6" role="presentation">
+        <section role="dialog" aria-modal="true" aria-label="Personalize your opening and ending"
+          className="max-h-[92dvh] w-full max-w-[540px] overflow-y-auto rounded-t-3xl bg-[#F7F5F2] px-6 pb-[max(36px,env(safe-area-inset-bottom))] pt-6 text-[#2D251F] shadow-2xl sm:rounded-3xl">
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="font-display text-[30px]">Opening &amp; ending</h2>
+            <Button variant="bare" size="icon" aria-label="Close opening and ending" onClick={() => setOpeningEditorOpen(false)}><X /></Button>
+          </div>
+          <p className="mt-2 text-xs leading-6 text-[#75675B]">Choose the words that will open and close your film before saving it.</p>
+          <KeepOpeningPersonalization project={project} onUpdate={patch} engravingEnabled={keepQuote.hasEngraving}
+            onPreview={() => { setOpeningEditorOpen(false); openCreatorPreview("watch"); }} />
+          <Button variant="keep" size="touch" className="mt-8 w-full" onClick={() => setOpeningEditorOpen(false)}>Keep these words <Check className="size-4" /></Button>
+        </section>
+      </div>}
       {previewChooserOpen && sheet("Preview your Keep", () => { setPreviewChooserOpen(false); setReadArrangeOpen(false); }, <div className="pb-2">
         <p className="mt-2 text-xs leading-5 text-muted-foreground">Choose how you want to check it. Previewing is optional — you can come back and make changes anytime.</p>
         <div className="mt-5 space-y-2">
@@ -2499,6 +2517,14 @@ function KeepApp() {
       persistVisit={false} creatorPreview
       onCreatorExit={() => { setScreen("card"); resetPageScroll(); }}
       onCreatorContinue={() => { setScreen("card"); resetPageScroll(); }}
+    />}
+    {screen === "saving" && shotstackRenderingEnabled && <KeepSavingScreen
+      keepId={!publishing && project.publicationToken ? project.publicationId : undefined}
+      musicMood={project.musicMood} musicMuted={!!project.audioMix?.musicMuted}
+      publishing={publishing} publishMessage={publishStatus} publishError={publishError}
+      onReady={finishSaving}
+      onRetryPublish={() => { void finishAndShare(project); }}
+      onBack={() => { setScreen("editor"); resetPageScroll(); }}
     />}
     {screen === "card" && <>{top()}<div className="mx-auto max-w-xl px-7 pb-14 pt-7">
       {title("The final touch", "Give it somewhere to live.", "Share this same Keep on as many cards as you wish.")}
