@@ -7,6 +7,7 @@ import { publicationRequest, type PublishedProject } from '@/lib/keep-publish';
 export const Route = createFileRoute('/recipient')({
   validateSearch: (search: Record<string, unknown>) => ({keep: typeof search['keep']==='string'?search['keep']:''}),
   head: () => ({meta:[{title:'A Keep for you — Keep'},{name:'description',content:'Something meaningful was kept for you.'},{name:'robots',content:'noindex, nofollow'},{name:'referrer',content:'no-referrer'}]}),
+  pendingComponent: () => <KeepLoadingScreen context="keep" />,
   component: Recipient,
 });
 function Recipient() {
