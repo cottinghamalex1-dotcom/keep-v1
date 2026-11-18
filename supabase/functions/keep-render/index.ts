@@ -86,6 +86,21 @@ const publicStatus = (job: Job) => ({ id: job.id, status: job.status, error: job
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: cors });
+  // Read-only sandbox credential check. Does not submit or charge for a render,
+  // and never returns the API key or private project information.
+  if (req.method === "GET") {
+    const key = Deno.env.get("SHOTSTACK_API_KEY");
+    if (!key) return reply({ sandbox: "not_configured" }, 503);
+    try {
+      const probe = await fetch("https://api.shotstack.io/edit/stage/models", {
+        headers: { "x-api-key": key, "Accept": "application/json" },
+        signal: AbortSignal.timeout(8000),
+      });
+      return reply({ sandbox: probe.ok ? "authenticated" : "authentication_failed" }, probe.ok ? 200 : 503);
+    } catch {
+      return reply({ sandbox: "unreachable" }, 503);
+    }
+  }
   if (req.method !== "POST") return fail("Method not allowed.", 405);
   const auth = req.headers.get("Authorization");
   if (!auth?.startsWith("Bearer ")) return fail("Sign in before rendering.", 401);
