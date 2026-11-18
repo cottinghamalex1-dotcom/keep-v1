@@ -24,7 +24,7 @@ export async function prepareRemotePhoto(file:File):Promise<File> {
     const optimized=await optimizeKeepPhoto(file,{name:file.name});
     if(optimized && optimized.size>100 && optimized.size<file.size) {
       const extension=optimized.type==="image/webp"?"webp":"jpg";
-      return new File([optimized],file.name.replace(/\\.[^.]*$/,"")+"."+extension,
+      return new File([optimized],file.name.replace(/\.[^.]*$/,"")+"."+extension,
         {type:optimized.type,lastModified:Date.now()});
     }
   }
