@@ -2439,7 +2439,7 @@ function KeepApp() {
             <Button variant="bare" size="icon" aria-label="Close opening and ending" onClick={() => setOpeningEditorOpen(false)}><X /></Button>
           </div>
           <p className="mt-2 text-xs leading-6 text-[#75675B]">Choose the words that will open and close your film before saving it.</p>
-          <KeepOpeningPersonalization project={project} onUpdate={patch} engravingEnabled={keepQuote.hasEngraving}
+          <KeepOpeningPersonalization project={project} onUpdate={patch} engravingEnabled={keepQuote.hasEngraving} filmOnly
             onPreview={() => { setOpeningEditorOpen(false); openCreatorPreview("watch"); }} />
           <Button variant="keep" size="touch" className="mt-8 w-full" onClick={() => setOpeningEditorOpen(false)}>Keep these words <Check className="size-4" /></Button>
         </section>
@@ -2568,7 +2568,9 @@ function KeepApp() {
         </Button>
         {publishing && <p role="status" className="mt-3 text-center text-xs text-muted-foreground">{publishStatus}</p>}
         {publishError && <p role="alert" className="mt-3 text-sm leading-6 text-[#9B3529]">{publishError}</p>}
-        <p className="mt-3 text-center text-[11px] leading-5 text-muted-foreground">Finishing saves your changes and creates or refreshes the same permanent viewing link.</p>
+        <p className="mt-3 text-center text-[11px] leading-5 text-muted-foreground">{shotstackRenderingEnabled
+          ? "Your Keep film is already saved. Finish choosing the card details and continue to sharing."
+          : "Finishing saves your changes and creates or refreshes the same permanent viewing link."}</p>
       </div>
     </div>
     {engravingOfferOpen && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-5 py-8" role="presentation">
