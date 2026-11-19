@@ -32,6 +32,6 @@ function StartKeep() {
     {error&&<p role="alert" className="mt-4 text-xs text-red-700">{error}</p>}
     {state==="login"?<Link to="/app" className="mt-6 inline-flex w-full justify-center rounded-xl bg-[#25211D] px-5 py-3.5 text-sm text-white">Sign in or create your account</Link>:
     state!=="ready"&&<button type="button" onClick={()=>void check()} disabled={state==="checking"} className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#25211D] px-5 py-3.5 text-sm text-white disabled:opacity-50"><RefreshCw className="size-4"/>Check again</button>}
-    <Link to="/shop" hash="packages" className="mt-4 block text-xs underline">Choose Basic or Signature on the Keep website</Link>
+    <p className="mt-4 text-xs text-[#79695B]">To purchase a Keep, return to the official Keep website and choose Basic or Signature.</p>
   </section></main>;
 }
