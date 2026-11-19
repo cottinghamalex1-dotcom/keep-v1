@@ -1,5 +1,7 @@
 import { KeepAccountButton } from "@/components/keep-account-button";
 import { KeepOpeningScreen } from "@/components/keep-opening-screen";
+import { KeepLoadingScreen } from "@/components/keep-loading-screen";
+import { getKeepEntryIntent } from "@/lib/keep-entry-intent";
 import type { KeepRestoreProgress } from "@/lib/keep-cloud";
 import { ViewingLink } from "@/components/keep-publish-panel";
 import { KeepCardFront } from "@/components/keep-card-front";
@@ -176,6 +178,7 @@ function KeepApp() {
   const [history, setHistory] = useState<Screen[]>([]);
   const [project, setProject] = useState<KeepProject>(newProject);
   const [hydrated, setHydrated] = useState(false);
+  const [restoringPersonalKeep, setRestoringPersonalKeep] = useState(false);
   const [openingPhase, setOpeningPhase] = useState<"session" | "draft" | "media" | "finishing">("session");
   const [openingProgress, setOpeningProgress] = useState<KeepRestoreProgress | null>(null);
   const [cloudSyncAllowed, setCloudSyncAllowed] = useState(true);
@@ -299,9 +302,13 @@ function KeepApp() {
   useEffect(() => {
     let cancelled = false;
     const initialize = async () => {
-      const params = new URLSearchParams(window.location.search);
-      const editId = params.get("edit");
-      const resumeRequested = params.get("resume") === "1" || !!editId;
+      const { editId, resumeRequested, createRequested, redirectToDashboard } = getKeepEntryIntent(window.location.search);
+      // A normal home visit should not restore a personal draft or show film-loading copy.
+      if (redirectToDashboard) {
+        window.location.replace("/app");
+        return;
+      }
+      setRestoringPersonalKeep(resumeRequested);
       const local = loadDraft();
       let next = local;
       try {
@@ -367,7 +374,6 @@ function KeepApp() {
         setHydrated(true);
         return;
       }
-      const createRequested = params.get("create") === "1";
       const canCreate = createRequested && (!next?.active || window.confirm("Start a new Keep? Your current draft will be replaced."));
       if (canCreate) { setProject({ ...newProject(), publicationId: crypto.randomUUID(), active: true, stage: "recipient" }); window.history.replaceState(null, "", "/"); }
       setHistory(canCreate ? ["home"] : []);
@@ -1764,7 +1770,9 @@ function KeepApp() {
   const fileInputs = <><input ref={draftInput} type="file" accept=".docx,.pdf,.txt,.md,.rtf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/pdf,text/plain,text/markdown,application/rtf" className="sr-only" aria-label="Upload something you have already written" tabIndex={-1} onChange={(e) => void importDraft(e)} /><input ref={addInput} type="file" accept="image/*,video/mp4,video/quicktime,video/*" multiple className="sr-only" aria-label="Choose photos and videos" tabIndex={-1} onChange={(e) => void addFiles(e)} /><input ref={replaceInput} type="file" accept="image/*,video/mp4,video/quicktime,video/*" className="sr-only" aria-label="Choose a replacement photo or short video" tabIndex={-1} onChange={(e) => { const id = replaceTargetId.current; replaceTargetId.current = null; void addFiles(e, id ?? undefined); }} /></>;
 
   if (resumeError) return <main className="app-shell flex min-h-dvh flex-col px-8 py-10"><a href="/app" className="keep-wordmark" aria-label="Keep home">Keep</a><div className="my-auto max-w-sm"><h1 className="font-display text-[38px] leading-tight">We couldn't open your Keep.</h1><p role="alert" className="mt-5 text-sm leading-7 text-muted-foreground">{resumeError}</p><div className="mt-9 flex flex-col gap-3"><Button variant="keep" size="touch" onClick={() => window.location.reload()}>Try again</Button><a href="/app" className="rounded-xl border border-border px-5 py-3 text-center text-sm">Back to your creations</a></div></div></main>;
-  if (!hydrated) return <KeepOpeningScreen phase={openingPhase} progress={openingProgress} onBack={() => window.location.assign("/app")} />;
+  if (!hydrated) return restoringPersonalKeep
+    ? <KeepOpeningScreen phase={openingPhase} progress={openingProgress} onBack={() => window.location.assign("/app")} />
+    : <KeepLoadingScreen />;
   return <main className={`app-shell keep-creator-app keep-creator-app--${screen}`}>{fileInputs}
     {mediaImport && <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/45 px-6 backdrop-blur-[4px]" role="status" aria-live="polite" aria-label="Adding selected photos and videos to Keep">
       <div className="w-full max-w-xs rounded-[22px] border border-[#DED4C8] bg-[#F7F5F2] px-7 py-8 text-center text-[#181614] shadow-[0_25px_80px_rgba(0,0,0,.27)]">
