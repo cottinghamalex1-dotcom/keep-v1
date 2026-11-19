@@ -40,7 +40,7 @@ import { KeepOpeningPersonalization } from "@/components/keep-opening-personaliz
 import { defaultKeepOrder, keepOrderQuote, keepMoney, normalizeExtraCards, type KeepTier } from "@/lib/keep-pricing";
 import { KeepErrorBoundary } from "@/components/keep-error-boundary";
 import { KeepLengthGuide } from "@/components/keep-length-guide";
-import { KEEP_RECIPIENT_CATEGORIES, isKeepRecipientCategorySelected } from "@/lib/keep-recipient-categories";
+import { KEEP_RECIPIENT_CATEGORIES, relationshipGroups, chosenKeepRecipientRelationship } from "@/lib/keep-recipient-categories";
 import { checkKeepVideo, KEEP_VIDEO_MAX_BYTES, KEEP_VIDEO_MAX_SOURCE_BYTES, KEEP_VIDEO_MAX_SECONDS, readKeepVideoDuration } from "@/lib/keep-video-upload";
 import { compressKeepVideo, keepCompressedSizeText, shouldCompressKeepVideo } from "@/lib/keep-video-compression";
 import { keepOptimizedPhotoId, keepPhotoSavings, optimizeKeepPhoto, shouldOptimizeKeepPhoto } from "@/lib/keep-photo-optimization";
@@ -290,6 +290,8 @@ function KeepApp() {
   const undoLast = useRef<EditSnapshot | null>(null);
   const [, setUndoVersion] = useState(0);
   const name = project.recipientName;
+  const chosenRelationship = chosenKeepRecipientRelationship(project.relationship);
+  const savedCustomRelationship = chosenRelationship === "Someone else" && project.relationship !== "Someone else" ? project.relationship : "";
   const q = project.questionIndex;
 
   // Hydrate local media first, then prefer the authenticated account's cloud draft.
@@ -1778,7 +1780,57 @@ function KeepApp() {
     <div key={screen} className={`page-enter keep-screen keep-screen--${screen}`}>
     {screen === "you" && <>{top()}<div className="px-7 pt-8">{title("Your space", "Alex.", "The things worth keeping, all in one place.")}<div className="mt-12 border-t border-border">{[{ label: "My cards", Icon: Radio }, { label: "Downloads & backups", Icon: Download }, { label: "Privacy", Icon: LockKeyhole }, { label: "Help", Icon: CircleHelp }].map(({ label, Icon }) => <Button key={label} variant="bare" className="flex h-17 w-full justify-between border-b border-border px-0 text-sm font-normal" onClick={() => setSetting(label)}><span className="flex items-center gap-4"><Icon className="size-4 text-accent" />{label}</span><ChevronRight className="size-4 text-muted-foreground" /></Button>)}{project.active && <Button variant="bare" className="flex h-17 w-full justify-between border-b border-border px-0 text-sm font-normal text-destructive" onClick={() => { if (!window.confirm("Delete your draft Keep? Recordings and photos added to it will be removed from this device.")) return; discard(project); setProject(newProject()); toast.success("Draft deleted"); }}><span className="flex items-center gap-4"><Trash2 className="size-4" />Delete draft Keep</span></Button>}</div><p className="mt-9 text-xs leading-6 text-muted-foreground">Your Keeps are private.</p></div>{setting && sheet(setting, () => setSetting(""), <><p className="mt-5 text-sm leading-7 text-muted-foreground">{setting === "Privacy" ? "Your Keeps are private by default. In this MVP, drafts, recordings and photos stay on this device only. Sharing a card gives its recipient access to that Keep — no account required." : setting === "My cards" ? "HANNA · from Alex · 2026 (sample). Physical card ordering is coming next." : setting === "Downloads & backups" ? "Your draft is saved on this device. Cloud backups and downloads aren't available yet." : "We're here when you need us. Support isn't connected in this preview yet."}</p><Button variant="quiet" className="mt-8 w-full" onClick={() => setSetting("")}>Done</Button></>)}</>}
     {screen === "detail" && <>{top("READY")}<div className="relative mx-4 h-[min(55dvh,520px)] overflow-hidden"><img src={memoryImages[0]} alt="Couple at the coast, illustrative prototype photograph" className="h-full w-full object-cover" /><div className="absolute inset-0 photo-bottom" /><div className="absolute bottom-8 left-6"><p className="eyebrow text-foreground">ANNIVERSARY · 2026</p><h1 className="display mt-3 text-5xl">HANNA</h1><p className="mt-3 text-sm">from Alex · 2:30</p></div></div><div className="space-y-3 px-6 pt-7">{nextButton("Play Keep", () => { setViewingDemo(true); go("preview"); })}<Button variant="quiet" size="touch" className="w-full" onClick={editDemoCopy}><Settings2 /> Edit a copy</Button><Button variant="bare" size="touch" className="w-full" asChild><Link to="/recipient" search={{ keep: "" }}><Radio /> View as recipient</Link></Button></div></>}
-    {screen === "recipient" && <>{top("01 / 04")}<div className="px-7 pt-11">{title("Begin with someone", "Who is this Keep for?", "Choose the relationship that fits best. You can also choose Someone else.")}<KeepPhoneTip /><div className="grid grid-cols-2 gap-3" role="group" aria-label="Who is this Keep for?">{relationships.map((r) => <Button key={r} type="button" aria-pressed={isKeepRecipientCategorySelected(project.relationship, r)} variant="quiet" className={`keep-choice-bubble ${isKeepRecipientCategorySelected(project.relationship, r) ? "keep-choice-bubble--selected" : ""}`} onClick={() => { patch({ relationship: r, ...(r === "Myself" ? { recipientName: "Myself" } : project.relationship === "Myself" ? { recipientName: "" } : {}) }); if (r !== "Someone else") setOtherRelationship(""); }}><span className="min-w-0 flex-1 text-left">{r}</span>{project.relationship === r && <span className="keep-choice-check"><Check className="!size-3.5" strokeWidth={2.7} /></span>}</Button>)}</div>{project.relationship === "Someone else" && <div className="mt-8 page-enter"><label htmlFor="other-relationship" className="eyebrow">WHO ARE THEY TO YOU?</label><input id="other-relationship" value={otherRelationship} onChange={(e) => setOtherRelationship(e.target.value.slice(0, 50))} placeholder="My coach" autoComplete="off" className="mt-3 w-full border-0 border-b border-border bg-transparent pb-4 font-display text-3xl outline-none focus:border-accent" /><p className="mt-3 text-xs text-muted-foreground"></p></div>}{project.relationship && project.relationship !== "Myself" && <div className="mt-9 page-enter"><label htmlFor="recipient-name" className="eyebrow">NAME(S)</label><input id="recipient-name" value={name} onChange={(e) => patch({ recipientName: e.target.value.slice(0, 60) })} placeholder="Gigi & Pops" autoComplete="off" className="mt-3 w-full border-0 border-b border-border bg-transparent pb-4 font-display text-3xl outline-none focus:border-accent" /><p className="mt-3 text-xs text-muted-foreground"></p></div>}<div className="mt-10">{nextButton("Continue", () => { if (project.relationship === "Someone else") patch({ relationship: otherRelationship.trim() }); go("occasion"); }, !project.relationship || (project.relationship !== "Myself" && !name.trim()) || (project.relationship === "Someone else" && !otherRelationship.trim()))}</div></div></>}
+    {screen === "recipient" && <>{top("01 / 04")}<div className="px-7 pb-12 pt-11">
+      {title("Begin with someone", "Who is this Keep for?")}<KeepPhoneTip />
+      <div aria-label="Who is this Keep for?" className="space-y-7">
+        {relationshipGroups.map((group) => <section key={group.title} aria-label={group.title}>
+          <h2 className="mb-3 text-[11px] font-semibold uppercase tracking-[.14em] text-[#817365]">{group.title}</h2>
+          <div className="grid grid-cols-2 gap-3" role="group" aria-label={group.title + " relationships"}>
+            {group.options.map((relationship) => <Button key={relationship} type="button"
+              aria-pressed={chosenRelationship === relationship} variant="quiet"
+              className={`keep-choice-bubble min-h-16 h-auto py-3 ${chosenRelationship === relationship ? "keep-choice-bubble--selected" : ""}`}
+              onClick={() => {
+                patch({ relationship, ...(relationship === "Myself" ? { recipientName: "Myself" }
+                  : chosenRelationship === "Myself" ? { recipientName: "" } : {}) });
+                if (relationship !== "Someone else") setOtherRelationship("");
+                else if (savedCustomRelationship) setOtherRelationship(savedCustomRelationship);
+              }}>
+              <span className="min-w-0 flex-1 text-left leading-snug">{relationship}</span>
+              {chosenRelationship === relationship && <span className="keep-choice-check">
+                <Check className="!size-3.5" strokeWidth={2.7}/>
+              </span>}
+            </Button>)}
+          </div>
+        </section>)}
+      </div>
+      {chosenRelationship === "Someone else" && <div className="mt-8 page-enter">
+        <label htmlFor="other-relationship" className="eyebrow">WHO ARE THEY TO YOU?</label>
+        <input id="other-relationship"
+          value={otherRelationship || savedCustomRelationship}
+          onChange={(e) => {
+            // Editing a previously saved custom relationship must allow clearing
+            // the old value instead of restoring it on every keystroke.
+            if (savedCustomRelationship) patch({ relationship: "Someone else" });
+            setOtherRelationship(e.target.value.slice(0, 50));
+          }}
+          placeholder="My coach" autoComplete="off"
+          className="mt-3 w-full border-0 border-b border-border bg-transparent pb-4 font-display text-3xl outline-none focus:border-accent" />
+      </div>}
+      {!!chosenRelationship && chosenRelationship !== "Myself" && <div className="mt-9 page-enter">
+        <label htmlFor="recipient-name" className="eyebrow">NAME(S)</label>
+        <input id="recipient-name" value={name}
+          onChange={(e) => patch({ recipientName: e.target.value.slice(0, 60) })}
+          placeholder="Gigi & Pops" autoComplete="off"
+          className="mt-3 w-full border-0 border-b border-border bg-transparent pb-4 font-display text-3xl outline-none focus:border-accent" />
+      </div>}
+      <div className="mt-10">
+        {nextButton("Continue", () => {
+          if (chosenRelationship === "Someone else") patch({ relationship: (otherRelationship || savedCustomRelationship).trim() });
+          go("occasion");
+        }, !chosenRelationship || (chosenRelationship !== "Myself" && !name.trim())
+          || (chosenRelationship === "Someone else" && !(otherRelationship || savedCustomRelationship).trim()))}
+      </div>
+    </div></>}
     {screen === "occasion" && <>{top("02 / 04")}<div className="px-7 pt-11">{title("Give it a moment", "What are you keeping?", "Choose an occasion or moment.")}<div className="grid grid-cols-2 gap-3" role="group" aria-label="Choose an occasion or moment">{occasions.map((o) => <Button key={o} type="button" aria-pressed={project.occasion === o} variant="quiet" className={`keep-choice-bubble ${project.occasion === o ? "keep-choice-bubble--selected" : ""}`} onClick={() => { patch({ occasion: o }); if (o !== "Other") setOtherOccasion(""); }}><span className="min-w-0 flex-1 text-left">{o}</span>{project.occasion === o && <span className="keep-choice-check"><Check className="!size-3.5" strokeWidth={2.7} /></span>}</Button>)}</div>{project.occasion === "Other" && <div className="mt-8 page-enter"><label className="eyebrow" htmlFor="other-occasion">TELL US WHAT IT'S FOR</label><input id="other-occasion" value={otherOccasion} onChange={(e) => setOtherOccasion(e.target.value.slice(0, 80))} placeholder="Our family Disney trip with Gigi & Pops" className="mt-3 w-full border-0 border-b border-border bg-transparent pb-4 font-display text-3xl outline-none focus:border-accent" /><p className="mt-3 text-xs text-muted-foreground"></p></div>}<div className="mt-12">{nextButton("Continue", () => { if (project.occasion === "Other") patch({ occasion: otherOccasion.trim() }); go("voices"); }, project.occasion === "Other" && !otherOccasion.trim())}</div></div></>}
     {screen === "voices" && <>{top("03 / 05")}<div className="mx-auto max-w-[620px] px-7 pb-12 pt-9">
       {title("The voices behind it", "Will anyone create this Keep with you?", "Most Keeps are made by one person. You can also bring several voices together in one gift.")}
