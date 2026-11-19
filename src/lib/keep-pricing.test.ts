@@ -20,12 +20,12 @@ describe("Keep November 2026 packages", () => {
     expect(quote.engravingCents).toBe(0);
   });
 
-  it("charges Basic $19 for each additional person and $9 for engraving", () => {
+  it("charges Basic $19 for each additional person and $19 for engraving", () => {
     const quote = keepOrderQuote({ ...defaultKeepOrder(), engravingUpgrade: true }, 3);
     expect(quote.additionalSpeakers).toBe(2);
     expect(quote.speakerCents).toBe(3800);
-    expect(quote.engravingCents).toBe(900);
-    expect(quote.totalCents).toBe(12600);
+    expect(quote.engravingCents).toBe(1900);
+    expect(quote.totalCents).toBe(13600);
   });
 
   it("charges Signature only for the third and subsequent voices", () => {
@@ -53,7 +53,7 @@ describe("Keep November 2026 packages", () => {
   it("never double-charges engraving on Signature", () => {
     const quote = keepOrderQuote({ ...defaultKeepOrder(), tier: "signature", engravingUpgrade: true, extraCards: 2, extraCardStyle: "engraved" }, 2);
     expect(quote.engravingCents).toBe(0);
-    expect(quote.totalCents).toBe(9900 + 2 * 4900);
+    expect(quote.totalCents).toBe(17900);
   });
 
   it("guards malformed quantities without imposing a 10-card UI limit", () => {
