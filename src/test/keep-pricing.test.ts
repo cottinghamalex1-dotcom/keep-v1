@@ -2,11 +2,10 @@ import { describe, expect, it } from "vitest";
 import { KEEP_PRICING, defaultKeepOrder, keepOrderQuote, normalizeExtraCards } from "@/lib/keep-pricing";
 
 describe("Keep package pricing", () => {
-  it("shows the updated Basic retail comparison without changing the $79 price", () => {
+  it("shows launch prices without invented former-price references", () => {
     expect(KEEP_PRICING.basicCents).toBe(7900);
-    expect(KEEP_PRICING.basicRetailCents).toBe(9400);
-    expect(KEEP_PRICING.basicRetailCents - KEEP_PRICING.basicCents).toBe(1500);
-    expect(KEEP_PRICING.signatureRetailCents - KEEP_PRICING.signatureCents).toBe(3000);
+    expect(KEEP_PRICING.signatureCents).toBe(9900);
+    expect(KEEP_PRICING.basicEngravingCents).toBe(1900);
   });
   it.each([[1, 7900], [2, 9800], [3, 11700], [8, 21200]])("quotes Basic with %i voices", (voices, total) => {
     expect(keepOrderQuote(defaultKeepOrder(), voices).totalCents).toBe(total);
@@ -17,10 +16,10 @@ describe("Keep package pricing", () => {
     expect(quote.hasEngraving).toBe(true);
     expect(quote.includedVoices).toBe(2);
   });
-  it("charges $9 once for Basic engraving and never adds it to Signature", () => {
+  it("charges $19 once for Basic engraving and never adds it to Signature", () => {
     const basic = keepOrderQuote({ ...defaultKeepOrder(), engravingUpgrade: true }, 1);
-    expect(basic.engravingCents).toBe(900);
-    expect(basic.totalCents).toBe(8800);
+    expect(basic.engravingCents).toBe(1900);
+    expect(basic.totalCents).toBe(9800);
     expect(keepOrderQuote({ ...defaultKeepOrder(), tier: "signature", engravingUpgrade: true }, 2).totalCents).toBe(9900);
   });
   it.each(["basic", "signature"] as const)("allows both extra card finishes on %s independently of the included card", tier => {
@@ -28,15 +27,15 @@ describe("Keep package pricing", () => {
     const classic = keepOrderQuote({ ...order, extraCardStyle: "classic" }, 2);
     const engraved = keepOrderQuote({ ...order, extraCardStyle: "engraved" }, 2);
     expect(classic.extraCardsCents).toBe(7800);
-    expect(engraved.extraCardsCents).toBe(9800);
-    expect(engraved.totalCents - classic.totalCents).toBe(2000);
+    expect(engraved.extraCardsCents).toBe(tier === "signature" ? 8000 : 9800);
+    expect(engraved.totalCents - classic.totalCents).toBe(tier === "signature" ? 200 : 2000);
     expect(engraved.hasEngraving).toBe(tier === "signature");
     expect(engraved.hasAnyEngraving).toBe(true);
     expect(engraved.totalCards).toBe(3);
   });
   it("keeps old draft extra cards in their inherited finish", () => {
-    expect(keepOrderQuote({ tier: "signature", extraCards: 9, engravingUpgrade: false }, 2).totalCents).toBe(54000);
-    expect(keepOrderQuote({ ...defaultKeepOrder(), engravingUpgrade: true, extraCards: 1 }, 1).totalCents).toBe(13700);
+    expect(keepOrderQuote({ tier: "signature", extraCards: 9, engravingUpgrade: false }, 2).totalCents).toBe(44900);
+    expect(keepOrderQuote({ ...defaultKeepOrder(), engravingUpgrade: true, extraCards: 1 }, 1).totalCents).toBe(14700);
   });
   it("supports large card orders and ignores invalid quantities", () => {
     expect(keepOrderQuote({ ...defaultKeepOrder(), extraCards: 999 }, 1).totalCards).toBe(1000);
