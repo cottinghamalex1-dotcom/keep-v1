@@ -87,7 +87,7 @@ export async function claimAndListPurchases(session: KeepSession): Promise<Purch
     method: "POST", body: "{}",
   });
   return keepCommerceRequest<Purchase[]>(
-    "/rest/v1/keep_purchases?select=id,shopify_order_id,purchaser_email,keep_id,status,paid_at,created_at&order=created_at.desc",
+    "/rest/v1/keep_purchases?select=id,shopify_order_id,purchaser_email,keep_id,status,paid_at,created_at,basic_engraving_upgrade&order=created_at.desc",
     session
   );
 }
