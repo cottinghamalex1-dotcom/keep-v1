@@ -3,6 +3,7 @@ import { ArrowLeft, ArrowRight, BookOpen, LockKeyhole } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { KeepAccountButton } from "@/components/keep-account-button";
+import { KeepLoadingScreen } from "@/components/keep-loading-screen";
 import { KeepMyKeepsCollection } from "@/components/keep-my-keeps-collection";
 import { viewingLink } from "@/lib/keep-publish";
 import { deleteOwnedKeep, keepDeleteConfirmation } from "@/lib/keep-delete";
@@ -89,6 +90,7 @@ function MyKeeps() {
     }catch(e){toast.error(e instanceof Error?e.message:"Could not delete this Keep");}
     finally{setDeleting(null);}
   };
+  if (loading) return <KeepLoadingScreen />;
   return <main className="min-h-dvh bg-background text-foreground">
     <div className="mx-auto min-h-dvh max-w-[540px] px-6 pb-20 pt-9">
       <header className="flex items-center justify-between border-b border-border/70 pb-6">
@@ -99,11 +101,7 @@ function MyKeeps() {
         <ArrowLeft className="size-4" aria-hidden="true" strokeWidth={1.6}/> Back to home
       </Link>
 
-      {loading ? <div role="status" className="mt-6 rounded-[24px] border border-[#DDD0C2] bg-[#F7F1E9] px-7 py-16 text-center">
-        <BookOpen className="mx-auto size-7 text-[#8A735B]" strokeWidth={1.4} aria-hidden="true"/>
-        <p className="mt-5 font-display text-[26px] text-[#46372B]">Gathering your Keeps…</p>
-        <p className="mt-2 text-[12px] text-[#756655]">Your stories are coming together.</p>
-      </div> : !session ? <div className="mt-6 rounded-[24px] border border-[#DDD0C2] bg-[#FFFCF8] px-7 py-12 text-center">
+      {!session ? <div className="mt-6 rounded-[24px] border border-[#DDD0C2] bg-[#FFFCF8] px-7 py-12 text-center">
         <LockKeyhole className="mx-auto size-7 text-[#8A735B]" strokeWidth={1.4} aria-hidden="true"/>
         <h1 className="mt-5 font-display text-[29px] text-[#32251D]">Your Keeps are waiting.</h1>
         <p className="mt-3 text-[13px] leading-6 text-[#746758]">Sign in to see your personal collection.</p>
