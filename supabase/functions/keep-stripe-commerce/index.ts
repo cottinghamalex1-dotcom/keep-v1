@@ -20,7 +20,11 @@ const ALLOW_LIVE_CHARGES = Deno.env.get("KEEP_ALLOW_LIVE_STRIPE_CHARGES") === "t
 const SITE_URL = (Deno.env.get("KEEP_SITE_URL") ?? "https://keep-v1.vercel.app").replace(/\/$/, "");
 // Set KEEP_MARKETING_URL to the real canonical OpenAI Site when the page is published.
 const MARKETING_URL = (Deno.env.get("KEEP_MARKETING_URL") ?? SITE_URL + "/shop").replace(/\/$/, "");
-const allow = new Set([SITE_URL, "https://keep-v1-keep23.vercel.app", "http://localhost:3000", "http://localhost:5173"]);
+const marketingOrigin = (() => {
+  try { const parsed = new URL(MARKETING_URL); return parsed.protocol === "https:" ? parsed.origin : ""; }
+  catch { return ""; }
+})();
+const allow = new Set([SITE_URL, "https://keep-v1-keep23.vercel.app", "http://localhost:3000", "http://localhost:5173", ...(marketingOrigin ? [marketingOrigin] : [])]);
 const allowedOrigin = (req: Request) => {
   const origin = req.headers.get("origin") ?? "";
   return allow.has(origin) ? origin : SITE_URL;
