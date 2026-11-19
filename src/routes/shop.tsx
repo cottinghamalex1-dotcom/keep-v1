@@ -31,15 +31,11 @@ const checkoutEnabled = false;
 const validatedCheckout = (tier: KeepTier) =>
   checkoutEnabled && /^https:\/\/buy\.stripe\.com\/[a-zA-Z0-9_]+(?:\?.*)?$/.test(checkoutUrls[tier]);
 
-const packageChoices: Array<{
-  tier: KeepTier; name: string; price: string; cards: string; engraving: string; message: string; points: string[]; featured: boolean;
-}> = [
-  { tier: "basic", name: "Basic", price: "$79", cards: "1 card included", engraving: "No Personalized Engraving",
-    message: "Start with one beautiful Keep, then choose only the extras you want.",
-    points: ["One matte-black Keep card", "One private digital Keep experience", "One voice included"], featured: false },
-  { tier: "signature", name: "Signature", price: "$99", cards: "1 card included", engraving: "Personalized Engraving Included",
-    message: "One beautiful Keep, your words engraved, and more:",
-    points: ["One matte-black Keep card", "One private digital Keep experience", "Two voices included (only 1 is needed)", "Personalized engraving included"], featured: true },
+const packageChoices: Array<{ tier: KeepTier; name: string; price: string; message: string; points: string[]; featured: boolean; }> = [
+  { tier: "basic", name: "Basic Keep", price: "$79", message: "A meaningful gift, made personal.",
+    points: ["1 matte-black NFC card", "1 voice included", "Your finished memory film", "Standard U.S. shipping"], featured: false },
+  { tier: "signature", name: "Signature Keep", price: "$99", message: "Make it even more personal.",
+    points: ["Everything in Basic", "Personalized engraving included", "2 voices included", "Create together or remotely"], featured: true },
 ];
 
 const journey = [
@@ -50,12 +46,12 @@ const journey = [
 ];
 
 const questions = [
-  { q: "What exactly am I purchasing?", a: "Basic includes one logo-only card and one creator; add voices for $19 per additional person and an optional $9 engraving upgrade at the end. Signature includes personalized engraving and two voices; each voice beyond two is $19. Both include one digital Keep with additional cards for $39 without engraving or $49 with engraving." },
+  { q: "What exactly am I purchasing?", a: "Basic includes one logo-only card and one creator; add voices for $19 per additional person and an optional $19 engraving upgrade at the end. Signature includes personalized engraving and two voices; each voice beyond two is $19. Both include one digital Keep with additional cards for $39 without engraving or $49 with engraving." },
   { q: "Do I need to know how to edit videos?", a: "Not at all. Keep guides you step by step. You can write or record a message yourself, or use Keep AI to help find the words." },
   { q: "When will my Keep ship?", a: "After you've created, previewed and approved your finished Keep, we'll prepare the physical card for shipping. The timeline starts after your approval, not at checkout." },
   { q: "Is standard shipping included?", a: "Yes. Standard shipping to U.S. addresses is included in both base package prices. International shipping is not available at launch. Applicable sales tax is additional." },
   { q: "Can several people record the same Keep?", a: "Yes. Basic includes one speaker, with each additional person $19. Signature includes two voices, with each additional person $19. Contributors can record in the same room or from different places." },
-  { q: "Can I buy five or ten cards for the same Keep?", a: "Yes. Each additional card is $39 without engraving or $49 with engraving (retail $99). Choose as many as you need after creating your Keep. All cards open the same finished Keep, and use the finish you select for extra cards." },
+  { q: "Can I buy five or ten cards for the same Keep?", a: "Yes. Each additional card is $39 without engraving or $49 with engraving. Signature matching-card bundles include 2 engraved cards for $139, 3 for $179 or 5 for $249. Choose any quantity after creating your Keep. All cards open the same finished Keep, and use the finish you select for extra cards." },
   { q: "Does the recipient need an app?", a: "No app is needed. With a compatible NFC-enabled smartphone, they can tap their Keep card to open their private viewing link." },
 ];
 
@@ -78,13 +74,13 @@ function PurchaseAction({ tier = "signature", smaller = false }: { tier?: KeepTi
 
 
 function AddOnPricePreview() {
-  const [tier, setTier] = useState<KeepTier>("basic");
+  const [tier, setTier] = useState<KeepTier>("signature");
   const [speakerCount, setSpeakerCount] = useState(2);
   const [engravingUpgrade, setEngravingUpgrade] = useState(false);
-  const [extraCardStyle, setExtraCardStyle] = useState<"classic" | "engraved">("classic");
+  const [extraCardStyle, setExtraCardStyle] = useState<"classic" | "engraved">("engraved");
   const [cardCount, setCardCount] = useState(3);
   const quote = keepOrderQuote({ tier, engravingUpgrade, extraCardStyle, extraCards: Math.max(0, cardCount - 1) }, speakerCount);
-  return <section aria-label="Customize your Keep price" className="mx-auto mt-12 max-w-[1030px] rounded-[24px] border border-[#D7C9B8] bg-[#EDE5DB] px-6 py-9 shadow-[0_12px_35px_rgba(31,25,20,.035)] sm:mt-14 sm:px-10 sm:py-11">
+  return <section id="price-preview" aria-label="Customize your Keep price" className="mx-auto mt-12 max-w-[1030px] rounded-[24px] border border-[#D7C9B8] bg-[#EDE5DB] px-6 py-9 shadow-[0_12px_35px_rgba(31,25,20,.035)] sm:mt-14 sm:px-10 sm:py-11">
     <p className="text-[10px] font-semibold uppercase tracking-[.17em] text-[#796757]">Make it yours</p>
     <h3 className="mt-3 font-display text-[30px]">A little more love, your way.</h3>
     <p className="mt-2 max-w-[640px] text-xs leading-6 text-[#665D55]">Try a sample order below. Choose your tier, invite as many voices as you wish, and add matching cards for others to keep. This is a price preview, not checkout.</p>
@@ -92,15 +88,26 @@ function AddOnPricePreview() {
       <label className="text-xs text-[#514A43]">Your package<select aria-label="Package" value={tier} onChange={e => setTier(e.target.value as KeepTier)} className="mt-2 block min-h-12 w-full rounded-sm border border-[#CFC2B6] bg-[#FBF9F6] px-4 text-sm"><option value="basic">Basic — $79</option><option value="signature">Signature — $99</option></select></label>
       <label className="text-xs text-[#514A43]">Number of voices<input aria-label="Number of voices" type="number" min="1" step="1" value={speakerCount} onChange={e => setSpeakerCount(Math.max(1, Math.floor(Number(e.target.value) || 1)))} className="mt-2 block min-h-12 w-full rounded-sm border border-[#CFC2B6] bg-[#FBF9F6] px-4 text-sm" /></label>
       <label className="text-xs text-[#514A43]">Total matching cards (1 included)<input aria-label="Total cards" type="number" min="1" step="1" value={cardCount} onChange={e => setCardCount(Math.max(1, Math.floor(Number(e.target.value) || 1)))} className="mt-2 block min-h-12 w-full rounded-sm border border-[#CFC2B6] bg-[#FBF9F6] px-4 text-sm" /></label>
-      {tier === "basic" ? <label className="flex items-center gap-3 self-end rounded-sm border border-[#D7C8BA] bg-[#FBF9F6] p-4 text-xs leading-5"><input type="checkbox" checked={engravingUpgrade} onChange={e => setEngravingUpgrade(e.target.checked)} className="size-4" /> Add discounted engraving for $9 <span className="text-[#8D7760] line-through">$20</span></label> : <div className="flex items-center gap-2 self-end rounded-sm border border-[#D7C8BA] bg-[#FBF9F6] p-4 text-xs"><Check className="size-4 text-[#796757]" /> Engraving and two voices included</div>}
-      <label className="text-xs text-[#514A43]">Extra card finish<select aria-label="Extra card finish" value={extraCardStyle} onChange={e => setExtraCardStyle(e.target.value as "classic" | "engraved")} className="mt-2 block min-h-12 w-full rounded-sm border border-[#CFC2B6] bg-[#FBF9F6] px-4 text-sm"><option value="classic">Keep logo · $39 each</option><option value="engraved">Laser engraved · $49 each (retail $99)</option></select></label>
+      {tier === "basic" ? <label className="flex items-center gap-3 self-end rounded-sm border border-[#D7C8BA] bg-[#FBF9F6] p-4 text-xs leading-5"><input type="checkbox" checked={engravingUpgrade} onChange={e => setEngravingUpgrade(e.target.checked)} className="size-4" /> Add personalized engraving for $19</label> : <div className="flex items-center gap-2 self-end rounded-sm border border-[#D7C8BA] bg-[#FBF9F6] p-4 text-xs"><Check className="size-4 text-[#796757]" /> Engraving and two voices included</div>}
+      <label className="text-xs text-[#514A43]">Extra card finish<select aria-label="Extra card finish" value={extraCardStyle} onChange={e => setExtraCardStyle(e.target.value as "classic" | "engraved")} className="mt-2 block min-h-12 w-full rounded-sm border border-[#CFC2B6] bg-[#FBF9F6] px-4 text-sm"><option value="classic">Keep logo · $39 each</option><option value="engraved">Laser engraved · $49 each (Signature bundle pricing available)</option></select></label>
     </div>
-    <p className="mt-4 text-xs leading-6 text-[#665D55]">{quote.includedVoices} {quote.includedVoices === 1 ? "voice" : "voices"} included. Each additional voice <del>$39</del> <strong>$19</strong>. Engraved extra cards <del>$99</del> <strong>$49</strong>.</p>
+    <p className="mt-4 text-xs leading-6 text-[#665D55]">{quote.includedVoices} {quote.includedVoices === 1 ? "voice" : "voices"} included. Additional voices are $19 each. Extra cards are $39 logo-only or $49 engraved before Signature bundle savings.</p>
+    <div className="mt-5 rounded-xl border border-[#CDBFAE] bg-[#FBF8F3] p-4">
+      <p className="text-[10px] font-semibold uppercase tracking-[.15em] text-[#7B6654]">Matching-card bundles</p>
+      <p className="mt-1 text-xs leading-5 text-[#665D55]">One finished Keep, shared across multiple personalized cards.</p>
+      <div className="mt-3 grid grid-cols-3 gap-2">
+        {([{ cards: 2, price: "$139", label: "Duo" }, { cards: 3, price: "$179", label: "Family" }, { cards: 5, price: "$249", label: "Five" }] as const).map(bundle =>
+          <button key={bundle.cards} type="button" aria-pressed={tier === "signature" && extraCardStyle === "engraved" && cardCount === bundle.cards} onClick={() => { setTier("signature"); setExtraCardStyle("engraved"); setCardCount(bundle.cards); setEngravingUpgrade(false); }} className={`rounded-lg border px-2 py-3 text-center text-xs transition-colors ${tier === "signature" && extraCardStyle === "engraved" && cardCount === bundle.cards ? "border-[#7A6250] bg-[#E9DBCC]" : "border-[#D7C9B8] bg-white"}`}>
+            <span className="block font-semibold">{bundle.label}</span><span className="mt-1 block text-[11px]">{bundle.cards} cards</span><strong className="mt-1 block text-sm">{bundle.price}</strong>
+          </button>)}
+      </div>
+    </div>
     <div className="mt-6 space-y-2 border-t border-[#D5C8BB] pt-5 text-xs leading-6 text-[#665D55]">
       <div className="flex justify-between"><span>{tier === "basic" ? "Basic" : "Signature"} with 1 card</span><span>{keepMoney(quote.baseCents)}</span></div>
       <div className="flex justify-between"><span>Additional voices ({quote.additionalSpeakers})</span><span>{quote.speakerCents ? keepMoney(quote.speakerCents) : "Included"}</span></div>
       <div className="flex justify-between"><span>Personalized engraving</span><span>{quote.hasEngraving ? quote.engravingCents ? keepMoney(quote.engravingCents) : "Included" : "Not selected"}</span></div>
-      <div className="flex justify-between"><span>Extra cards ({quote.extraCards} × {keepMoney(quote.extraCardUnitCents)})</span><span>{keepMoney(quote.extraCardsCents)}</span></div>
+      <div className="flex justify-between"><span>Extra cards ({quote.extraCards}{quote.bundleLabel ? " · bundle pricing" : ""})</span><span>{keepMoney(quote.extraCardsCents)}</span></div>
+      {quote.bundleSavingsCents > 0 && <div className="flex justify-between font-medium text-[#486C59]"><span>Signature matching-card savings</span><span>{keepMoney(quote.bundleSavingsCents)}</span></div>
       <div className="mt-3 flex justify-between border-t border-[#D5C8BB] pt-4 text-base font-medium text-[#171514]"><span>Estimated order total</span><span>{keepMoney(quote.totalCents)}</span></div>
       <p className="text-[10px] leading-5">Taxes, if applicable, are calculated at checkout. No payment is collected in this preview.</p>
     </div>
@@ -221,56 +228,29 @@ function ShopKeep() {
           <p className="mx-auto mt-6 max-w-[510px] text-[14px] leading-8 text-[#655A50]">Two thoughtful ways to give. One meaningful experience, made personal by you and kept forever by them.</p>
         </div>
 
-        <div className="mx-auto mt-12 grid max-w-[1030px] items-stretch gap-6 md:mt-16 md:grid-cols-2 md:gap-7">
+        <div className="mx-auto mt-12 grid max-w-[990px] items-stretch gap-4 md:mt-16 md:grid-cols-2 md:gap-5">
           {packageChoices.map(p => (
-            <article
-              key={p.tier}
-              id={`package-${p.tier}`}
-              aria-labelledby={`package-${p.tier}-title`}
-              className={`relative flex scroll-mt-28 flex-col overflow-hidden rounded-[26px] border shadow-[0_18px_55px_rgba(31,25,20,.065)] transition-shadow duration-300 hover:shadow-[0_24px_65px_rgba(31,25,20,.11)] ${p.featured ? "border-[#99806B] bg-[linear-gradient(145deg,#F0E8DE_0%,#EAE0D4_100%)]" : "border-[#DBD1C6] bg-[#FFFCF8]"}`}
-            >
-              {p.featured && <div aria-hidden="true" className="absolute inset-x-0 top-0 h-[4px] bg-[#76614F]" />}
-              <div className="px-6 pt-7 sm:px-9 sm:pt-9">
-                <div className="flex min-h-8 items-center justify-between gap-3">
-                  <p className="text-[10px] font-semibold uppercase tracking-[.19em] text-[#806B59]">{p.featured ? "02 / Our signature" : "01 / The essentials"}</p>
-                  {p.featured && <span className="rounded-full border border-[#B9A28E] bg-[#FAF5EE]/70 px-3 py-1.5 text-[9px] font-semibold uppercase tracking-[.1em] text-[#5D4A3A]">Signature choice</span>}
+            <article key={p.tier} id={`package-${p.tier}`} aria-labelledby={`package-${p.tier}-title`}
+              className={`relative flex scroll-mt-28 flex-col rounded-[22px] border bg-[#FFFCF8] p-6 shadow-[0_13px_38px_rgba(31,25,20,.045)] sm:p-8 ${p.featured ? "border-2 border-[#87715F] shadow-[0_17px_47px_rgba(31,25,20,.095)]" : "border-[#D8D0C7]"}`}>
+              {p.featured && <p className="mb-4 text-[10px] font-semibold uppercase tracking-[.16em] text-[#806B59]">Recommended · Best value</p>}
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <h3 id={`package-${p.tier}-title`} className="font-display text-[clamp(26px,3.2vw,40px)] leading-tight tracking-[-.03em]">{p.name}</h3>
+                  <strong className="mt-4 block font-display text-[clamp(43px,5vw,64px)] font-normal leading-none tracking-[-.05em]">{p.price}</strong>
                 </div>
-                <div className="mt-5 flex items-center justify-between gap-3 sm:gap-5">
-                  <div className="min-w-0 flex-1">
-                    <h3 id={`package-${p.tier}-title`} className="font-display text-[clamp(43px,5.4vw,59px)] leading-[1.04] tracking-[-.045em] text-[#1A1815]">{p.name}</h3>
-                    <p className="mt-4 max-w-[250px] text-[10px] font-semibold uppercase leading-[1.9] tracking-[.13em] text-[#796959]">{p.cards} · {p.engraving}</p>
-                  </div>
-                  <div className={`relative flex w-[118px] shrink-0 items-center justify-center rounded-[16px] border px-3 py-6 sm:w-[155px] sm:rounded-[20px] sm:px-4 sm:py-8 ${p.featured ? "border-[#CFBEAA] bg-[#DCD1C4]/80" : "border-[#E5DAD0] bg-[#F0E8DF]"}`}>
-                    <div aria-hidden="true" className="pointer-events-none absolute inset-x-6 bottom-3 h-4 rounded-full bg-[#4A3830]/15 blur-lg" />
-                    <KeepMiniCard variant={p.tier} className="relative -rotate-[7deg] shadow-[0_9px_22px_rgba(24,19,15,.26)]" />
-                  </div>
+                <div className="flex h-[90px] w-[115px] shrink-0 items-center justify-center rounded-xl bg-[#EEE6DD] p-3 sm:h-[105px] sm:w-[145px]">
+                  <KeepMiniCard variant={p.tier} className="-rotate-[7deg] shadow-[0_9px_24px_rgba(24,19,15,.18)]" />
                 </div>
-                <div className="mt-7 flex flex-wrap items-end gap-x-4 gap-y-3">
-                  <strong className="font-display text-[clamp(59px,7vw,76px)] font-normal leading-none tracking-[-.065em] text-[#1A1815]">{p.price}</strong>
-                  <del className="mb-[7px] text-lg text-[#877869]">{p.tier === "basic" ? "$94" : "$129"}</del>
-                  <span className={`mb-[7px] rounded-full px-3.5 py-1.5 text-[11px] font-semibold ${p.featured ? "bg-[#D1C0AA] text-[#493A30]" : "bg-[#E8DDD0] text-[#594637]"}`}>{p.tier === "basic" ? "Save $15" : "Save $30"}</span>
-                </div>
-                <p className="mt-6 max-w-[370px] text-[14px] leading-[1.85] text-[#655A50]">{p.message}</p>
               </div>
-
-              <div className="mx-6 mt-7 border-t border-[#CDBFB1]/85 sm:mx-9" />
-              <div className="px-6 pb-5 pt-7 sm:px-9">
-                <p className="text-[10px] font-semibold uppercase tracking-[.19em] text-[#786554]">What's included</p>
-                <ul className="mt-5 space-y-4 text-[13px] leading-[1.65] text-[#3D3732]">
-                  {p.points.map(point => <li key={point} className="flex items-start gap-3.5">
-                    <span className="mt-[2px] flex size-5 shrink-0 items-center justify-center rounded-full border border-[#C4B19F] bg-[#F8F4EE]/70"><Check className="size-3 text-[#755D49]" strokeWidth={2} /></span>
-                    <span>{point}</span>
-                  </li>)}
-                  {p.featured && <li className="flex items-start gap-3.5">
-                    <span className="mt-[2px] flex size-5 shrink-0 items-center justify-center rounded-full border border-[#C4B19F] bg-[#F8F4EE]/70"><Check className="size-3 text-[#755D49]" strokeWidth={2} /></span>
-                    <span>Extra engraved cards <del className="text-[#877869]">$99</del> <strong>$49 each</strong></span>
-                  </li>}
-                </ul>
-              </div>
-
-              <div className="mt-auto px-6 pb-7 pt-7 sm:px-9 sm:pb-9">
+              <p className="mt-5 min-h-[44px] text-[14px] leading-6 text-[#655A50]">{p.message}</p>
+              <div className="my-6 border-t border-[#DED4C9]" />
+              <ul className="space-y-4 text-[13px] leading-6 text-[#3D3732]">
+                {p.points.map(point => <li key={point} className="flex items-start gap-3"><Check className="mt-1 size-4 shrink-0 text-[#486C59]" /><span>{point}</span></li>)}
+              </ul>
+              <p className={`mt-6 min-h-[42px] text-[13px] leading-6 ${p.featured ? "font-semibold text-[#30271F]" : "text-[#73665A]"}`}>{p.featured ? "The complete gift for just $20 more" : "Engraving and additional voices available"}</p>
+              <div className="mt-auto border-t border-[#DED4C9] pt-6">
                 <PurchaseAction tier={p.tier} smaller />
-                <p className="mt-4 text-center text-[11px] leading-5 text-[#756A5F]">One card included · Standard U.S. shipping included</p>
+                <p className="mt-3 text-center text-[11px] text-[#756A5F]">Standard U.S. shipping included</p>
               </div>
             </article>
           ))}
