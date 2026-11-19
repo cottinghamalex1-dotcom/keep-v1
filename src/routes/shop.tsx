@@ -107,7 +107,7 @@ function AddOnPricePreview() {
       <div className="flex justify-between"><span>Additional voices ({quote.additionalSpeakers})</span><span>{quote.speakerCents ? keepMoney(quote.speakerCents) : "Included"}</span></div>
       <div className="flex justify-between"><span>Personalized engraving</span><span>{quote.hasEngraving ? quote.engravingCents ? keepMoney(quote.engravingCents) : "Included" : "Not selected"}</span></div>
       <div className="flex justify-between"><span>Extra cards ({quote.extraCards}{quote.bundleLabel ? " · bundle pricing" : ""})</span><span>{keepMoney(quote.extraCardsCents)}</span></div>
-      {quote.bundleSavingsCents > 0 && <div className="flex justify-between font-medium text-[#486C59]"><span>Signature matching-card savings</span><span>{keepMoney(quote.bundleSavingsCents)}</span></div>
+      {quote.bundleSavingsCents > 0 && <div className="flex justify-between font-medium text-[#486C59]"><span>Signature matching-card savings</span><span>{keepMoney(quote.bundleSavingsCents)}</span></div>}
       <div className="mt-3 flex justify-between border-t border-[#D5C8BB] pt-4 text-base font-medium text-[#171514]"><span>Estimated order total</span><span>{keepMoney(quote.totalCents)}</span></div>
       <p className="text-[10px] leading-5">Taxes, if applicable, are calculated at checkout. No payment is collected in this preview.</p>
     </div>
