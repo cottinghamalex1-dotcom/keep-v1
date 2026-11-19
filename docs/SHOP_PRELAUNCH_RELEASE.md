@@ -32,6 +32,7 @@ The two package displays intentionally use the simple screenshot-approved value 
 | Basic engraving $19 | `price_1UdXxJB5i8TaAgYD3ZjOqS9Z` |
 | Plain extra card | `price_1Uc7dXB5i8TaAgYDPQCWADAu` |
 | Engraved extra card | `price_1Ud7crB5i8TaAgYDT1qDTuB3` |
+| Signature bundled additional engraved card ($40, restricted to verified Signature orders) | `price_1UdY2eB5i8TaAgYDhz6dcGI5` |
 | Signature Duo | `price_1UdXxLB5i8TaAgYD4EQywoeq` |
 | Signature Family three | `price_1UdXxMB5i8TaAgYDN8UCbGIj` |
 | Signature Five | `price_1UdXxOB5i8TaAgYDLQ2zCBAg` |
