@@ -2504,7 +2504,7 @@ function KeepApp() {
           </div>
         </div>}
         {keepOrder.tier==="basic" && <button type="button" onClick={()=>patchKeepOrder({tier:"signature",engravingUpgrade:false,extraCardStyle:"engraved"})} className="mt-3 text-left text-xs font-semibold text-[#6D5440] underline underline-offset-4">Get Signature and unlock matching-card bundles from $139</button>}
-        {keepQuote.bundleSavingsCents>0 && <p className="mt-2 text-xs font-semibold text-[#486C59]">Signature matching-card bundle savings: {keepMoney(keepQuote.bundleSavingsCents)}</p>
+        {keepQuote.bundleSavingsCents>0 && <p className="mt-2 text-xs font-semibold text-[#486C59]">Signature matching-card bundle savings: {keepMoney(keepQuote.bundleSavingsCents)}</p>}
         <p className="mt-2 text-[11px] leading-5 text-[#746451]">Total physical cards: {keepQuote.totalCards}. Every card opens this one Keep.</p>
         {keepOrder.tier==="basic" && <button type="button" onClick={()=>setEngravingOfferOpen(true)} className="mt-4 w-full rounded-xl border border-[#B99F7F] bg-white px-4 py-3 text-left text-xs font-medium">
           {keepQuote.hasEngraving ? "Engraving upgrade selected — $19 · Change" : "Personalized engraving for $19 · Or get Signature for $99"}
@@ -2515,7 +2515,7 @@ function KeepApp() {
           <div className="flex justify-between"><span>Additional voices ({keepQuote.additionalSpeakers})</span><span>{keepQuote.speakerCents?keepMoney(keepQuote.speakerCents):"Included"}</span></div>
           <div className="flex justify-between"><span>Engraving</span><span>{keepQuote.engravingCents?keepMoney(keepQuote.engravingCents):keepQuote.hasEngraving?"Included":"Not selected"}</span></div>
           <div className="flex justify-between"><span>{keepQuote.extraCardStyle === "engraved" ? "Engraved" : "Logo-only"} extra cards ({keepQuote.extraCards})</span><span>{keepMoney(keepQuote.extraCardsCents)}</span></div>
-          {keepQuote.bundleSavingsCents>0 && <div className="flex justify-between font-medium text-[#486C59]"><span>Signature bundle savings</span><span>{keepMoney(keepQuote.bundleSavingsCents)}</span></div>
+          {keepQuote.bundleSavingsCents>0 && <div className="flex justify-between font-medium text-[#486C59]"><span>Signature bundle savings</span><span>{keepMoney(keepQuote.bundleSavingsCents)}</span></div>}
           <div className="flex justify-between border-t border-[#D1BDA7] pt-3 text-sm font-semibold text-[#342B22]"><span>Estimated total</span><span>{keepMoney(keepQuote.totalCents)}</span></div>
           <p className="pt-2 text-[11px] leading-5">Preview only. No extra cards, collaborators or engraving have been purchased yet. Taxes may apply at checkout.</p>
         </div>
