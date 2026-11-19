@@ -2,6 +2,7 @@ import { viewingLink } from "@/lib/keep-publish";
 import { KeepLibraryCard } from "@/components/keep-library-card";
 import { KeepCreateCTA } from "@/components/keep-create-cta";
 import { KeepPhoneTip } from "@/components/keep-phone-tip";
+import { KeepPageLoading } from "@/components/keep-page-loading";
 import { KeepCollectionCard } from "@/components/keep-collection-card";
 import { KeepCardCollection } from "@/components/keep-card-collection";
 import { KeepAccountDashboard } from "@/components/keep-account-dashboard";
@@ -154,7 +155,7 @@ function KeepDashboard() {
   };
   const button = "w-full rounded-xl bg-primary px-5 py-3.5 text-sm font-medium text-primary-foreground disabled:opacity-50 hover:bg-primary/90";
   const secondary = "keep-editorial-surface px-4 py-4 text-sm";
-  if (!ready) return <main className="min-h-dvh bg-background" />;
+  if (!ready) return <KeepPageLoading />;
   return <main className="min-h-dvh bg-background text-foreground"><div className="mx-auto min-h-dvh max-w-[540px] px-6 pb-12 pt-9">
     <header className="relative mb-12 flex items-center justify-between border-b border-border/50 pb-6"><button onClick={() => navigate("home")} aria-label="Home" className="keep-wordmark">Keep</button><button onClick={() => setMenuOpen(!menuOpen)} aria-label="Open navigation menu" aria-expanded={menuOpen} className="flex size-11 items-center justify-center rounded-full border border-border/80"><Menu className="size-5" /></button>{menuOpen && <div className="absolute right-0 top-14 z-50 w-[min(310px,85vw)] rounded-2xl border border-border/80 bg-card p-4 shadow-2xl"><p className="mb-3 text-xs uppercase tracking-[.2em] text-[#6A5849]">Menu</p><button onClick={() => navigate("home")} className="flex w-full items-center gap-3 py-3 text-left"><Home className="size-4 text-[#6A5849]" />Home</button><button onClick={() => setKeepsOpen(!keepsOpen)} className="flex w-full items-center gap-3 py-3 text-left"><Gift className="size-4 text-[#6A5849]" />My Keeps <ChevronDown className={`ml-auto size-4 transition-transform ${keepsOpen ? "rotate-180" : ""}`} /></button>{keepsOpen && <div className="space-y-1 pl-7 text-sm"><a href="/?create=1" className="block py-2">+ Create a new Keep</a><Link to="/my-keeps" onClick={() => setMenuOpen(false)} className="block py-2 text-left">See all my Keeps</Link></div>}<div className="my-3 border-t border-border/80" /><button onClick={() => navigate("account")} className="flex w-full items-center gap-3 py-3 text-left"><UserRound className="size-4 text-[#6A5849]" />Account</button><a href="mailto:support@keep.com" className="flex items-center gap-3 py-3"><CircleHelp className="size-4 text-[#6A5849]" />Help &amp; Support</a></div>}</header>
     {!session ? <section className="mx-auto max-w-sm pt-12">
