@@ -13,7 +13,13 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
 const STRIPE_SECRET_KEY = Deno.env.get("STRIPE_SECRET_KEY") ?? "";
 const STRIPE_WEBHOOK_SECRET = Deno.env.get("STRIPE_WEBHOOK_SECRET") ?? "";
+// Fail closed. Test purchases require an explicit opt-in and a Stripe test-mode key.
+// Live customer collection additionally requires a separate production enable flag.
+const CHECKOUT_ENABLED = Deno.env.get("KEEP_STRIPE_CHECKOUT_ENABLED") === "true";
+const ALLOW_LIVE_CHARGES = Deno.env.get("KEEP_ALLOW_LIVE_STRIPE_CHARGES") === "true";
 const SITE_URL = (Deno.env.get("KEEP_SITE_URL") ?? "https://keep-v1.vercel.app").replace(/\/$/, "");
+// Set KEEP_MARKETING_URL to the real canonical OpenAI Site when the page is published.
+const MARKETING_URL = (Deno.env.get("KEEP_MARKETING_URL") ?? SITE_URL + "/shop").replace(/\/$/, "");
 const allow = new Set([SITE_URL, "https://keep-v1-keep23.vercel.app", "http://localhost:3000", "http://localhost:5173"]);
 const allowedOrigin = (req: Request) => {
   const origin = req.headers.get("origin") ?? "";
@@ -129,6 +135,8 @@ async function signedInUser(req: Request) {
 }
 async function createCheckout(req: Request, body: Record<string, unknown>) {
   if (!admin) return reply(req, { error: "Checkout service unavailable." }, 503);
+  if (!CHECKOUT_ENABLED || (STRIPE_SECRET_KEY.startsWith("sk_live_") && !ALLOW_LIVE_CHARGES))
+    return reply(req, { error: "Secure checkout is not enabled for this environment." }, 503);
   if (!/^sk_(test|live)_/.test(STRIPE_SECRET_KEY)) return reply(req, { error: "Secure checkout is being finalized." }, 503);
   const cart = cartFrom(body);
   if (!cart) return reply(req, { error: "Please review your package, voices and card quantities." }, 400);
@@ -148,7 +156,7 @@ async function createCheckout(req: Request, body: Record<string, unknown>) {
   form.set("shipping_options[0][shipping_rate_data][display_name]", "Standard U.S. shipping — included");
   form.set("allow_promotion_codes", "false");
   form.set("success_url", SITE_URL + (body.source === "editor" ? "/?resume=1&payment=success" : "/app?payment=success") + "&session_id={CHECKOUT_SESSION_ID}");
-  form.set("cancel_url", SITE_URL + (body.source === "editor" ? "/?resume=1&payment=cancelled" : "/shop?payment=cancelled"));
+  form.set("cancel_url", body.source === "editor" ? SITE_URL + "/?resume=1&payment=cancelled" : MARKETING_URL);
   if (user?.email && user.email_confirmed_at) form.set("customer_email", user.email);
   if (user?.id) form.set("client_reference_id", user.id);
   items.forEach(({ key, quantity }, i) => {
