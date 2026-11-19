@@ -37,11 +37,15 @@ const livePrices = {
   basic: "price_1Ud7cMB5i8TaAgYDiHS6FTDB",
   signature: "price_1UbLcIB5i8TaAgYDZIWzpiYJ",
   voice: "price_1Ud7cOB5i8TaAgYDrZlbxBwO",
-  engraving: "price_1Ud7cPB5i8TaAgYD25IenYbo",
+  engraving: "price_1UdXxJB5i8TaAgYD3ZjOqS9Z",
   logoCard: "price_1Uc7dXB5i8TaAgYDPQCWADAu",
   engravedCard: "price_1Ud7crB5i8TaAgYDT1qDTuB3",
+  signatureDuo: "price_1UdXxLB5i8TaAgYD4EQywoeq",
+  signatureFamilyThree: "price_1UdXxMB5i8TaAgYDN8UCbGIj",
+  signatureFive: "price_1UdXxOB5i8TaAgYDLQ2zCBAg",
+  signatureBundleExtra: "price_1UdY2eB5i8TaAgYDhz6dcGI5",
 };
-const priceValues = { basic: 7900, signature: 9900, voice: 1900, engraving: 900, logoCard: 3900, engravedCard: 4900 } as const;
+const priceValues = { basic: 7900, signature: 9900, voice: 1900, engraving: 1900, logoCard: 3900, engravedCard: 4900, signatureDuo: 13900, signatureFamilyThree: 17900, signatureFive: 24900, signatureBundleExtra: 4000 } as const;
 type PriceKey = keyof typeof livePrices;
 type Cart = {
   tier: "basic" | "signature"; voiceCount: number;
@@ -55,6 +59,8 @@ function prices() {
     basic: "STRIPE_PRICE_BASIC", signature: "STRIPE_PRICE_SIGNATURE",
     voice: "STRIPE_PRICE_EXTRA_VOICE", engraving: "STRIPE_PRICE_BASIC_ENGRAVING",
     logoCard: "STRIPE_PRICE_EXTRA_CARD", engravedCard: "STRIPE_PRICE_EXTRA_ENGRAVED_CARD",
+    signatureDuo: "STRIPE_PRICE_SIGNATURE_DUO", signatureFamilyThree: "STRIPE_PRICE_SIGNATURE_FAMILY_THREE",
+    signatureFive: "STRIPE_PRICE_SIGNATURE_FIVE", signatureBundleExtra: "STRIPE_PRICE_SIGNATURE_BUNDLE_EXTRA",
   };
   return Object.fromEntries((Object.keys(livePrices) as PriceKey[]).map(k => [
     k, Deno.env.get(names[k]) || (test ? "" : livePrices[k]),
@@ -81,11 +87,26 @@ function cartFrom(value: Record<string, unknown>): Cart | null {
 function cartItems(cart: Cart): Array<{ key: PriceKey; quantity: number }> {
   const includedVoices = cart.tier === "signature" ? 2 : 1;
   const additionalVoices = Math.max(0, cart.voiceCount - includedVoices);
+  // The Signature bundle Price itself already contains the $99 base card.
+  // NEVER charge a second base package in the same session.
+  const signatureEngravedBundle = cart.tier === "signature" && cart.extraCardStyle === "engraved" && cart.extraCards > 0;
+  let cardItems: Array<{ key: PriceKey; quantity: number }>;
+  if (signatureEngravedBundle) {
+    const n = cart.extraCards;
+    if (n === 1) cardItems = [{ key: "signatureDuo", quantity: 1 }];
+    else if (n === 2) cardItems = [{ key: "signatureFamilyThree", quantity: 1 }];
+    else if (n === 3) cardItems = [{ key: "signatureFamilyThree", quantity: 1 }, { key: "signatureBundleExtra", quantity: 1 }];
+    else cardItems = [{ key: "signatureFive", quantity: 1 }, ...(n > 4 ? [{ key: "signatureBundleExtra" as PriceKey, quantity: n - 4 }] : [])];
+  } else {
+    cardItems = [
+      { key: cart.tier, quantity: 1 },
+      ...(cart.extraCards ? [{ key: (cart.extraCardStyle === "engraved" ? "engravedCard" : "logoCard") as PriceKey, quantity: cart.extraCards }] : []),
+    ];
+  }
   return [
-    { key: cart.tier, quantity: 1 },
-    ...(additionalVoices ? [{ key: "voice" as const, quantity: additionalVoices }] : []),
-    ...(cart.engravingUpgrade ? [{ key: "engraving" as const, quantity: 1 }] : []),
-    ...(cart.extraCards ? [{ key: (cart.extraCardStyle === "engraved" ? "engravedCard" : "logoCard") as PriceKey, quantity: cart.extraCards }] : []),
+    ...cardItems,
+    ...(additionalVoices ? [{ key: "voice" as PriceKey, quantity: additionalVoices }] : []),
+    ...(cart.engravingUpgrade ? [{ key: "engraving" as PriceKey, quantity: 1 }] : []),
   ];
 }
 function subtotal(cart: Cart) {
@@ -135,7 +156,7 @@ async function createCheckout(req: Request, body: Record<string, unknown>) {
     form.set("line_items[" + i + "][quantity]", String(quantity));
   });
   const metadata: Record<string, string> = {
-    keep_source: "keep-v1", pricing_version: "2026-11-18",
+    keep_source: "keep-v1", pricing_version: "2026-11-19",
     tier: cart.tier, voice_count: String(cart.voiceCount),
     extra_cards: String(cart.extraCards), extra_card_style: cart.extraCardStyle,
     engraving_upgrade: String(cart.engravingUpgrade),
