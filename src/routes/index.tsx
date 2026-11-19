@@ -42,7 +42,7 @@ import { KeepOpeningPersonalization } from "@/components/keep-opening-personaliz
 import { defaultKeepOrder, keepOrderQuote, keepMoney, normalizeExtraCards, type KeepTier } from "@/lib/keep-pricing";
 import { KeepErrorBoundary } from "@/components/keep-error-boundary";
 import { KeepLengthGuide } from "@/components/keep-length-guide";
-import { KEEP_RECIPIENT_CATEGORIES, relationshipGroups, chosenKeepRecipientRelationship } from "@/lib/keep-recipient-categories";
+import { relationshipGroups, chosenKeepRecipientRelationship } from "@/lib/keep-recipient-categories";
 import { checkKeepVideo, KEEP_VIDEO_MAX_BYTES, KEEP_VIDEO_MAX_SOURCE_BYTES, KEEP_VIDEO_MAX_SECONDS, readKeepVideoDuration } from "@/lib/keep-video-upload";
 import { compressKeepVideo, keepCompressedSizeText, shouldCompressKeepVideo } from "@/lib/keep-video-compression";
 import { keepOptimizedPhotoId, keepPhotoSavings, optimizeKeepPhoto, shouldOptimizeKeepPhoto } from "@/lib/keep-photo-optimization";
@@ -71,7 +71,7 @@ type Mode = "Memories" | "Music" | "Captions" | "Style" | "Voice" | "Selfie";
 const creationScreens: Screen[] = ["recipient", "occasion", "voices", "intent", "path", "interview", "summary", "messageGenerating", "write", "message", "recordPrep", "record", "groupRecord", "remoteInvite", "recorded", "memories", "storyStyle", "generating", "editor", "preview", "recipientPreview", "card", "success"];
 const resumeScreen = (s: Screen): Screen => (s === "messageGenerating" ? "summary" : s === "generating" ? "memories" : s === "preview" || s === "recipientPreview" ? "editor" : s);
 const occasions = ["Birthday", "Anniversary", "Wedding", "New Baby", "Mother's Day", "Father's Day", "Graduation", "Thank You", "Trip / Adventure", "Milestone", "Celebration of Life", "Family Memories", "Just Because", "Other"];
-const relationships = KEEP_RECIPIENT_CATEGORIES;
+
 const questions = [
   "Tell me about Hanna. Who is she to you beyond just being your wife?",
   "You said she makes people feel at home. Can you remember a specific moment when you really noticed that?",
