@@ -56,7 +56,7 @@ describe("Consistent Keep navigation", () => {
     fireEvent.keyDown(document, { key: "Escape" });
     await waitFor(() => expect(screen.queryByRole("dialog", { name: "Keep navigation" })).toBeNull());
   });
-  it("shows the updated savings and package inclusions", async () => {
+  it("presents transparent launch prices and makes Signature the clearer choice", async () => {
     const router = createRouter({
       routeTree,
       isServer: false,
@@ -65,17 +65,14 @@ describe("Consistent Keep navigation", () => {
     });
     await router.load();
     render(<RouterProvider router={router} />, { container: document });
-    expect(screen.getByText("$94")).toBeTruthy();
-    expect(screen.getByText("Save $15")).toBeTruthy();
-    expect(screen.getByText("Save $30")).toBeTruthy();
-    expect(screen.getByText(/1 card included · No Personalized Engraving/i)).toBeTruthy();
-    expect(screen.getByText(/1 card included · Personalized Engraving Included/i)).toBeTruthy();
-    expect(screen.getByText("One beautiful Keep, your words engraved, and more:")).toBeTruthy();
-    expect(screen.getByText("Two voices included (only 1 is needed)")).toBeTruthy();
-    expect(screen.getByRole("heading", { name: "Basic" }).closest("article")?.id).toBe("package-basic");
-    expect(screen.getByRole("heading", { name: "Signature" }).closest("article")?.id).toBe("package-signature");
-    expect(screen.getByRole("img", { name: /Basic Keep card with Keep logo only/ })).toBeTruthy();
-    expect(screen.getByRole("img", { name: /Signature Keep card with personalized engraving preview/ })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Basic Keep" }).closest("article")?.id).toBe("package-basic");
+    expect(screen.getByRole("heading", { name: "Signature Keep" }).closest("article")?.id).toBe("package-signature");
+    expect(screen.getByText("The complete gift for just $20 more")).toBeTruthy();
+    expect(screen.getByText("Recommended · Best value")).toBeTruthy();
+    expect(screen.getByText("2 voices included")).toBeTruthy();
+    expect(screen.getByText("1 voice included")).toBeTruthy();
+    expect(screen.queryByText("$94")).toBeNull();
+    expect(screen.queryByText("Save $30")).toBeNull();
     expect(screen.getAllByText("Checkout opening soon").length).toBeGreaterThanOrEqual(2);
   });
   it("removes the three unwanted links from the dashboard menu", async () => {

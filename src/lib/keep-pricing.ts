@@ -2,16 +2,15 @@
 export type KeepTier = "basic" | "signature";
 export const KEEP_PRICING = {
   basicCents: 7900,
-  basicRetailCents: 9400,
-  signatureRetailCents: 12900,
   signatureCents: 9900,
   additionalSpeakerCents: 1900,
-  additionalSpeakerRetailCents: 3900,
-  discountedBasicEngravingCents: 900,
-  regularBasicEngravingCents: 2000,
+  basicEngravingCents: 1900,
   extraCardCents: 3900,
   engravedExtraCardCents: 4900,
-  engravedExtraCardRetailCents: 9900,
+  // Signature matching engraved card bundles: 2 cards $139, 3 cards $179, 5 cards $249.
+  signatureDuoCents: 13900,
+  signatureFamilyThreeCents: 17900,
+  signatureFamilyFiveCents: 24900,
 } as const;
 
 export type KeepOrderSelection = {
@@ -38,6 +37,16 @@ export function normalizeExtraCards(value: number): number {
   return Number.isSafeInteger(value) && value >= 0 ? value : 0;
 }
 
+/** Signed-in pricing preview only. Final payable items must be priced and verified on the server. */
+export function signatureEngravedExtrasCents(extraCards: number): number {
+  const count = normalizeExtraCards(extraCards);
+  if (count === 0) return 0;
+  if (count <= 3) return count * 4000;
+  // Five physical cards cost $249 total with the included $99 Signature card.
+  // Extra engraved cards beyond the five-card bundle remain $40 per card.
+  return 15000 + (count - 4) * 4000;
+}
+
 export function keepOrderQuote(
   order: Pick<KeepOrderSelection, "tier" | "extraCards" | "engravingUpgrade" | "extraCardStyle">,
   speakerCount: number,
@@ -53,11 +62,15 @@ export function keepOrderQuote(
   const extraCardUnitCents = extraCardStyle === "engraved" ? KEEP_PRICING.engravedExtraCardCents : KEEP_PRICING.extraCardCents;
   const baseCents = tier === "signature" ? KEEP_PRICING.signatureCents : KEEP_PRICING.basicCents;
   const speakerCents = additionalSpeakers * KEEP_PRICING.additionalSpeakerCents;
-  const engravingCents = tier === "basic" && order.engravingUpgrade ? KEEP_PRICING.discountedBasicEngravingCents : 0;
-  const extraCardsCents = extraCards * extraCardUnitCents;
+  const engravingCents = tier === "basic" && order.engravingUpgrade ? KEEP_PRICING.basicEngravingCents : 0;
+  const standardExtraCardsCents = extraCards * extraCardUnitCents;
+  const usesSignatureEngravedBundle = tier === "signature" && extraCardStyle === "engraved" && extraCards > 0;
+  const extraCardsCents = usesSignatureEngravedBundle ? signatureEngravedExtrasCents(extraCards) : standardExtraCardsCents;
+  const bundleSavingsCents = standardExtraCardsCents - extraCardsCents;
+  const bundleLabel = usesSignatureEngravedBundle ? (extraCards === 1 ? "Signature Duo" : extraCards === 2 ? "Signature Family" : extraCards === 4 ? "Signature Five" : "Signature matching-card savings") : null;
   return {
     tier, includedCardCount, extraCards, totalCards: includedCardCount + extraCards,
-    includedVoices, extraCardStyle, extraCardUnitCents, additionalSpeakers, baseCents, speakerCents, engravingCents, extraCardsCents,
+    includedVoices, extraCardStyle, extraCardUnitCents, additionalSpeakers, baseCents, speakerCents, engravingCents, extraCardsCents, bundleSavingsCents, bundleLabel,
     totalCents: baseCents + speakerCents + engravingCents + extraCardsCents,
     hasEngraving,
     hasAnyEngraving: hasEngraving || (extraCards > 0 && extraCardStyle === "engraved"),
