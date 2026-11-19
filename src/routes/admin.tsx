@@ -63,7 +63,7 @@ function OrderCard({ row, purchase, keepToken, onPatch, saving }: {
     </div>
     <div className="mt-4 grid gap-3 sm:grid-cols-2">
       <label className={label}>Engraving — card 1
-        <textarea rows={2} maxLength={80} className={control + " mt-2 normal-case tracking-normal"} value={fields.engraving_1} disabled={row.package_tier==="basic"} onChange={e=>set("engraving_1",e.target.value)} placeholder={row.package_tier==="basic"?"Keep logo only":"Engraved message"}/>
+        <textarea rows={2} maxLength={80} className={control + " mt-2 normal-case tracking-normal"} value={fields.engraving_1} disabled={row.package_tier==="basic" && !purchase?.basic_engraving_upgrade} onChange={e=>set("engraving_1",e.target.value)} placeholder={row.package_tier==="basic"?"Keep logo only":"Engraved message"}/>
       </label>
       <label className={label}>Engraving — card 2
         <textarea rows={2} maxLength={80} className={control + " mt-2 normal-case tracking-normal"} value={fields.engraving_2} disabled={true} onChange={e=>set("engraving_2",e.target.value)} placeholder="Deluxe second card"/>
@@ -108,7 +108,7 @@ function KeepAdmin() {
   const load = async (current:KeepSession) => {
     const [orders, paid, inbox, keeps] = await Promise.all([
       keepCommerceRequest<Fulfillment[]>("/rest/v1/keep_fulfillment?select=*&order=created_at.desc&limit=500",current),
-      keepCommerceRequest<Purchase[]>("/rest/v1/keep_purchases?select=id,shopify_order_id,purchaser_email,keep_id,status,paid_at,created_at&order=created_at.desc&limit=500",current),
+      keepCommerceRequest<Purchase[]>("/rest/v1/keep_purchases?select=id,shopify_order_id,purchaser_email,keep_id,status,paid_at,created_at,basic_engraving_upgrade&order=created_at.desc&limit=500",current),
       keepCommerceRequest<SupportTicket[]>("/rest/v1/keep_support_tickets?select=*&order=created_at.desc&limit=500",current),
       keepCommerceRequest<{id:string;recipient_token:string}[]>("/rest/v1/keeps?select=id,recipient_token&limit=500",current),
     ]);
