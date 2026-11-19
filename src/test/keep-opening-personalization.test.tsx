@@ -18,7 +18,7 @@ it("offers three transcript-specific choices, mirrors the selected inscription a
   function Harness() {
     const [p, setP] = useState({ ...newProject(), recipientName: "Andi", occasion: "Birthday",
       messageParagraphs: ["The everyday moments with you are always the ones we cherish most."] });
-    return <KeepOpeningPersonalization project={p} onUpdate={values => setP(old => ({ ...old, ...values }))} onPreview={() => {}} />;
+    return <KeepOpeningPersonalization project={p} onUpdate={values => setP(old => ({ ...old, ...values }))} />;
   }
   render(<Harness />);
   await waitFor(() => expect(screen.getByText(options[2]!)).toBeTruthy());
@@ -29,4 +29,25 @@ it("offers three transcript-specific choices, mirrors the selected inscription a
   expect(card.textContent).toContain(options[1]);
   fireEvent.click(screen.getByRole("button", { name: /No opening message/ }));
   expect(card.textContent).not.toContain(options[1]);
+});
+
+it("previews the first film image and dedication without navigating to the recipient welcome page", () => {
+  function Harness() {
+    const [p, setP] = useState({
+      ...newProject(),
+      recipientName: "Mom",
+      openingMessage: "You made our house a home.",
+      engraveOpeningMessage: true,
+      memories: [{ id: "first", kind: "image" as const, source: "upload" as const, url: "/our-home.jpg" }],
+    });
+    return <KeepOpeningPersonalization project={p} onUpdate={values => setP(old => ({ ...old, ...values }))} />;
+  }
+  render(<Harness />);
+  fireEvent.click(screen.getByRole("button", { name: /Preview first Keep image/ }));
+  const dialog = screen.getByRole("dialog", { name: "First Keep image preview" });
+  expect(dialog).toBeTruthy();
+  expect(screen.getByAltText("First photo in your Keep").getAttribute("src")).toBe("/our-home.jpg");
+  expect(dialog.textContent).toContain("You made our house a home.");
+  fireEvent.click(screen.getByRole("button", { name: "Close first image preview" }));
+  expect(screen.queryByRole("dialog", { name: "First Keep image preview" })).toBeNull();
 });
