@@ -9,9 +9,13 @@ Checkout is **closed by default**. Do not set \`VITE_KEEP_STRIPE_CHECKOUT_READY=
 | Basic, 1 voice + logo card | \`price_1Ud7cMB5i8TaAgYDiHS6FTDB\` | $79 |
 | Signature, 2 voices + engraving | \`price_1UbLcIB5i8TaAgYDZIWzpiYJ\` | $99 |
 | Additional person | \`price_1Ud7cOB5i8TaAgYDrZlbxBwO\` | $19 each |
-| Basic included-card engraving | \`price_1Ud7cPB5i8TaAgYD25IenYbo\` | $9 |
+| Basic included-card engraving | \`price_1UdXxJB5i8TaAgYD3ZjOqS9Z\` | $19 |
 | Additional logo-only card | \`price_1Uc7dXB5i8TaAgYDPQCWADAu\` | $39 each |
 | Additional engraved card | \`price_1Ud7crB5i8TaAgYDT1qDTuB3\` | $49 each |
+| Signature Duo (2 total engraved cards) | \`price_1UdXxLB5i8TaAgYD4EQywoeq\` | $139, base included |
+| Signature Family (3 total engraved cards) | \`price_1UdXxMB5i8TaAgYDN8UCbGIj\` | $179, base included |
+| Signature Five (5 total engraved cards) | \`price_1UdXxOB5i8TaAgYDLQ2zCBAg\` | $249, base included |
+| Signature additional bundled engraved card | \`price_1UdY2eB5i8TaAgYDhz6dcGI5\` | $40, server-validated Signature only |
 
 Shop routes customers to \`/?create=1&package=basic|signature\`. At the final card step, the complete cart including all voices, card quantities and engraving goes to the hosted Stripe Checkout Session. Tax is calculated by Stripe Tax, and standard U.S. shipping is $0. Customers cannot select another country.
 
@@ -22,10 +26,11 @@ In **Supabase > KEEP Production > Edge Functions > Secrets**, configure:
 - \`STRIPE_WEBHOOK_SECRET\` — the signing secret generated for the webhook endpoint below.
 - \`KEEP_SITE_URL=https://keep-v1.vercel.app\`.
 - Later, after verified test payments: \`KEEP_REQUIRE_STRIPE_PAYMENT=true\` (server-side publish gate).
-- In test mode, all six Stripe Price IDs must be explicitly supplied via:
+- In test mode, all ten Stripe Price IDs must be explicitly supplied via:
   \`STRIPE_PRICE_BASIC\`, \`STRIPE_PRICE_SIGNATURE\`, \`STRIPE_PRICE_EXTRA_VOICE\`,
   \`STRIPE_PRICE_BASIC_ENGRAVING\`, \`STRIPE_PRICE_EXTRA_CARD\`,
-  \`STRIPE_PRICE_EXTRA_ENGRAVED_CARD\`.
+  \`STRIPE_PRICE_EXTRA_ENGRAVED_CARD\`, \`STRIPE_PRICE_SIGNATURE_DUO\`, \`STRIPE_PRICE_SIGNATURE_FAMILY_THREE\`,
+  \`STRIPE_PRICE_SIGNATURE_FIVE\`, \`STRIPE_PRICE_SIGNATURE_BUNDLE_EXTRA\`.
   The live Stripe Price IDs must not be used with a test secret key.
 
 In **Stripe > Developers > Webhooks** register:
@@ -56,11 +61,11 @@ Stripe Tax settings are active but **no tax registrations** were found in the co
 
 - Automated: \`npm test\` and \`npm run build\` succeed on feature branch.
 - 1 Basic = $79, no engraving, one voice; 1 Signature = $99, two voices, engraving.
-- Basic 3 contributors: $79 + 2 × $19 = $117; plus engraving $9 = $126.
+- Basic 3 contributors: $79 + 2 × $19 = $117; plus engraving $19 = $136.
 - Signature 4 contributors = $99 + 2 × $19 = $137.
 - Basic 6 total cards (5 extra logo): $79 + 5 × $39 = $274.
 - Basic 10 total cards (9 extra engraved): $79 + 9 × $49 = $520.
-- Signature 3 total cards (2 extra engraved) = $99 + 2 × $49 = $197.
+- Signature 3 total engraved cards = $179 (Signature Family; includes base package).
 - Test declines/cancel back navigation (no entitlement).
 - Test a paid Stripe test-mode session with 1 card and a multiple-card package; verify email, shipping, tax, total, 1 purchase row, 1 fulfillment row, correct quantities.
 - Test webhook retry: **no duplicated** entitlement or fulfillment rows.
