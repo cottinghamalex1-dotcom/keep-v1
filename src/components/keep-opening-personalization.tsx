@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { ArrowRight, Check, Loader2, RotateCcw, Sparkles } from "lucide-react";
+import { ArrowRight, Check, Loader2, RotateCcw, Sparkles, X } from "lucide-react";
 import { fetchOpeningSuggestions } from "@/lib/keep-ai";
 import { KeepCardFront } from "@/components/keep-card-front";
 import type { KeepProject } from "@/lib/keep-project";
@@ -9,7 +9,6 @@ type OpeningFields = Pick<KeepProject, "openingMessage" | "closingLine" | "engra
 type Props = {
   project: KeepProject;
   onUpdate: (updates: Partial<OpeningFields>) => void;
-  onPreview: () => void;
   disabled?: boolean;
   engravingEnabled?: boolean;
   engravingForExtrasOnly?: boolean;
@@ -23,7 +22,7 @@ function fingerprint(project: KeepProject): string {
 }
 
 /** The chosen message is identical in the first-play reveal and the card preview. */
-export function KeepOpeningPersonalization({ project, onUpdate, onPreview, disabled, engravingEnabled = true, engravingForExtrasOnly = false }: Props) {
+export function KeepOpeningPersonalization({ project, onUpdate, disabled, engravingEnabled = true, engravingForExtrasOnly = false }: Props) {
   const key = fingerprint(project);
   const isCached = project.openingSuggestionsFor === key && project.openingMessageSuggestions?.length === 3;
   const attempted = useRef("");
@@ -32,6 +31,15 @@ export function KeepOpeningPersonalization({ project, onUpdate, onPreview, disab
   const [status, setStatus] = useState<"idle" | "loading" | "error">("idle");
   const [retry, setRetry] = useState(0);
   const selected = !!project.engraveOpeningMessage && !!project.openingMessage?.trim();
+  const [showFirstFrame, setShowFirstFrame] = useState(false);
+  const firstMoment = project.memories.find(m => m.kind === "image" && m.url && m.source !== "text")
+    ?? project.memories.find(m => m.url && m.source !== "text");
+  useEffect(() => {
+    if (!showFirstFrame) return;
+    const onKeyDown = (event: KeyboardEvent) => { if (event.key === "Escape") setShowFirstFrame(false); };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [showFirstFrame]);
   const choose = (message: string) => onUpdate({ openingMessage: message, engraveOpeningMessage: !!message.trim() });
   useEffect(() => {
     if (isCached || !project.messageParagraphs.some(p => p.trim()) || attempted.current === key) return;
@@ -88,7 +96,7 @@ export function KeepOpeningPersonalization({ project, onUpdate, onPreview, disab
         className="w-full resize-none rounded-xl border border-border bg-background p-4 font-display text-lg leading-relaxed outline-none focus:border-[#A38568]" />
       <div className="flex items-center justify-between gap-2">
         <span className="text-[11px] text-muted-foreground">{selected ? (project.openingMessage ?? "").length : 0}/110 characters</span>
-        <Button variant="quiet" size="sm" onClick={onPreview} disabled={disabled}>Preview digital opening <ArrowRight className="size-4" /></Button>
+        <Button variant="quiet" size="sm" onClick={() => setShowFirstFrame(true)} disabled={disabled}>Preview first Keep image <ArrowRight className="size-4" /></Button>
       </div>
     </section>
     <section className="mt-10 space-y-4 border-t border-border pt-8" aria-label="Closing words">
@@ -120,5 +128,37 @@ export function KeepOpeningPersonalization({ project, onUpdate, onPreview, disab
           className="mt-2 w-full border-0 border-b border-border bg-transparent pb-3 text-sm tracking-widest outline-none focus:border-accent" />
       </label>)}
     </section>}
+
+    {showFirstFrame && <div className="fixed inset-0 z-[100] flex items-center justify-center bg-[#17130F]/80 p-4 backdrop-blur-sm"
+      onClick={() => setShowFirstFrame(false)}>
+      <section role="dialog" aria-modal="true" aria-label="First Keep image preview"
+        className="w-full max-w-[390px] rounded-[24px] border border-[#B6A28A]/40 bg-[#F8F3EC] px-4 pb-5 pt-4 shadow-2xl"
+        onClick={e => e.stopPropagation()}>
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-[.16em] text-[#8C745C]">YOUR FIRST MOMENT</p>
+            <p className="mt-1 text-xs text-[#6C5B4B]">A still preview from inside your Keep</p>
+          </div>
+          <button type="button" onClick={() => setShowFirstFrame(false)} aria-label="Close first image preview"
+            className="flex size-10 shrink-0 items-center justify-center rounded-full border border-[#D8C8B7] bg-white text-[#473A2E]">
+            <X className="size-5" />
+          </button>
+        </div>
+        <div className="relative mx-auto aspect-[9/16] max-h-[65dvh] w-full max-w-[310px] overflow-hidden rounded-[16px] bg-[#191514] text-[#FFF7EC]">
+          {firstMoment?.url && (firstMoment.kind === "video"
+            ? <video src={firstMoment.url} playsInline muted preload="metadata" aria-label="First video from your Keep"
+                className="absolute inset-0 h-full w-full object-cover" />
+            : <img src={firstMoment.url} alt="First photo in your Keep" className="absolute inset-0 h-full w-full object-cover" />)}
+          <div className="absolute inset-0 bg-gradient-to-t from-[#191514]/90 via-[#191514]/55 to-[#191514]/45" />
+          <div className="absolute inset-0 flex flex-col items-center justify-center px-6 text-center">
+            <span className="text-[10px] font-semibold uppercase tracking-[.2em] text-[#D6C1AA]">A KEEP FOR</span>
+            <h3 className="mt-3 font-display text-[clamp(38px,10vw,53px)] leading-none">{project.recipientName || "Someone special"}</h3>
+            {selected && <p className="mt-7 max-w-[25ch] font-display text-[clamp(19px,5.5vw,26px)] leading-snug">{project.openingMessage}</p>}
+            {!firstMoment && <p className="mt-7 text-xs leading-5 text-[#D6C1AA]">Add photos or videos to reveal your opening image here.</p>}
+          </div>
+        </div>
+        <p className="mt-4 text-center text-[11px] leading-5 text-[#746556]">This previews the opening image and dedication, not the recipient welcome page.</p>
+      </section>
+    </div>}
   </>;
 }

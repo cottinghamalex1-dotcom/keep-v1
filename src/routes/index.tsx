@@ -1843,11 +1843,25 @@ function KeepApp() {
     {screen === "voices" && <>{top("03 / 05")}<div className="mx-auto max-w-[620px] px-7 pb-12 pt-9">
       {title("The voices behind it", "Will anyone create this Keep with you?", "Most Keeps are made by one person. You can also bring several voices together in one gift.")}
       <div className="grid gap-3 sm:grid-cols-2" role="group" aria-label="Choose how many voices">
-        <button type="button" aria-pressed={project.voiceMode !== "together"} onClick={() => patch({voiceMode:"solo"})} className={`min-h-[140px] rounded-2xl border p-5 text-left transition-colors ${project.voiceMode !== "together" ? "border-[#B49B7F] bg-[#F3EADD]" : "border-border bg-card"}`}>
-          <Mic className="mb-5 size-6 text-[#78634E]" /><span className="block font-display text-2xl">Just me</span><span className="mt-2 block text-xs leading-5 text-muted-foreground">One voice, one heartfelt message.</span>
+        <button type="button" aria-pressed={project.voiceMode !== "together"} onClick={() => patch({voiceMode:"solo"})}
+          className={`keep-step-choice group ${project.voiceMode !== "together" ? "keep-step-choice--active" : "keep-step-choice--light"}`}>
+          <span className="keep-step-choice__top">
+            <span className="keep-step-choice__icon"><Mic className="size-6" strokeWidth={1.6}/></span>
+            <span className="keep-step-choice__arrow" aria-hidden="true"><ArrowRight className="size-5" strokeWidth={1.6}/></span>
+          </span>
+          <span className="keep-step-choice__eyebrow">A PERSONAL MESSAGE</span>
+          <strong className="keep-step-choice__title">Just me</strong>
+          <span className="keep-step-choice__description">One voice, one heartfelt message.</span>
         </button>
-        <button type="button" aria-pressed={project.voiceMode === "together"} onClick={() => patch({voiceMode:"together",contributors:(project.contributors?.length ?? 0) >= 2 ? project.contributors : [{id:newId("speaker"),name:""},{id:newId("speaker"),name:""}]})} className={`min-h-[140px] rounded-2xl border p-5 text-left transition-colors ${project.voiceMode === "together" ? "border-[#B49B7F] bg-[#F3EADD]" : "border-border bg-card"}`}>
-          <span className="mb-5 block text-2xl text-[#78634E]">♡</span><span className="block font-display text-2xl">Create together</span><span className="mt-2 block text-xs leading-5 text-muted-foreground">Different voices. One beautiful Keep.</span>
+        <button type="button" aria-pressed={project.voiceMode === "together"} onClick={() => patch({voiceMode:"together",contributors:(project.contributors?.length ?? 0) >= 2 ? project.contributors : [{id:newId("speaker"),name:""},{id:newId("speaker"),name:""}]})}
+          className={`keep-step-choice group ${project.voiceMode === "together" ? "keep-step-choice--active" : "keep-step-choice--light"}`}>
+          <span className="keep-step-choice__top">
+            <span className="keep-step-choice__icon font-display text-3xl leading-none">♡</span>
+            <span className="keep-step-choice__arrow" aria-hidden="true"><ArrowRight className="size-5" strokeWidth={1.6}/></span>
+          </span>
+          <span className="keep-step-choice__eyebrow">SHARE THE STORY</span>
+          <strong className="keep-step-choice__title">Create together</strong>
+          <span className="keep-step-choice__description">Different voices. One beautiful Keep.</span>
         </button>
       </div>
       {project.voiceMode === "together" && <div className="mt-6 rounded-2xl border border-border bg-white/40 p-5">
@@ -1894,22 +1908,24 @@ function KeepApp() {
     {screen === "path" && <>{top("05 / 05")}<div className="px-7 pt-11">
       {title("The heart of it", "What do you want to say?")}
       <div className="keep-creator-path-options grid grid-cols-1 gap-3">
-        <Button variant="quiet" className="keep-editorial-surface relative h-auto min-h-[190px] w-full !items-start !justify-start p-6 pr-14 text-left whitespace-normal" onClick={startInterview}>
-          <span className="block min-w-0 flex-1">
-            <Sparkles className="mb-7 size-6 text-accent" />
-            <strong className="block max-w-[18ch] font-display text-3xl font-normal leading-[1.15]">Help me find the words</strong>
-            <small className="mt-3 block text-sm font-normal leading-6 text-muted-foreground">A few thoughtful questions to guide you.</small>
+        <button type="button" className="keep-step-choice keep-step-choice--featured group" onClick={startInterview}>
+          <span className="keep-step-choice__top">
+            <span className="keep-step-choice__icon"><Sparkles className="size-6" strokeWidth={1.6}/></span>
+            <span className="keep-step-choice__arrow" aria-hidden="true"><ArrowRight className="size-5" strokeWidth={1.6}/></span>
           </span>
-          <ArrowRight aria-hidden="true" className="!absolute right-6 top-6 !size-5" />
-        </Button>
-        <Button variant="quiet" className="keep-editorial-surface relative h-auto min-h-[190px] w-full !items-start !justify-start p-6 pr-14 text-left whitespace-normal" onClick={() => go("write")}>
-          <span className="block min-w-0 flex-1">
-            <span className="mb-7 block font-display text-3xl text-accent">“</span>
-            <strong className="block max-w-[18ch] whitespace-normal font-display text-3xl font-normal leading-[1.15]">I know what I want to say</strong>
-            <small className="mt-3 block text-sm font-normal leading-6 text-muted-foreground">Speak, type, or upload your words.</small>
+          <span className="keep-step-choice__eyebrow">GUIDED BY KEEP</span>
+          <strong className="keep-step-choice__title">Help me find the words</strong>
+          <span className="keep-step-choice__description">A few thoughtful questions to guide you.</span>
+        </button>
+        <button type="button" className="keep-step-choice keep-step-choice--light group" onClick={() => go("write")}>
+          <span className="keep-step-choice__top">
+            <span className="keep-step-choice__icon font-display text-3xl leading-none">“</span>
+            <span className="keep-step-choice__arrow" aria-hidden="true"><ArrowRight className="size-5" strokeWidth={1.6}/></span>
           </span>
-          <ArrowRight aria-hidden="true" className="!absolute right-6 top-6 !size-5" />
-        </Button>
+          <span className="keep-step-choice__eyebrow">IN YOUR OWN WORDS</span>
+          <strong className="keep-step-choice__title">I know what I want to say</strong>
+          <span className="keep-step-choice__description">Speak, type, or upload your words.</span>
+        </button>
       </div>
     </div></>}
     {screen === "interview" && <div
@@ -2581,7 +2597,7 @@ function KeepApp() {
           <p className="pt-2 text-[11px] leading-5">Preview only. No extra cards, collaborators or engraving have been purchased yet. Taxes may apply at checkout.</p>
         </div>
       </section>
-      <KeepOpeningPersonalization project={project} onUpdate={patch} onPreview={() => go("recipientReveal")} disabled={publishing} engravingEnabled={keepQuote.hasAnyEngraving} engravingForExtrasOnly={!keepQuote.hasEngraving && keepQuote.hasAnyEngraving} />
+      <KeepOpeningPersonalization project={project} onUpdate={patch}  disabled={publishing} engravingEnabled={keepQuote.hasAnyEngraving} engravingForExtrasOnly={!keepQuote.hasEngraving && keepQuote.hasAnyEngraving} />
       <div className="mt-10 border-t border-border pt-7">
         <Button variant="keep" size="touch" className="keep-premium-action w-full justify-between" disabled={publishing || (keepQuote.hasAnyEngraving && !engraving[0]?.trim())} onClick={() => void finishAndShare()}>
           {publishing ? "Saving your Keep…" : "Finish & share"} <ArrowRight className="size-5" />
