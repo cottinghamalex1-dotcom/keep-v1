@@ -27,7 +27,20 @@ function RenderTest() {
   const [busy, setBusy] = useState(false);
   const [filmError, setFilmError] = useState("");
   const [watchingFilm, setWatchingFilm] = useState(false);
+  const [sandboxStatus, setSandboxStatus] = useState<"checking"|"authenticated"|"not_configured"|"authentication_failed"|"unavailable">("checking");
   const activeRef = useRef(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    void fetch(endpoint + "/functions/v1/keep-render", { method: "GET", cache: "no-store" })
+      .then(r => r.json())
+      .then(payload => {
+        if (cancelled) return;
+        const value = payload?.sandbox;
+        setSandboxStatus(value === "authenticated" || value === "not_configured" || value === "authentication_failed" ? value : "unavailable");
+      }).catch(() => { if (!cancelled) setSandboxStatus("unavailable"); });
+    return () => { cancelled = true; };
+  }, []);
 
   useEffect(() => {
     activeRef.current = true;
@@ -137,6 +150,13 @@ function RenderTest() {
       <p className="mt-3 text-sm leading-6 text-[#655A52]">
         Choose a previously published Keep and create a watermarked Shotstack test MP4. Your original film, drafts and NFC link are never replaced by this test.
       </p>
+      <p role="status" className="mt-5 rounded-xl border border-[#DACBBB] bg-white/70 p-4 text-sm leading-6">
+        {sandboxStatus === "checking" ? "Checking the Shotstack sandbox connection…" :
+          sandboxStatus === "authenticated" ? "Shotstack sandbox connection verified. You can start a watermarked test render." :
+          sandboxStatus === "not_configured" ? "Shotstack sandbox key is not configured in Supabase yet. A render cannot be started until the key is saved in Edge Function secrets." :
+          sandboxStatus === "authentication_failed" ? "The Shotstack sandbox key did not authenticate. Check the key and sandbox environment." :
+          "The Shotstack connection check is unavailable. Please do not submit a render until the connection is verified."}
+      </p>
       {!shotstackRenderingEnabled ? <p role="alert" className="mt-8 rounded-xl border border-[#D4BEAB] p-5 text-sm">
         This film lab isn't enabled on this deployment. Please use the authorized preview link.
       </p> : loading ? <p className="mt-8 flex items-center gap-2 text-sm"><LoaderCircle className="size-4 animate-spin" /> Loading your Keeps…</p> : !signedIn ?
@@ -161,8 +181,8 @@ function RenderTest() {
           <h3 className="font-display text-2xl">A Keep for {selected.recipient_name}</h3>
           <p className="mt-2 text-xs leading-5 text-[#6C5C50]">The sandbox test uses the exact currently published photos, video clips and recorded voice.</p>
           {busy && <p role="status" className="mt-4 flex items-center gap-2 text-sm"><LoaderCircle className="size-4 animate-spin" /> Checking render status…</p>}
-          {job?.status === "not_started" && <button type="button" onClick={() => void start()} disabled={busy}
-            className="mt-5 flex min-h-12 w-full items-center justify-center gap-2 rounded-lg bg-[#211C18] px-5 font-medium text-white">
+          {job?.status === "not_started" && <button type="button" onClick={() => void start()} disabled={busy || sandboxStatus !== "authenticated"}
+            className="mt-5 flex min-h-12 w-full items-center justify-center gap-2 rounded-lg bg-[#211C18] disabled:opacity-50 px-5 font-medium text-white">
             <PlayCircle size={18} /> Render sandbox MP4
           </button>}
           {(job?.status === "queued" || job?.status === "rendering") && <div className="mt-5">
