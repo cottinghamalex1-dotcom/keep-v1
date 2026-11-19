@@ -15,6 +15,9 @@ export const Route = createFileRoute("/shop")({
   head: () => ({
     meta: [
       { title: "Keep — Some things are worth keeping" },
+      // The official OpenAI Site is the only customer-facing storefront.
+      // Keep this Vercel catalog for internal testing without search indexing.
+      { name: "robots", content: "noindex, nofollow" },
       { name: "description", content: "A meaningful metal keepsake card in two options: Basic $79 and Signature $99. Optional extra voices, engraving and additional cards." },
     ],
   }),
