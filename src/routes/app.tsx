@@ -15,7 +15,14 @@ import { useCallback, useEffect, useState } from "react";
 import { ArrowRight, Gift, Heart, LockKeyhole, LogOut, Plus, ChevronDown, BookOpen, ExternalLink, Link2, Check, PenLine, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
-export const Route = createFileRoute("/app")({ component: KeepDashboard });
+export const Route = createFileRoute("/app")({
+  head: () => ({ meta: [
+    { title: "Keep — Your creations" },
+    { name: "description", content: "Sign in to privately create, edit, and revisit your Keeps." },
+    { name: "robots", content: "noindex, nofollow" },
+  ] }),
+  component: KeepDashboard,
+});
 const endpoint = "https://lwkzhpwugtosbidxvdcr.supabase.co";
 const publicKey = "sb_publishable_K8_SWJByLhV78h7gY4NySw_4sgjEVTi";
 type Session = { access_token: string; refresh_token: string; expires_at?: number; user: { id: string; email?: string } };
@@ -169,11 +176,11 @@ function KeepDashboard() {
         <label className="block text-xs text-foreground/75">Password<input type="password" minLength={6} className="mt-2 w-full rounded-xl border border-border/80 bg-card p-4 text-base text-foreground" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete={register ? "new-password" : "current-password"} required /></label>
         <button disabled={busy} className={button}>{busy ? "Please wait…" : register ? "Create account" : "Sign in"}</button>
       </form>
-      <button type="button" className="mt-6 block text-sm text-[#6A5849] underline-offset-4 hover:underline" onClick={() => setRegister(!register)}>{register ? "Already have an account? Log in" : "Already purchased but need an account? Create one"}</button>
+      <button type="button" className="mt-6 block text-sm text-[#6A5849] underline-offset-4 hover:underline" onClick={() => setRegister(!register)}>{register ? "Already have an account? Log in" : "New to Keep? Create an account"}</button>
       <div className="mt-7 border-t border-border/80 pt-6">
         <p className="text-sm font-medium">New to Keep?</p>
         <p className="mt-2 text-xs leading-6 text-muted-foreground">Start by choosing your card. After checkout, you can create an account and return here to make your Keep.</p>
-        <a href="/shop#packages" className="mt-4 inline-flex min-h-11 items-center gap-2 border-b border-[#6A5849] text-sm text-[#6A5849]">Explore Keep packages <ArrowRight className="size-4" /></a>
+        <a href="/shop#packages" className="mt-4 inline-flex min-h-11 items-center gap-2 border-b border-[#6A5849] text-sm text-[#6A5849]">Preview Keep packages <ArrowRight className="size-4" /></a>
       </div>
     </section> : <>
       {(tab === "home" || tab === "account") && <section className={tab === "home" ? "keep-horizon-hero relative mb-9 pt-11 text-center" : "mb-10 pt-4"}>{tab === "home" ? <><h1 className="keep-editorial-title relative z-10">Say what matters.<span className="mt-1 block italic">Keep it forever.</span></h1><p className="keep-page-description relative z-10 mx-auto mt-6">Turn your words and moments into a beautiful, lasting keepsake they can hold onto forever.</p><KeepCreateCTA /><KeepPhoneTip /></> : <h1 className="keep-editorial-title">Your account</h1>}</section>}
