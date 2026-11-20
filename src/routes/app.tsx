@@ -1,3 +1,4 @@
+import { KeepAppMenu } from "@/components/keep-app-menu";
 import { viewingLink } from "@/lib/keep-publish";
 import { KeepLibraryCard } from "@/components/keep-library-card";
 import { KeepCreateCTA } from "@/components/keep-create-cta";
@@ -11,7 +12,7 @@ import { clearDraft, loadDraft, projectBlobIds } from "@/lib/keep-project";
 import { deleteBlobs } from "@/lib/keep-media-store";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useCallback, useEffect, useState } from "react";
-import { ArrowRight, Gift, Heart, Home, LockKeyhole, LogOut, Plus, UserRound, Menu, ChevronDown, BookOpen, CircleHelp, ExternalLink, Link2, Check, PenLine, Trash2 } from "lucide-react";
+import { ArrowRight, Gift, Heart, LockKeyhole, LogOut, Plus, ChevronDown, BookOpen, ExternalLink, Link2, Check, PenLine, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/app")({ component: KeepDashboard });
@@ -32,14 +33,12 @@ function KeepDashboard() {
   const [register, setRegister] = useState(false);
   const [busy, setBusy] = useState(false);
   const [tab, setTab] = useState<"home" | "given" | "received" | "account">("home");
-  const [menuOpen, setMenuOpen] = useState(false);
   const [expandedKeep, setExpandedKeep] = useState<string | null>(null);
   const [copiedKeep, setCopiedKeep] = useState<string | null>(null);
   const [deletingKeep, setDeletingKeep] = useState<string | null>(null);
   const [deletingDraft, setDeletingDraft] = useState(false);
   const [expandedDraft, setExpandedDraft] = useState(false);
   const [thumbnails, setThumbnails] = useState<Record<string,string>>({});
-  const [keepsOpen, setKeepsOpen] = useState(true);
   const clearMatchingLocalDraft = (publicationId?: string) => {
     // Do not delete a different Keep's local edits.
     const local = loadDraft();
@@ -86,7 +85,7 @@ function KeepDashboard() {
     finally { setDeletingKeep(null); }
   };
   useEffect(() => { const hash = window.location.hash.slice(1); if (["home","given","received","account"].includes(hash)) setTab(hash as "home" | "given" | "received" | "account"); }, []);
-  const navigate = (next: "home" | "given" | "received" | "account") => { setTab(next); setMenuOpen(false); window.history.replaceState(null, "", next === "home" ? "/app" : "/app#" + next); };
+  const navigate = (next: "home" | "given" | "received" | "account") => { setTab(next); window.history.replaceState(null, "", next === "home" ? "/app" : "/app#" + next); };
   const [cards, setCards] = useState<Card[]>([]);
   const [keeps, setKeeps] = useState<Keep[]>([]);
   const [cloudDraft, setCloudDraft] = useState<{recipientName?:string;stage?:string;publicationId?:string;active?:boolean}|null>(null);
@@ -159,7 +158,7 @@ function KeepDashboard() {
   const secondary = "keep-editorial-surface px-4 py-4 text-sm";
   if (!ready || (session && accountLoadedFor !== session.access_token)) return <KeepLoadingScreen />;
   return <main className="min-h-dvh bg-background text-foreground"><div className="mx-auto min-h-dvh max-w-[540px] px-6 pb-12 pt-9">
-    <header className="relative mb-12 flex items-center justify-between border-b border-border/50 pb-6"><button onClick={() => navigate("home")} aria-label="Home" className="keep-wordmark">Keep</button><button onClick={() => setMenuOpen(!menuOpen)} aria-label="Open navigation menu" aria-expanded={menuOpen} className="flex size-11 items-center justify-center rounded-full border border-border/80"><Menu className="size-5" /></button>{menuOpen && <div className="absolute right-0 top-14 z-50 w-[min(310px,85vw)] rounded-2xl border border-border/80 bg-card p-4 shadow-2xl"><p className="mb-3 text-xs uppercase tracking-[.2em] text-[#6A5849]">Menu</p><button onClick={() => navigate("home")} className="flex w-full items-center gap-3 py-3 text-left"><Home className="size-4 text-[#6A5849]" />Home</button><button onClick={() => setKeepsOpen(!keepsOpen)} className="flex w-full items-center gap-3 py-3 text-left"><Gift className="size-4 text-[#6A5849]" />My Keeps <ChevronDown className={`ml-auto size-4 transition-transform ${keepsOpen ? "rotate-180" : ""}`} /></button>{keepsOpen && <div className="space-y-1 pl-7 text-sm"><a href="/?create=1" className="block py-2">+ Create a new Keep</a><Link to="/my-keeps" onClick={() => setMenuOpen(false)} className="block py-2 text-left">See all my Keeps</Link></div>}<div className="my-3 border-t border-border/80" /><button onClick={() => navigate("account")} className="flex w-full items-center gap-3 py-3 text-left"><UserRound className="size-4 text-[#6A5849]" />Account</button><a href="mailto:support@keep.com" className="flex items-center gap-3 py-3"><CircleHelp className="size-4 text-[#6A5849]" />Help &amp; Support</a></div>}</header>
+    <header className="relative mb-12 flex items-center justify-between border-b border-border/50 pb-6"><button onClick={() => navigate("home")} aria-label="Home" className="keep-wordmark">Keep</button><KeepAppMenu onHome={() => navigate("home")} onAccount={() => navigate("account")} /></header>
     {!session ? <section className="mx-auto max-w-sm pt-12">
       <div className="mb-5 flex h-14 w-14 items-center justify-center rounded-xl border border-[#B8A999]/30"><LockKeyhole className="text-[#6A5849]" /></div>
       <h1 className="font-display text-[31px] leading-tight">{register ? "Create your Keep account" : "Welcome back"}</h1>
