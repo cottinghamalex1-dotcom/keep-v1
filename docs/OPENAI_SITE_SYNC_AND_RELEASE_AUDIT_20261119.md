@@ -57,3 +57,29 @@ Each package includes a small realistic matte-black Keep card representation. On
 This repository does not control the private **OpenAI Sites** project's editor. Synchronize the official Site through its native editor or authorized browser workflow; **a change to Vercel /shop does not update OpenAI Sites**. Do not mark Sites copy as deployed without direct verification of the Sites preview and published URL.
 
 Preflight: verify on iPhone Safari that all relationship group buttons appear, the chosen state works, older drafts reopen, home/account/My Keeps show a neutral loader, edit/resume shows personal restoration, no broken payment links are offered, and official Site and Stripe content agree before public launch.
+
+---
+
+## Evening verified audit addendum — Nov 19, 2026 ET
+
+### Completed
+- PR #85: improved iPhone recording durability, recovery, and non-blocking caption transition; production Vercel READY.
+- PR #86: neutral new-Keep occasion/engraving defaults, removed founder-specific customer copy, fixed Re-record crash caused by undefined state setters, and improved account page title/copy; production Vercel READY.
+- Automated tests: 54 suites, 257 tests passed. Mobile and desktop Chromium smoke checks: public /, /app, /shop and /?create=1 returned 200 with no observed runtime page errors, missing images or horizontal overflow. These checks were anonymous and not a full iPhone Safari voice-recording test.
+- Stripe Keep live catalog matches approved November 19 prices: Basic $79, Signature $99, engraving $19, extra voice $19, logo-only extra card $39, engraved extra card $49, Signature bundles $139/$179/$249. Three old Payment Links are inactive. Retired Deluxe $129 price deactivated; historical transactions were not altered.
+- Supabase database ACTIVE_HEALTHY, Edge Functions ACTIVE. No clusters in Vercel server-runtime errors during the inspected 24h period (browser errors may not be captured there).
+
+### Must resolve before opening real checkout
+1. Checkout remains deliberately disabled in the Vercel shop and guarded Supabase checkout function. Stripe shows zero Checkout Sessions and no configured webhook endpoints; a finished price catalog is not a verified working checkout.
+2. Stripe Tax Settings show active but zero tax registrations. Establish actual tax obligations and registrations, then verify before launch.
+3. Draft PR #68 verified checkout, webhook and fulfillment, and draft PR #45 purchase-first account/admin workflow, are not yet safely merged. Do not issue paid creation entitlements without verified events.
+4. Old public.keep_submit_engravings RPC still rejects all Basic engraving and recognizes a second engraved card only for retired Deluxe. This conflicts with the $19 Basic engraving and multi-card Signature offerings. Fulfillment currently has only engraving_1 and engraving_2 fields; support for individualized engraving on unlimited cards requires proper per-card data modeling and end-to-end QA.
+5. OpenAI Sites is the canonical official marketing site but its private editor is NOT controlled by this repository or this audit. Published Shop/Buy Now destinations, package copy, login and mobile experience still need direct authorized Sites-browser verification.
+6. Final Shotstack 1080p MP4 rendering and file-size/storage verification remain intentionally on hold, not signed off.
+7. Supabase advisor flags three authenticated-callable SECURITY DEFINER RPCs, leaked-password protection disabled, and remote service-only tables with RLS but no direct policies; inspect and secure deliberately, not by removing protections. Approximately 30 existing TypeScript diagnostics remain despite Vite production readiness.
+
+### Historical / low priority
+- Inactive legacy Stripe Payment Links point to /start, a route that now returns 404. They must remain inactive; new verified checkout must use valid completion URLs.
+- Favicon is explicitly an SVG and serves correctly; the optional favicon.ico path returns 404.
+- Do not reset customer Keeps, drafts, orders or historical financial records as part of maintenance.
+- No live customer payment was initiated in this audit.
