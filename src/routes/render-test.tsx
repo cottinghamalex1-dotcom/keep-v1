@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { ArrowLeft, CheckCircle2, Film, LoaderCircle, PlayCircle, RefreshCw } from "lucide-react";
 import { activeKeepSession } from "@/lib/keep-cloud";
 import { KeepRenderedPlayer } from "@/components/keep-rendered-player";
-import { beginKeepRender, refreshKeepRender, shotstackRenderingEnabled, type KeepRenderStatus } from "@/lib/keep-render-client";
+import { beginKeepRender, recoverKeepRender, refreshKeepRender, shotstackRenderingEnabled, type KeepRenderStatus } from "@/lib/keep-render-client";
 
 export const Route = createFileRoute("/render-test")({ component: RenderTest });
 
@@ -114,6 +114,15 @@ function RenderTest() {
     }
   };
 
+  const recover = async () => {
+    if (!selected || busy) return;
+    setBusy(true);
+    setError("");
+    try { setJob(await recoverKeepRender(selected.id)); }
+    catch (cause) { setError(cause instanceof Error ? cause.message : "Unable to recover the existing video."); }
+    finally { setBusy(false); }
+  };
+
   const refresh = async () => {
     if (!selected || busy) return;
     setBusy(true);
@@ -178,9 +187,13 @@ function RenderTest() {
             : <p className="text-sm text-[#806A53]">The video is saved but the playback link is unavailable. Refresh the status.</p>}
             {filmError && <p role="alert" className="mt-3 text-sm text-[#9E3328]">{filmError}</p>}
           </div>}
-          {job?.status === "failed" && <p role="alert" className="mt-4 text-sm text-[#9E3328]">
-            {job.error || "This test render didn't complete. Your original Keep is unchanged."}
-          </p>}
+          {job?.status === "failed" && <div className="mt-4">
+            <p role="alert" className="text-sm text-[#9E3328]">{job.error || "This test render didn't complete. Your original Keep is unchanged."}</p>
+            <button type="button" disabled={busy} onClick={() => void recover()}
+              className="mt-4 min-h-12 w-full rounded-lg bg-[#211C18] px-5 font-medium text-white">
+              Retry saving existing MP4 (no new render)
+            </button>
+          </div>}
           {job && <button type="button" onClick={() => void refresh()} disabled={busy}
             className="mt-4 flex min-h-10 items-center gap-2 text-sm text-[#806A53]">
             <RefreshCw size={16} /> Refresh status
