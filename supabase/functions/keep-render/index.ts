@@ -148,7 +148,18 @@ Deno.serve(async (req: Request) => {
         throw new Error("The finished video was not available.");
       if (Math.abs(Number(shot.duration) - Number(job.expected_duration_seconds)) > 3)
         throw new Error("The finished film duration did not match this Keep.");
+      const head = await fetch(shot.url, { method: "HEAD" });
+      const MAX_MP4_BYTES = 49_000_000;
+      const length = Number(head.headers.get("content-length"));
+      if (head.ok && length > MAX_MP4_BYTES) {
+        throw new Error("The 1080p MP4 is " + (length / 1_000_000).toFixed(1) + " MB, above the 49 MB target. No upload was attempted.");
+      }
       const video = await fetch(shot.url);
+      const actualLength = Number(video.headers.get("content-length"));
+      if (actualLength > MAX_MP4_BYTES) {
+        await video.body?.cancel();
+        throw new Error("The 1080p MP4 is " + (actualLength / 1_000_000).toFixed(1) + " MB, above the 49 MB target. No upload was attempted.");
+      }
       if (!video.ok || !video.body) throw new Error("The finished video could not be retrieved.");
       const path = owner + "/publications/" + keepId + "/renders/" + revision + ".mp4";
       // Streaming upload avoids intentionally buffering entire movies in the Edge Function.
@@ -169,7 +180,8 @@ Deno.serve(async (req: Request) => {
       // existing completed MP4 can be recovered without another paid render.
       const detail = cause instanceof Error ? cause.message : "Unknown storage error";
       const tooLarge = /EntityTooLarge|Payload too large|maximum allowed size|exceeded.*size/i.test(detail);
-      const message = tooLarge
+      const message = detail.includes("above the 49 MB target") ? detail
+        : tooLarge
         ? "The finished MP4 exceeds the Supabase global upload limit. Raise Storage Settings > Global file size limit, then select Retry saving existing MP4. Shotstack does not need to render it again."
         : "The finished MP4 could not be saved: " + detail.slice(0, 220) + ". Select Retry saving existing MP4 after fixing the issue.";
       await admin.from("keep_render_jobs").update({
