@@ -75,3 +75,8 @@ export async function retryKeepRender(keepId: string, musicMood: string, musicMu
 export async function refreshKeepRender(keepId: string): Promise<KeepRenderStatus> {
   return requestRender({ action: "status", keepId });
 }
+
+/** Reuses Shotstack's existing completed render; does not submit another render. */
+export async function recoverKeepRender(keepId: string): Promise<KeepRenderStatus> {
+  return requestRender({ action: "recover", keepId });
+}
