@@ -28,17 +28,17 @@ describe("voice confirmation after recording", () => {
     expect(screen.queryByRole("button", { name: /Play recording/ })).not.toBeInTheDocument();
   });
 
-  it("holds the confirmation until caption syncing actually completes", () => {
+  it("allows continuing after audio is saved even if captions are still syncing", () => {
     const { rerender } = render(<KeepVoiceTransition {...defaults} isSyncing hasCaptions={false}/>);
-    expect(screen.getByText("Putting the words in place.")).toBeInTheDocument();
-    expect(screen.getByRole("progressbar")).toHaveAttribute("aria-valuetext", "Syncing captions");
-    expect(screen.queryByRole("button", { name: /Continue my Keep/ })).not.toBeInTheDocument();
+    expect(screen.getByText("Your voice is kept.")).toBeInTheDocument();
+    expect(screen.getByText("VOICE SAVED · CAPTIONS PREPARING")).toBeInTheDocument();
+    expect(screen.getByRole("progressbar")).toHaveAttribute("aria-valuenow", "100");
+    fireEvent.click(screen.getByRole("button", { name: /Continue my Keep/ }));
+    expect(defaults.onContinue).toHaveBeenCalledOnce();
 
     rerender(<KeepVoiceTransition {...defaults}/>);
     expect(screen.getByText("Your voice is kept.")).toBeInTheDocument();
     expect(screen.getByRole("progressbar")).toHaveAttribute("aria-valuenow", "100");
-    fireEvent.click(screen.getByRole("button", { name: /Continue my Keep/ }));
-    expect(defaults.onContinue).toHaveBeenCalledOnce();
   });
 
   it("gives an editor re-recording an appropriate return button", () => {
