@@ -156,7 +156,7 @@ Deno.serve(async (req: Request) => {
         upsert: false, contentType: "video/mp4", cacheControl: "3600",
       });
       if (error && !/already exists|duplicate/i.test(error.message))
-        throw new Error("The finished video could not be stored.");
+        throw new Error("The finished video could not be stored: " + error.message);
       const { data: verified, error: verifyError } = await admin.storage.from("keep-media").createSignedUrl(path, 60);
       if (verifyError || !verified?.signedUrl) throw new Error("The saved video could not be verified.");
       const { error: updateError } = await admin.from("keep_render_jobs").update({
@@ -164,11 +164,28 @@ Deno.serve(async (req: Request) => {
       }).eq("id", job.id).eq("status", "rendering");
       if (updateError) throw new Error("The completed film could not be finalized.");
       return reply(await ownerStatus({ ...job, status: "ready", render_path: path }));
-    } catch {
-      // Ingestion can safely be retried on another status poll; never publish
-      // a missing/partial video or mark a failed provider URL as ready.
-      return reply({ id: job.id, status: "rendering", providerStatus: "verifying", message: "Verifying the finished film." });
+    } catch (cause) {
+      // Stop the endless verifying loop. Retain the Shotstack render ID so the
+      // existing completed MP4 can be recovered without another paid render.
+      const detail = cause instanceof Error ? cause.message : "Unknown storage error";
+      const tooLarge = /EntityTooLarge|Payload too large|maximum allowed size|exceeded.*size/i.test(detail);
+      const message = tooLarge
+        ? "The finished MP4 exceeds the Supabase global upload limit. Raise Storage Settings > Global file size limit, then select Retry saving existing MP4. Shotstack does not need to render it again."
+        : "The finished MP4 could not be saved: " + detail.slice(0, 220) + ". Select Retry saving existing MP4 after fixing the issue.";
+      await admin.from("keep_render_jobs").update({
+        status: "failed", error_message: message, updated_at: new Date().toISOString(),
+      }).eq("id", job.id);
+      return reply({ id: job.id, status: "failed", error: message });
     }
+  }
+  if (request.action === "recover") {
+    if (!job?.provider_render_id || job.status !== "failed")
+      return fail("No failed Shotstack render is available to recover.", 409);
+    const { error } = await admin.from("keep_render_jobs").update({
+      status: "rendering", error_message: null, updated_at: new Date().toISOString(),
+    }).eq("id", job.id).eq("status", "failed");
+    if (error) return fail("Could not resume saving the existing MP4.", 503);
+    return reply({ id: job.id, status: "rendering", providerStatus: "recovering" });
   }
   if (request.action !== "start" && request.action !== "retry") return fail("Unknown action.", 404);
   if (job && request.action === "start") return reply(await ownerStatus(job));
