@@ -2,7 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { ArrowLeft, ArrowRight, BookOpen, LockKeyhole } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { KeepAccountButton } from "@/components/keep-account-button";
+import { KeepAppMenu } from "@/components/keep-app-menu";
 import { KeepLoadingScreen } from "@/components/keep-loading-screen";
 import { KeepMyKeepsCollection } from "@/components/keep-my-keeps-collection";
 import { viewingLink } from "@/lib/keep-publish";
@@ -95,7 +95,7 @@ function MyKeeps() {
     <div className="mx-auto min-h-dvh max-w-[540px] px-6 pb-20 pt-9">
       <header className="flex items-center justify-between border-b border-border/70 pb-6">
         <Link to="/app" className="keep-wordmark" aria-label="Keep home">Keep</Link>
-        <KeepAccountButton />
+        <KeepAppMenu />
       </header>
       <Link to="/app" className="mb-5 mt-8 inline-flex min-h-10 items-center gap-2 text-xs font-medium text-[#776451] transition-colors hover:text-[#2C221A]">
         <ArrowLeft className="size-4" aria-hidden="true" strokeWidth={1.6}/> Back to home
