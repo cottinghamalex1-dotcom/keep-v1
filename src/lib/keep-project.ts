@@ -160,7 +160,7 @@ export function saveDraft(p: KeepProject): boolean {
       // A recording without a saved blob cannot be restored after a reload.
       // Preserve the written message rather than restoring a phantom voice.
       finalVoiceRecording: p.finalVoiceRecording && (p.finalVoiceRecording.demo || p.finalVoiceRecording.audioId)
-        ? { ...p.finalVoiceRecording, audioUrl: undefined } : null,
+        ? (({audioUrl: _url, ...safe}) => safe)(p.finalVoiceRecording) : null,
       voiceParts: p.voiceParts?.map(({ audioUrl: _url, ...part }) => part),
     };
     localStorage.setItem(DRAFT_KEY, JSON.stringify(lite));
@@ -241,10 +241,22 @@ export async function hydrateDraftMedia(p: KeepProject) {
     const url=await blobUrl(item.blobId??item.id);
     if(url)selfieVideos.push({...item,url});
   }
-  const interviewAnswers = await Promise.all(p.interviewAnswers.map(async (a) => ({ ...a, audioUrl: await blobUrl(a.audioId) })));
+  const interviewAnswers = await Promise.all(p.interviewAnswers.map(async (a) => {
+    const {audioUrl: _previous, ...rest} = a;
+    const url = await blobUrl(a.audioId);
+    return url ? {...rest,audioUrl:url} : rest;
+  }));
   const f = p.finalVoiceRecording;
-  const finalVoiceRecording = f ? (f.demo ? f : { ...f, audioUrl: await blobUrl(f.audioId) }) : null;
-  const voiceParts = await Promise.all((p.voiceParts ?? []).map(async (part) => ({ ...part, audioUrl: await blobUrl(part.audioId) })));
+  const finalVoiceRecording = f ? (f.demo ? f : await (async () => {
+    const {audioUrl: _previous, ...rest} = f;
+    const url = await blobUrl(f.audioId);
+    return url ? {...rest,audioUrl:url} : rest;
+  })()) : null;
+  const voiceParts = await Promise.all((p.voiceParts ?? []).map(async part => {
+    const {audioUrl: _previous, ...rest} = part;
+    const url = await blobUrl(part.audioId);
+    return url ? {...rest,audioUrl:url} : rest;
+  }));
   return { memories, selfieBaseMedia, selfieVideos, interviewAnswers, finalVoiceRecording, voiceParts };
 }
 
