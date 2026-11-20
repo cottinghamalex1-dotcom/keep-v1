@@ -162,7 +162,7 @@ function KeepDashboard() {
     {!session ? <section className="mx-auto max-w-sm pt-12">
       <div className="mb-5 flex h-14 w-14 items-center justify-center rounded-xl border border-[#B8A999]/30"><LockKeyhole className="text-[#6A5849]" /></div>
       <h1 className="font-display text-[31px] leading-tight">{register ? "Create your Keep account" : "Welcome back"}</h1>
-      <p className="mb-8 mt-4 text-sm leading-7 text-muted-foreground">{register ? "Already purchased a Keep? Create an account to save and revisit your memories." : "Log in to return to your Keeps and continue editing where you left off."}</p>
+      <p className="mb-8 mt-4 text-sm leading-7 text-muted-foreground">{register ? "Create an account to save and revisit your Keep. During prelaunch, checkout and purchase verification are not yet active." : "Log in to return to your Keeps and continue editing where you left off."}</p>
       <form onSubmit={(e) => void submit(e)} className="space-y-4">
         {register && <label className="block text-xs text-foreground/75">Your name<input className="mt-2 w-full rounded-xl border border-border/80 bg-card p-4 text-base text-foreground" value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" required /></label>}
         <label className="block text-xs text-foreground/75">Email address<input type="email" className="mt-2 w-full rounded-xl border border-border/80 bg-card p-4 text-base text-foreground" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" required /></label>
