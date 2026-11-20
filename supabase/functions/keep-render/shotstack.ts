@@ -34,7 +34,7 @@ type Clip = {
 };
 export type ShotstackEdit = {
   timeline: { background: string; tracks: Array<{ clips: Clip[] }> };
-  output: { format: "mp4"; size: { width: 1080; height: 1920 }; fps: 30; quality: "high"; destinations: [{provider:"shotstack";exclude:true}] };
+  output: { format: "mp4"; size: { width: 1080; height: 1920 }; fps: 30; quality: "medium"; destinations: [{provider:"shotstack";exclude:true}] };
 };
 const round = (v: number) => Math.round(v * 1000) / 1000;
 const clamp = (v: number, min: number, max: number) => Math.min(max, Math.max(min, v));
@@ -152,6 +152,6 @@ export function buildShotstackEdit(
   }
   return {
     timeline: { background: "#171311", tracks: tracks.filter(track => track.clips.length > 0) },
-    output: { format: "mp4", size: { width: 1080, height: 1920 }, fps: 30, quality: "high", destinations: [{provider:"shotstack",exclude:true}] },
+    output: { format: "mp4", size: { width: 1080, height: 1920 }, fps: 30, quality: "medium", destinations: [{provider:"shotstack",exclude:true}] },
   };
 }
