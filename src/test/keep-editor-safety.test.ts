@@ -117,3 +117,12 @@ describe("preserving new voice after failed or delayed cloud upload", () => {
     } finally { clearDraft(); }
   });
 });
+
+describe("new customer creation defaults", () => {
+  it("does not silently select an anniversary before the customer chooses an occasion", () => {
+    expect(newProject().occasion).toBe("");
+  });
+  it("does not put a developer's name or an arbitrary year on a real customer's card", () => {
+    expect(newProject().cardEngraving).toEqual(["", "", ""]);
+  });
+});
