@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { clampCaptionRange, removeEditableMoment, shouldPreserveExistingVoice } from "@/lib/keep-editor-safety";
 import { composeSelfieStory } from "@/lib/keep-selfie-story";
-import { clearDraft, loadDraft, newProject, saveDraft, type MediaItem } from "@/lib/keep-project";
+import { clearDraft, loadDraft, newProject, saveDraft, preferLocalKeepDraft, type MediaItem } from "@/lib/keep-project";
 
 const photo = (id: string): MediaItem => ({ id, source:"upload", kind:"image", url:`blob:${id}`, persisted:true });
 const selfie: MediaItem = {
@@ -70,6 +70,50 @@ describe("voice restoration when device storage is unavailable", () => {
         finalVoiceRecording:{ audioId:"voice-stored", audioUrl:"blob:temporary", durationSec:85, demo:false } });
       expect(loadDraft()?.finalVoiceRecording?.audioId).toBe("voice-stored");
       expect(loadDraft()?.finalVoiceRecording?.audioUrl).toBeUndefined();
+    } finally { clearDraft(); }
+  });
+});
+
+describe("preserving new voice after failed or delayed cloud upload", () => {
+  const base = { ...newProject(), active: true, publicationId: "same-keep",
+    messageParagraphs: ["A personal message worth keeping."] };
+  const voice = { audioId: "voice-stored", audioUrl: "blob:local-voice", durationSec: 125, mimeType: "audio/mp4", demo: false };
+
+  it("prefers an actual playable local recording over the cloud copy that did not get the voice", () => {
+    const local = { ...base, draftSavedAt: 4000, finalVoiceRecording: voice };
+    const remote = { ...base, draftSavedAt: 5000, finalVoiceRecording: null };
+    expect(preferLocalKeepDraft(local, remote)).toBe(true);
+  });
+
+  it("will not treat a missing local blob as a valid recording", () => {
+    const local = { ...base, draftSavedAt: 7000, finalVoiceRecording: {...voice, audioUrl: undefined} };
+    const remote = { ...base, draftSavedAt: 5000, finalVoiceRecording: voice };
+    expect(preferLocalKeepDraft(local, remote)).toBe(false);
+  });
+
+  it("never takes a different Keep from localStorage over the requested cloud Keep", () => {
+    const local = { ...base, publicationId:"different", finalVoiceRecording:voice };
+    expect(preferLocalKeepDraft(local, { ...base, finalVoiceRecording:null })).toBe(false);
+  });
+
+  it("selects the newer valid local text draft when both have the same available media", () => {
+    expect(preferLocalKeepDraft({...base,draftSavedAt:9000}, {...base,draftSavedAt:4000})).toBe(true);
+    expect(preferLocalKeepDraft({...base,draftSavedAt:3000}, {...base,draftSavedAt:4000})).toBe(false);
+  });
+
+  it("never replaces a complete cloud copy with a local draft missing a photo", () => {
+    const missing = {...base,draftSavedAt:9000,
+      memories:[{id:"a",kind:"image" as const,source:"upload" as const,url:""}] };
+    const remote = {...base,draftSavedAt:4000,memories:missing.memories.map(m=>({...m,url:"blob:cloud"}))};
+    expect(preferLocalKeepDraft(missing, remote)).toBe(false);
+  });
+
+  it("only reports local save success after localStorage accepted metadata", () => {
+    try {
+      const saved = saveDraft({ ...base, finalVoiceRecording:voice });
+      expect(saved).toBe(true);
+      expect(loadDraft()?.draftSavedAt).toBeGreaterThan(0);
+      expect(loadDraft()?.finalVoiceRecording?.audioId).toBe("voice-stored");
     } finally { clearDraft(); }
   });
 });
