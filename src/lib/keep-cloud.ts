@@ -43,7 +43,7 @@ function safeProject(project: KeepProject): KeepProject {
     selfieVideos: (project.selfieVideos??[]).map(m=>({...m,url:""})),
     selfieBaseMedia: (project.selfieBaseMedia??[]).map(m=>({...m,url:m.source==="text"?m.url:""})),
     interviewAnswers: project.interviewAnswers.map(a=>({...a,audioUrl:undefined})),
-    finalVoiceRecording: project.finalVoiceRecording ? {...project.finalVoiceRecording,audioUrl:undefined}:null,
+    finalVoiceRecording: project.finalVoiceRecording ? (({audioUrl: _url, ...safe}) => safe)(project.finalVoiceRecording) : null,
     voiceParts: (project.voiceParts ?? []).map(({audioUrl:_url,...part})=>part)
   };
 }
@@ -136,7 +136,8 @@ export async function loadCloudDraft(session:KeepSession,onProgress?: (progress:
   const res=await request("/rest/v1/keep_drafts?select=project,updated_at&owner_id=eq."+encodeURIComponent(session.user.id)+"&limit=1",session);
   const rows=await res.json() as {project:Partial<KeepProject>;updated_at?:string}[];
   if (!rows.length) return null;
-  return hydrateCloudProject({ ...rows[0]!.project, draftSavedAt: Date.parse(rows[0]!.updated_at || "") || rows[0]!.project.draftSavedAt }, session, onProgress);
+  const updatedAt = Date.parse(rows[0]!.updated_at || "");
+  return hydrateCloudProject(Number.isFinite(updatedAt) ? {...rows[0]!.project,draftSavedAt:updatedAt} : rows[0]!.project, session, onProgress);
 }
 export type KeepRestoreProgress = { completed: number; total: number; kind: "media" };
 async function hydrateCloudProject(project: Partial<KeepProject>, session: KeepSession, onProgress?: (progress: KeepRestoreProgress) => void): Promise<KeepProject> {
@@ -211,7 +212,11 @@ async function hydrateCloudProject(project: Partial<KeepProject>, session: KeepS
   const finalVoiceRecording = p.finalVoiceRecording?.audioId
     ? {...p.finalVoiceRecording,audioUrl:urls.get(p.finalVoiceRecording.audioId)}
     : p.finalVoiceRecording;
-  const voiceParts = (p.voiceParts ?? []).map(part=>({...part,audioUrl:urls.get(part.audioId)}));
+  const voiceParts = (p.voiceParts ?? []).map(part => {
+    const {audioUrl: _previous, ...rest} = part;
+    const url = urls.get(part.audioId);
+    return url ? {...rest,audioUrl:url} : rest;
+  });
   return {...p,memories,selfieVideos,selfieBaseMedia,interviewAnswers,finalVoiceRecording,voiceParts,
     restoreIncomplete:missing.size>0,restoreMissingCount:missing.size};
 }
