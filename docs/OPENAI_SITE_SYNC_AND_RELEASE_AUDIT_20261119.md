@@ -83,3 +83,50 @@ Preflight: verify on iPhone Safari that all relationship group buttons appear, t
 - Favicon is explicitly an SVG and serves correctly; the optional favicon.ico path returns 404.
 - Do not reset customer Keeps, drafts, orders or historical financial records as part of maintenance.
 - No live customer payment was initiated in this audit.
+
+---
+
+## Launch readiness execution order — November 20, 2026
+
+**Product decision:** Finish the phone-first creation and viewing experience and the separate OpenAI Sites storefront before buying hardware or making fulfillment promises. Stripe live payments remain off until the whole paid-order path is verified. Freeze nonessential feature additions while fixing failures.
+
+### Phase 1 — Complete the creative MVP (release gate: all must pass on a real iPhone in Safari)
+- [ ] Create a new Keep from blank and explicitly select occasion, recipient, relationship, and intention.
+- [ ] Finish the AI interview for Birthday, Anniversary, Thank You and a sensitive remembrance scenario; confirm 8–10 relevant questions, original spoken wording, 2–3 minute target without fabricated memories.
+- [ ] Finish "I know what I want to say": typed text and uploaded document; confirm editing, teleprompter, and re-record.
+- [ ] Record a full narration; tap Finish; see persisted voice on return, refresh and sign-in; handle microphone denial and interrupted uploads without data loss.
+- [ ] Add ~30 real phone photos and 1–2 short videos; verify compression, upload progress, ordering, playback and no black frames.
+- [ ] Use caption sync, manual correction, music with beginning/end fades and audio volume balance; verify Watch, Listen & Read, Read.
+- [ ] Verify 2 contributors: in-person and remote invite with remote uploaded media; creator approval, duplicate prevention and expiring invite behavior.
+- [ ] Finish & share: same persistent private Keep URL, mobile NFC-compatible recipient viewing page, portrait/landscape and back/forward navigation; old drafts and Keeps still open after a reload.
+- [ ] Establish a reliable 1080p rendered MP4 pipeline. Current Shotstack/Supabase size gate remains blocked; use a tested paid service tier or documented storage workaround rather than silently producing lower resolution or calling the old preview a final render.
+- [ ] Test failure modes: low cellular bandwidth, recording interruptions, expired auth, storage full, upload retry, duplicate Finish clicks, and empty media/voice. Account must never mark unsaved work as complete.
+
+### Phase 2 — Official OpenAI Sites storefront (separate private editor; requires authorized Sites editing session)
+- [ ] Verify the actual published URL, not Vercel's /shop internal catalog. Keep the existing Site; no replacement or second public storefront.
+- [ ] Hero: Keep logo, "Some things are worth keeping.", "Give them words they'll never forget.", premium physical card imagery, honest Buy Now/launch CTA.
+- [ ] Exact two-tier copy: Basic $79 / Signature $99 (two voices, engraving); $19 engraving upgrade on Basic, $19 additional voices, $39/$49 extra cards; accurate Signature $139/$179/$249 matching-card bundles.
+- [ ] Remove obsolete Deluxe/old pricing/payment links, duplicate menu items, unsubstantiated crossed-out prices/savings and overpromising delivery dates.
+- [ ] Header and menu: logo left, Buy Now top right, small Menu label; navigation Shop, How it Works on page, Our Story, FAQs, Contact, Log in.
+- [ ] Build a product-focused "How it works" section with physical card tap, private creation and phone playback; show only verified claims. No AI-generated people photography.
+- [ ] Phone-first design test on iPhone Safari, Android Chrome, tablet, desktop; use sparse QR handoff where it helps.
+- [ ] Validate every CTA, menu item, footer link, Login link to /app, accessible image, responsive design, terms/privacy and contact address.
+- [ ] When payments are ready, connect the Sites Buy Now action to verified Stripe checkout, not to inactive Payment Links or an unpaid /?create=1 shortcut.
+
+### Phase 3 — Verified commerce and fulfillment handoff
+- [ ] Confirm the company's tax residence/nexus and add required Stripe Tax registration(s); verify tax for a representative address before live charge.
+- [ ] Test new Stripe checkout with exact authoritative server-side cart totals in TEST mode: Basic, Signature, engraving, 2–3 voices, extra card styles, $139/$179/$249 bundles and cancellation/refund cases.
+- [ ] Configure signed Stripe webhook, idempotent purchase recording, ownership, account provisioning/login, paywall, delivery details and error recovery.
+- [ ] Replace retired Deluxe-centric engraving fulfillment with individual ordered-card records and true per-card customization; test 1/2/3/5+ card scenarios, common private link, admin order spreadsheet.
+- [ ] Only enable LIVE checkout after successful test purchase, database association, card production approval and verified link redemption.
+
+### Phase 4 — Physical production / shipping and public release
+- [ ] Choose NFC metal cards proven to scan on current iPhone/Android, test engraving depth/contrast/durability and writing/locking NFC URLs.
+- [ ] Buy and test a suitable laser engraver and appropriate ventilation/safety equipment; test one logo-only card, engraved card and card with custom opening message.
+- [ ] Select premium card sleeve/box, insert explaining the tap, label printer/shipping supplies; test handling, inserts, weight, return address and mailing.
+- [ ] Run a family/friend pilot with real 2–3 minute Keeps from purchase through recorded MP4, card programming and delivered gift; collect specific defects and fix critical failures.
+- [ ] Prepare launch customer support, refund/returns and privacy pages, fulfillment lead times, analytics, error monitoring and order tracking.
+
+**Definition of launch-ready:** A first-time customer can visit the official Site on a phone, purchase the correct package, receive a verified account entitlement, create and save a full Keep, return later, finish and preview a private playable 1080p film, approve the card, and receive an accurately personalized NFC product with working support and no manual repair to order records.
+
+**Current hard blockers as of the audit:** official Sites not directly verified, full iPhone filmed run-through incomplete, final rendered MP4 unverified, checkout disabled/no configured webhooks, no Stripe Tax registrations, and Deluxe-era engraving code inconsistent with approved card packages.
