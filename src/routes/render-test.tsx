@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { ArrowLeft, CheckCircle2, Film, LoaderCircle, PlayCircle, RefreshCw } from "lucide-react";
 import { activeKeepSession } from "@/lib/keep-cloud";
 import { KeepRenderedPlayer } from "@/components/keep-rendered-player";
-import { beginKeepRender, recoverKeepRender, refreshKeepRender, shotstackRenderingEnabled, type KeepRenderStatus } from "@/lib/keep-render-client";
+import { beginKeepRender, recoverKeepRender, retryKeepRender, refreshKeepRender, shotstackRenderingEnabled, type KeepRenderStatus } from "@/lib/keep-render-client";
 
 export const Route = createFileRoute("/render-test")({ component: RenderTest });
 
@@ -123,6 +123,16 @@ function RenderTest() {
     finally { setBusy(false); }
   };
 
+  const testMedium = async () => {
+    if (!selected || busy || job?.status !== "failed") return;
+    if (!window.confirm("Start a NEW Shotstack sandbox render at 1080p medium quality? This uses sandbox credits.")) return;
+    setBusy(true);
+    setError("");
+    try { setJob(await retryKeepRender(selected.id, selected.published_project.musicMood ?? "Warm + Nostalgic", !!selected.published_project.audioMix?.musicMuted)); }
+    catch (cause) { setError(cause instanceof Error ? cause.message : "Unable to start the 1080p test."); }
+    finally { setBusy(false); }
+  };
+
   const refresh = async () => {
     if (!selected || busy) return;
     setBusy(true);
@@ -192,6 +202,10 @@ function RenderTest() {
             <button type="button" disabled={busy} onClick={() => void recover()}
               className="mt-4 min-h-12 w-full rounded-lg bg-[#211C18] px-5 font-medium text-white">
               Retry saving existing MP4 (no new render)
+            </button>
+            <button type="button" disabled={busy} onClick={() => void testMedium()}
+              className="mt-3 min-h-12 w-full rounded-lg border border-[#211C18] px-5 font-medium text-[#211C18]">
+              Test new 1080p medium-quality render (uses sandbox credits)
             </button>
           </div>}
           {job && <button type="button" onClick={() => void refresh()} disabled={busy}
