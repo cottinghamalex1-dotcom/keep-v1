@@ -161,7 +161,7 @@ export function saveDraft(p: KeepProject): boolean {
       // Preserve the written message rather than restoring a phantom voice.
       finalVoiceRecording: p.finalVoiceRecording && (p.finalVoiceRecording.demo || p.finalVoiceRecording.audioId)
         ? (({audioUrl: _url, ...safe}) => safe)(p.finalVoiceRecording) : null,
-      voiceParts: p.voiceParts?.map(({ audioUrl: _url, ...part }) => part),
+      voiceParts: (p.voiceParts ?? []).map(({ audioUrl: _url, ...part }) => part),
     };
     localStorage.setItem(DRAFT_KEY, JSON.stringify(lite));
     return true;
@@ -218,7 +218,7 @@ const blobUrl = async (id?: string) => {
 };
 
 /** Restores object URLs for media/audio saved in IndexedDB. Items whose blobs are gone are dropped. */
-export async function hydrateDraftMedia(p: KeepProject) {
+export async function hydrateDraftMedia(p: KeepProject): Promise<Pick<KeepProject, "memories" | "selfieBaseMedia" | "selfieVideos" | "interviewAnswers" | "finalVoiceRecording" | "voiceParts">> {
   const memories: MediaItem[] = [];
   for (const m of p.memories) {
     if (m.source === "sample" || m.source === "text") { memories.push(m); continue; }
