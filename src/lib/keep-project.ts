@@ -72,6 +72,8 @@ export type KeepProject = {
   occasion: string;
   intent: string;
   questionIndex: number;
+  /** Last confirmed local/cloud snapshot time, used to avoid restoring a stale cloud draft. */
+  draftSavedAt?: number;
   /** A once-per-creation reminder before the first guided question. */
   interviewWelcomeSeen?: boolean;
   interviewAnswers: InterviewAnswer[];
@@ -144,11 +146,12 @@ export const stageLabels: Record<string, string> = {
   recorded: "Voice recorded", memories: "Adding memories", editor: "In the editor", card: "Designing the card", success: "Ready",
 };
 
-export function saveDraft(p: KeepProject) {
+export function saveDraft(p: KeepProject): boolean {
   try {
-    if (!p.active) { localStorage.removeItem(DRAFT_KEY); return; }
+    if (!p.active) { localStorage.removeItem(DRAFT_KEY); return true; }
     const lite: KeepProject = {
       ...p,
+      draftSavedAt: Date.now(),
       memories: p.memories.filter((m) => m.source === "sample" || m.source === "text" || m.persisted).map((m) => ({ ...m, url: m.source === "text" ? m.url : "" })),
       selfieVideos: (p.selfieVideos ?? []).filter(m=>m.persisted).map(m=>({...m,url:""})),
       selfieBaseMedia: (p.selfieBaseMedia??[]).filter(m=>m.source!=="upload"||m.persisted)
@@ -161,7 +164,8 @@ export function saveDraft(p: KeepProject) {
       voiceParts: p.voiceParts?.map(({ audioUrl: _url, ...part }) => part),
     };
     localStorage.setItem(DRAFT_KEY, JSON.stringify(lite));
-  } catch { /* storage full or blocked — draft stays session-only */ }
+    return true;
+  } catch { return false; /* Never claim to have saved when storage is unavailable. */ }
 }
 
 export function loadDraft(): KeepProject | null {
@@ -180,6 +184,27 @@ export function loadDraft(): KeepProject | null {
   } catch {
     return null;
   }
+}
+
+
+/** Never silently replace a newer, playable phone recording with an older cloud snapshot. */
+export function preferLocalKeepDraft(local: KeepProject | null, remote: KeepProject | null): boolean {
+  if (!local?.active) return false;
+  if (!remote) return true;
+  // A saved draft on this device can belong to another account or another Keep.
+  if (!local.publicationId || local.publicationId !== remote.publicationId) return false;
+  const localHasVoice = !!local.finalVoiceRecording?.audioId && !!local.finalVoiceRecording?.audioUrl;
+  const remoteHasVoice = !!remote.finalVoiceRecording?.audioId && !!remote.finalVoiceRecording?.audioUrl;
+  if (localHasVoice && !remoteHasVoice) return true;
+  if (remoteHasVoice && !localHasVoice) return false;
+  // Only compare complete local asset restorations. Otherwise preserve the cloud data.
+  const localMissingMedia = local.memories.some(m=>m.source==="upload" && !m.url)
+    || (local.selfieVideos??[]).some(m=>m.source==="upload" && !m.url)
+    || (local.voiceParts??[]).some(p=>!p.audioUrl);
+  if (localMissingMedia || local.memories.length < remote.memories.length) return false;
+  const localAt = local.draftSavedAt ?? 0;
+  const remoteAt = remote.draftSavedAt ?? 0;
+  return localAt > 0 && remoteAt > 0 && localAt > remoteAt + 250;
 }
 
 export function clearDraft() {
