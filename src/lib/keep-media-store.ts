@@ -59,3 +59,21 @@ export async function deleteBlobs(ids: string[]): Promise<void> {
 export async function clearBlobs(): Promise<void> {
   await run("readwrite", (s) => s.clear());
 }
+
+/** Find recently persisted narration blobs that a browser crash may have orphaned.
+ * Never attach one automatically: a person must listen and choose the correct take. */
+export async function listStoredVoiceRecordings(maxAgeDays = 14): Promise<{id:string;size:number;mimeType:string;recordedAt:number}[]> {
+  const keys = await run<IDBValidKey[]>("readonly", s => s.getAllKeys());
+  if (!Array.isArray(keys)) return [];
+  const earliest = Date.now() - maxAgeDays * 86400000;
+  const candidates = keys.filter((key): key is string => typeof key === "string" && /^voice-[a-z0-9]+-[a-z0-9]+$/.test(key))
+    .map(id => ({id, recordedAt: parseInt(id.split("-")[1]!,36)*1}))
+    .filter(item => Number.isFinite(item.recordedAt) && item.recordedAt >= earliest && item.recordedAt <= Date.now()+60000)
+    .sort((a,b)=>b.recordedAt-a.recordedAt).slice(0,12);
+  const result: {id:string;size:number;mimeType:string;recordedAt:number}[] = [];
+  for (const item of candidates) {
+    const blob = await getBlob(item.id);
+    if (blob?.size) result.push({...item,size:blob.size,mimeType:blob.type});
+  }
+  return result;
+}

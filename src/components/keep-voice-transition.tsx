@@ -24,17 +24,19 @@ export function KeepVoiceTransition({
   isSaving, isSyncing, hasCaptions, syncError, isDemo, isPersisted, hasRecording, returnToEditor,
   onContinue, onRetry, onRecordAgain,
 }: Props) {
-  const processing = isSaving || isSyncing;
+  // A slow caption transcription must never trap the creator on this screen.
+  // The voice is already stored; captions may finish while creation continues.
+  const processing = isSaving;
   const missingRecording = !processing && !hasRecording;
-  const needsCaptionReview = !processing && hasRecording && !isDemo && (syncError || !hasCaptions);
+  const needsCaptionReview = !processing && !isSyncing && hasRecording && !isDemo && (syncError || !hasCaptions);
   const notStored = !processing && hasRecording && !isDemo && !isPersisted;
   const title = processing
-    ? isSaving ? "Holding onto your words." : "Putting the words in place."
+    ? "Holding onto your words."
     : missingRecording ? "Your recording needs another try." : isDemo ? "Ready for a preview." : "Your voice is kept.";
   const message = isSaving
     ? "Preserving your recording and the moments that make it yours."
     : isSyncing
-      ? "Pairing your message with your voice, so the captions feel right when it plays."
+      ? "Your voice is saved. Captions are still preparing in the background, and you can continue."
       : missingRecording
         ? "We couldn't restore that recording. Please record it again so your Keep has your voice."
         : isDemo
@@ -43,7 +45,7 @@ export function KeepVoiceTransition({
             ? "Your recording is ready. Captions need another look before you share your Keep."
             : "Not polished. Not performed. Just you, exactly as they should hear you.";
 
-  return <div className="keep-voice-transition fixed inset-0 z-[95] flex items-center justify-center overflow-y-auto bg-[#211A14]/65 px-4 py-[max(18px,env(safe-area-inset-top))] backdrop-blur-[10px] sm:px-6">
+  return <div className="keep-voice-transition fixed inset-0 z-[95] flex items-center justify-center overflow-y-auto bg-[#211A14]/75 px-4 py-[max(18px,env(safe-area-inset-top))] sm:px-6">
     <section role="dialog" aria-modal="true" aria-labelledby="keep-voice-transition-title"
       className="keep-voice-transition-card relative my-auto w-full max-w-[460px] overflow-hidden rounded-[28px] border border-[#E6D9C9] bg-[#FBF8F3] px-6 pb-7 pt-7 text-center text-[#211A16] shadow-[0_30px_100px_rgba(24,17,10,.34)] sm:px-10 sm:pb-9 sm:pt-9">
       <div className="keep-voice-transition-glow pointer-events-none absolute left-1/2 top-16 size-64 -translate-x-1/2 rounded-full" aria-hidden="true"/>
@@ -73,7 +75,7 @@ export function KeepVoiceTransition({
               : missingRecording ? "absolute inset-y-0 left-0 w-0" : "keep-voice-transition-progress-complete absolute inset-0 rounded-full bg-gradient-to-r from-[#B9A17F] to-[#826548]"} />
           </div>
           <p role="status" className="mt-3 text-[10px] font-semibold tracking-[.08em] text-[#8D755D]">
-            {isSaving ? "SAVING YOUR VOICE" : isSyncing ? "SYNCING YOUR WORDS" : missingRecording ? "RECORDING NOT FOUND" : isDemo ? "DEMO · NO VOICE ATTACHED" : needsCaptionReview ? "VOICE READY · CAPTIONS TO REVIEW" : "READY FOR THE NEXT MOMENT"}
+            {isSaving ? "SAVING YOUR VOICE" : isSyncing ? "VOICE SAVED · CAPTIONS PREPARING" : missingRecording ? "RECORDING NOT FOUND" : isDemo ? "DEMO · NO VOICE ATTACHED" : needsCaptionReview ? "VOICE READY · CAPTIONS TO REVIEW" : "READY FOR THE NEXT MOMENT"}
           </p>
         </div>
 

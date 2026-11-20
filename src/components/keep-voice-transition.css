@@ -14,7 +14,8 @@
   animation: keep-voice-complete .52s ease-out both;
 }
 .keep-voice-transition-check { animation: keep-voice-check .55s ease-out both; }
-.keep-voice-transition-card { animation: keep-voice-enter .42s ease-out both; }
+/* Avoid opacity/transform entrance animations while iOS is completing a recording. */
+.keep-voice-transition-card { opacity: 1; transform: none; animation: none; }
 @keyframes keep-voice-progress { from { transform: translateX(0); } to { transform: translateX(165%); } }
 @keyframes keep-voice-complete { from { transform: scaleX(.35); transform-origin: left; } to { transform: scaleX(1); transform-origin: left; } }
 @keyframes keep-voice-halo { 0%, 100% { transform: scale(.98); opacity: .55; } 50% { transform: scale(1.06); opacity: 1; } }
