@@ -12,7 +12,7 @@ import { clearDraft, loadDraft, projectBlobIds } from "@/lib/keep-project";
 import { deleteBlobs } from "@/lib/keep-media-store";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useCallback, useEffect, useState } from "react";
-import { ArrowRight, Gift, Heart, Home, LockKeyhole, LogOut, Plus, ChevronDown, BookOpen, ExternalLink, Link2, Check, PenLine, Trash2 } from "lucide-react";
+import { ArrowRight, Gift, Heart, LockKeyhole, LogOut, Plus, ChevronDown, BookOpen, ExternalLink, Link2, Check, PenLine, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/app")({ component: KeepDashboard });
