@@ -790,9 +790,8 @@ function KeepApp() {
     setHistory((h) => [...h, "editor"]);
     setScreen(isTogether ? "groupRecord" : "record");
     setGroupPartIndex(0);
-    setScroll(0);
-    setScrollPaused(false);
-    setRehearsing(false);
+    // The teleprompter now resets its own scroll when recording starts.
+    // Obsolete page-level setters caused a runtime crash on Re-record.
     window.scrollTo(0, 0);
   };
   const chooseSelfie = async () => {
