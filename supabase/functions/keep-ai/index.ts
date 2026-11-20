@@ -1,5 +1,5 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
-import { enforceInterviewStep } from "./interview-policy.ts";
+import { enforceInterviewStep, getInterviewGuidance, getOpeningInterviewQuestion } from "./interview-policy.ts";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -199,7 +199,7 @@ Return three suggestions only.`,
       if (context.answers.length === 0) {
         return json({
           done: false,
-          question: `What's the biggest thing you want ${context.recipientName} to understand or remember from this Keep?`,
+          question: getOpeningInterviewQuestion(context),
           summary: "",
         });
       }
@@ -220,10 +220,12 @@ Return three suggestions only.`,
 
 Your job is not to sound like an AI, therapist, coach, or questionnaire. Help the creator uncover enough authentic, emotionally resonant material for a personal, full 2–3 minute spoken message to someone they care about.
 
+${getInterviewGuidance(context)}
+
 Rules:
 - Ask exactly one question at a time.
 - Follow a deliberate broad-to-specific arc, using the number of substantive answers and what the creator has actually shared.
-- The FIRST question is supplied by the app and explores the central message, meaning, and big picture. Do not jump into a specific anecdote immediately afterward.
+- The FIRST question is supplied by the app and reflects the recipient and occasion. Build on its meaning and the creator's stated intent. Do not jump into a specific anecdote immediately afterward.
 - For answers 1–2: stay expansive. Ask why this person, relationship, moment, or chapter matters and what feeling, gratitude, or truth is underneath it. Invite the creator to tell the story in their own way. Don't ask for narrow details yet unless they raise something they want to explore.
 - For answers 3–6: gradually zoom in. Invite specific stories, ordinary moments, sensory details, turning points, or examples that illuminate themes the creator introduced; ask about one thread at a time.
 - For answers 7 onward: explore what changed, what the recipient should carry forward, what remains unsaid, and a satisfying emotional ending. Ask about a missing concrete memory when needed.
@@ -239,7 +241,7 @@ Rules:
 - Otherwise set done=false, provide the next question, and set summary="".`,
         input: JSON.stringify(context),
       });
-      return json(enforceInterviewStep(context.answers.length, result));
+      return json(enforceInterviewStep(context.answers.length, result, context));
     }
 
     if (action === "draft") {
@@ -267,6 +269,7 @@ Writing rules:
 - Keep it personal and conversational, not literary for its own sake.
 - Avoid greeting-card clichés, inflated sentiment, therapy language, and generic inspiration.
 - Let specific ordinary details do the emotional work.
+- Match the emotional tone to the actual recipient, relationship, and occasion: celebratory for birthdays when appropriate, grateful for thank-yous, reflective for anniversaries, and gentle for memorials. Never force happiness, romance, beliefs, or an invented ending.
 - Use contractions when natural.
 - Create 6–8 natural, recordable paragraphs, ideally 450–500 words when the interview contains enough real material. This should give a brisk speaker enough substance for a meaningful 2–3 minute recording. Stay below 540 words by default unless the creator specifically asks for longer.
 - Do not pad the message to hit a word count. If the interview genuinely does not support that length, stay shorter rather than inventing or repeating.
