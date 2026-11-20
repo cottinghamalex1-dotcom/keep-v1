@@ -47,12 +47,12 @@ import { checkKeepVideo, KEEP_VIDEO_MAX_BYTES, KEEP_VIDEO_MAX_SOURCE_BYTES, KEEP
 import { compressKeepVideo, keepCompressedSizeText, shouldCompressKeepVideo } from "@/lib/keep-video-compression";
 import { keepOptimizedPhotoId, keepPhotoSavings, optimizeKeepPhoto, shouldOptimizeKeepPhoto } from "@/lib/keep-photo-optimization";
 import { countKeepWords, estimateKeepSeconds, formatKeepTime } from "@/lib/keep-length";
-import { useRecorder } from "@/hooks/use-recorder";
+import { useRecorder, type RecordingResult } from "@/hooks/use-recorder";
 import { joinKeepVoiceParts } from "@/lib/keep-collaborative-audio";
-import { deleteBlobs, getBlob, putBlob } from "@/lib/keep-media-store";
+import { deleteBlobs, getBlob, putBlob, listStoredVoiceRecordings } from "@/lib/keep-media-store";
 import { createKeepVoiceMix, KEEP_MUSIC_LEAD_SECONDS, KEEP_MUSIC_TAIL_SECONDS, playMusicSample, stopMusicSample, type MusicBalance } from "@/lib/keep-audio";
 import { fetchDraft, fetchNextQuestion, fetchRevision, keepAiAvailable, transcribeAudio, transcribeTimedAudio, type TimedWord } from "@/lib/keep-ai";
-import { fmt, hydrateDraftMedia, loadDraft, newId, newProject, projectBlobIds, projectObjectUrls, sampleMemories, saveDraft, stageLabels, defaultAudioMix, type AudioMix, type CaptionCue, type InterviewAnswer, type KeepProject, type KeepVoicePart, type MediaItem, type VoiceTone } from "@/lib/keep-project";
+import { fmt, hydrateDraftMedia, loadDraft, newId, newProject, projectBlobIds, projectObjectUrls, sampleMemories, saveDraft, preferLocalKeepDraft, stageLabels, defaultAudioMix, type AudioMix, type CaptionCue, type InterviewAnswer, type KeepProject, type KeepVoicePart, type MediaItem, type VoiceTone } from "@/lib/keep-project";
 
 export const Route = createFileRoute("/")({
   head: () => ({ meta: [
@@ -260,6 +260,11 @@ function KeepApp() {
   const publishingLock = useRef(false);
   const [setting, setSetting] = useState("");
   const [voiceFinalizing, setVoiceFinalizing] = useState(false);
+  const voiceFinishInFlight = useRef(false);
+  // A failed IndexedDB write must not throw away the captured voice.
+  const [pendingVoice, setPendingVoice] = useState<RecordingResult | null>(null);
+  const [orphanVoices, setOrphanVoices] = useState<{id:string;size:number;mimeType:string;recordedAt:number}[]>([]);
+  const [recoveryPreview, setRecoveryPreview] = useState<{id:string;url:string;blob:Blob;durationSec:number}|null>(null);
   const [captionSyncing, setCaptionSyncing] = useState(false);
   const [captionSyncError, setCaptionSyncError] = useState(false);
   const captionSyncToken = useRef(0);
@@ -336,10 +341,21 @@ function KeepApp() {
           };
           const remote = editId ? await loadEditableKeep(editId, session, onRestore) : await loadCloudDraft(session, onRestore);
           if (remote) {
-            next = remote;
-            // A partial restore may be viewed, but must NEVER overwrite the
-            // complete cloud copy or its associated published Keep.
-            if (remote.restoreIncomplete) setCloudSyncAllowed(false);
+            // A slow or failed upload must never make an older cloud draft erase
+            // a playable voice already stored on this phone.
+            const matchingLocal = local?.active && local.publicationId === remote.publicationId
+              && (!editId || local.publicationId === editId)
+              ? { ...local, ...await hydrateDraftMedia(local) } : null;
+            if (matchingLocal && preferLocalKeepDraft(matchingLocal, remote)) {
+              next = matchingLocal;
+              if (matchingLocal.finalVoiceRecording?.audioUrl && !remote.finalVoiceRecording?.audioUrl) {
+                toast.info("Your recording was recovered from this phone. Keep will back it up again.");
+              }
+            } else {
+              next = remote;
+              // Never overwrite an incomplete cloud restoration.
+              if (remote.restoreIncomplete) setCloudSyncAllowed(false);
+            }
           }
           else if (local?.active) {
             // Never silently attach an unclaimed device draft to a different account.
@@ -493,6 +509,34 @@ function KeepApp() {
   }, [screen]);
 
   // ---- Interview ----
+  // A crash between media storage and draft metadata can leave a valid voice
+  // blob on this device. Offer it for listening and explicit recovery.
+  useEffect(() => {
+    if (!hydrated || screen !== "record" || project.finalVoiceRecording?.audioUrl) return;
+    let cancelled = false;
+    void listStoredVoiceRecordings().then(items => {
+      if (!cancelled) setOrphanVoices(items.filter(item => item.id !== project.finalVoiceRecording?.audioId).slice(0,4));
+    }).catch(() => undefined);
+    return () => { cancelled = true; };
+  }, [hydrated, screen, project.finalVoiceRecording?.audioId, project.finalVoiceRecording?.audioUrl]);
+  useEffect(() => () => {
+    // Object URL created only after the creator chooses to preview a recovered take.
+    if (recoveryPreview?.url) URL.revokeObjectURL(recoveryPreview.url);
+  }, [recoveryPreview?.url]);
+  const previewOrphanVoice = async (id: string) => {
+    const blob = await getBlob(id);
+    if (!blob?.size) { toast.error("That recording is no longer available on this device."); return; }
+    setRecoveryPreview({id, blob, url:URL.createObjectURL(blob),durationSec:0});
+  };
+  const downloadPendingVoice = () => {
+    if (!pendingVoice) return;
+    const url = URL.createObjectURL(pendingVoice.blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = "keep-voice-backup." + (pendingVoice.mimeType.includes("mp4")?"m4a":"webm");
+    document.body.appendChild(a); a.click(); a.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 60000);
+  };
+
   const currentAnswer = project.interviewAnswers.find((a) => a.questionIndex === q);
   const upsertAnswer = (a: InterviewAnswer) => setProject((o) => ({ ...o, interviewAnswers: [...o.interviewAnswers.filter((x) => x.questionIndex !== a.questionIndex), a].sort((x, y) => x.questionIndex - y.questionIndex) }));
   const setAnswer = (a: InterviewAnswer) => {
@@ -817,41 +861,60 @@ function KeepApp() {
     }
   };
 
-  const finishFinal = async () => {
+  const finishFinal = async (recoveredTake?: RecordingResult, preservedId?: string) => {
+    if (voiceFinishInFlight.current) return;
+    voiceFinishInFlight.current = true;
     setVoiceFinalizing(true);
     try {
-    const r = await recorder.stop();
-    if (!r) { toast.error("Nothing was recorded. Try again."); return; }
-    const id = newId("voice");
-    const stored = await putBlob(id, r.blob);
-    if (shouldPreserveExistingVoice(!!rec?.audioUrl && !rec.demo, stored)) {
-      toast.error("The new take could not be saved, so your previous recording is still safe. Free up device storage and try again.", { duration: 9000 });
-      return;
-    }
-    if (!stored) toast.warning("This voice is only available while this page stays open. Free up storage before leaving or refreshing.", { duration: 10000 });
-    const selfie=await saveSelfieTake(r.selfieBlob,r.selfieMimeType,r.durationSec,0);
-    if(selfieSelected && !selfie)toast.info("Your voice is safe. The selfie video wasn't captured; you can retry later.");
-    setSelfieSelected(false);
-    if (rec) { releaseUrls([rec.audioUrl]); if (rec.audioId) void deleteBlobs([rec.audioId]); }
-    captionSyncToken.current++;
-    const audioUrl = URL.createObjectURL(r.blob);
-    setProject((o) => {
-      const selfies=selfie?[selfie]:[];
-      return ({
-      ...o,
-      selfieVideos:selfies,
-      memories:o.memories.length?composeSelfieStory(o.selfieBaseMedia?.length?o.selfieBaseMedia:withoutSelfieScenes(o.memories),selfies,r.durationSec,o):o.memories,
-      finalVoiceRecording: { audioId: stored ? id : undefined, audioUrl, durationSec: r.durationSec, mimeType: r.mimeType, demo: false },
-      captionTranscript: "",
-      captionCues: [],
-      captionWords: [],
-      captionTimingEstimated: false,
-    });});
-    go("recorded");
-    void syncFinalCaptions(r.blob, r.mimeType, r.durationSec, stored ? id : undefined);
+      const r = recoveredTake ?? await recorder.stop();
+      if (!r?.blob?.size) { toast.error("No audio was captured. Please try again."); return; }
+      const id = preservedId ?? newId("voice");
+      if (!(await putBlob(id, r.blob))) {
+        setPendingVoice(r);
+        toast.error("Your recording is still open, but device storage failed. Do not refresh. Retry saving or download the audio backup.", { duration: 12000 });
+        return;
+      }
+      const selfie = await saveSelfieTake(r.selfieBlob, r.selfieMimeType, r.durationSec, 0);
+      const audioUrl = URL.createObjectURL(r.blob);
+      const selfies = selfie ? [selfie] : [];
+      const updated: KeepProject = {
+        ...project,
+        stage: "recorded",
+        selfieVideos: selfies,
+        memories: project.memories.length
+          ? composeSelfieStory(project.selfieBaseMedia?.length ? project.selfieBaseMedia : withoutSelfieScenes(project.memories), selfies, r.durationSec, project)
+          : project.memories,
+        finalVoiceRecording: { audioId: id, audioUrl, durationSec: r.durationSec, mimeType: r.mimeType, demo: false },
+        captionTranscript: "", captionCues: [], captionWords: [], captionTimingEstimated: false,
+      };
+      // Durable metadata must be written in the SAME interaction as finishing
+      // the voice, not only in a later React effect or debounced cloud autosave.
+      if (!saveDraft(updated)) {
+        URL.revokeObjectURL(audioUrl);
+        setPendingVoice(r);
+        toast.error("Your audio was captured but the draft couldn't save. Do not refresh; retry saving or download the backup.", { duration: 12000 });
+        return;
+      }
+      setPendingVoice(null);
+      setOrphanVoices(items => items.filter(item => item.id !== id));
+      if (recoveryPreview?.id === id) setRecoveryPreview(null);
+      if (selfieSelected && !selfie) toast.info("Your narration is saved. The optional selfie video was not available.");
+      setSelfieSelected(false);
+      if (rec?.audioUrl && rec.audioUrl !== audioUrl) releaseUrls([rec.audioUrl]);
+      if (rec?.audioId && rec.audioId !== id) void deleteBlobs([rec.audioId]);
+      captionSyncToken.current++;
+      setProject(updated);
+      go("recorded");
+      // Upload now rather than relying on the 2.5-second autosave delay.
+      // The local copy is already safe if cellular upload fails or the tab closes.
+      void activeKeepSession().then(session => session ? saveCloudDraft(updated, session) : undefined)
+        .then(() => toast.success("Your recording was saved."))
+        .catch(() => toast.warning("Voice saved on this phone. Cloud backup is pending; don't clear browser data."));
+      void syncFinalCaptions(r.blob, r.mimeType, r.durationSec, id);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "The recording couldn't be prepared. Please try again.");
+      toast.error(error instanceof Error ? error.message : "The recording couldn't be saved. Please try again.");
     } finally {
+      voiceFinishInFlight.current = false;
       setVoiceFinalizing(false);
     }
   };
@@ -2144,11 +2207,37 @@ function KeepApp() {
           isRecording={isRecording} isPaused={recorder.status === "paused"} elapsed={recorder.elapsed}
           onRestartRecording={restartCurrentRecording} restartNonce={recordRestartNonce} />
         <div className="shrink-0 pt-3">
+          {pendingVoice && !isRecording && <div role="alert" className="mb-3 rounded-xl border border-amber-600/40 bg-amber-50 p-3 text-sm text-amber-950">
+            <strong className="block">Your recording is still here, but isn't safely saved.</strong>
+            <p className="mt-1 text-xs">Do not refresh or close this page. Retry saving, or keep an audio backup.</p>
+            <div className="mt-2 flex gap-2">
+              <Button variant="keep" size="sm" disabled={voiceFinalizing} onClick={() => void finishFinal(pendingVoice)}>Retry save</Button>
+              <Button variant="quiet" size="sm" onClick={downloadPendingVoice}><Download className="size-4" /> Download audio</Button>
+            </div>
+          </div>}
+          {!pendingVoice && !isRecording && orphanVoices.length>0 && !project.finalVoiceRecording?.audioUrl && <div className="mb-3 rounded-xl border border-[#D3B993] bg-[#FAF1E4] p-3 text-[#493726]" role="region" aria-label="Recover a recording">
+            <strong className="block text-sm">We found a recording on this phone.</strong>
+            <p className="mt-1 text-xs leading-5">If your last take disappeared, listen before deciding whether to restore it.</p>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {orphanVoices.map(item => <button type="button" key={item.id} className="rounded-lg border border-[#C7B39B] bg-white px-3 py-2 text-xs" onClick={() => void previewOrphanVoice(item.id)}>
+                {new Date(item.recordedAt).toLocaleString([], {month:"short",day:"numeric",hour:"numeric",minute:"2-digit"})}
+              </button>)}
+            </div>
+            {recoveryPreview && <div className="mt-3 space-y-2">
+              <audio src={recoveryPreview.url} controls preload="metadata" className="w-full" aria-label="Listen to recovered recording"
+                onLoadedMetadata={event => { const seconds=event.currentTarget.duration; if(Number.isFinite(seconds)&&seconds>0) setRecoveryPreview(old=>old?.id===recoveryPreview.id?{...old,durationSec:seconds}:old); }} />
+              <Button variant="keep" size="sm" disabled={voiceFinalizing} onClick={() => void finishFinal({
+                blob:recoveryPreview.blob,
+                mimeType:recoveryPreview.blob.type || "audio/mp4",
+                durationSec:recoveryPreview.durationSec || estimateKeepSeconds(countKeepWords(project.messageParagraphs.join(" "))),
+              },recoveryPreview.id)}>Restore this recording</Button>
+            </div>}
+          </div>}
           {micUnavailable ? <>
             <p role="alert" className="mb-2 text-center text-xs text-destructive">{micMessage}</p>
             <Button variant="keep" size="touch" className="w-full" onClick={useDemoRecording}>Use demo recording (2:30)</Button>
           </> : !isRecording ? (
-            <Button variant="keep" size="touch" className="w-full" disabled={recorder.status === "requesting" || recorder.supported !== true} onClick={() => void startFinal()}>
+            <Button variant="keep" size="touch" className="w-full" disabled={!!pendingVoice || voiceFinalizing || recorder.status === "requesting" || recorder.supported !== true} onClick={() => void startFinal()}>
               {recorder.status === "requesting" ? <Loader2 className="size-5 animate-spin" /> : <Mic className="size-5" />}
               {recorder.status === "requesting" ? "Getting ready…" : selfieSelected?"Start selfie & voice":"Start recording"}
             </Button>
@@ -2158,7 +2247,7 @@ function KeepApp() {
                 {recorder.status === "paused" ? <Play className="size-4" /> : <Pause className="size-4" />}
                 {recorder.status === "paused" ? "Resume" : "Pause"}
               </Button>}
-              <Button variant="keep" size="touch" className="flex-1" onClick={() => void finishFinal()}><Check className="size-4" /> Finish recording</Button>
+              <Button variant="keep" size="touch" className="flex-1" disabled={voiceFinalizing} onClick={() => void finishFinal()}>{voiceFinalizing ? <Loader2 className="size-4 animate-spin" /> : <Check className="size-4" />} {voiceFinalizing ? "Saving audio…" : "Finish recording"}</Button>
             </div>
           )}
         </div>
