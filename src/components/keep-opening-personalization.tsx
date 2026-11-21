@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { ArrowRight, Check, Loader2, RotateCcw, Sparkles, X } from "lucide-react";
 import { fetchOpeningSuggestions } from "@/lib/keep-ai";
-import { KeepCardFront } from "@/components/keep-card-front";
+import { createPortal } from "react-dom";
 import type { KeepProject } from "@/lib/keep-project";
 import { Button } from "@/components/ui/button";
 
@@ -10,8 +10,6 @@ type Props = {
   project: KeepProject;
   onUpdate: (updates: Partial<OpeningFields>) => void;
   disabled?: boolean;
-  engravingEnabled?: boolean;
-  engravingForExtrasOnly?: boolean;
 };
 
 function fingerprint(project: KeepProject): string {
@@ -22,7 +20,7 @@ function fingerprint(project: KeepProject): string {
 }
 
 /** The chosen message is identical in the first-play reveal and the card preview. */
-export function KeepOpeningPersonalization({ project, onUpdate, disabled, engravingEnabled = true, engravingForExtrasOnly = false }: Props) {
+export function KeepOpeningPersonalization({ project, onUpdate, disabled }: Props) {
   const key = fingerprint(project);
   const isCached = project.openingSuggestionsFor === key && project.openingMessageSuggestions?.length === 3;
   const attempted = useRef("");
@@ -32,8 +30,6 @@ export function KeepOpeningPersonalization({ project, onUpdate, disabled, engrav
   const [retry, setRetry] = useState(0);
   const selected = !!project.engraveOpeningMessage && !!project.openingMessage?.trim();
   const [showFirstFrame, setShowFirstFrame] = useState(false);
-  const firstMoment = project.memories.find(m => m.kind === "image" && m.url && m.source !== "text")
-    ?? project.memories.find(m => m.url && m.source !== "text");
   useEffect(() => {
     if (!showFirstFrame) return;
     const onKeyDown = (event: KeyboardEvent) => { if (event.key === "Escape") setShowFirstFrame(false); };
@@ -55,16 +51,11 @@ export function KeepOpeningPersonalization({ project, onUpdate, disabled, engrav
       .catch(() => { if (!cancelled) setStatus("error"); });
     return () => { cancelled = true; };
   }, [isCached, key, retry]);
-  const updateEngraving = (index: number, value: string) => onUpdate({
-    cardEngraving: project.cardEngraving.map((line, i) => i === index ? value.toUpperCase() : line),
-  });
   return <>
-    <KeepCardFront engraving={engravingEnabled ? project.cardEngraving : []} openingMessage={project.openingMessage} showOpeningMessage={selected && engravingEnabled} />
-    <p className="mt-4 text-center text-[11px] leading-5 text-muted-foreground">{engravingForExtrasOnly ? "Extra card engraving preview · Your included Basic card keeps the Keep logo only." : engravingEnabled ? "Engraving preview · Physical card production is not yet connected." : "Basic card preview · Keep logo only. Upgrade to personalize the physical card."}</p>
     <section className="mt-9 rounded-[20px] border border-[#D8CCBE] bg-[#F5EDE3]/65 px-5 py-6">
       <div className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[.15em] text-[#8A725C]"><Sparkles className="size-4" /> Inspired by your words</div>
       <h2 className="mt-4 font-display text-[clamp(26px,7vw,34px)] leading-[1.13]">A few words, just for them.</h2>
-      <p className="mt-3 text-xs leading-[1.8] text-[#766A5D]">Keep finds three short, personal dedications in your full message. The one you choose appears in the digital opening and, if engraving is included or added, on the physical card.</p>
+      <p className="mt-3 text-xs leading-[1.8] text-[#766A5D]">Keep finds three short, personal dedications in your full message. The one you choose appears on a dark opening screen before the photos and voice begin.</p>
       {!isCached && status === "loading" && <div role="status" className="mt-5 flex items-center gap-2 text-xs text-[#766A5D]"><Loader2 className="size-4 animate-spin" /> Finding the heart of your message…</div>}
       {!isCached && status === "error" && <div className="mt-5 rounded-xl border border-[#DACBBD] bg-white/60 p-4">
         <p role="alert" className="text-xs leading-5 text-[#766A5D]">Personalized suggestions couldn't load. You can still write your own dedication.</p>
@@ -89,14 +80,14 @@ export function KeepOpeningPersonalization({ project, onUpdate, disabled, engrav
     </section>
     <section className="mt-9 space-y-3">
       <h2 className="font-display text-[27px]">Or write your own.</h2>
-      <p className="text-xs leading-5 text-muted-foreground">One or two meaningful sentences, kept short enough for engraving.</p>
+      <p className="text-xs leading-5 text-muted-foreground">One or two meaningful sentences to open your film.</p>
       <textarea aria-label="Custom opening message" rows={3} maxLength={110}
         value={selected ? (project.openingMessage ?? "") : ""} placeholder="Write a personal dedication…"
         onChange={e => choose(e.target.value)}
         className="w-full resize-none rounded-xl border border-border bg-background p-4 font-display text-lg leading-relaxed outline-none focus:border-[#A38568]" />
       <div className="flex items-center justify-between gap-2">
         <span className="text-[11px] text-muted-foreground">{selected ? (project.openingMessage ?? "").length : 0}/110 characters</span>
-        <Button variant="quiet" size="sm" onClick={() => setShowFirstFrame(true)} disabled={disabled}>Preview first Keep image <ArrowRight className="size-4" /></Button>
+        <Button variant="quiet" size="sm" onClick={() => setShowFirstFrame(true)} disabled={disabled}>Preview opening screen <ArrowRight className="size-4" /></Button>
       </div>
     </section>
     <section className="mt-10 space-y-4 border-t border-border pt-8" aria-label="Closing words">
@@ -119,46 +110,29 @@ export function KeepOpeningPersonalization({ project, onUpdate, disabled, engrav
         className="w-full rounded-xl border border-border bg-background px-4 py-3 font-display text-[17px] outline-none focus:border-[#A38568]" />
       <p className="text-[11px] leading-5 text-muted-foreground">Leave blank for “You are so loved.” This is shown, not spoken, and can be changed without recording again.</p>
     </section>
-    {engravingEnabled && <section className="mt-10 space-y-4 border-t border-border pt-7">
-      <h2 className="font-display text-[27px]">Personalize the card.</h2>
-      <p className="text-xs leading-5 text-muted-foreground">These details appear below the dedication, or on their own if you skip it.</p>
-      {["To / Title", "From (optional)", "Date (optional)"].map((label, i) => <label key={label} className="block">
-        <span className="eyebrow">{label}</span>
-        <input aria-label={`Card ${label}`} maxLength={22} value={project.cardEngraving[i] ?? ""} onChange={e => updateEngraving(i,e.target.value)}
-          className="mt-2 w-full border-0 border-b border-border bg-transparent pb-3 text-sm tracking-widest outline-none focus:border-accent" />
-      </label>)}
-    </section>}
-
-    {showFirstFrame && <div className="fixed inset-0 z-[100] flex items-center justify-center bg-[#17130F]/80 p-4 backdrop-blur-sm"
-      onClick={() => setShowFirstFrame(false)}>
-      <section role="dialog" aria-modal="true" aria-label="First Keep image preview"
-        className="w-full max-w-[390px] rounded-[24px] border border-[#B6A28A]/40 bg-[#F8F3EC] px-4 pb-5 pt-4 shadow-2xl"
-        onClick={e => e.stopPropagation()}>
-        <div className="mb-3 flex items-center justify-between gap-3">
-          <div>
-            <p className="text-[10px] font-semibold uppercase tracking-[.16em] text-[#8C745C]">YOUR FIRST MOMENT</p>
-            <p className="mt-1 text-xs text-[#6C5B4B]">A still preview from inside your Keep</p>
+    {showFirstFrame && typeof document !== "undefined" && createPortal(
+      <div className="fixed inset-0 z-[220] flex items-center justify-center overflow-y-auto bg-[#17130F]/85 p-4 backdrop-blur-sm"
+        onClick={() => setShowFirstFrame(false)}>
+        <section role="dialog" aria-modal="true" aria-label="Opening screen preview"
+          className="my-auto w-full max-w-[390px] rounded-[24px] border border-[#B6A28A]/40 bg-[#F8F3EC] px-4 pb-5 pt-4 shadow-2xl"
+          onClick={event => event.stopPropagation()}>
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-[.16em] text-[#8C745C]">YOUR OPENING SCREEN</p>
+              <p className="mt-1 text-xs text-[#6C5B4B]">The first screen before your photos appear</p>
+            </div>
+            <button type="button" onClick={() => setShowFirstFrame(false)} aria-label="Close opening preview"
+              className="flex size-10 shrink-0 items-center justify-center rounded-full border border-[#D8C8B7] bg-white text-[#473A2E]">
+              <X className="size-5" />
+            </button>
           </div>
-          <button type="button" onClick={() => setShowFirstFrame(false)} aria-label="Close first image preview"
-            className="flex size-10 shrink-0 items-center justify-center rounded-full border border-[#D8C8B7] bg-white text-[#473A2E]">
-            <X className="size-5" />
-          </button>
-        </div>
-        <div className="relative mx-auto aspect-[9/16] max-h-[65dvh] w-full max-w-[310px] overflow-hidden rounded-[16px] bg-[#191514] text-[#FFF7EC]">
-          {firstMoment?.url && (firstMoment.kind === "video"
-            ? <video src={firstMoment.url} playsInline muted preload="metadata" aria-label="First video from your Keep"
-                className="absolute inset-0 h-full w-full object-cover" />
-            : <img src={firstMoment.url} alt="First photo in your Keep" className="absolute inset-0 h-full w-full object-cover" />)}
-          <div className="absolute inset-0 bg-gradient-to-t from-[#191514]/90 via-[#191514]/55 to-[#191514]/45" />
-          <div className="absolute inset-0 flex flex-col items-center justify-center px-6 text-center">
+          <div className="relative mx-auto flex aspect-[9/16] max-h-[65dvh] w-full max-w-[310px] flex-col items-center justify-center overflow-hidden rounded-[16px] bg-[#171311] px-6 text-center text-[#F5EDE5]">
             <span className="text-[10px] font-semibold uppercase tracking-[.2em] text-[#D6C1AA]">A KEEP FOR</span>
             <h3 className="mt-3 font-display text-[clamp(38px,10vw,53px)] leading-none">{project.recipientName || "Someone special"}</h3>
-            {selected && <p className="mt-7 max-w-[25ch] font-display text-[clamp(19px,5.5vw,26px)] leading-snug">{project.openingMessage}</p>}
-            {!firstMoment && <p className="mt-7 text-xs leading-5 text-[#D6C1AA]">Add photos or videos to reveal your opening image here.</p>}
+            {selected && <p className="mt-7 max-w-[25ch] font-display text-[clamp(19px,5.5vw,26px)] italic leading-snug">{project.openingMessage}</p>}
           </div>
-        </div>
-        <p className="mt-4 text-center text-[11px] leading-5 text-[#746556]">This previews the opening image and dedication, not the recipient welcome page.</p>
-      </section>
-    </div>}
+          <p className="mt-4 text-center text-[11px] leading-5 text-[#746556]">The film opens on this dark dedication, then gently reveals your first photo.</p>
+        </section>
+      </div>, document.body)}
   </>;
 }
