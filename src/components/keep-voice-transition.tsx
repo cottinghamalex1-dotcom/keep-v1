@@ -1,4 +1,5 @@
 import { ArrowRight, Check, Mic2, RotateCcw, Sparkles } from "lucide-react";
+import { createPortal } from "react-dom";
 import "./keep-voice-transition.css";
 
 type Props = {
@@ -45,7 +46,10 @@ export function KeepVoiceTransition({
             ? "Your recording is ready. Captions need another look before you share your Keep."
             : "Not polished. Not performed. Just you, exactly as they should hear you.";
 
-  return <div className="keep-voice-transition fixed inset-0 z-[95] flex items-center justify-center overflow-y-auto bg-[#211A14]/75 px-4 py-[max(18px,env(safe-area-inset-top))] sm:px-6">
+  // Render outside the animated screen. iOS Safari otherwise positions fixed overlays
+  // against a transformed ancestor and scrolls the focused button offscreen.
+  if (typeof document === "undefined") return null;
+  return createPortal(<div className="keep-voice-transition fixed inset-0 z-[200] flex items-center justify-center overflow-y-auto bg-[#211A14]/75 px-4 py-[max(18px,env(safe-area-inset-top))] sm:px-6">
     <section role="dialog" aria-modal="true" aria-labelledby="keep-voice-transition-title"
       className="keep-voice-transition-card relative my-auto w-full max-w-[460px] overflow-hidden rounded-[28px] border border-[#E6D9C9] bg-[#FBF8F3] px-6 pb-7 pt-7 text-center text-[#211A16] shadow-[0_30px_100px_rgba(24,17,10,.34)] sm:px-10 sm:pb-9 sm:pt-9">
       <div className="keep-voice-transition-glow pointer-events-none absolute left-1/2 top-16 size-64 -translate-x-1/2 rounded-full" aria-hidden="true"/>
@@ -80,7 +84,7 @@ export function KeepVoiceTransition({
         </div>
 
         {!processing && <>
-          {!missingRecording && <button type="button" autoFocus onClick={onContinue}
+          {!missingRecording && <button type="button" onClick={onContinue}
             className="mt-7 flex min-h-[54px] w-full items-center justify-center gap-2 rounded-xl bg-[#1D1A17] px-5 text-[13px] font-medium text-[#FCF8F2] shadow-[0_12px_25px_rgba(29,26,23,.16)] transition-transform hover:bg-[#342B24] active:scale-[.99]">
             {returnToEditor ? "Back to my Keep" : "Continue my Keep"} <ArrowRight aria-hidden="true" className="size-4"/>
           </button>}
@@ -98,5 +102,5 @@ export function KeepVoiceTransition({
         </>}
       </div>
     </section>
-  </div>;
+  </div>, document.body);
 }
