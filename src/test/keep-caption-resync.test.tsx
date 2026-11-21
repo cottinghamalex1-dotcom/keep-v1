@@ -71,7 +71,7 @@ describe("caption-to-voice synchronization controls", () => {
     render(editor(cb, { syncing: true }));
     expect(screen.getByRole("button", { name: "Syncing…" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Preview" })).toBeDisabled();
-    expect(screen.getByRole("status")).toHaveTextContent("Re-aligning captions");
+    expect(screen.getByRole("status")).toHaveTextContent("Preparing your saved voice");
   });
   it("clearly indicates when caption timings are estimated", () => {
     const cb = callbacks();
