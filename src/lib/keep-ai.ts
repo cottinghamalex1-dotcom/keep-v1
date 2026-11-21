@@ -111,12 +111,13 @@ function reliableWordTimes(words: TimedWord[], duration: number): boolean {
     reversed === 0;
 }
 
-export async function transcribeTimedAudio(blob: Blob, mimeType?: string, prompt?: string) {
+export async function transcribeTimedAudio(blob: Blob, mimeType?: string, prompt?: string, onProgress?: (completed: number, total: number) => void) {
   const decoded = await voiceChunks(blob);
   const duration = decoded?.duration ?? 0;
   const parts = decoded?.chunks ?? [{ file: blob, offset: 0, duration: 0 }];
   const transcripts: string[] = [];
   const words: TimedWord[] = [];
+  onProgress?.(0, parts.length);
   for (const [index, part] of parts.entries()) {
     const type = part.file.type || mimeType || blob.type;
     const ext = type.includes("wav") ? "wav" : type.includes("mp4") ? "m4a" : type.includes("ogg") ? "ogg" : "webm";
@@ -139,6 +140,7 @@ export async function transcribeTimedAudio(blob: Blob, mimeType?: string, prompt
       start: Number((w.start + part.offset).toFixed(3)),
       end: Number((w.end + part.offset).toFixed(3)),
     })));
+    onProgress?.(index + 1, parts.length);
   }
   return { transcript: transcripts.filter(Boolean).join(" "), words, audioDurationSec: duration };
 }
