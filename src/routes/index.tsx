@@ -27,7 +27,7 @@ import { KeepAskAIModal, KeepWordChanges } from "@/components/keep-ask-ai-modal"
 import { KeepInterviewIntro } from "@/components/keep-interview-intro";
 import { arrangeWords, spreadMemories, recommendedStyle } from "@/lib/keep-story-layout";
 import { filmTotal, sceneBoundary, sceneDuration, sceneElapsed, sceneIndexAt, sceneSeekTime } from "@/lib/keep-film-timing";
-import { captionAtTime, recoverCaptionTiming } from "@/lib/keep-caption-timing";
+import { captionAtTime, captionTimingIsBroken, recoverCaptionTiming } from "@/lib/keep-caption-timing";
 import { activeKeepSession, loadEditableKeep, loadCloudDraft, saveCloudDraft, removeCloudDraft, retryMissingCloudMedia } from "@/lib/keep-cloud";
 import { CinematicMedia } from "@/components/cinematic-media";
 import { createFileRoute, Link } from "@tanstack/react-router";
@@ -834,18 +834,19 @@ function KeepApp() {
       const prompt = project.messageParagraphs.join(" ").slice(0, 700);
       const timed = await transcribeTimedAudio(blob, mimeType, prompt);
       const cues = groupTimedWords(timed.words, project.captionWordsPerCue ?? 5);
-      if (!cues.length) throw new Error("No timestamped words returned");
-      // Some transcription responses contain impossible timestamps: dozens of
-      // words can pile up at one instant, leaving long stretches with no captions.
-      // Preserve every recognized word and reconstruct estimated cue timing.
-      const corrected = recoverCaptionTiming(timed.words, cues, recordedDuration);
-      // A finished transcription must never overwrite a newer recording.
+      const trueDuration = timed.audioDurationSec > 0 ? timed.audioDurationSec : recordedDuration;
+      if (!cues.length || captionTimingIsBroken(timed.words, cues, trueDuration)) {
+        throw new Error("These word timestamps aren't reliable enough to show with your voice.");
+      }
+      // Respect the decoded recording clock, never transcript-length estimates.
       if (request !== captionSyncToken.current) return false;
       setProject((o) => sourceAudioId && o.finalVoiceRecording?.audioId !== sourceAudioId ? o : ({
-        ...o, captionTranscript: timed.transcript, captionWords: corrected.words,
-        captionCues: corrected.cues, captionTimingEstimated: corrected.repaired,
+        ...o,
+        finalVoiceRecording: o.finalVoiceRecording && trueDuration > 0
+          ? { ...o.finalVoiceRecording, durationSec: trueDuration } : o.finalVoiceRecording,
+        captionTranscript: timed.transcript, captionWords: timed.words,
+        captionCues: cues, captionTimingEstimated: false,
       }));
-      if (corrected.repaired) toast.info("Some caption timing was unreliable, so we spaced the phrases across your recording. Please review.");
       return true;
     } catch {
       if (request !== captionSyncToken.current) return false;
@@ -1741,6 +1742,10 @@ function KeepApp() {
     if (publishingLock.current) return;
     const original = updated ?? project;
     if (captionSyncing) { setPublishError("Keep is still syncing your captions. Finish that step before sharing."); return; }
+    if (original.captionStyle !== "None" && original.captionTimingEstimated) {
+      setPublishError("These captions use estimated timestamps. Re-sync to your actual voice in the editor, or switch captions off before publishing.");
+      return;
+    }
     if (original.captionStyle !== "None" && original.finalVoiceRecording && !original.finalVoiceRecording.demo && !original.captionCues.length) {
       setPublishError("Your captions are missing. Return to the editor, open Captions, and retry syncing before sharing.");
       return;
