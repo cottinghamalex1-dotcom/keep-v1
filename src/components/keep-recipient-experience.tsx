@@ -23,6 +23,7 @@ type Props = {
   media?: PlayerMedia[] | undefined;
   readMedia?: PlayerMedia[] | undefined;
   audioUrl?: string | undefined;
+  renderedVideoUrl?: string | undefined;
   audioDuration?: number | undefined;
   messageParagraphs?: string[] | undefined;
   speakerNames?: string[] | undefined;
@@ -61,6 +62,7 @@ export function KeepRecipientExperience({
   closingLine,
   media,
   audioUrl,
+  renderedVideoUrl,
   audioDuration = 150,
   messageParagraphs,
   speakerNames,
@@ -333,7 +335,13 @@ export function KeepRecipientExperience({
   if (stage === "reveal" || (stage === "experience" && experience === "watch")) {
     const watching = stage === "experience";
     return <main className="app-shell relative">
-      {watching && <KeepPlayer key="recipient-film"
+      {watching && renderedVideoUrl && <div className="flex min-h-dvh flex-col items-center justify-center bg-[#171311] px-3 pb-[max(28px,env(safe-area-inset-bottom))] pt-[max(18px,env(safe-area-inset-top))] text-[#F7EEE6]">
+        <button type="button" onClick={backToChoose} className="mb-4 flex min-h-11 items-center gap-2 self-start px-4 text-sm"><ArrowLeft className="size-4" /> Back to experiences</button>
+        <video key={renderedVideoUrl} src={renderedVideoUrl} controls playsInline preload="metadata" onLoadedData={() => setOpeningFrameReady(true)} onEnded={finishExperience}
+          className="aspect-[9/16] max-h-[78dvh] w-full max-w-[450px] rounded-lg bg-black object-contain" aria-label="Finished Keep film with seeking controls" />
+        <p className="mt-3 text-xs text-[#D5C1AD]">Tap play to watch. Drag the video timeline to revisit any moment.</p>
+      </div>}
+      {watching && !renderedVideoUrl && <KeepPlayer key="recipient-film"
         name={name.toUpperCase()} from={from} year={year} subtitle={subtitle} openingMessage={openingMessage} closingLine={closingLine}
         recipient onExit={backToChoose} onFinish={finishExperience}
         style={style} captions={captions} media={media} audioUrl={audioUrl}
@@ -342,7 +350,7 @@ export function KeepRecipientExperience({
         voiceVolume={voiceVolume} musicVolume={musicVolume}
         captionPosition={captionPosition} captionLines={captionLines}
         audioMix={audioMix} onOpeningFrameReady={() => setOpeningFrameReady(true)} />}
-      {(stage === "reveal" || introHandoff) && <div key="recipient-intro"
+      {(stage === "reveal" || (introHandoff && !renderedVideoUrl)) && <div key="recipient-intro"
         aria-hidden={watching} inert={watching}
         onTransitionEnd={event => {
           if (watching && openingFrameReady && event.target === event.currentTarget) setIntroHandoff(false);
