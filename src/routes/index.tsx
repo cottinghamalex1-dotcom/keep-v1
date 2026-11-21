@@ -28,7 +28,7 @@ import { KeepInterviewIntro } from "@/components/keep-interview-intro";
 import { arrangeWords, spreadMemories, recommendedStyle } from "@/lib/keep-story-layout";
 import { filmTotal, sceneBoundary, sceneDuration, sceneElapsed, sceneIndexAt, sceneSeekTime } from "@/lib/keep-film-timing";
 import { captionAtTime, captionTimingIsBroken, recoverCaptionTiming } from "@/lib/keep-caption-timing";
-import { activeKeepSession, loadEditableKeep, loadCloudDraft, saveCloudDraft, removeCloudDraft, retryMissingCloudMedia } from "@/lib/keep-cloud";
+import { activeKeepSession, loadEditableKeep, loadCloudDraft, saveCloudDraft, removeCloudDraft, retryMissingCloudMedia, loadSavedVoiceForCaptionSync } from "@/lib/keep-cloud";
 import { CinematicMedia } from "@/components/cinematic-media";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useRef, useState, type ChangeEvent, type ReactNode, type CSSProperties } from "react";
@@ -264,6 +264,9 @@ function KeepApp() {
   const [recoveryPreview, setRecoveryPreview] = useState<{id:string;url:string;blob:Blob;durationSec:number}|null>(null);
   const [captionSyncing, setCaptionSyncing] = useState(false);
   const [captionSyncError, setCaptionSyncError] = useState(false);
+  const [captionSyncErrorMessage, setCaptionSyncErrorMessage] = useState("");
+  const [captionSyncProgress, setCaptionSyncProgress] = useState<{completed: number; total: number} | null>(null);
+  const captionRetryInFlight = useRef(false);
   const captionSyncToken = useRef(0);
   const [musicSampling, setMusicSampling] = useState("");
   const musicSampleTimer = useRef<number | null>(null);
@@ -830,9 +833,13 @@ function KeepApp() {
     const request = ++captionSyncToken.current;
     setCaptionSyncing(true);
     setCaptionSyncError(false);
+    setCaptionSyncErrorMessage("");
+    setCaptionSyncProgress(null);
     try {
       const prompt = project.messageParagraphs.join(" ").slice(0, 700);
-      const timed = await transcribeTimedAudio(blob, mimeType, prompt);
+      const timed = await transcribeTimedAudio(blob, mimeType, prompt, (completed, total) => {
+        if (request === captionSyncToken.current) setCaptionSyncProgress({completed, total});
+      });
       const cues = groupTimedWords(timed.words, project.captionWordsPerCue ?? 5);
       const trueDuration = timed.audioDurationSec > 0 ? timed.audioDurationSec : recordedDuration;
       if (!cues.length || captionTimingIsBroken(timed.words, cues, trueDuration)) {
@@ -848,13 +855,18 @@ function KeepApp() {
         captionCues: cues, captionTimingEstimated: false,
       }));
       return true;
-    } catch {
+    } catch (error) {
       if (request !== captionSyncToken.current) return false;
+      const message = error instanceof Error ? error.message : "Caption alignment failed. Please try again.";
       setCaptionSyncError(true);
-      toast.error("Captions couldn't sync. Please retry before sharing your Keep.");
+      setCaptionSyncErrorMessage(message);
+      toast.error("Caption sync couldn't complete", { description: message, duration: 9000 });
       return false;
     } finally {
-      if (request === captionSyncToken.current) setCaptionSyncing(false);
+      if (request === captionSyncToken.current) {
+        setCaptionSyncing(false);
+        setCaptionSyncProgress(null);
+      }
     }
   };
 
@@ -1041,29 +1053,56 @@ function KeepApp() {
   };
 
   const retryCaptionSync = async (): Promise<boolean> => {
-    if (!rec?.audioUrl || rec.demo || captionSyncing) return false;
-    try {
-      const response = await fetch(rec.audioUrl);
-      if (!response.ok) throw new Error("Recording unavailable");
-      const blob = await response.blob();
-      if (!blob.size) throw new Error("Recording is empty");
-      return await syncFinalCaptions(blob, rec.mimeType, rec.durationSec, rec.audioId);
-    } catch {
-      setCaptionSyncError(true);
-      setCaptionSyncing(false);
-      toast.error("Couldn't read the recording to sync captions. Your voice is unchanged.");
+    if (!rec || rec.demo || (!rec.audioId && !rec.audioUrl)) {
+      toast.error("This Keep has no saved voice recording to re-sync.");
       return false;
+    }
+    if (captionSyncing || captionRetryInFlight.current) {
+      toast.info("Your captions are already being synchronized.");
+      return false;
+    }
+    captionRetryInFlight.current = true;
+    setCaptionSyncing(true);
+    setCaptionSyncError(false);
+    setCaptionSyncErrorMessage("");
+    setCaptionSyncProgress(null);
+    try {
+      // The saved draft may contain the original voice ID but no temporary
+      // browser URL after a slow iPhone cloud restore. Use the private backup.
+      let blob: Blob | undefined;
+      if (rec.audioId) blob = await loadSavedVoiceForCaptionSync(rec.audioId);
+      else if (rec.audioUrl) {
+        const response = await fetch(rec.audioUrl);
+        if (!response.ok) throw new Error("Your recorded voice could not be opened.");
+        blob = await response.blob();
+      }
+      if (!blob?.size) throw new Error("Your recorded voice is unavailable. Try reopening your saved Keep.");
+      if (rec.audioId && !rec.audioUrl) {
+        const restoredUrl = URL.createObjectURL(blob);
+        setProject(old => old.finalVoiceRecording?.audioId === rec.audioId
+          ? { ...old, finalVoiceRecording: { ...old.finalVoiceRecording, audioUrl: restoredUrl } }
+          : old);
+      }
+      return await syncFinalCaptions(blob, rec.mimeType || blob.type, rec.durationSec, rec.audioId);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Your voice recording couldn't be recovered.";
+      setCaptionSyncError(true);
+      setCaptionSyncErrorMessage(message);
+      toast.error("Couldn't re-sync captions", { description: message, duration: 9000 });
+      return false;
+    } finally {
+      captionRetryInFlight.current = false;
+      setCaptionSyncing(false);
     }
   };
   const resyncCaptionsFromVoice = async () => {
-    if (!rec?.audioUrl || rec.demo || captionSyncing) return;
-    if (project.captionCues.length && !window.confirm("Re-syncing captions will replace manual caption wording and timing. Your recorded voice stays unchanged. Continue?")) return;
+    // The editor presents a reliable inline confirmation on iPhone.
     setEditorPlaying(false);
     editorAudioRef.current?.pause();
     const synced = await retryCaptionSync();
     if (synced) {
       seekEditor(0);
-      toast.success("Captions re-synced with your voice. Preview to check their timing.");
+      toast.success("Captions re-synced to your saved voice. Preview them before publishing.");
     }
   };
   useEffect(() => {
@@ -2494,8 +2533,10 @@ function KeepApp() {
           wordsPerCue={project.captionWordsPerCue ?? 5}
           syncing={captionSyncing}
           syncError={captionSyncError}
+          syncErrorMessage={captionSyncErrorMessage}
+          syncProgress={captionSyncProgress}
           timingEstimated={!!project.captionTimingEstimated}
-          hasVoice={!!rec?.audioUrl && !rec.demo}
+          hasVoice={!!rec && !rec.demo && (!!rec.audioId || !!rec.audioUrl)}
           canRestore={!!project.captionWords?.length}
           onClose={() => { setEditorExpanded(false); setEditorPanel(null); }}
           onSeek={(seconds) => { setEditorPlaying(false); seekEditor(seconds); }}
