@@ -81,7 +81,7 @@ export function KeepFilmRender({ keepId, musicMood }: { keepId: string; musicMoo
         .catch(cause => { if (!cancelled) setError(cause instanceof Error ? cause.message : "Couldn't check film status."); });
     }, 7000);
     return () => { cancelled = true; window.clearTimeout(timeout); };
-  }, [keepId, job.status, job.providerStatus, job.id]);
+  }, [keepId, job]);
   const act = async (action: "start" | "recover" | "retry") => {
     if (busy) return;
     if (action === "retry" && !window.confirm("Render a new film? This may incur another Shotstack rendering charge. If an existing MP4 was completed, use Retry saving first.")) return;
