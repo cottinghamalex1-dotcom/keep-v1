@@ -8,7 +8,7 @@ vi.mock("@/lib/keep-ai", () => ({ fetchOpeningSuggestions: vi.fn() }));
 
 afterEach(() => { cleanup(); vi.clearAllMocks(); });
 
-it("offers three transcript-specific choices, mirrors the selected inscription and permits no opening", async () => {
+it("offers three transcript-specific opening choices and permits no opening", async () => {
   const options = [
     "The everyday things you do are the things we cherish most.",
     "We hope you always feel the love we share with you.",
@@ -25,13 +25,12 @@ it("offers three transcript-specific choices, mirrors the selected inscription a
   expect(fetchOpeningSuggestions).toHaveBeenCalledWith("Andi", "Birthday", ["The everyday moments with you are always the ones we cherish most."]);
   const second = screen.getByText(options[1]!);
   fireEvent.click(second);
-  const card = screen.getByLabelText("Preview of the front of your Keep card");
-  expect(card.textContent).toContain(options[1]);
+  expect(screen.getByRole("textbox", { name: "Custom opening message" })).toHaveValue(options[1]);
   fireEvent.click(screen.getByRole("button", { name: /No opening message/ }));
-  expect(card.textContent).not.toContain(options[1]);
+  expect(screen.getByRole("textbox", { name: "Custom opening message" })).toHaveValue("");
 });
 
-it("previews the first film image and dedication without navigating to the recipient welcome page", () => {
+it("opens the dark dedication screen immediately without covering the first photo", () => {
   function Harness() {
     const [p, setP] = useState({
       ...newProject(),
@@ -43,11 +42,13 @@ it("previews the first film image and dedication without navigating to the recip
     return <KeepOpeningPersonalization project={p} onUpdate={values => setP(old => ({ ...old, ...values }))} />;
   }
   render(<Harness />);
-  fireEvent.click(screen.getByRole("button", { name: /Preview first Keep image/ }));
-  const dialog = screen.getByRole("dialog", { name: "First Keep image preview" });
+  fireEvent.click(screen.getByRole("button", { name: /Preview opening screen/ }));
+  const dialog = screen.getByRole("dialog", { name: "Opening screen preview" });
   expect(dialog).toBeTruthy();
-  expect(screen.getByAltText("First photo in your Keep").getAttribute("src")).toBe("/our-home.jpg");
   expect(dialog.textContent).toContain("You made our house a home.");
-  fireEvent.click(screen.getByRole("button", { name: "Close first image preview" }));
-  expect(screen.queryByRole("dialog", { name: "First Keep image preview" })).toBeNull();
+  expect(dialog.textContent).toContain("The film opens on this dark dedication");
+  expect(dialog.querySelector("img")).toBeNull();
+  expect(dialog.querySelector(".bg-\\[\\#171311\\]")).toBeTruthy();
+  fireEvent.click(screen.getByRole("button", { name: "Close opening preview" }));
+  expect(screen.queryByRole("dialog", { name: "Opening screen preview" })).toBeNull();
 });
