@@ -48,7 +48,7 @@ it("opens the dark dedication screen immediately without covering the first phot
   expect(dialog.textContent).toContain("You made our house a home.");
   expect(dialog.textContent).toContain("The film opens on this dark dedication");
   expect(dialog.querySelector("img")).toBeNull();
-  expect(dialog.querySelector(".bg-\\[\\#171311\\]")).toBeTruthy();
+  expect(dialog.querySelector('div[class*="bg-[#171311]"]')).toBeTruthy();
   fireEvent.click(screen.getByRole("button", { name: "Close opening preview" }));
   expect(screen.queryByRole("dialog", { name: "Opening screen preview" })).toBeNull();
 });
