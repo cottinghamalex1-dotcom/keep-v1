@@ -1,6 +1,7 @@
 import { KeepAppMenu } from "@/components/keep-app-menu";
 import { viewingLink } from "@/lib/keep-publish";
 import { KeepLibraryCard } from "@/components/keep-library-card";
+import { KeepFilmRender } from "@/components/keep-film-render";
 import { KeepCreateCTA } from "@/components/keep-create-cta";
 import { KeepPhoneTip } from "@/components/keep-phone-tip";
 import { KeepLoadingScreen } from "@/components/keep-loading-screen";
@@ -27,7 +28,7 @@ const endpoint = "https://lwkzhpwugtosbidxvdcr.supabase.co";
 const publicKey = "sb_publishable_K8_SWJByLhV78h7gY4NySw_4sgjEVTi";
 type Session = { access_token: string; refresh_token: string; expires_at?: number; user: { id: string; email?: string } };
 type Card = { id: string; card_code: string; recipient_label: string | null; status: string; creator_id: string | null; recipient_id: string | null; keep_id: string | null };
-type Keep = { id: string; recipient_name: string | null; status: string; recipient_token: string; published_at: string | null; created_at?: string | null; occasion?: string | null; published_project?: {openingMessage?:string;messageParagraphs?:string[]}|null };
+type Keep = { id: string; recipient_name: string | null; status: string; recipient_token: string; published_at: string | null; created_at?: string | null; occasion?: string | null; published_project?: {openingMessage?:string;messageParagraphs?:string[];musicMood?:string}|null };
 const sessionKey = "keep-app-session";
 function readSession(): Session | null { try { const s = localStorage.getItem(sessionKey); return s ? JSON.parse(s) as Session : null; } catch { return null; } }
 function KeepDashboard() {
@@ -204,11 +205,13 @@ function KeepDashboard() {
                   <button type="button" disabled={deletingDraft} onClick={()=>void removeStandaloneDraft()} className="flex min-h-11 items-center gap-2 text-xs text-[#8C574C] disabled:opacity-50"><Trash2 className="size-4"/>{deletingDraft?"Deleting…":"Delete draft"}</button>
                 </div>}
               </article>}
-            {keeps.map(keep=><KeepLibraryCard key={keep.id} keep={keep} thumbnail={thumbnails[keep.id]}
+            {keeps.map(keep=><div key={keep.id}><KeepLibraryCard keep={keep} thumbnail={thumbnails[keep.id]}
               expanded={expandedKeep===keep.id} copied={copiedKeep===keep.id} deleting={deletingKeep===keep.id}
               onToggle={()=>setExpandedKeep(expandedKeep===keep.id?null:keep.id)}
               onCopy={()=>void (async()=>{try{await navigator.clipboard.writeText(viewingLink(keep.recipient_token));setCopiedKeep(keep.id);toast.success("Link copied");}catch{toast.error("Copy unavailable. Open the Keep and copy its address.");}})()}
-              onDelete={()=>void removeKeep(keep)}/>)}
+              onDelete={()=>void removeKeep(keep)}/>
+              {expandedKeep===keep.id && keep.status==="ready" && !!keep.published_at && <div className="mt-3"><KeepFilmRender keepId={keep.id} musicMood={keep.published_project?.musicMood ?? "Warm + Nostalgic"} /></div>}
+            </div>)}
           </div>
         </section>}
         <div className="grid grid-cols-2 gap-3">
