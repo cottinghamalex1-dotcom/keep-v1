@@ -26,6 +26,34 @@ async function request(path: string, session: KeepSession, options: RequestInit 
   if (!res.ok) { const err = await res.text(); throw new Error("Cloud sync failed ("+res.status+"): "+err.slice(0,160)); }
   return res;
 }
+/**
+ * Read the creator's original voice for caption re-sync even when an iPhone
+ * could not restore its temporary blob: URL during the full media download.
+ * Storage access uses the signed-in owner's token; no public URLs are created.
+ */
+export async function loadSavedVoiceForCaptionSync(audioId: string): Promise<Blob> {
+  if (!audioId?.trim()) throw new Error("This Keep has no saved voice recording.");
+  try {
+    const local = await getBlob(audioId);
+    if (local?.size) return local;
+  } catch { /* IndexedDB may be unavailable on iOS; use the owner's cloud copy. */ }
+  const session = await activeKeepSession();
+  if (!session) throw new Error("Sign in to Keep again to restore your voice recording.");
+  const path = encodeURIComponent(session.user.id) + "/" + encodeURIComponent(audioId);
+  let response: Response;
+  try {
+    response = await request("/storage/v1/object/authenticated/keep-draft-media/" + path, session);
+  } catch {
+    throw new Error("The voice backup couldn't be downloaded. Check your connection and retry; your published Keep is safe.");
+  }
+  const blob = await response.blob();
+  if (!blob.size) throw new Error("The voice backup was empty. Please retry.");
+  // The cloud copy is authoritative; an IndexedDB quota failure should not
+  // prevent the caption sync from proceeding with the recovered voice.
+  try { await putBlob(audioId, blob); } catch { /* safe to process in memory */ }
+  return blob;
+}
+
 function fileRefs(project: KeepProject): string[] {
   return Array.from(new Set([
     ...project.memories.filter(m=>m.source==="upload").map(m=>m.blobId??m.id),
