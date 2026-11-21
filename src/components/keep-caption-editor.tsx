@@ -6,6 +6,8 @@ type Props = {
   cues: CaptionCue[]; time: number; style: string; position: "top" | "middle" | "bottom";
   maxLines: number; wordsPerCue: number; syncing: boolean; syncError: boolean;
   timingEstimated: boolean; hasVoice: boolean; canRestore: boolean;
+  syncProgress?: { completed: number; total: number } | null;
+  syncErrorMessage?: string;
   onClose: () => void; onSeek: (seconds: number) => void;
   onChangeCaption: (index: number, text: string) => void;
   onChangeCaptionTime: (index: number, start: number, end: number) => void;
@@ -18,11 +20,12 @@ const extraStyles = ["Reel", "None"];
 const format = (seconds: number) => `${Math.floor(seconds / 60)}:${String(Math.floor(seconds % 60)).padStart(2, "0")}`;
 
 export function KeepCaptionEditor({
-  cues, time, style, position, maxLines, wordsPerCue, syncing, syncError, timingEstimated, hasVoice, canRestore,
+  cues, time, style, position, maxLines, wordsPerCue, syncing, syncError, timingEstimated, hasVoice, canRestore, syncProgress, syncErrorMessage,
   onClose, onSeek, onChangeCaption, onChangeCaptionTime, onChangeStyle, onChangePosition,
   onChangeLines, onRegroup, onRestore, onRetrySync, onResync, onPreviewSync,
 }: Props) {
   const [moreStyles, setMoreStyles] = useState(false);
+  const [confirmResync, setConfirmResync] = useState(false);
   const current = cues.reduce((last, cue, index) => time + .01 >= cue.start ? index : last, 0);
   const selected = cues[current];
   const choose = (index: number) => { const cue = cues[index]; if (cue) onSeek(cue.start + .02); };
@@ -41,11 +44,12 @@ export function KeepCaptionEditor({
     {hasVoice && <div className="mt-3 rounded-xl border border-[#6A5948] bg-[#2C2621] px-3 py-3" aria-label="Caption voice synchronization">
       <div className="flex items-center gap-2 text-[11px] text-[#E3D4C3]" role="status">
         {syncing ? <Loader2 className="size-3.5 shrink-0 animate-spin text-[#D9C0A1]" aria-hidden="true" /> : !syncError && cues.length ? <Check className="size-3.5 shrink-0 text-[#D9C0A1]" aria-hidden="true" /> : <RotateCcw className="size-3.5 shrink-0 text-[#D9C0A1]" aria-hidden="true" />}
-        <span>{syncing ? "Re-aligning captions with your recording…" : syncError ? "Caption sync needs attention" : cues.length ? timingEstimated ? "Caption timing was estimated — review recommended" : "Captions aligned to your voice" : "Captions aren't ready yet"}</span>
+        <span>{syncing ? syncProgress?.total ? `Re-aligning captions · section ${syncProgress.completed} of ${syncProgress.total} completed` : "Preparing your saved voice…" : syncError ? "Caption sync needs attention" : cues.length ? timingEstimated ? "Caption timing was estimated — review recommended" : "Captions aligned to your voice" : "Captions aren't ready yet"}</span>
       </div>
       <p className="mt-1 text-[10px] leading-4 text-[#C4B4A2]">Rebuild timing from your saved voice. Your actual recording stays unchanged.</p>
+      {syncError && syncErrorMessage && <p role="alert" className="mt-2 text-[11px] leading-5 text-[#F2C3B3]">{syncErrorMessage}</p>}
       <div className="mt-3 flex flex-col gap-2 min-[400px]:flex-row">
-        <button type="button" onClick={cues.length ? onResync : onRetrySync} disabled={syncing}
+        <button type="button" onClick={() => cues.length ? setConfirmResync(true) : onRetrySync()} disabled={syncing}
           className="keep-studio-secondary-action flex min-h-10 flex-1 items-center justify-center gap-2 border-[#9E866D] px-3 text-[11px] font-semibold text-[#F5E5D1] disabled:cursor-not-allowed disabled:opacity-55">
           {syncing ? <Loader2 className="size-3.5 animate-spin" /> : <RotateCcw className="size-3.5" />}
           {syncing ? "Syncing…" : "Re-sync captions to voice"}
@@ -53,6 +57,14 @@ export function KeepCaptionEditor({
         {cues.length > 0 && <button type="button" onClick={onPreviewSync} disabled={syncing}
           className="keep-studio-secondary-action flex min-h-10 items-center justify-center gap-2 px-3 text-[11px] disabled:opacity-55"><Play className="size-3.5" /> Preview</button>}
       </div>
+      {confirmResync && !syncing && <div role="group" aria-label="Confirm caption re-sync" className="mt-3 rounded-lg border border-[#B69A79] bg-[#3C3028] p-3">
+        <p className="text-[12px] font-medium text-[#F5E5D1]">Re-sync the captions from your saved voice?</p>
+        <p className="mt-1 text-[11px] leading-5 text-[#D5C5B6]">This replaces the old caption text and timing. Your voice recording, photos and film edits stay untouched.</p>
+        <div className="mt-3 grid grid-cols-2 gap-2">
+          <button type="button" onClick={() => setConfirmResync(false)} className="min-h-11 rounded-lg border border-[#8A7662] px-3 text-[12px]">Cancel</button>
+          <button type="button" onClick={() => { setConfirmResync(false); onResync(); }} className="min-h-11 rounded-lg bg-[#F4E8DB] px-3 text-[12px] font-semibold text-[#2C2219]">Re-sync now</button>
+        </div>
+      </div>}
     </div>}
     {selected && <div className="mt-2.5 rounded-xl border border-[#55493F] bg-[#26231F] px-3 py-2.5">
       <div className="mb-2 flex items-center justify-between text-[11px] text-[#E2D8CC]">
