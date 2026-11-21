@@ -17,6 +17,7 @@ import { KeepPhoneTip } from "@/components/keep-phone-tip";
 import { KeepStudioResize, DEFAULT_PREVIEW_SIZE, constrainPreviewSize } from "@/components/keep-studio-resize";
 import { KeepTeleprompter } from "@/components/keep-teleprompter";
 import { KeepVoiceTransition } from "@/components/keep-voice-transition";
+import { KeepFilmRender } from "@/components/keep-film-render";
 import { KeepStyleEditor } from "@/components/keep-style-editor";
 import { KeepSelfieEditor } from "@/components/keep-selfie-editor";
 import { KeepSelfiePrompt } from "@/components/keep-selfie-prompt";
@@ -2654,7 +2655,7 @@ function KeepApp() {
     />}
     {screen === "card" && <>{top()}<div className="mx-auto max-w-xl px-7 pb-14 pt-7">
       {title("The final touch", "Make the first and last moments theirs.", "Choose the opening and closing words for the finished film. You’ll finalize your physical Keep card details at checkout.")}
-      <KeepOpeningPersonalization project={project} onUpdate={patch} disabled={publishing} engravingEnabled={false} />
+      <KeepOpeningPersonalization project={project} onUpdate={patch} disabled={publishing} />
       <div className="mt-10 border-t border-border pt-7">
         <Button variant="keep" size="touch" className="keep-premium-action w-full justify-between" disabled={publishing} onClick={() => void finishAndShare()}>
           {publishing ? "Saving your Keep…" : "Finish my Keep"} <ArrowRight className="size-5" />
@@ -2675,6 +2676,7 @@ function KeepApp() {
         <p className="mt-6 text-sm leading-6 text-muted-foreground">You can review or share your digital Keep now. Choose your physical card package, engraving, and additional cards during checkout.</p>
       </div>
       <div className="mt-11 space-y-3">
+        {project.publicationId && <KeepFilmRender keepId={project.publicationId} musicMood={project.musicMood} />}
         {project.publicationToken && <ViewingLink token={project.publicationToken} />}
         <Button variant="quiet" size="touch" className="w-full" onClick={() => go("editor")}>Back to editor</Button>
         <Button asChild variant="quiet" size="touch" className="w-full"><Link to="/app">Back to Keeps</Link></Button>
