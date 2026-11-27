@@ -37,6 +37,8 @@ describe("Photo-first recording flow", () => {
   });
   it("does not jump into the editor after uploading photos before recording", () => {
     expect(resumeKeepRecordingFlow(draft({ stage: "memories", memories: [photo] }))).toBe("memories");
+    expect(resumeKeepRecordingFlow(draft({ stage: "framing", framingReviewIndex: 0, memories: [photo] }))).toBe("framing");
+    expect(resumeKeepRecordingFlow(draft({ stage: "framing", framingReviewOrigin: "editor", memories: [photo], finalVoiceRecording: voice }))).toBe("framing");
     expect(resumeKeepRecordingFlow(draft({ stage: "message", memories: [photo] }))).toBe("message");
     expect(resumeKeepRecordingFlow(draft({ stage: "recordPrep", memories: [photo], recordingVisualMode: "selfie" }))).toBe("recordPrep");
     expect(resumeKeepRecordingFlow(draft({ stage: "record", memories: [photo], recordingVisualMode: "photos" }))).toBe("record");

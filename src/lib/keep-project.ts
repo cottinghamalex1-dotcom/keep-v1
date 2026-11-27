@@ -112,6 +112,9 @@ export type KeepProject = {
   captionPosition?: "top" | "middle" | "bottom";
   creationStyle?: "memories" | "words";
   memories: MediaItem[];
+  /** Resume a photo/video framing review without losing the current position. */
+  framingReviewIndex?: number;
+  framingReviewOrigin?: "memories" | "remoteInvite" | "editor";
   /** Optional front-camera recording sources, saved once and reused for visual clips. */
   selfieVideos?: MediaItem[];
   /** Non-selfie moments remain available even when Full selfie hides them in Watch. */
@@ -163,7 +166,7 @@ export function resumeKeepCreationStage(stage: string): string {
 export const stageLabels: Record<string, string> = {
   recipient: "Choosing who it's for", occasion: "Choosing the occasion", voices: "Choosing the voices", intent: "Expressing the heart behind it", feelings: "Expressing the heart behind it", remoteInvite: "Collecting voices remotely", groupRecord: "Recording together", path: "Finding the words", interview: "In the interview",
   summary: "Story gathered", write: "Writing the message", message: "Shaping the message", recordPrep: "Getting ready to record", record: "Recording your voice",
-  recorded: "Voice recorded", memories: "Adding memories", editor: "In the editor", card: "Final touches", finalizing: "Finishing film", success: "Ready",
+  recorded: "Voice recorded", memories: "Adding memories", framing: "Framing photos & videos", editor: "In the editor", card: "Final touches", finalizing: "Finishing film", success: "Ready",
 };
 
 // Keep the latest pointer and per-Keep snapshots separate for each account.

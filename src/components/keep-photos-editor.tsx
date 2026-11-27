@@ -1,5 +1,5 @@
 import { useRef } from "react";
-import { ChevronLeft, ChevronRight, Images, Play, Plus, Trash2, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, Images, Move, Play, Plus, Trash2, X } from "lucide-react";
 import type { MediaItem } from "@/lib/keep-project";
 
 type Transition = NonNullable<MediaItem["transition"]>;
@@ -11,12 +11,13 @@ type Props = {
   onAdd: () => void;
   onReplace: () => void;
   onMove: (from: number, to: number) => void;
+  onReviewFraming?: (() => void) | undefined;
   onTransition: (transition: Transition) => void;
   onPreviewTransition: () => void;
   onRemove: () => void;
 };
 export function KeepPhotosEditor({ moments, selectedIndex, onClose, onSelect, onAdd, onReplace,
-  onMove, onTransition, onPreviewTransition, onRemove }: Props) {
+  onMove, onReviewFraming, onTransition, onPreviewTransition, onRemove }: Props) {
   const dragging = useRef<number | null>(null);
   const selected = moments[selectedIndex];
   const canTransition = selectedIndex < moments.length - 1;
@@ -35,10 +36,11 @@ export function KeepPhotosEditor({ moments, selectedIndex, onClose, onSelect, on
           className={`relative h-[70px] w-[52px] shrink-0 overflow-hidden rounded-lg border border-[#625447] bg-[#312A25] p-0 ${index===selectedIndex?"ring-2 ring-[#D2BA99]":"opacity-80"}`}>
           {item.kind==="video"
             ? <video src={item.url} muted playsInline preload="metadata" className="h-full w-full object-cover" />
-            : <img src={item.url} alt="" loading="lazy" className="h-full w-full object-contain" />}
+            : <img src={item.url} alt="" loading="lazy" className="h-full w-full object-cover" />}
           {item.kind==="video" && <Play className="absolute bottom-1 left-1 size-3 text-white" fill="currentColor" />}
         </button>)}
     </div>
+    {onReviewFraming && <button type="button" onClick={onReviewFraming} className="keep-studio-secondary-action mt-2 w-full justify-center"><Move className="size-4"/> Review photo &amp; video framing</button>}
     <div className="mt-2 grid grid-cols-2 gap-2">
       <button type="button" onClick={onAdd} className="keep-studio-secondary-action justify-center"><Plus className="size-4"/> Add moments</button>
       <button type="button" onClick={onReplace} className="keep-studio-secondary-action justify-center"><Images className="size-4"/> Replace</button>
@@ -55,7 +57,7 @@ export function KeepPhotosEditor({ moments, selectedIndex, onClose, onSelect, on
         More photo tools <ChevronRight className="size-4" />
       </summary>
       <div className="space-y-3 border-t border-[#51463E] pt-3">
-        <p className="text-[11px] leading-5 text-[#BDB1A5]">Photos keep their full composition. Drag in the preview to adjust their position gently; motion is applied automatically.</p>
+        <p className="text-[11px] leading-5 text-[#BDB1A5]">Drag the photo in the preview above to adjust framing. Gentle motion is applied automatically.</p>
         <div className="grid grid-cols-2 gap-2">
           <button type="button" disabled={selectedIndex===0} onClick={()=>onMove(selectedIndex,selectedIndex-1)} className="keep-studio-secondary-action justify-center disabled:opacity-40"><ChevronLeft className="size-4"/> Earlier</button>
           <button type="button" disabled={!canTransition} onClick={()=>onMove(selectedIndex,selectedIndex+1)} className="keep-studio-secondary-action justify-center disabled:opacity-40">Later <ChevronRight className="size-4"/></button>

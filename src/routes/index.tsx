@@ -13,6 +13,8 @@ import { KeepVoiceEditor } from "@/components/keep-voice-editor";
 import { KeepRemoteInviteManager } from "@/components/keep-remote-invite-manager";
 import { remoteOwnerDownload, type RemoteMediaItem } from "@/lib/keep-remote";
 import { KeepPhotosEditor } from "@/components/keep-photos-editor";
+import { KeepFramingReview } from "@/components/keep-framing-review";
+import { updateMomentFraming } from "@/lib/keep-framing";
 import { clampCaptionRange, removeEditableMoment, shouldPreserveExistingVoice } from "@/lib/keep-editor-safety";
 import { KeepMomentsUploader } from "@/components/keep-moments-uploader";
 import { KeepPhoneTip } from "@/components/keep-phone-tip";
@@ -68,9 +70,9 @@ export const Route = createFileRoute("/")({
   component: KeepRoute,
 });
 
-type Screen = "home" | "you" | "detail" | "recipient" | "occasion" | "voices" | "intent" | "path" | "interview" | "summary" | "messageGenerating" | "write" | "message" | "recordPrep" | "record" | "groupRecord" | "remoteInvite" | "recorded" | "memories" | "storyStyle" | "generating" | "editor" | "preview" | "recipientReveal" | "recipientPreview" | "giveReady" | "card" | "success";
+type Screen = "home" | "you" | "detail" | "recipient" | "occasion" | "voices" | "intent" | "path" | "interview" | "summary" | "messageGenerating" | "write" | "message" | "recordPrep" | "record" | "groupRecord" | "remoteInvite" | "recorded" | "memories" | "framing" | "storyStyle" | "generating" | "editor" | "preview" | "recipientReveal" | "recipientPreview" | "giveReady" | "card" | "success";
 type Mode = "Memories" | "Music" | "Captions" | "Style" | "Voice" | "Selfie";
-const creationScreens: Screen[] = ["recipient", "occasion", "voices", "intent", "path", "interview", "summary", "messageGenerating", "write", "message", "recordPrep", "record", "groupRecord", "remoteInvite", "recorded", "memories", "storyStyle", "generating", "editor", "preview", "recipientPreview", "card", "success"];
+const creationScreens: Screen[] = ["recipient", "occasion", "voices", "intent", "path", "interview", "summary", "messageGenerating", "write", "message", "recordPrep", "record", "groupRecord", "remoteInvite", "recorded", "memories", "framing", "storyStyle", "generating", "editor", "preview", "recipientPreview", "card", "success"];
 const resumeScreen = (s: string): Screen => resumeKeepCreationStage(s) as Screen;
 
 const questions = [
@@ -409,7 +411,7 @@ function KeepApp() {
       void recorder.prepareSelfie();
     }
   }, [screen, selfieSelected, recorder.supported, recorder.prepareSelfie, groupPartIndex]);
-  useEffect(() => { if (screen !== "memories") setSelfieBackupOpen(false); }, [screen]);
+  useEffect(() => { if (screen !== "memories" && screen !== "framing") setSelfieBackupOpen(false); }, [screen]);
   useEffect(() => { if (screen !== "write" && screen !== "intent" && dictationRef.current) { dictationRef.current.stop(); dictationRef.current = null; setDictating(false); } }, [screen]);
   useEffect(() => {
     if (screen === "editor" && returnToEditorAfterRecording) setReturnToEditorAfterRecording(false);
@@ -450,7 +452,7 @@ function KeepApp() {
 
   const resetPageScroll = () => window.requestAnimationFrame(() => window.scrollTo({ top: 0, left: 0, behavior: "auto" }));
   const go = (next: Screen) => { setHistory((h) => [...h, screen]); setScreen(next); resetPageScroll(); };
-  const back = () => { if (publishingLock.current) return; const last = history[history.length - 1] ?? (screen === "intent" ? "voices" : undefined); if (!last || last === "home") { window.location.assign("/app"); return; } setScreen(last); setHistory((h) => h.slice(0, -1)); resetPageScroll(); };
+  const back = () => { if (publishingLock.current) return; const last = (screen === "framing" && (!history.length || history.at(-1) === "home")) ? project.framingReviewOrigin ?? "memories" : history[history.length - 1] ?? (screen === "intent" ? "voices" : undefined); if (!last || last === "home") { window.location.assign("/app"); return; } setScreen(last); setHistory((h) => h.slice(0, -1)); resetPageScroll(); };
   const home = () => { window.location.assign("/app"); };
   const discard = (p: KeepProject) => { releaseUrls(projectObjectUrls(p)); void deleteBlobs(projectBlobIds(p)); };
   const startProject = (p: KeepProject, at: Screen) => {
@@ -1394,11 +1396,31 @@ function KeepApp() {
     patch({ recordingVisualMode: mode });
     go("recordPrep");
   };
-  const continueFromMedia = () => {
+  const beginFramingReview = (origin: NonNullable<KeepProject["framingReviewOrigin"]>) => {
+    setEditorPlaying(false);
+    editorAudioRef.current?.pause();
+    patch({ framingReviewIndex: 0, framingReviewOrigin: origin });
+    go("framing");
+  };
+  const completeMediaReview = () => {
     const next = nextAfterMedia(project, personalMedia.length, minRecommendedMoments);
     if (next === "offerSelfie") setSelfieBackupOpen(true);
     else if (next === "recordPrep") continueToRecording(hasSavedVoice(project) ? project.recordingVisualMode ?? "photos" : "photos");
     else { setStyleTouched(false); go("storyStyle"); }
+  };
+  const continueFromMedia = () => {
+    if (busy || mediaImportLock.current) return;
+    if (personalMedia.length) beginFramingReview("memories");
+    else completeMediaReview();
+  };
+  const completeFramingReview = () => {
+    if (project.framingReviewOrigin === "editor" || project.framingReviewOrigin === "remoteInvite") {
+      if (project.framingReviewOrigin === "editor") {
+        setHistory(h => h.at(-1) === "editor" ? h.slice(0, -1) : h);
+        setScreen("editor");
+        resetPageScroll();
+      } else go("editor");
+    } else completeMediaReview();
   };
   const removeMomentById = (id: string) => {
     if (!id) return;
@@ -2214,7 +2236,7 @@ function KeepApp() {
     </>}
     {screen === "remoteInvite" && <>{top()}<KeepRemoteInviteManager project={project}
       onBack={()=>{setHistory(h=>[...h,"remoteInvite"]);setScreen("message");}}
-      onContinue={()=>{if(returnToEditorAfterRecording || project.memories.length){setHistory(h=>[...h,"remoteInvite"]);setScreen("editor");}else go("memories");}}
+      onContinue={()=>{if (personalMedia.length) beginFramingReview("remoteInvite"); else if(returnToEditorAfterRecording || project.memories.length) go("editor"); else go("memories");}}
       onCombine={combineRemoteVoices} onImportMedia={importContributorMoments} combining={groupBusy}/></>}
     {screen === "recordPrep" && <div className="fixed inset-0 z-[80] flex items-center justify-center overflow-y-auto bg-[#111113]/65 px-4 pb-[max(16px,env(safe-area-inset-bottom))] pt-[max(16px,env(safe-area-inset-top))] backdrop-blur-[5px]">
       <section role="dialog" aria-modal="true" aria-labelledby="record-tips-title" aria-describedby="record-tips-intro" className="flex max-h-[calc(100dvh-32px)] w-full max-w-[440px] flex-col overflow-hidden rounded-[22px] border border-[#E6DED3] bg-[#F7F5F2] text-[#0B0B0B] shadow-[0_24px_80px_rgba(0,0,0,.35)]">
@@ -2408,7 +2430,7 @@ function KeepApp() {
         onAdd={() => addInput.current?.click()}
         onRemove={(index) => { const target = personalMedia[index]; if (target) removeMomentById(target.id); }}
         onContinue={continueFromMedia}
-        continueLabel={!project.finalVoiceRecording && !usesRemoteRecording(project) ? "Continue to recording" : "Continue"}
+        continueLabel={personalMedia.length ? "Review photo & video framing" : !project.finalVoiceRecording && !usesRemoteRecording(project) ? "Continue to recording" : "Continue"}
       />
       <aside aria-label="iPhone photo upload tip" className="mb-5 flex items-start gap-3 rounded-xl border border-[#DAD0C5] bg-[#F0EAE2]/65 px-4 py-4">
         <CircleHelp className="mt-0.5 size-5 shrink-0 text-[#79654F]" strokeWidth={1.6} aria-hidden="true" />
@@ -2424,11 +2446,18 @@ function KeepApp() {
           <p className="mt-1 text-[12px] leading-5 text-[#675B50]">Short clips of <strong>10 seconds or less</strong> usually tell the story best. For longer videos, Keep will <strong>automatically compress</strong> the file on your device when possible (up to 90 seconds). This can take a little while. The video plays muted so your narration and music stay front and center.</p>
         </div>
       </aside>
-      <KeepSelfieBackup open={selfieBackupOpen} momentCount={personalMedia.length}
-        onClose={() => setSelfieBackupOpen(false)}
-        onVoice={() => continueToRecording("photos")}
-        onSelfie={() => continueToRecording("selfie")} />
     </div></>}
+    {screen === "framing" && <>{top()}<KeepFramingReview
+      moments={personalMedia}
+      index={project.framingReviewIndex ?? 0}
+      onIndex={index => patch({ framingReviewIndex: index })}
+      onFocus={(id, focus) => setProject(previous => updateMomentFraming(previous, id, focus))}
+      onComplete={completeFramingReview}
+    /></>}
+    {(screen === "memories" || screen === "framing") && <KeepSelfieBackup open={selfieBackupOpen} momentCount={personalMedia.length}
+      onClose={() => { setSelfieBackupOpen(false); if (screen === "framing") back(); }}
+      onVoice={() => continueToRecording("photos")}
+      onSelfie={() => continueToRecording("selfie")} />}
     {screen === "storyStyle" && <>{top()}<KeepFinishingChoices
       captionStyle={project.captionStyle}
       musicMood={project.musicMood === "Worth Keeping" ? "Intentional" : project.musicMood}
@@ -2483,7 +2512,7 @@ function KeepApp() {
           <div className="keep-studio-canvas relative aspect-[9/16] overflow-hidden rounded-2xl bg-card shadow-lg">
             <CinematicMedia item={selected} nextItem={shown[frame + 1]} sceneKey={frame} motionIndex={frame} playing={editorPlaying && (!selected.isSelfie || editorNarrationStartedRef.current)} duration={sceneDuration(shown, frame, editorDuration)} sceneElapsed={sceneElapsed(shown, frame, editorTime, editorDuration)} className="absolute inset-0" imageClassName={`editor-image-${styleSlug(compareOriginalStyle && editorPanel === "Style" ? "Natural" : project.visualStyle)}`} />
             <div className="absolute inset-0 photo-shade" />
-            {editorPanel === "Memories" && <div className="absolute inset-x-0 top-0 bottom-14 z-20 cursor-grab touch-none active:cursor-grabbing" aria-label="Drag to gently reposition" onPointerDown={(e) => { e.currentTarget.setPointerCapture(e.pointerId); const r = e.currentTarget.getBoundingClientRect(); photoDrag.current = { x: e.clientX, y: e.clientY, focusX: selected.focusX ?? 50, focusY: selected.focusY ?? 50, width: r.width, height: r.height }; setEditorPlaying(false); }} onPointerMove={(e) => { const d = photoDrag.current; if (!d) return; updateSelectedMoment({ focusX: Math.max(0, Math.min(100, d.focusX - (e.clientX - d.x) / d.width * 100)), focusY: Math.max(0, Math.min(100, d.focusY - (e.clientY - d.y) / d.height * 100)) }); }} onPointerUp={() => { photoDrag.current = null; }} onPointerCancel={() => { photoDrag.current = null; }}><span className="absolute left-1/2 top-3 -translate-x-1/2 whitespace-nowrap rounded-full bg-black/65 px-3 py-1 text-[10px] text-white">{selected.kind === "image" ? "Drag to gently reposition" : "Drag video to reposition"}</span></div>}
+            {editorPanel === "Memories" && <div className="absolute inset-x-0 top-0 bottom-14 z-20 cursor-grab touch-none active:cursor-grabbing" aria-label="Drag photo or video to reposition" onPointerDown={(e) => { e.currentTarget.setPointerCapture(e.pointerId); const r = e.currentTarget.getBoundingClientRect(); photoDrag.current = { x: e.clientX, y: e.clientY, focusX: selected.focusX ?? 50, focusY: selected.focusY ?? 50, width: r.width, height: r.height }; setEditorPlaying(false); }} onPointerMove={(e) => { const d = photoDrag.current; if (!d) return; updateSelectedMoment({ focusX: Math.max(0, Math.min(100, d.focusX - (e.clientX - d.x) / d.width * 100)), focusY: Math.max(0, Math.min(100, d.focusY - (e.clientY - d.y) / d.height * 100)) }); }} onPointerUp={() => { photoDrag.current = null; }} onPointerCancel={() => { photoDrag.current = null; }}><span className="absolute left-1/2 top-3 -translate-x-1/2 whitespace-nowrap rounded-full bg-black/65 px-3 py-1 text-[10px] text-white">Drag to reposition</span></div>}
 
             <KeepFilmCaption text={editorCaption} style={project.captionStyle} position={project.captionPosition} lines={project.captionLines} captionSize={project.captionSize} />
 
@@ -2597,6 +2626,7 @@ function KeepApp() {
         onAdd={() => addInput.current?.click()}
         onReplace={() => { if (busy) { toast.info("Finish adding your previous media first."); return; } replaceTargetId.current = selected?.id ?? null; replaceInput.current?.click(); }}
         onMove={moveMemory}
+        onReviewFraming={personalMedia.length ? () => beginFramingReview("editor") : undefined}
         onTransition={(transition) => updateSelectedMoment({transition})}
         onPreviewTransition={previewCurrentTransition}
         onRemove={() => removeMemory(frame % shown.length)}
