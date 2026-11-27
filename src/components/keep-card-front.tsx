@@ -28,7 +28,7 @@ export function KeepCardFront({ engraving, layout, openingMessage = "", showOpen
           </p>
         )}
         {!!lines.length && (
-          <div className={`row-start-3 flex min-w-0 flex-col items-end justify-self-stretch self-end gap-[0.6cqw] text-right font-sans ${dense ? "text-[2.15cqw] tracking-[.10em]" : "text-[2.65cqw] tracking-[.15em]"} font-normal uppercase leading-[1.2] text-[#BDB1A6]`}>
+          <div className={`row-start-3 flex min-w-0 flex-col items-start justify-self-stretch self-end gap-[0.6cqw] text-left font-sans ${dense ? "text-[2.15cqw] tracking-[.10em]" : "text-[2.65cqw] tracking-[.15em]"} font-normal uppercase leading-[1.2] text-[#BDB1A6]`}>
             {lines.map((line, i) => <span key={i} className="max-w-full break-words">{line}</span>)}
           </div>
         )}
