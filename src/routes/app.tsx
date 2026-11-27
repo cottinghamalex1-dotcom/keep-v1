@@ -1,3 +1,5 @@
+import { useKeepGiftActivities } from "@/components/keep-gift-activity";
+import { KeepDeliveryAdmin } from "@/components/keep-delivery-admin";
 import { activeKeepSession, readKeepSession } from "@/lib/keep-cloud";
 import { KeepAppMenu } from "@/components/keep-app-menu";
 import { viewingLink } from "@/lib/keep-publish";
@@ -102,6 +104,7 @@ function KeepDashboard() {
   const navigate = (next: "home" | "given" | "received" | "account") => { setTab(next); window.history.replaceState(null, "", next === "home" ? "/app" : "/app#" + next); };
   const [cards, setCards] = useState<Card[]>([]);
   const [keeps, setKeeps] = useState<Keep[]>([]);
+  const gift = useKeepGiftActivities(session ? keeps.filter(k=>k.status==="ready"&&k.published_at).map(k=>k.id) : []);
   const [cloudDraft, setCloudDraft] = useState<{recipientName?:string;stage?:string;publicationId?:string;active?:boolean}|null>(null);
   const [displayName, setDisplayName] = useState("");
   const api = useCallback(async (path: string, options: RequestInit = {}, token?: string) => {
@@ -212,7 +215,7 @@ function KeepDashboard() {
                   <button type="button" disabled={deletingDraft} onClick={()=>void removeStandaloneDraft()} className="flex min-h-11 items-center gap-2 text-xs text-[#8C574C] disabled:opacity-50"><Trash2 className="size-4"/>{deletingDraft?"Deleting…":"Delete draft"}</button>
                 </div>}
               </article>}
-            {keeps.map(keep=><div key={keep.id}><KeepLibraryCard keep={keep} thumbnail={thumbnails[keep.id]}
+            {keeps.map(keep=><div key={keep.id}><KeepLibraryCard keep={keep} thumbnail={thumbnails[keep.id]} activity={gift.activities[keep.id]} activityFailed={gift.failed}
               expanded={expandedKeep===keep.id} copied={copiedKeep===keep.id} deleting={deletingKeep===keep.id}
               onToggle={()=>setExpandedKeep(expandedKeep===keep.id?null:keep.id)}
               onCopy={()=>void (async()=>{try{await navigator.clipboard.writeText(viewingLink(keep.recipient_token));setCopiedKeep(keep.id);toast.success("Link copied");}catch{toast.error("Copy unavailable. Open the Keep and copy its address.");}})()}
@@ -232,7 +235,7 @@ function KeepDashboard() {
         keeps={keeps}
         onBack={() => navigate("home")}
       />}
-      {tab === "account" && <KeepAccountDashboard key={session.user.id + ":" + displayName}
+      {tab === "account" && <><KeepDeliveryAdmin key={session.user.id} accountId={session.user.id} /><KeepAccountDashboard key={session.user.id + ":" + displayName}
         displayName={displayName} email={session.user.email ?? ""}
         created={keeps.length + (cloudDraft?.active&&!keeps.some(k=>k.id===cloudDraft.publicationId)?1:0)}
         published={keeps.filter(k=>k.status==="ready"&&!!k.published_at).length}
@@ -250,7 +253,7 @@ function KeepDashboard() {
           const anchor=document.createElement("a");anchor.href=url;anchor.download="my-keep-details.json";document.body.appendChild(anchor);anchor.click();anchor.remove();window.setTimeout(()=>URL.revokeObjectURL(url),1000);
           toast.success("Keep details downloaded");
         }}
-        onSignOut={signOut}/>} 
+        onSignOut={signOut}/></>} 
     </>}
   </div>
   </main>;

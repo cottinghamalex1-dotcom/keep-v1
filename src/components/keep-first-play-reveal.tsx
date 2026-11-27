@@ -6,13 +6,14 @@ type Props = {
   onOpen: () => void;
   opening?: boolean;
   onCreatorExit?: (() => void) | undefined;
+  showExperienceNotice?: boolean;
 };
 
 /**
  * A quiet cover, not the film's dedication. The personal message belongs in
  * the dark musical opening AFTER the recipient taps to begin.
  */
-export function KeepFirstPlayReveal({ name, onOpen, opening = false, onCreatorExit }: Props) {
+export function KeepFirstPlayReveal({ name, onOpen, opening = false, onCreatorExit, showExperienceNotice = false }: Props) {
   const recipient = name.trim() || "You";
   return (
     <section className="keep-first-play" aria-label={`A personal Keep for ${recipient}`}>
@@ -32,6 +33,7 @@ export function KeepFirstPlayReveal({ name, onOpen, opening = false, onCreatorEx
             ? <LoaderCircle size={19} strokeWidth={1.6} aria-hidden="true" className="animate-spin motion-reduce:animate-none" />
             : <ArrowRight size={19} strokeWidth={1.6} aria-hidden="true" />}
         </button>
+        {showExperienceNotice && <p className="mx-auto mt-3 max-w-xs text-center text-[10px] leading-4 text-[#8D7B6A]">The creator can see when this Keep is first experienced.</p>}
         {onCreatorExit && (
           <button type="button" className="keep-first-play__creator-exit" onClick={onCreatorExit}>
             <ArrowLeft size={14} strokeWidth={1.6} aria-hidden="true" />

@@ -43,6 +43,8 @@ type Props = {
   initialExperience?: KeepExperienceMode | undefined;
   onCreatorExit?: () => void;
   onCreatorContinue?: () => void;
+  /** Only the real published viewing route supplies this milestone callback. */
+  onFirstExperience?: () => void;
 };
 
 const demoMessage = [
@@ -82,7 +84,9 @@ export function KeepRecipientExperience({
   initialExperience,
   onCreatorExit,
   onCreatorContinue,
+  onFirstExperience,
 }: Props) {
+  const reportExperience = () => { if (!creatorPreview) onFirstExperience?.(); };
   const visitKey = useMemo(() => `keep.recipient.opened.${name}.${from}.${year}`, [name, from, year]);
   const [visited, setVisited] = useState(false);
   const [stage, setStage] = useState<"reveal" | "choose" | "experience" | "ending">(creatorPreview && initialExperience ? "experience" : "reveal");
@@ -231,6 +235,8 @@ export function KeepRecipientExperience({
     setListening(false);
     setListenProgress(0);
     setStage("experience");
+    // Listen & Read and Read reveal the authored words immediately.
+    if (paragraphs.length) reportExperience();
   };
 
   const backToChoose = () => {
@@ -337,7 +343,7 @@ export function KeepRecipientExperience({
     return <main className="app-shell relative">
       {watching && renderedVideoUrl && <div className="flex min-h-dvh flex-col items-center justify-center bg-[#171311] px-3 pb-[max(28px,env(safe-area-inset-bottom))] pt-[max(18px,env(safe-area-inset-top))] text-[#F7EEE6]">
         <button type="button" onClick={backToChoose} className="mb-4 flex min-h-11 items-center gap-2 self-start px-4 text-sm"><ArrowLeft className="size-4" /> Back to experiences</button>
-        <video key={renderedVideoUrl} src={renderedVideoUrl} controls playsInline preload="metadata" onLoadedData={() => setOpeningFrameReady(true)} onEnded={finishExperience}
+        <video key={renderedVideoUrl} src={renderedVideoUrl} controls playsInline preload="metadata" onLoadedData={() => setOpeningFrameReady(true)} onPlaying={reportExperience} onEnded={finishExperience}
           className="aspect-[9/16] max-h-[78dvh] w-full max-w-[450px] rounded-lg bg-black object-contain" aria-label="Finished Keep film with seeking controls" />
         <p className="mt-3 text-xs text-[#D5C1AD]">Tap play to watch. Drag the video timeline to revisit any moment.</p>
       </div>}
@@ -349,7 +355,7 @@ export function KeepRecipientExperience({
         musicMood={musicMood} voiceMusicBalance={voiceMusicBalance}
         voiceVolume={voiceVolume} musicVolume={musicVolume}
         captionPosition={captionPosition} captionLines={captionLines}
-        audioMix={audioMix} onOpeningFrameReady={() => setOpeningFrameReady(true)} />}
+        audioMix={audioMix} onOpeningFrameReady={() => { setOpeningFrameReady(true); reportExperience(); }} />}
       {(stage === "reveal" || (introHandoff && !renderedVideoUrl)) && <div key="recipient-intro"
         aria-hidden={watching} inert={watching}
         onTransitionEnd={event => {
@@ -359,6 +365,7 @@ export function KeepRecipientExperience({
         <KeepFirstPlayReveal
           name={name} onOpen={enter} opening={watching}
           onCreatorExit={creatorPreview ? onCreatorExit : undefined}
+          showExperienceNotice={!creatorPreview && !!onFirstExperience}
         />
       </div>}
     </main>;
@@ -373,7 +380,7 @@ export function KeepRecipientExperience({
       onProgress={setListenProgress} onDuration={setListenDuration}
       onListening={setListening} onBack={backToChoose}
       onBuffering={()=>{if(listening)void listenMix.current?.pause();}}
-      onBufferEnded={()=>{if(listening)void listenMix.current?.play().catch(()=>setListening(false));}}
+      onBufferEnded={()=>{reportExperience();if(listening)void listenMix.current?.play().catch(()=>setListening(false));}}
     />;
   }
 

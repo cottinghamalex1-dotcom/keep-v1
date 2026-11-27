@@ -1,7 +1,8 @@
 import { createFileRoute } from '@tanstack/react-router';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { KeepRecipientExperience } from '@/components/keep-recipient-experience';
 import { KeepLoadingScreen } from '@/components/keep-loading-screen';
+import { recordFirstExperience } from '@/lib/keep-gift-activity';
 import { publicationRequest, type PublishedProject } from '@/lib/keep-publish';
 
 export const Route = createFileRoute('/recipient')({
@@ -15,6 +16,21 @@ function Recipient() {
   const [project,setProject]=useState<PublishedProject|null>(null);
   const [error,setError]=useState('');
   const [attempt,setAttempt]=useState(0);
+  const experienceRequest = useRef<{token:string;inFlight:boolean;done:boolean;attempts:number;timer?:number;cancelled?:boolean}>({token:"",inFlight:false,done:false,attempts:0});
+  const reportFirstExperience = () => {
+    if(experienceRequest.current.token!==keep)experienceRequest.current={token:keep,inFlight:false,done:false,attempts:0};
+    const event=experienceRequest.current;
+    const send=()=>{
+      if(event.inFlight||event.done||event.cancelled||event.attempts>=3)return;
+      event.inFlight=true;event.attempts++;
+      void recordFirstExperience(keep).then(recorded=>{event.done=recorded;}).catch(()=>{ /* Never interrupt the gift. */ }).finally(()=>{
+        event.inFlight=false;
+        if(!event.done&&!event.cancelled&&event.attempts<3)event.timer=window.setTimeout(send,event.attempts*2000);
+      });
+    };
+    send();
+  };
+  useEffect(()=>()=>{const event=experienceRequest.current;if(event.token===keep){event.cancelled=true;if(event.timer)window.clearTimeout(event.timer);}},[keep]);
   useEffect(()=>{
     let cancelled=false;setProject(null);setError('');
     if(!keep){setError('Open the viewing link from your Keep card or ask its creator for the link.');return;}
@@ -30,5 +46,5 @@ function Recipient() {
     subtitle={project.occasion} openingMessage={project.openingMessage} closingLine={project.closingLine} media={project.memories} readMedia={readMedia} audioUrl={project.voiceUrl} renderedVideoUrl={project.renderedVideoUrl} audioDuration={project.voiceDuration}
     messageParagraphs={project.messageParagraphs} style={project.visualStyle} captions={project.captionStyle} lines={project.captionCues.map(c=>c.text)} captionCues={project.captionCues}
     musicMood={project.musicMood} voiceMusicBalance={project.voiceMusicBalance} voiceVolume={project.voiceVolume} musicVolume={project.musicVolume}
-    captionPosition={project.captionPosition} captionLines={project.captionLines} audioMix={project.audioMix} persistVisit={false} />;
+    captionPosition={project.captionPosition} captionLines={project.captionLines} audioMix={project.audioMix} persistVisit={false} onFirstExperience={reportFirstExperience} />;
 }
