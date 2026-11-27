@@ -69,6 +69,20 @@ describe("finished Keep film recovery", () => {
     expect(screen.getByRole("alert")).toHaveTextContent("Could not submit the film");
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
+  it("renders a muted soundtrack without requiring unavailable music metadata", async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(response({status:"not_started"}))
+      .mockResolvedValueOnce(response({status:"rendering"}));
+    vi.stubGlobal("fetch",fetchMock);
+    render(<KeepFilmRender keepId="test-keep" musicMood="Unavailable soundtrack" musicMuted />);
+    await flush();
+    fireEvent.click(screen.getByRole("button",{name:"Render my 1080p film"}));
+    await flush();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(JSON.parse(fetchMock.mock.calls[1]![1].body)).toMatchObject({action:"start"});
+    expect(JSON.parse(fetchMock.mock.calls[1]![1].body)).not.toHaveProperty("musicDurationSec");
+  });
+
   it("retains the nonbillable recovery option for a job with a provider render", async () => {
     const fetchMock = vi.fn().mockResolvedValueOnce(response({
       status:"failed", id:"saved-job", hasProviderRender:true, error:"Could not save the completed film."

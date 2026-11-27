@@ -1,3 +1,4 @@
+import { activeKeepSession, readKeepSession } from "@/lib/keep-cloud";
 import { KeepAppMenu } from "@/components/keep-app-menu";
 import { viewingLink } from "@/lib/keep-publish";
 import { KeepLibraryCard } from "@/components/keep-library-card";
@@ -28,7 +29,7 @@ const endpoint = "https://lwkzhpwugtosbidxvdcr.supabase.co";
 const publicKey = "sb_publishable_K8_SWJByLhV78h7gY4NySw_4sgjEVTi";
 type Session = { access_token: string; refresh_token: string; expires_at?: number; user: { id: string; email?: string } };
 type Card = { id: string; card_code: string; recipient_label: string | null; status: string; creator_id: string | null; recipient_id: string | null; keep_id: string | null };
-type Keep = { id: string; recipient_name: string | null; status: string; recipient_token: string; published_at: string | null; created_at?: string | null; occasion?: string | null; published_project?: {openingMessage?:string;messageParagraphs?:string[];musicMood?:string}|null };
+type Keep = { id: string; recipient_name: string | null; status: string; recipient_token: string; published_at: string | null; created_at?: string | null; occasion?: string | null; published_project?: {openingMessage?:string;messageParagraphs?:string[];musicMood?:string;audioMix?:{musicMuted?:boolean}}|null };
 const sessionKey = "keep-app-session";
 function readSession(): Session | null { try { const s = localStorage.getItem(sessionKey); return s ? JSON.parse(s) as Session : null; } catch { return null; } }
 function KeepDashboard() {
@@ -49,9 +50,9 @@ function KeepDashboard() {
   const [thumbnails, setThumbnails] = useState<Record<string,string>>({});
   const clearMatchingLocalDraft = (publicationId?: string) => {
     // Do not delete a different Keep's local edits.
-    const local = loadDraft();
+    const local = loadDraft(publicationId);
     if (local && (publicationId ? local.publicationId === publicationId : !local.publicationId)) {
-      clearDraft();
+      clearDraft(publicationId);
       void deleteBlobs(projectBlobIds(local));
     }
   };
@@ -61,8 +62,13 @@ function KeepDashboard() {
     setDeletingDraft(true);
     try {
       const response = await api("/rest/v1/keep_drafts?owner_id=eq." + encodeURIComponent(session.user.id) + "&select=project", {}, session.access_token);
-      if (!Array.isArray(response) || !response[0]?.project || response[0].project.publicationId !== cloudDraft.publicationId) throw new Error("Your draft changed. Refresh before deleting.");
-      await api("/rest/v1/keep_drafts?owner_id=eq." + encodeURIComponent(session.user.id), { method: "DELETE" }, session.access_token);
+      if (!Array.isArray(response)) throw new Error("Your draft could not be verified. Refresh before deleting.");
+      if (response[0]?.project?.publicationId === cloudDraft.publicationId) {
+        await api("/rest/v1/keep_drafts?owner_id=eq." + encodeURIComponent(session.user.id), { method: "DELETE" }, session.access_token);
+      } else {
+        const local = loadDraft(cloudDraft.publicationId);
+        if (!local || local.draftOwnerId !== session.user.id) throw new Error("Your draft changed. Refresh before deleting.");
+      }
       clearMatchingLocalDraft(cloudDraft.publicationId);
       setCloudDraft(null);
       toast.success("Draft deleted");
@@ -104,7 +110,7 @@ function KeepDashboard() {
     if (!res.ok) throw new Error(data.msg || data.error_description || data.message || data.error || "Request failed");
     return data;
   }, []);
-  const signOut = useCallback(() => { localStorage.removeItem(sessionKey); setSession(null); setAccountLoadedFor(null); setCards([]); setKeeps([]); setThumbnails({}); setTab("home"); }, []);
+  const signOut = useCallback(() => { localStorage.removeItem(sessionKey); setSession(null); setAccountLoadedFor(null); setCards([]); setKeeps([]); setThumbnails({}); setCloudDraft(null); setDisplayName(""); setTab("home"); }, []);
   useEffect(() => { setSession(readSession()); setReady(true); }, []);
   useEffect(() => {
     if (!session) return;
@@ -112,19 +118,20 @@ function KeepDashboard() {
     const loadingSessionToken = session.access_token;
     const load = async () => {
       try {
-        let current = session;
-        if (current.expires_at && current.expires_at < Math.floor(Date.now() / 1000) + 90) {
-          const renewed = await api("/auth/v1/token?grant_type=refresh_token", { method: "POST", body: JSON.stringify({ refresh_token: current.refresh_token }) });
-          current = { ...renewed, expires_at: Math.floor(Date.now() / 1000) + renewed.expires_in };
-          if (!cancelled) { localStorage.setItem(sessionKey, JSON.stringify(current)); setSession(current); }
-        }
+        const current = await activeKeepSession();
+        if (cancelled) return;
+        if (!current) { setSession(readKeepSession()); return; }
+        if (current.user.id !== session.user.id) return;
+        if (current.access_token !== session.access_token) { setSession(current); return; }
         const [cs, ks, ps, drafts] = await Promise.all([
           api("/rest/v1/keep_cards?select=id,card_code,recipient_label,status,creator_id,recipient_id,keep_id&order=created_at.desc", {}, current.access_token),
           api("/rest/v1/keeps?select=id,recipient_name,status,recipient_token,published_at,created_at,occasion,published_project&owner_id=eq." + encodeURIComponent(current.user.id) + "&order=updated_at.desc", {}, current.access_token),
           api("/rest/v1/keep_profiles?select=display_name&user_id=eq." + encodeURIComponent(current.user.id), {}, current.access_token),
           api("/rest/v1/keep_drafts?select=project&owner_id=eq." + encodeURIComponent(current.user.id) + "&limit=1", {}, current.access_token)
         ]);
-        if (!cancelled) { setCards(cs); setKeeps(ks); setDisplayName(ps?.[0]?.display_name || ""); setCloudDraft(drafts?.[0]?.project || null); }
+        if (!cancelled) { setCards(cs); setKeeps(ks); setDisplayName(ps?.[0]?.display_name || ""); const local = loadDraft();
+          const cloud = drafts?.[0]?.project;
+          setCloudDraft(local?.active && local.draftOwnerId === current.user.id && (!cloud || (local.draftSavedAt ?? 0) > (cloud.draftSavedAt ?? 0)) ? local : cloud || null); }
         // Reuse My Keeps' privately signed cover images; never make the
         // underlying media storage public or persist expiring URLs.
         void Promise.all((ks as Keep[]).filter(k=>k.published_at).slice(0,16).map(async keep=>{
@@ -201,7 +208,7 @@ function KeepDashboard() {
                   <ChevronDown className={`size-5 shrink-0 text-[#685747] transition-transform ${expandedDraft?"rotate-180":""}`}/>
                 </button>
                 {expandedDraft && <div className="space-y-3 border-t border-border/75 px-5 py-5">
-                  <a href="/?resume=1" className="keep-premium-action flex min-h-12 items-center justify-center gap-2 px-4 py-3 text-sm"><PenLine className="size-4"/> Continue editing</a>
+                  <a href={cloudDraft.publicationId ? "/?resume=1&local=" + encodeURIComponent(cloudDraft.publicationId) : "/?resume=1"} className="keep-premium-action flex min-h-12 items-center justify-center gap-2 px-4 py-3 text-sm"><PenLine className="size-4"/> Continue editing</a>
                   <button type="button" disabled={deletingDraft} onClick={()=>void removeStandaloneDraft()} className="flex min-h-11 items-center gap-2 text-xs text-[#8C574C] disabled:opacity-50"><Trash2 className="size-4"/>{deletingDraft?"Deleting…":"Delete draft"}</button>
                 </div>}
               </article>}
@@ -210,7 +217,7 @@ function KeepDashboard() {
               onToggle={()=>setExpandedKeep(expandedKeep===keep.id?null:keep.id)}
               onCopy={()=>void (async()=>{try{await navigator.clipboard.writeText(viewingLink(keep.recipient_token));setCopiedKeep(keep.id);toast.success("Link copied");}catch{toast.error("Copy unavailable. Open the Keep and copy its address.");}})()}
               onDelete={()=>void removeKeep(keep)}/>
-              {expandedKeep===keep.id && keep.status==="ready" && !!keep.published_at && <div className="mt-3"><KeepFilmRender keepId={keep.id} musicMood={keep.published_project?.musicMood ?? "Warm + Nostalgic"} /></div>}
+              {expandedKeep===keep.id && keep.status==="ready" && !!keep.published_at && <div className="mt-3"><KeepFilmRender keepId={keep.id} musicMood={keep.published_project?.musicMood ?? "Warm + Nostalgic"} musicMuted={keep.published_project?.audioMix?.musicMuted} /></div>}
             </div>)}
           </div>
         </section>}

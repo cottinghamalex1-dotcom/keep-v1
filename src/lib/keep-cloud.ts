@@ -10,16 +10,39 @@ export type KeepSession = { access_token: string; refresh_token: string; expires
 export function readKeepSession(): KeepSession | null {
   try { const raw = localStorage.getItem(SESSION_KEY); return raw ? JSON.parse(raw) as KeepSession : null; } catch { return null; }
 }
+const pendingRefresh = new Map<string, Promise<KeepSession | null>>();
 export async function activeKeepSession(): Promise<KeepSession | null> {
   const session = readKeepSession();
-  if (!session) return null;
+  if (!session?.user?.id || !session.access_token) return null;
   if (!session.expires_at || session.expires_at > Math.floor(Date.now()/1000) + 90) return session;
-  const res = await fetch(endpoint + "/auth/v1/token?grant_type=refresh_token", { method:"POST", headers: { apikey: publicKey, "Content-Type":"application/json" }, body: JSON.stringify({refresh_token: session.refresh_token}) });
-  if (!res.ok) { localStorage.removeItem(SESSION_KEY); return null; }
-  const renewed = await res.json();
-  const next: KeepSession = { ...renewed, expires_at: Math.floor(Date.now()/1000) + renewed.expires_in };
-  localStorage.setItem(SESSION_KEY, JSON.stringify(next));
-  return next;
+  const key = session.user.id + ":" + session.refresh_token;
+  const existing = pendingRefresh.get(key);
+  if (existing) return existing;
+  const stillCurrent = () => {
+    const current = readKeepSession();
+    return current?.user.id === session.user.id && current.refresh_token === session.refresh_token;
+  };
+  const refresh = async () => {
+    const res = await withTimeout(signal => fetch(endpoint + "/auth/v1/token?grant_type=refresh_token", {
+      method:"POST", headers: { apikey: publicKey, "Content-Type":"application/json" },
+      body: JSON.stringify({refresh_token: session.refresh_token}), signal,
+    }), 15000);
+    // A late reply must never sign a user back in or replace another account.
+    if (!stillCurrent()) return null;
+    if (!res.ok) {
+      if ([400,401,403].includes(res.status)) { localStorage.removeItem(SESSION_KEY); return null; }
+      throw new Error("Keep couldn't refresh your session. Your draft is safe; check your connection and retry.");
+    }
+    const renewed = await res.json();
+    if (!stillCurrent()) return null;
+    if (renewed.user?.id !== session.user.id || !renewed.access_token || !renewed.refresh_token) throw new Error("Invalid session renewal. Please sign in again.");
+    const next: KeepSession = { ...renewed, expires_at: Math.floor(Date.now()/1000) + renewed.expires_in };
+    localStorage.setItem(SESSION_KEY, JSON.stringify(next));
+    return next;
+  };
+  const promise = refresh().finally(() => pendingRefresh.delete(key));
+  pendingRefresh.set(key, promise);
+  return promise;
 }
 async function request(path: string, session: KeepSession, options: RequestInit = {}) {
   const res = await fetch(endpoint + path, { ...options, headers: { apikey:publicKey, Authorization:"Bearer "+session.access_token, ...options.headers } });
@@ -134,6 +157,9 @@ function enqueueCloudMutation(session: KeepSession, persist: () => Promise<void>
 }
 export async function saveCloudDraft(project:KeepProject,session:KeepSession):Promise<void> {
   if (!project.active) return;
+  if (project.draftOwnerId && project.draftOwnerId !== session.user.id) throw new Error("This draft belongs to a different Keep account.");
+  if (project.restoreIncomplete) throw new Error("Restore the missing media before backing up this Keep.");
+  const snapshot = safeProject({...project, draftOwnerId: session.user.id, draftSavedAt: Date.now()});
   if (project.finalVoiceRecording && !project.finalVoiceRecording.demo && !project.finalVoiceRecording.audioId)
     throw new Error("Your voice wasn't saved to this device. Keep the editor open and retry recording before relying on cloud backup.");
   return enqueueCloudMutation(session, async () => {
@@ -146,6 +172,7 @@ export async function saveCloudDraft(project:KeepProject,session:KeepSession):Pr
   );
   // Do not commit metadata pointing at files that failed to upload.
   for(const id of fileRefs(project)) {
+    if (uploadedThisSession.has(session.user.id+":"+id)) continue;
     const original=await getBlob(id);
     if (!original) throw new Error("A recording or photo is missing from this device. Sync was not completed.");
     const derivative = photoIds.has(id) ? await getBlob(keepOptimizedPhotoId(id)) : null;
@@ -154,9 +181,9 @@ export async function saveCloudDraft(project:KeepProject,session:KeepSession):Pr
   }
   if (project.publicationId) {
     // Omit status, published_project and recipient_token: autosave never republishes.
-    await request("/rest/v1/keeps?on_conflict=id", session, { method: "POST", headers: { "Content-Type": "application/json", Prefer: "resolution=merge-duplicates" }, body: JSON.stringify({ id: project.publicationId, owner_id: session.user.id, recipient_name: project.recipientName || "someone special", occasion: project.occasion, draft_project: safeProject(project), updated_at: new Date().toISOString() }) });
+    await request("/rest/v1/keeps?on_conflict=id", session, { method: "POST", headers: { "Content-Type": "application/json", Prefer: "resolution=merge-duplicates" }, body: JSON.stringify({ id: project.publicationId, owner_id: session.user.id, recipient_name: project.recipientName || "someone special", occasion: project.occasion, draft_project: snapshot, updated_at: new Date().toISOString() }) });
   }
-  const res=await request("/rest/v1/keep_drafts?on_conflict=owner_id",session,{method:"POST",headers:{"Content-Type":"application/json",Prefer:"resolution=merge-duplicates"},body:JSON.stringify({owner_id:session.user.id,project:safeProject({...project,draftSavedAt:Date.now()}),updated_at:new Date().toISOString()})});
+  const res=await request("/rest/v1/keep_drafts?on_conflict=owner_id",session,{method:"POST",headers:{"Content-Type":"application/json",Prefer:"resolution=merge-duplicates"},body:JSON.stringify({owner_id:session.user.id,project:snapshot,updated_at:new Date().toISOString()})});
   await res.text();
   });
 }
@@ -165,11 +192,11 @@ export async function loadCloudDraft(session:KeepSession,onProgress?: (progress:
   const rows=await res.json() as {project:Partial<KeepProject>;updated_at?:string}[];
   if (!rows.length) return null;
   const updatedAt = Date.parse(rows[0]!.updated_at || "");
-  return hydrateCloudProject(Number.isFinite(updatedAt) ? {...rows[0]!.project,draftSavedAt:updatedAt} : rows[0]!.project, session, onProgress);
+  return hydrateCloudProject(!rows[0]!.project.draftSavedAt && Number.isFinite(updatedAt) ? {...rows[0]!.project,draftSavedAt:updatedAt} : rows[0]!.project, session, onProgress);
 }
 export type KeepRestoreProgress = { completed: number; total: number; kind: "media" };
 async function hydrateCloudProject(project: Partial<KeepProject>, session: KeepSession, onProgress?: (progress: KeepRestoreProgress) => void): Promise<KeepProject> {
-  const p:KeepProject={...newProject(),...project};
+  const p:KeepProject={...newProject(),...project,draftOwnerId:session.user.id};
   type Need = { id: string; url: string | undefined };
   const needs: Need[] = [
     ...(p.finalVoiceRecording?.audioId ? [{ id: p.finalVoiceRecording.audioId, url: p.finalVoiceRecording.audioUrl }] : []),
@@ -179,13 +206,13 @@ async function hydrateCloudProject(project: Partial<KeepProject>, session: KeepS
     ...(p.selfieBaseMedia??[]).filter(m=>m.source==="upload").map(m=>({id:m.blobId??m.id,url:m.url})),
     ...p.interviewAnswers.filter((a) => !!a.audioId).map((a) => ({id:a.audioId!,url:a.audioUrl})),
   ];
-  const total = needs.length;
+  const total = new Set(needs.map(need => need.id)).size;
   const urls = new Map<string,string>();
   const missing = new Set<string>();
   let completed = 0;
   const progress = () => onProgress?.({completed,total,kind:"media"});
   for (const need of needs) {
-    if (need.url?.startsWith("blob:")) {
+    if (need.url?.startsWith("blob:") && !urls.has(need.id)) {
       urls.set(need.id,need.url);
       completed++;
     }
@@ -251,6 +278,7 @@ async function hydrateCloudProject(project: Partial<KeepProject>, session: KeepS
 
 /** Retry just the unfinished media without ever replacing text or recorded audio. */
 export async function retryMissingCloudMedia(project: KeepProject, session: KeepSession, onProgress?: (progress: KeepRestoreProgress) => void): Promise<KeepProject> {
+  if (project.draftOwnerId && project.draftOwnerId !== session.user.id) throw new Error("This draft belongs to another account.");
   return hydrateCloudProject(project,session,onProgress);
 }
 export async function removeCloudDraft(session:KeepSession):Promise<void> {
@@ -268,14 +296,19 @@ export async function loadKeepDisplayName(session: KeepSession): Promise<string>
 /** Load exactly the selected creation using the owner's authenticated API access. */
 export async function loadEditableKeep(id: string, session: KeepSession, onProgress?: (progress: KeepRestoreProgress) => void): Promise<KeepProject> {
   const owner = encodeURIComponent(session.user.id);
-  const response = await request("/rest/v1/keeps?select=id,recipient_token,published_at,draft_project,published_project&id=eq." + encodeURIComponent(id) + "&owner_id=eq." + owner + "&limit=1", session);
+  const response = await request("/rest/v1/keeps?select=id,recipient_token,published_at,draft_project,published_project,updated_at&id=eq." + encodeURIComponent(id) + "&owner_id=eq." + owner + "&limit=1", session);
   const rows = await response.json();
   const keep = rows[0];
   if (!keep) throw new Error("This Keep could not be found in your account.");
   // Preserve work from the previous single-draft editor when it belongs to this Keep.
-  const latestResponse = await request("/rest/v1/keep_drafts?select=project&owner_id=eq." + owner + "&limit=1", session);
-  const latest = (await latestResponse.json())[0]?.project;
-  const draft = latest?.publicationId === id ? latest : keep.draft_project;
+  const latestResponse = await request("/rest/v1/keep_drafts?select=project,updated_at&owner_id=eq." + owner + "&limit=1", session);
+  const latestRow = (await latestResponse.json())[0];
+  const latest = latestRow?.project;
+  const timestamp = (draft: Partial<KeepProject> | undefined, fallback: string | undefined) =>
+    draft?.draftSavedAt ?? (Date.parse(fallback ?? "") || 0);
+  const draft = latest?.publicationId === id &&
+    (!keep.draft_project || timestamp(latest, latestRow.updated_at) >= timestamp(keep.draft_project, keep.updated_at))
+      ? latest : keep.draft_project;
   if (draft) return { ...await hydrateCloudProject(draft, session, onProgress), active: true, publicationId: id, publicationToken: keep.published_at ? keep.recipient_token : undefined };
   const published = keep.published_project;
   if (!published?.memories?.length || !published.voicePath) throw new Error("This Keep has no saved editing project yet.");
@@ -304,5 +337,5 @@ export async function loadEditableKeep(id: string, session: KeepSession, onProgr
   onProgress?.({completed,total,kind:"media"});
   const { voicePath, voiceDuration, memories: oldMemories, ...settings } = published;
   const idMap = new Map(oldMemories.map((m: {id: string}, i: number) => [m.id, memories[i]!.id]));
-  return { ...newProject(), ...settings, active: true, stage: "editor", publicationId: id, publicationToken: keep.recipient_token, memories, readMemoryOrder: (published.readMemoryOrder ?? []).map((oldId: string) => idMap.get(oldId)).filter(Boolean), finalVoiceRecording: { audioId, audioUrl, durationSec: voiceDuration ?? 0, demo: false } };
+  return { ...newProject(), ...settings, active: true, stage: "editor", draftOwnerId: session.user.id, publicationId: id, publicationToken: keep.recipient_token, memories, readMemoryOrder: (published.readMemoryOrder ?? []).map((oldId: string) => idMap.get(oldId)).filter(Boolean), finalVoiceRecording: { audioId, audioUrl, durationSec: voiceDuration ?? 0, demo: false } };
 }

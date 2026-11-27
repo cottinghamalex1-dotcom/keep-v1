@@ -1,3 +1,4 @@
+import { activeKeepSession } from "@/lib/keep-cloud";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { ArrowLeft, ArrowRight, BookOpen, LockKeyhole } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -38,16 +39,9 @@ function MyKeeps() {
     }
     async function load() {
       try {
-        const raw=localStorage.getItem("keep-app-session");
-        if(!raw) { setLoading(false); return; }
-        let current=JSON.parse(raw) as Session;
-        if(current.expires_at && current.expires_at < Math.floor(Date.now()/1000)+90) {
-          const response=await fetch(endpoint+"/auth/v1/token?grant_type=refresh_token",{method:"POST",headers:{"apikey":publicKey,"Content-Type":"application/json"},body:JSON.stringify({refresh_token:current.refresh_token})});
-          const renewed=await response.json();
-          if(!response.ok)throw new Error("Your session has expired. Please sign in again.");
-          current={...renewed,expires_at:Math.floor(Date.now()/1000)+renewed.expires_in};
-          localStorage.setItem("keep-app-session",JSON.stringify(current));
-        }
+        const current = await activeKeepSession();
+        if(cancelled)return;
+        if(!current) { setLoading(false); return; }
         const [records,cards]=await Promise.all([
           request("/rest/v1/keeps?select=id,owner_id,recipient_name,occasion,status,recipient_token,published_at,created_at,published_project&owner_id=eq."+encodeURIComponent(current.user.id)+"&order=created_at.desc",current.access_token),
           request("/rest/v1/keep_cards?select=keep_id&creator_id=eq."+encodeURIComponent(current.user.id),current.access_token)
@@ -76,9 +70,9 @@ function MyKeeps() {
     setDeleting(keep.id);
     try {
       const result=await deleteOwnedKeep(keep.id,session.access_token);
-      const local=loadDraft();
+      const local=loadDraft(keep.id);
       if(local?.publicationId===keep.id) {
-        clearDraft();
+        clearDraft(keep.id);
         void deleteBlobs(projectBlobIds(local));
       }
       setKeeps(items=>items.filter(item=>item.id!==keep.id));

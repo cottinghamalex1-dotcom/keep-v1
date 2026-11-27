@@ -54,6 +54,8 @@ export type CaptionWord = { word: string; start: number; end: number; phrase?: t
 
 export type KeepProject = {
   publicationId?: string;
+  /** Owner of this device snapshot; never copy it into another account. */
+  draftOwnerId?: string;
   publicationToken?: string;
   active: boolean;
   /** Transient: some cloud media have not restored; never autosave this partial copy. */
@@ -147,11 +149,20 @@ export const stageLabels: Record<string, string> = {
   recorded: "Voice recorded", memories: "Adding memories", editor: "In the editor", card: "Designing the card", success: "Ready",
 };
 
+// Keep the latest pointer and per-Keep snapshots separate for each account.
+function deviceOwner(): string | undefined {
+  try { return JSON.parse(localStorage.getItem("keep-app-session") ?? "null")?.user?.id; } catch { return undefined; }
+}
+const draftKey = (owner?: string, id?: string) => owner ? DRAFT_KEY + "." + owner + (id ? "." + id : "") : DRAFT_KEY;
 export function saveDraft(p: KeepProject): boolean {
   try {
-    if (!p.active) { localStorage.removeItem(DRAFT_KEY); return true; }
+    const owner = p.draftOwnerId ?? deviceOwner();
+    if (owner && owner !== deviceOwner()) return false;
+    if (p.restoreIncomplete) return false;
+    if (!p.active) { localStorage.removeItem(draftKey(owner)); return true; }
     const lite: KeepProject = {
       ...p,
+      draftOwnerId: owner,
       draftSavedAt: Date.now(),
       memories: p.memories.filter((m) => m.source === "sample" || m.source === "text" || m.persisted).map((m) => ({ ...m, url: m.source === "text" ? m.url : "" })),
       selfieVideos: (p.selfieVideos ?? []).filter(m=>m.persisted).map(m=>({...m,url:""})),
@@ -164,16 +175,30 @@ export function saveDraft(p: KeepProject): boolean {
         ? (({audioUrl: _url, ...safe}) => safe)(p.finalVoiceRecording) : null,
       voiceParts: (p.voiceParts ?? []).map(({ audioUrl: _url, ...part }) => part),
     };
-    localStorage.setItem(DRAFT_KEY, JSON.stringify(lite));
+    const serialized = JSON.stringify(lite);
+    if (owner && p.publicationId) localStorage.setItem(draftKey(owner, p.publicationId), serialized);
+    localStorage.setItem(draftKey(owner), serialized);
     return true;
   } catch { return false; /* Never claim to have saved when storage is unavailable. */ }
 }
 
-export function loadDraft(): KeepProject | null {
+export function loadDraft(publicationId?: string): KeepProject | null {
   try {
-    const raw = localStorage.getItem(DRAFT_KEY);
+    const owner = deviceOwner();
+    const raw = [...new Set([owner && publicationId ? draftKey(owner, publicationId) : draftKey(owner), draftKey(owner), DRAFT_KEY])]
+      .map(key => localStorage.getItem(key))
+      .find(value => {
+        if (!value) return false;
+        try {
+          const candidate = JSON.parse(value) as Partial<KeepProject>;
+          return (!candidate.draftOwnerId || candidate.draftOwnerId === owner)
+            && (!publicationId || candidate.publicationId === publicationId);
+        } catch { return false; }
+      });
     if (!raw) return null;
     const parsed = JSON.parse(raw) as Partial<KeepProject>;
+    if (parsed.draftOwnerId && parsed.draftOwnerId !== owner) return null;
+    if (publicationId && parsed.publicationId !== publicationId) return null;
     const p = { ...newProject(), ...parsed };
     if ((parsed.audioMixVersion ?? 1) < 2) {
       if (parsed.voiceVolume == null || parsed.voiceVolume === 100) p.voiceVolume = 60;
@@ -190,10 +215,11 @@ export function loadDraft(): KeepProject | null {
 
 /** Never silently replace a newer, playable phone recording with an older cloud snapshot. */
 export function preferLocalKeepDraft(local: KeepProject | null, remote: KeepProject | null): boolean {
-  if (!local?.active) return false;
+  if (!local?.active || local.restoreIncomplete) return false;
   if (!remote) return true;
   // A saved draft on this device can belong to another account or another Keep.
-  if (!local.publicationId || local.publicationId !== remote.publicationId) return false;
+  if (!local.publicationId || local.publicationId !== remote.publicationId ||
+    (local.draftOwnerId && remote.draftOwnerId && local.draftOwnerId !== remote.draftOwnerId)) return false;
   const localHasVoice = !!local.finalVoiceRecording?.audioId && !!local.finalVoiceRecording?.audioUrl;
   const remoteHasVoice = !!remote.finalVoiceRecording?.audioId && !!remote.finalVoiceRecording?.audioUrl;
   if (localHasVoice && !remoteHasVoice) return true;
@@ -202,31 +228,39 @@ export function preferLocalKeepDraft(local: KeepProject | null, remote: KeepProj
   const localMissingMedia = local.memories.some(m=>m.source==="upload" && !m.url)
     || (local.selfieVideos??[]).some(m=>m.source==="upload" && !m.url)
     || (local.voiceParts??[]).some(p=>!p.audioUrl);
-  if (localMissingMedia || local.memories.length < remote.memories.length) return false;
+  if (localMissingMedia) return false;
   const localAt = local.draftSavedAt ?? 0;
   const remoteAt = remote.draftSavedAt ?? 0;
   return localAt > 0 && remoteAt > 0 && localAt > remoteAt + 250;
 }
 
-export function clearDraft() {
-  try { localStorage.removeItem(DRAFT_KEY); } catch { /* ignore */ }
+export function clearDraft(publicationId?: string) {
+  try {
+    const owner = deviceOwner();
+    const current = loadDraft();
+    const id = publicationId ?? current?.publicationId;
+    if (owner && id) localStorage.removeItem(draftKey(owner, id));
+    if (!publicationId || current?.publicationId === publicationId) localStorage.removeItem(draftKey(owner));
+    const legacy = JSON.parse(localStorage.getItem(DRAFT_KEY) ?? "null") as KeepProject | null;
+    if (legacy && (!legacy.draftOwnerId || legacy.draftOwnerId === owner)
+        && (id ? legacy.publicationId === id : !owner)) localStorage.removeItem(DRAFT_KEY);
+  } catch { /* ignore */ }
 }
 
 const blobUrl = async (id?: string) => {
   if (!id) return undefined;
-  const b = await getBlob(id);
-  return b ? URL.createObjectURL(b) : undefined;
+  try { const b = await getBlob(id); return b?.size ? URL.createObjectURL(b) : undefined; } catch { return undefined; }
 };
 
-/** Restores object URLs for media/audio saved in IndexedDB. Items whose blobs are gone are dropped. */
-export async function hydrateDraftMedia(p: KeepProject): Promise<Pick<KeepProject, "memories" | "selfieBaseMedia" | "selfieVideos" | "interviewAnswers" | "finalVoiceRecording" | "voiceParts">> {
+/** Restores object URLs for media/audio saved in IndexedDB. Missing file references are retained so a failed restoration cannot erase the project. */
+export async function hydrateDraftMedia(p: KeepProject): Promise<Pick<KeepProject, "memories" | "selfieBaseMedia" | "selfieVideos" | "interviewAnswers" | "finalVoiceRecording" | "voiceParts" | "restoreIncomplete" | "restoreMissingCount">> {
   const memories: MediaItem[] = [];
   for (const m of p.memories) {
     if (m.source === "sample" || m.source === "text") { memories.push(m); continue; }
     const sourceId = m.blobId ?? m.id;
     const url = (m.kind === "image" ? await blobUrl(keepOptimizedPhotoId(sourceId)) : undefined)
       ?? await blobUrl(sourceId);
-    if (url) memories.push({ ...m, url });
+    memories.push({ ...m, url: url ?? "" });
   }
   const selfieBaseMedia:MediaItem[]=[];
   for(const item of p.selfieBaseMedia??[]){
@@ -235,12 +269,12 @@ export async function hydrateDraftMedia(p: KeepProject): Promise<Pick<KeepProjec
     const sourceId = item.blobId ?? item.id;
     const url = (item.kind === "image" ? await blobUrl(keepOptimizedPhotoId(sourceId)) : undefined)
       ?? await blobUrl(sourceId);
-    if(url)selfieBaseMedia.push({...item,url});
+    selfieBaseMedia.push({...item,url:url ?? ""});
   }
   const selfieVideos: MediaItem[]=[];
   for(const item of p.selfieVideos??[]){
     const url=await blobUrl(item.blobId??item.id);
-    if(url)selfieVideos.push({...item,url});
+    selfieVideos.push({...item,url:url ?? ""});
   }
   const interviewAnswers = await Promise.all(p.interviewAnswers.map(async (a) => {
     const {audioUrl: _previous, ...rest} = a;
@@ -258,7 +292,14 @@ export async function hydrateDraftMedia(p: KeepProject): Promise<Pick<KeepProjec
     const url = await blobUrl(part.audioId);
     return url ? {...rest,audioUrl:url} : rest;
   }));
-  return { memories, selfieBaseMedia, selfieVideos, interviewAnswers, finalVoiceRecording, voiceParts };
+  const missing = new Set<string>();
+  for (const item of [...memories, ...selfieBaseMedia, ...selfieVideos]) if (item.source === "upload" && !item.url) missing.add(item.blobId ?? item.id);
+  for (const audio of [...interviewAnswers, ...voiceParts, ...(finalVoiceRecording ? [finalVoiceRecording] : [])]) {
+    if (audio.audioId && !audio.audioUrl) missing.add(audio.audioId);
+  }
+  return { memories, selfieBaseMedia, selfieVideos, interviewAnswers, finalVoiceRecording, voiceParts,
+    restoreIncomplete: missing.size > 0, restoreMissingCount: missing.size };
+
 }
 
 export function projectBlobIds(p: KeepProject) {

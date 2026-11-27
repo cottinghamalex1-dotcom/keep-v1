@@ -25,7 +25,7 @@ Deno.serve(async(req:Request)=>{
       const {data:signed,error:signError}=await admin.storage.from('keep-media').createSignedUrls(paths,86400);
       if(signError||!signed||signed.some(s=>s.error||!s.signedUrl)) return fail('A memory could not load. Please try again.',503);
       const urls=new Map(signed.map(s=>[s.path,s.signedUrl]));
-      const {voicePath,memories,keepOrder:_checkoutPreferences,...settings}=project;
+      const {voicePath,memories,sourceFingerprint:_sourceFingerprint,keepOrder:_checkoutPreferences,...settings}=project;
       // Only expose a completed video for the exact published revision.
       // A previous film must not be shown after the creator edits the Keep.
       const revision=await renderRevisionHash(keep.published_project);
