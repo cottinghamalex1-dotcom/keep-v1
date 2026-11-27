@@ -14,7 +14,7 @@ it("shows a personal dedication on the metal card only when engraving is selecte
   expect(screen.getByText(/FROM MOM/)).toBeTruthy();
   rerender(<KeepCardFront engraving={engraving} openingMessage="You make every ordinary day brighter." showOpeningMessage={false} />);
   expect(screen.queryByText("You make every ordinary day brighter.")).toBeNull();
-  expect(screen.getByText("ANDI")).toBeTruthy();
+  expect(screen.getByText("ANDI • FROM MOM & DAD • 2026")).toBeTruthy();
 });
 
 it("persists the matching digital opening and card inscription with the published Keep", () => {

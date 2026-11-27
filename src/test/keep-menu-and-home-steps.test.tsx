@@ -81,7 +81,7 @@ describe("Consistent Keep navigation", () => {
     fireEvent.click(screen.getByRole("button", { name: /Card details & extras/ }));
     expect(screen.queryByLabelText("Preview of the front of your Keep card")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: /Signature Keep/ }));
-    expect(screen.getByLabelText("Preview of the front of your Keep card").textContent).toBe("2026THANK YOUMOM");
+    expect(screen.getByLabelText("Preview of the front of your Keep card").textContent).toBe("2026 • THANK YOU • MOM");
   });
   it("removes the three unwanted links from the dashboard menu", async () => {
     await openMenu("/app");

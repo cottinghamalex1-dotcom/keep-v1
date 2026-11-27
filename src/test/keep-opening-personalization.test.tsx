@@ -142,7 +142,7 @@ it("offers four independently optional fields, reorders them live, and permits a
   expect(card.textContent).toMatch(/2026.*HAPPY BIRTHDAY.*HANNAH.*FROM ALEX/);
   expect(card).toHaveTextContent("You are loved.");
   fireEvent.click(screen.getByRole("checkbox", { name: /Include my opening line on the card/ }));
-  expect(card.textContent).toBe("2026HAPPY BIRTHDAYHANNAHFROM ALEX");
+  expect(card.textContent).toBe("2026 • HAPPY BIRTHDAY • HANNAH • FROM ALEX");
   for (const input of within(group).getAllByRole("textbox")) {
     expect(input).not.toBeRequired();
     fireEvent.change(input, { target: { value: "" } });

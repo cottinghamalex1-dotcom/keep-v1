@@ -53,5 +53,5 @@ it("shows the same saved title and reordered details from My Keeps", () => {
     cardEngravingLayout: { title: "HAPPY BIRTHDAY", order: ["date", "title", "to", "from"] }, engraveOpeningMessage: false }} />);
   fireEvent.click(screen.getByRole("button", { name: /Preview Keep Card/ }));
   const card = screen.getByLabelText("Preview of the front of your Keep card");
-  expect(card.textContent).toBe("2026HAPPY BIRTHDAYMOMFROM ALEX");
+  expect(card.textContent).toBe("2026 • HAPPY BIRTHDAY • MOM • FROM ALEX");
 });
