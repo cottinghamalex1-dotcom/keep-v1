@@ -17,7 +17,7 @@ type Props = {
   onDelete: () => void;
 };
 
-const actionClass = "flex min-h-12 flex-col items-center justify-center gap-1.5 rounded-lg px-1 py-2 text-xs font-medium leading-tight text-[#594C40] transition-colors hover:bg-[#EEE7DD] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#776451]";
+const actionClass = "keep-library-secondary-action flex min-h-12 flex-col items-center justify-center gap-1.5 rounded-lg px-1 py-2 text-[#594C40] transition-colors hover:bg-[#EEE7DD] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#776451]";
 const optionClass = "flex min-h-11 w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-left text-[13px] font-medium transition-colors hover:bg-[#F1EBE3] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#776451]";
 
 /** Same actions on the home gallery and the full creation archive. */
@@ -30,15 +30,20 @@ export function KeepLibraryActions({ keep, published, copied, deleting, activity
     {published && <KeepGiftSummary activity={activity} failed={activityFailed} />}
     {published
       ? <a href={viewingLink(keep.recipient_token)} target="_blank" rel="noopener noreferrer"
-          className="keep-premium-action flex min-h-12 w-full items-center justify-center gap-2.5 px-4 py-3 text-sm font-medium">
-          <Play className="size-4" strokeWidth={1.8} aria-hidden="true" /> View Keep
+          className="keep-home-create-cta keep-library-view-button">
+          <span className="keep-library-view-button__content">
+            <span className="keep-library-view-button__play" aria-hidden="true">
+              <Play className="size-3.5 translate-x-px fill-current" strokeWidth={1.5} />
+            </span>
+            <span>View Keep</span>
+          </span>
         </a>
       : <a href={editHref} className="keep-premium-action flex min-h-12 w-full items-center justify-center gap-2.5 px-4 py-3 text-sm font-medium">
           <PenLine className="size-4" aria-hidden="true" /> Continue editing
         </a>}
     <div className={published ? "grid grid-cols-3 gap-1" : "flex justify-end"}>
       {published && <>
-        <a href={editHref} className={actionClass}><PenLine className="size-[17px]" strokeWidth={1.7} aria-hidden="true" /> Edit</a>
+        <a href={editHref} className={actionClass}><PenLine className="size-[17px]" strokeWidth={1.7} aria-hidden="true" /> <span>Edit</span></a>
         <button type="button" onClick={onCopy} className={actionClass}>
           {copied ? <Check className="size-[17px] text-[#526F54]" aria-hidden="true" /> : <Link2 className="size-[17px]" strokeWidth={1.7} aria-hidden="true" />}
           <span aria-live="polite">{copied ? "Copied!" : "Copy link"}</span>
@@ -46,7 +51,7 @@ export function KeepLibraryActions({ keep, published, copied, deleting, activity
       </>}
       <button type="button" aria-expanded={moreOpen} aria-controls={moreId} onClick={() => setMoreOpen(v => !v)}
         className={`${actionClass} ${moreOpen ? "bg-[#EEE7DD]" : ""} ${!published ? "min-w-[82px] flex-row px-3" : ""}`}>
-        <Ellipsis className="size-[17px]" aria-hidden="true" /> More
+        <Ellipsis className="size-[17px]" aria-hidden="true" /> <span>More</span>
         {!published && <ChevronDown className={`size-3.5 transition-transform ${moreOpen ? "rotate-180" : ""}`} aria-hidden="true" />}
       </button>
     </div>

@@ -1007,6 +1007,66 @@ body:has(.keep-studio) {
 }
 
 
+/* A compact version of the signature Create a Keep action, for the gallery. */
+.keep-library-view-button {
+  position: relative;
+  display: flex;
+  width: 100%;
+  min-height: 56px;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border-radius: 16px;
+  padding: 10px 18px;
+  color: #FFFAF3;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.25;
+  text-align: center;
+}
+.keep-library-view-button::before {
+  inset: 4px;
+  border-radius: 12px;
+}
+.keep-library-view-button__content {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+}
+.keep-library-view-button__play {
+  display: inline-flex;
+  flex: 0 0 28px;
+  width: 28px;
+  height: 28px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #FFF;
+  border-radius: 50%;
+  color: #FFF;
+}
+.keep-library-view-button:focus-visible {
+  outline: 2px solid #AD9275;
+  outline-offset: 3px;
+}
+/* Explicit typography for both anchor and button controls. The global
+   unlayered button font reset would otherwise override Tailwind text sizes. */
+.keep-library-secondary-action {
+  font-family: var(--font-sans);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.25;
+  letter-spacing: -.005em;
+  text-align: center;
+}
+.keep-library-secondary-action > span {
+  font: inherit;
+  letter-spacing: inherit;
+}
+
+
 /* Signed-in home collection: the rich outer shell frames quiet, ivory Keeps. */
 .keep-creations-frame {
   background:
