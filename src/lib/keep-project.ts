@@ -147,8 +147,17 @@ export function newProject(): KeepProject {
   };
 }
 
+/** Drafts saved during an older creation flow resume at the equivalent current screen. */
+export function resumeKeepCreationStage(stage: string): string {
+  if (stage === "feelings") return "intent";
+  if (stage === "messageGenerating") return "summary";
+  if (stage === "generating") return "memories";
+  if (stage === "preview" || stage === "recipientPreview") return "editor";
+  return stage;
+}
+
 export const stageLabels: Record<string, string> = {
-  recipient: "Choosing who it's for", occasion: "Choosing the occasion", voices: "Choosing the voices", intent: "Expressing the heart behind it", feelings: "Choosing how they should feel", remoteInvite: "Collecting voices remotely", groupRecord: "Recording together", path: "Finding the words", interview: "In the interview",
+  recipient: "Choosing who it's for", occasion: "Choosing the occasion", voices: "Choosing the voices", intent: "Expressing the heart behind it", feelings: "Expressing the heart behind it", remoteInvite: "Collecting voices remotely", groupRecord: "Recording together", path: "Finding the words", interview: "In the interview",
   summary: "Story gathered", write: "Writing the message", message: "Shaping the message", recordPrep: "Getting ready to record", record: "Recording your voice",
   recorded: "Voice recorded", memories: "Adding memories", editor: "In the editor", card: "Designing the card", success: "Ready",
 };

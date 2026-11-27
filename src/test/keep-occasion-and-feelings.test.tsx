@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { KeepFeelingChoices, KeepOccasionChoices, keepOccasions } from "@/components/keep-occasion-and-feelings";
-import { newProject, loadDraft, saveDraft, clearDraft, type KeepProject } from "@/lib/keep-project";
+import { KeepFeelingChoices, KeepHeartAndFeelings, KeepOccasionChoices, keepOccasions } from "@/components/keep-occasion-and-feelings";
+import { newProject, loadDraft, saveDraft, clearDraft, resumeKeepCreationStage, type KeepProject } from "@/lib/keep-project";
 import { fetchDraft, fetchNextQuestion, fetchRevision } from "@/lib/keep-ai";
 import { getOpeningInterviewQuestion, getInterviewGuidance } from "../../supabase/functions/keep-ai/interview-policy";
 
@@ -66,6 +66,7 @@ describe("occasion detail and recipient feelings", () => {
       stage: "feelings", occasion: "Birthday", occasionDetail: "Her 8th birthday", recipientFeelings: ["Encouraged", "Special"],
     });
     expect(newProject().recipientFeelings).toEqual([]);
+    expect(resumeKeepCreationStage(loadDraft()!.stage)).toBe("intent");
   });
 
   it("passes both fields to question, script and revision endpoints", async () => {
@@ -81,5 +82,53 @@ describe("occasion detail and recipient feelings", () => {
     }
     expect(getOpeningInterviewQuestion(context)).toContain("Her 8th birthday");
     expect(getInterviewGuidance(context)).toContain("selected recipient feelings as goals");
+  });
+});
+
+describe("combined heart and feelings page", () => {
+  it("shows the heart prompt and emotional choices in order, with a single Continue button", () => {
+    const onContinue = vi.fn();
+    const onToggleDictation = vi.fn();
+    function Harness() {
+      const [intent, setIntent] = useState("");
+      const [selected, setSelected] = useState<string[]>([]);
+      return <KeepHeartAndFeelings intent={intent} selected={selected} forSelf={false} dictating={false}
+        onIntentChange={setIntent} onFeelingsChange={setSelected} onToggleDictation={onToggleDictation} onContinue={onContinue} />;
+    }
+    render(<Harness />);
+    expect(screen.getByRole("heading", { name: "What is the heart behind this Keep?" })).toBeVisible();
+    const input = screen.getByRole("textbox");
+    const feelingsHeading = screen.getByRole("heading", { name: "How do you want them to feel?" });
+    expect(input.compareDocumentPosition(feelingsHeading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.getAllByRole("button", { name: "Continue" })).toHaveLength(1);
+    const next = screen.getByRole("button", { name: "Continue" });
+    expect(next).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "Speak" }));
+    expect(onToggleDictation).toHaveBeenCalledOnce();
+    fireEvent.click(screen.getByRole("button", { name: "Type" }));
+    expect(input).toHaveFocus();
+    fireEvent.change(input, { target: { value: "I want her to know how special she is." } });
+    expect(next).not.toBeDisabled(); // Feelings remain optional.
+    fireEvent.click(screen.getByRole("button", { name: "Loved" }));
+    fireEvent.click(screen.getByRole("button", { name: "Special" }));
+    expect(screen.getByRole("button", { name: "Loved" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "Special" })).toHaveAttribute("aria-pressed", "true");
+    expect(input).toHaveValue("I want her to know how special she is.");
+    fireEvent.click(next);
+    expect(onContinue).toHaveBeenCalledOnce();
+  });
+
+  it("restores both inputs on the combined screen, including a legacy feelings-stage draft", () => {
+    const draft = { ...newProject(), active: true, stage: "feelings", intent: "Celebrating a new chapter", recipientFeelings: ["Hopeful", "Encouraged"] };
+    saveDraft(draft);
+    const restored = loadDraft()!;
+    expect(resumeKeepCreationStage(restored.stage)).toBe("intent");
+    render(<KeepHeartAndFeelings intent={restored.intent} selected={restored.recipientFeelings ?? []}
+      forSelf dictating={false} onIntentChange={vi.fn()} onFeelingsChange={vi.fn()} onToggleDictation={vi.fn()} onContinue={vi.fn()} />);
+    expect(screen.getByRole("heading", { name: "How do you want to feel?" })).toBeVisible();
+    expect(screen.getByRole("textbox")).toHaveValue("Celebrating a new chapter");
+    expect(screen.getByRole("button", { name: "Hopeful" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "Encouraged" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "Continue" })).not.toBeDisabled();
   });
 });
