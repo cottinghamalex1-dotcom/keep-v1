@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ArrowRight, Check, Download, Loader2, RotateCcw } from "lucide-react";
 import { activeKeepSession } from "@/lib/keep-cloud";
 
@@ -69,10 +69,11 @@ async function renderRequest(keepId: string, action: string, musicDurationSec?: 
 }
 
 /** Owner-only controls. Nothing billable is submitted until the creator presses Render. */
-export function KeepFilmRender({ keepId, musicMood }: { keepId: string; musicMood: string }) {
+export function KeepFilmRender({ keepId, musicMood, musicMuted = false }: { keepId: string; musicMood: string; musicMuted?: boolean }) {
   const [job, setJob] = useState<RenderResult>({ status: "not_started" });
   const [statusChecked, setStatusChecked] = useState(false);
   const [busy, setBusy] = useState(false);
+  const actionLock = useRef(false);
   const [error, setError] = useState("");
   const refresh = useCallback(async () => {
     const next = await renderRequest(keepId, "status");
@@ -125,13 +126,14 @@ export function KeepFilmRender({ keepId, musicMood }: { keepId: string; musicMoo
     return () => { cancelled = true; window.clearTimeout(timeout); };
   }, [keepId, job]);
   const act = async (action: "start" | "recover" | "retry") => {
-    if (busy) return;
+    if (actionLock.current || busy) return;
     if (action === "retry" && !window.confirm(job.hasProviderRender
       ? "Render a new film? This may incur another Shotstack rendering charge. If an existing MP4 was completed, use Retry saving first."
       : "Retry rendering your film? A successfully submitted render may incur the normal Shotstack charge.")) return;
+    actionLock.current = true;
     setBusy(true); setError("");
     try {
-      const musicDurationSec = action === "start" || action === "retry" ? await soundtrackLength(musicMood) : undefined;
+      const musicDurationSec = !musicMuted && (action === "start" || action === "retry") ? await soundtrackLength(musicMood) : undefined;
       setJob(await renderRequest(keepId, action, musicDurationSec));
     } catch (cause) {
       if (!(cause instanceof FilmRequestError)) {
@@ -143,7 +145,7 @@ export function KeepFilmRender({ keepId, musicMood }: { keepId: string; musicMoo
         try { if ((await refresh()).status === "failed") return; } catch { setStatusChecked(false); }
       }
       setError(cause instanceof Error ? cause.message : "Couldn't start the finished film.");
-    } finally { setBusy(false); }
+    } finally { actionLock.current = false; setBusy(false); }
   };
   return <section className="rounded-[22px] border border-[#D8C8B6] bg-[#F6EFE7] p-5 text-[#30271E]" aria-label="Finished Keep film">
     <h2 className="font-display text-[27px] leading-tight">Your finished film</h2>

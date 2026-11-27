@@ -51,7 +51,7 @@ import { joinKeepVoiceParts } from "@/lib/keep-collaborative-audio";
 import { deleteBlobs, getBlob, putBlob, listStoredVoiceRecordings } from "@/lib/keep-media-store";
 import { createKeepVoiceMix, KEEP_MUSIC_LEAD_SECONDS, KEEP_MUSIC_TAIL_SECONDS, playMusicSample, stopMusicSample, type MusicBalance } from "@/lib/keep-audio";
 import { fetchDraft, fetchNextQuestion, fetchRevision, keepAiAvailable, transcribeAudio, transcribeTimedAudio } from "@/lib/keep-ai";
-import { fmt, hydrateDraftMedia, loadDraft, newId, newProject, projectBlobIds, projectObjectUrls, sampleMemories, saveDraft, preferLocalKeepDraft, stageLabels, defaultAudioMix, type AudioMix, type CaptionCue, type InterviewAnswer, type KeepProject, type KeepVoicePart, type MediaItem, type VoiceTone } from "@/lib/keep-project";
+import { fmt, hydrateDraftMedia, loadDraft, clearDraft, newId, newProject, projectBlobIds, projectObjectUrls, sampleMemories, saveDraft, preferLocalKeepDraft, stageLabels, defaultAudioMix, type AudioMix, type CaptionCue, type InterviewAnswer, type KeepProject, type KeepVoicePart, type MediaItem, type VoiceTone } from "@/lib/keep-project";
 
 export const Route = createFileRoute("/")({
   head: () => ({ meta: [
@@ -240,6 +240,7 @@ function KeepApp() {
   const [setting, setSetting] = useState("");
   const [voiceFinalizing, setVoiceFinalizing] = useState(false);
   const voiceFinishInFlight = useRef(false);
+  const groupFinishInFlight = useRef(false);
   // A failed IndexedDB write must not throw away the captured voice.
   const [pendingVoice, setPendingVoice] = useState<RecordingResult | null>(null);
   const [orphanVoices, setOrphanVoices] = useState<{id:string;size:number;mimeType:string;recordedAt:number}[]>([]);
@@ -308,12 +309,23 @@ function KeepApp() {
         return;
       }
       setRestoringPersonalKeep(resumeRequested);
-      const local = loadDraft();
-      let next = local;
+      const requestedLocalId = new URLSearchParams(window.location.search).get("local");
+      const local = loadDraft(editId || requestedLocalId || undefined);
+      let next: KeepProject | null = null;
+      let owner: string | undefined;
       try {
         setOpeningPhase("session");
         const session = await activeKeepSession();
         if (cancelled) return;
+        owner = session?.user.id;
+        if (createRequested) {
+          // A new creation never needs to download or modify an existing Keep.
+          if (!session) throw new Error("Please sign in to create your Keep.");
+          setProject({ ...newProject(), draftOwnerId: owner, publicationId: crypto.randomUUID(), active: true, stage: "recipient" });
+          window.history.replaceState(null, "", "/");
+          setHistory(["home"]); setScreen("recipient"); setHydrated(true);
+          return;
+        }
         if (session) {
           setOpeningPhase("draft");
           const onRestore = (progress: KeepRestoreProgress) => {
@@ -321,13 +333,14 @@ function KeepApp() {
             setOpeningPhase("media");
             setOpeningProgress(progress);
           };
-          const remote = editId ? await loadEditableKeep(editId, session, onRestore) : await loadCloudDraft(session, onRestore);
+          const cloud = editId ? await loadEditableKeep(editId, session, onRestore) : await loadCloudDraft(session, onRestore);
+          const remote = requestedLocalId && local?.draftOwnerId === session.user.id && local.publicationId === requestedLocalId && cloud?.publicationId !== requestedLocalId ? null : cloud;
           if (remote) {
             // A slow or failed upload must never make an older cloud draft erase
             // a playable voice already stored on this phone.
             const matchingLocal = local?.active && local.publicationId === remote.publicationId
               && (!editId || local.publicationId === editId)
-              ? { ...local, ...await hydrateDraftMedia(local) } : null;
+              ? { ...local, draftOwnerId: session.user.id, ...await hydrateDraftMedia(local) } : null;
             if (matchingLocal && preferLocalKeepDraft(matchingLocal, remote)) {
               next = matchingLocal;
               if (matchingLocal.finalVoiceRecording?.audioUrl && !remote.finalVoiceRecording?.audioUrl) {
@@ -339,40 +352,23 @@ function KeepApp() {
               if (remote.restoreIncomplete) setCloudSyncAllowed(false);
             }
           }
-          else if (local?.active) {
-            // Never silently attach an unclaimed device draft to a different account.
-            if (true) {
-              // Never block the editor behind large iPhone photo/video uploads.
-              // Show the local draft immediately and import in the background.
-              setCloudSyncAllowed(false);
-              const hydratedLocal = { ...local, ...await hydrateDraftMedia(local) };
-              next = hydratedLocal;
-              const importToast = toast.loading("Importing your draft to Keep. You can keep editing while it uploads.");
-              void saveCloudDraft(hydratedLocal, session).then(() => {
-                if (cancelled) return;
-                setCloudSyncAllowed(true);
-                toast.success("Your draft was imported to your account.", { id: importToast });
-              }).catch((error) => {
-                if (cancelled) return;
-                toast.error("Import couldn't finish: " + (error instanceof Error ? error.message : "Please try again"), { id: importToast, duration: 10000 });
-                // Preserve the device draft and prevent incomplete cloud overwrites.
-                setCloudSyncAllowed(false);
-              });
-            } else next = newProject();
+          else if (local?.active && (local.draftOwnerId === session.user.id ||
+            (!local.draftOwnerId && resumeRequested && window.confirm("An older draft is saved on this device. Is it your Keep, and would you like to restore it into this account?")))) {
+            next = { ...local, draftOwnerId: session.user.id, ...await hydrateDraftMedia(local) };
+            if (next.restoreIncomplete) setCloudSyncAllowed(false);
           } else next = newProject();
         } else if (resumeRequested) {
           throw new Error("Please sign in to your Keep account to continue editing.");
         }
       } catch (error) {
         if (resumeRequested) { if (!cancelled) setResumeError(error instanceof Error ? error.message : "Your Keep could not be restored. Please try again."); return; }
-        toast.error(error instanceof Error ? error.message : "Cloud draft unavailable; showing this device's draft.");
+        if (createRequested) { toast.error(error instanceof Error ? error.message : "Sign in again to create your Keep."); window.location.replace("/app"); return; }
+        toast.error(error instanceof Error ? error.message : "Cloud draft unavailable.");
       }
       if (cancelled) return;
       setOpeningPhase("finishing");
-      const usingLocal = next === local;
       if (next) {
-        next = { ...next, publicationId: next.publicationId || crypto.randomUUID() };
-        if (usingLocal) next = { ...next, ...await hydrateDraftMedia(next) };
+        next = { ...next, draftOwnerId: owner, publicationId: next.publicationId || crypto.randomUUID() };
         if (cancelled) return;
         setProject(next);
       }
@@ -384,12 +380,7 @@ function KeepApp() {
         setHydrated(true);
         return;
       }
-      const canCreate = createRequested && (!next?.active || window.confirm("Start a new Keep? Your current draft will be replaced."));
-      if (canCreate) { setProject({ ...newProject(), publicationId: crypto.randomUUID(), active: true, stage: "recipient" }); window.history.replaceState(null, "", "/"); }
-      setHistory(canCreate ? ["home"] : []);
-      if (!canCreate) { window.location.replace("/app"); return; }
-      setScreen("recipient");
-      setHydrated(true);
+      window.location.replace("/app");
     };
     void initialize();
     return () => { cancelled = true; };
@@ -401,7 +392,7 @@ function KeepApp() {
     const timer = window.setTimeout(async () => {
       try {
         const session = await activeKeepSession();
-        if (!session) return;
+        if (!session || project.draftOwnerId !== session.user.id) return;
         if (project.active) await saveCloudDraft(project,session);
         else await removeCloudDraft(session);
       } catch (error) {
@@ -434,6 +425,7 @@ function KeepApp() {
     try {
       const session = await activeKeepSession();
       if (!session) throw new Error("Please sign in again to restore your remaining media.");
+      if (project.draftOwnerId !== session.user.id) throw new Error("Sign in to the account that owns this Keep.");
       const restored = await retryMissingCloudMedia(project,session);
       setProject(restored);
       if (!restored.restoreIncomplete) {
@@ -456,9 +448,8 @@ function KeepApp() {
   const discard = (p: KeepProject) => { releaseUrls(projectObjectUrls(p)); void deleteBlobs(projectBlobIds(p)); };
   const startProject = (p: KeepProject, at: Screen) => {
     setReturnToEditorAfterRecording(false);
-    if (project.active && !window.confirm("Start a new Keep? Your current draft will be replaced.")) return;
-    discard(project);
-    setProject({ ...p, active: true, stage: at });
+    if (project.active && !saveDraft(project) && !window.confirm("Your current draft could not be backed up on this device. Start a new Keep anyway?")) return;
+    setProject({ ...p, draftOwnerId: project.draftOwnerId, publicationId: crypto.randomUUID(), active: true, stage: at });
     setViewingDemo(false); setFrame(0); setMode("Memories");
     setHistory(["home"]); setScreen(at); window.scrollTo(0, 0);
   };
@@ -496,11 +487,12 @@ function KeepApp() {
   useEffect(() => {
     if (!hydrated || screen !== "record" || project.finalVoiceRecording?.audioUrl) return;
     let cancelled = false;
-    void listStoredVoiceRecordings().then(items => {
-      if (!cancelled) setOrphanVoices(items.filter(item => item.id !== project.finalVoiceRecording?.audioId).slice(0,4));
+    if (!project.publicationId) return;
+    void listStoredVoiceRecordings(14, project.publicationId).then(items => {
+      if (!cancelled) setOrphanVoices(items.filter(item => item.id !== project.finalVoiceRecording?.audioId && !!project.publicationId && item.id.startsWith("voice-" + project.publicationId + "-")).slice(0,4));
     }).catch(() => undefined);
     return () => { cancelled = true; };
-  }, [hydrated, screen, project.finalVoiceRecording?.audioId, project.finalVoiceRecording?.audioUrl]);
+  }, [hydrated, screen, project.publicationId, project.finalVoiceRecording?.audioId, project.finalVoiceRecording?.audioUrl]);
   useEffect(() => () => {
     // Object URL created only after the creator chooses to preview a recovered take.
     if (recoveryPreview?.url) URL.revokeObjectURL(recoveryPreview.url);
@@ -756,7 +748,8 @@ function KeepApp() {
   const speakerName = (i: number) => project.contributors?.find(c => c.id === speakerFor(i))?.name || "Contributor";
   const readyPart = (i: number) => (project.voiceParts ?? []).find(part => part.paragraphIndex === i && part.contributorId === speakerFor(i) && part.textFingerprint === (project.messageParagraphs[i] ?? "").trim() && !!part.audioId);
   const readyCount = project.messageParagraphs.filter((p,i) => p.trim() && readyPart(i)).length;
-  const groupReady = project.messageParagraphs.length > 1 && readyCount === project.messageParagraphs.length;
+  const speakingPartCount = project.messageParagraphs.filter(p => p.trim()).length;
+  const groupReady = speakingPartCount > 1 && readyCount === speakingPartCount;
   const groupSignature = project.messageParagraphs.map((p,i)=>[speakerFor(i),p.trim(),readyPart(i)?.audioId ?? ""].join("::")).join("\n");
   const giverNames = isTogether ? (project.contributors ?? []).map(c => c.name.trim()).filter(Boolean).join(" & ") : "Alex";
   const editWordsFromEditor = () => {
@@ -859,7 +852,7 @@ function KeepApp() {
     try {
       const r = recoveredTake ?? await recorder.stop();
       if (!r?.blob?.size) { toast.error("No audio was captured. Please try again."); return; }
-      const id = preservedId ?? newId("voice");
+      const id = preservedId ?? newId("voice-" + project.publicationId);
       if (!(await putBlob(id, r.blob))) {
         setPendingVoice(r);
         toast.error("Your recording is still open, but device storage failed. Do not refresh. Retry saving or download the audio backup.", { duration: 12000 });
@@ -892,7 +885,7 @@ function KeepApp() {
       if (selfieSelected && !selfie) toast.info("Your narration is saved. The optional selfie video was not available.");
       setSelfieSelected(false);
       if (rec?.audioUrl && rec.audioUrl !== audioUrl) releaseUrls([rec.audioUrl]);
-      if (rec?.audioId && rec.audioId !== id) void deleteBlobs([rec.audioId]);
+      // Keep the previous take available until older cloud saves have settled.
       captionSyncToken.current++;
       setProject(updated);
       go("recorded");
@@ -911,7 +904,8 @@ function KeepApp() {
   };
 
   const finishGroupPart = async () => {
-    if (groupBusy) return;
+    if (groupFinishInFlight.current) return;
+    groupFinishInFlight.current = true;
     setGroupBusy(true);
     try {
       const r = await recorder.stop();
@@ -928,29 +922,36 @@ function KeepApp() {
         paragraphIndex:index, contributorId:speakerFor(index), textFingerprint:(project.messageParagraphs[index] ?? "").trim(),
         audioId:id, audioUrl:URL.createObjectURL(r.blob), durationSec:r.durationSec, mimeType:r.mimeType,
       }];
-      setProject(old=>{
+      const old = project;
+      const updated = (()=>{
         const selfies=[...(old.selfieVideos??[]).filter(item=>item.selfiePartIndex!==index),...(selfie?[selfie]:[])];
-        return {...old,selfieVideos:selfies,
+        return {...old,stage:"groupRecord",selfieVideos:selfies,
           memories:old.memories.length?composeSelfieStory(old.selfieBaseMedia?.length?old.selfieBaseMedia:withoutSelfieScenes(old.memories),selfies,old.finalVoiceRecording?.durationSec??150,old):old.memories,
           voiceParts:nextParts,finalVoiceRecording:null,groupVoiceSignature:undefined,captionTranscript:"",captionCues:[],captionWords:[],captionTimingEstimated:false};
-      });
-      if (oldPart) { releaseUrls([oldPart.audioUrl]); if (oldPart.audioId) void deleteBlobs([oldPart.audioId]); }
+      })();
+      const saved = saveDraft(updated);
+      setProject(updated);
+      if (!saved) toast.warning("Voice saved in this session. Keep this editor open while your draft backs up.");
+      if (oldPart) releaseUrls([oldPart.audioUrl]);
       const nextIndex = project.messageParagraphs.findIndex((p,i) => p.trim() && !nextParts.some(part => part.paragraphIndex === i && part.contributorId === speakerFor(i) && part.textFingerprint === p.trim()));
       if (nextIndex >= 0) setGroupPartIndex(nextIndex);
       toast.success(nextIndex >= 0 ? "Part saved. Hand the phone to the next speaker." : "All voices recorded. Ready to bring them together.");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "The recording couldn't be saved.");
     } finally {
+      groupFinishInFlight.current = false;
       setGroupBusy(false);
     }
   };
   const combineGroupVoices = async () => {
-    if (groupBusy || !groupReady) return;
+    if (groupFinishInFlight.current || !groupReady) return;
+    groupFinishInFlight.current = true;
     setGroupBusy(true);
     setVoiceFinalizing(true);
     try {
       const blobs: Blob[] = [];
       for (let i = 0; i < project.messageParagraphs.length; i++) {
+        if (!project.messageParagraphs[i]?.trim()) continue;
         const part = readyPart(i);
         const blob = part?.audioId ? await getBlob(part.audioId) : null;
         if (!blob) throw new Error("A voice is missing. Please record that part again.");
@@ -958,18 +959,22 @@ function KeepApp() {
       }
       const joined = await joinKeepVoiceParts(blobs);
       if (joined.blob.size > 19 * 1024 * 1024) throw new Error("This combined message is too long. Make the parts a little shorter.");
-      const id = newId("voice");
+      const id = newId("voice-" + project.publicationId);
       if (!(await putBlob(id,joined.blob))) throw new Error("Not enough device storage to save the combined recording.");
-      if (rec) { releaseUrls([rec.audioUrl]); if (rec.audioId) void deleteBlobs([rec.audioId]); }
       captionSyncToken.current++;
-      setProject(old=>({...old,
+      const old = project;
+      const updated = {...old,stage:"recorded",
         memories:old.memories.length?composeSelfieStory(old.selfieBaseMedia?.length?old.selfieBaseMedia:withoutSelfieScenes(old.memories),old.selfieVideos??[],joined.durationSec,old):old.memories,
-        finalVoiceRecording:{audioId:id,audioUrl:URL.createObjectURL(joined.blob),durationSec:joined.durationSec,mimeType:"audio/wav",demo:false},groupVoiceSignature:groupSignature,captionTranscript:"",captionCues:[],captionWords:[],captionTimingEstimated:false}));
+        finalVoiceRecording:{audioId:id,audioUrl:URL.createObjectURL(joined.blob),durationSec:joined.durationSec,mimeType:"audio/wav",demo:false},groupVoiceSignature:groupSignature,captionTranscript:"",captionCues:[],captionWords:[],captionTimingEstimated:false};
+      if (!saveDraft(updated)) toast.warning("The combined voice is saved in this session. Keep the editor open while backup completes.");
+      setProject(updated);
+      if (rec) releaseUrls([rec.audioUrl]);
       go("recorded");
       void syncFinalCaptions(joined.blob, "audio/wav", joined.durationSec, id);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "The recordings couldn't be combined. Your individual parts are saved.");
     } finally {
+      groupFinishInFlight.current = false;
       setGroupBusy(false);
       setVoiceFinalizing(false);
     }
@@ -981,7 +986,8 @@ function KeepApp() {
    * Match contributor AND unchanged exact text to prevent mixing stale scripts.
    */
   const combineRemoteVoices = async () => {
-    if(groupBusy || !project.publicationId || !isTogether) return;
+    if(groupFinishInFlight.current || !project.publicationId || !isTogether) return;
+    groupFinishInFlight.current = true;
     setGroupBusy(true);
     try {
       const {recordings}=await remoteOwnerDownload(project.publicationId);
@@ -1011,7 +1017,7 @@ function KeepApp() {
       if(blobs.length!==project.messageParagraphs.filter(p=>p.trim()).length)throw new Error("A speaking part is missing.");
       const joined=await joinKeepVoiceParts(blobs);
       if(joined.blob.size>19*1024*1024)throw new Error("The combined narration is too long. Shorten a part and retry.");
-      const audioId=newId("voice");
+      const audioId=newId("voice-" + project.publicationId);
       if(!(await putBlob(audioId,joined.blob)))throw new Error("Not enough device storage for the combined narration.");
       const signature=project.messageParagraphs.map((p,i)=>{
         const part=imported.find(item=>item.paragraphIndex===i && item.contributorId===speakerFor(i) && item.textFingerprint===p.trim());
@@ -1019,19 +1025,21 @@ function KeepApp() {
       }).join("\n");
       captionSyncToken.current++;
       const oldFinal=project.finalVoiceRecording;
-      if(oldFinal?.audioUrl)releaseUrls([oldFinal.audioUrl]);
-      if(oldFinal?.audioId)void deleteBlobs([oldFinal.audioId]);
-      setProject(old=>({...old,voiceParts:imported,groupVoiceSignature:signature,
+      const old = project;
+      const updated = {...old,stage:"recorded",voiceParts:imported,groupVoiceSignature:signature,
         memories:old.memories.length?composeSelfieStory(old.selfieBaseMedia?.length?old.selfieBaseMedia:withoutSelfieScenes(old.memories),old.selfieVideos??[],joined.durationSec,old):old.memories,
         finalVoiceRecording:{audioId,audioUrl:URL.createObjectURL(joined.blob),
           durationSec:joined.durationSec,mimeType:"audio/wav",demo:false},
-        captionTranscript:"",captionCues:[],captionWords:[],captionTimingEstimated:false}));
+        captionTranscript:"",captionCues:[],captionWords:[],captionTimingEstimated:false};
+      if (!saveDraft(updated)) toast.warning("The combined voice is saved in this session. Keep the editor open while backup completes.");
+      setProject(updated);
+      if(oldFinal?.audioUrl)releaseUrls([oldFinal.audioUrl]);
       toast.success("All voices are together. Keep balanced every speaker's audio.");
       go("recorded");
       void syncFinalCaptions(joined.blob,"audio/wav",joined.durationSec,audioId);
     }catch(issue){
       toast.error(issue instanceof Error?issue.message:"Couldn't combine the received audio. All recordings are still safely saved.");
-    }finally{setGroupBusy(false);}
+    }finally{groupFinishInFlight.current = false;setGroupBusy(false);}
   };
 
   const retryCaptionSync = async (): Promise<boolean> => {
@@ -1775,6 +1783,11 @@ function KeepApp() {
     const current = recovered.repaired ? {
       ...original, captionCues: recovered.cues, captionWords: recovered.words, captionTimingEstimated: true,
     } : original;
+    if (current.captionStyle !== "None" && current.captionTimingEstimated) {
+      setProject(current);
+      setPublishError("Caption timing needs verification. Re-sync captions to your voice before publishing.");
+      return;
+    }
     if (current.restoreIncomplete) {
       setPublishError("Finish restoring your saved memories before publishing.");
       return;
@@ -1807,7 +1820,7 @@ function KeepApp() {
         toast.info("Your published Keep is saved. A cloud draft backup will retry when you reopen the editor.");
       }
       if (original.publicationToken) {
-        toast.success("Your Keep has been updated. Its permanent viewing link stays the same.");
+        toast.success(result.unchanged ? "No changes to publish. Your finished film and viewing link are unchanged." : "Your Keep has been updated. Its permanent viewing link stays the same.");
         window.location.assign("/app");
         return;
       }
@@ -1887,7 +1900,7 @@ function KeepApp() {
       </div>
     </div>}
     <div key={screen} className={`page-enter keep-screen keep-screen--${screen}`}>
-    {screen === "you" && <>{top()}<div className="px-7 pt-8">{title("Your space", "Your Keeps.", "The things worth keeping, all in one place.")}<div className="mt-12 border-t border-border">{[{ label: "My cards", Icon: Radio }, { label: "Downloads & backups", Icon: Download }, { label: "Privacy", Icon: LockKeyhole }, { label: "Help", Icon: CircleHelp }].map(({ label, Icon }) => <Button key={label} variant="bare" className="flex h-17 w-full justify-between border-b border-border px-0 text-sm font-normal" onClick={() => setSetting(label)}><span className="flex items-center gap-4"><Icon className="size-4 text-accent" />{label}</span><ChevronRight className="size-4 text-muted-foreground" /></Button>)}{project.active && <Button variant="bare" className="flex h-17 w-full justify-between border-b border-border px-0 text-sm font-normal text-destructive" onClick={() => { if (!window.confirm("Delete your draft Keep? Recordings and photos added to it will be removed from this device.")) return; discard(project); setProject(newProject()); toast.success("Draft deleted"); }}><span className="flex items-center gap-4"><Trash2 className="size-4" />Delete draft Keep</span></Button>}</div><p className="mt-9 text-xs leading-6 text-muted-foreground">Your Keeps are private.</p></div>{setting && sheet(setting, () => setSetting(""), <><p className="mt-5 text-sm leading-7 text-muted-foreground">{setting === "Privacy" ? "Your working draft is saved on this device and can sync to your signed-in Keep account. Published Keeps use private viewing links; anyone with a link can view that Keep, so share it intentionally." : setting === "My cards" ? "Digital Keeps can be viewed and managed in My Keeps. Physical card ordering and fulfillment are not yet live." : setting === "Downloads & backups" ? "Keep saves drafts on this device and syncs to your account when signed in. If an upload is still in progress, keep this browser's data until backup finishes. Downloadable finished MP4 films are not yet available." : "If something doesn't work, don't clear your browser data. Return to My Keeps and preserve your draft. In-app support is being prepared for launch."}</p><Button variant="quiet" className="mt-8 w-full" onClick={() => setSetting("")}>Done</Button></>)}</>}
+    {screen === "you" && <>{top()}<div className="px-7 pt-8">{title("Your space", "Your Keeps.", "The things worth keeping, all in one place.")}<div className="mt-12 border-t border-border">{[{ label: "My cards", Icon: Radio }, { label: "Downloads & backups", Icon: Download }, { label: "Privacy", Icon: LockKeyhole }, { label: "Help", Icon: CircleHelp }].map(({ label, Icon }) => <Button key={label} variant="bare" className="flex h-17 w-full justify-between border-b border-border px-0 text-sm font-normal" onClick={() => setSetting(label)}><span className="flex items-center gap-4"><Icon className="size-4 text-accent" />{label}</span><ChevronRight className="size-4 text-muted-foreground" /></Button>)}{project.active && <Button variant="bare" className="flex h-17 w-full justify-between border-b border-border px-0 text-sm font-normal text-destructive" onClick={() => { if (!window.confirm("Delete your draft Keep? Recordings and photos added to it will be removed from this device.")) return; discard(project); clearDraft(project.publicationId); setProject({...newProject(),draftOwnerId:project.draftOwnerId}); toast.success("Draft deleted"); }}><span className="flex items-center gap-4"><Trash2 className="size-4" />Delete draft Keep</span></Button>}</div><p className="mt-9 text-xs leading-6 text-muted-foreground">Your Keeps are private.</p></div>{setting && sheet(setting, () => setSetting(""), <><p className="mt-5 text-sm leading-7 text-muted-foreground">{setting === "Privacy" ? "Your working draft is saved on this device and can sync to your signed-in Keep account. Published Keeps use private viewing links; anyone with a link can view that Keep, so share it intentionally." : setting === "My cards" ? "Digital Keeps can be viewed and managed in My Keeps. Physical card ordering and fulfillment are not yet live." : setting === "Downloads & backups" ? "Keep saves drafts on this device and syncs to your account when signed in. If an upload is still in progress, keep this browser's data until backup finishes. Published Keeps can be rendered and saved as finished 1080p MP4 films from My Keeps." : "If something doesn't work, don't clear your browser data. Return to My Keeps and preserve your draft. In-app support is being prepared for launch."}</p><Button variant="quiet" className="mt-8 w-full" onClick={() => setSetting("")}>Done</Button></>)}</>}
     {screen === "detail" && <>{top("READY")}<div className="relative mx-4 h-[min(55dvh,520px)] overflow-hidden"><img src={memoryImages[0]} alt="Couple at the coast, illustrative prototype photograph" className="h-full w-full object-cover" /><div className="absolute inset-0 photo-bottom" /><div className="absolute bottom-8 left-6"><p className="eyebrow text-foreground">ANNIVERSARY · 2026</p><h1 className="display mt-3 text-5xl">HANNA</h1><p className="mt-3 text-sm">from Alex · 2:30</p></div></div><div className="space-y-3 px-6 pt-7">{nextButton("Play Keep", () => { setViewingDemo(true); go("preview"); })}<Button variant="quiet" size="touch" className="w-full" onClick={editDemoCopy}><Settings2 /> Edit a copy</Button><Button variant="bare" size="touch" className="w-full" asChild><Link to="/recipient" search={{ keep: "" }}><Radio /> View as recipient</Link></Button></div></>}
     {screen === "recipient" && <>{top("01 / 04")}<div className="px-7 pb-12 pt-11">
       {title("Begin with someone", "Who is this Keep for?")}<KeepPhoneTip />
@@ -2258,7 +2271,7 @@ function KeepApp() {
       <div className="shrink-0">{top()}</div>
       <div className="mx-auto flex min-h-0 w-full max-w-[650px] flex-1 flex-col px-5 pb-[max(12px,env(safe-area-inset-bottom))] pt-3 sm:px-7">
         <div className="shrink-0 pb-3">
-          <p className="text-[10px] font-semibold uppercase tracking-[.16em] text-[#7C6752]">CREATE TOGETHER · {readyCount} OF {project.messageParagraphs.length} PARTS SAVED</p>
+          <p className="text-[10px] font-semibold uppercase tracking-[.16em] text-[#7C6752]">CREATE TOGETHER · {readyCount} OF {speakingPartCount} PARTS SAVED</p>
           <h1 className="mt-1 font-display text-[clamp(29px,7.5vw,42px)] leading-[1.07] tracking-[-.025em]">Every voice matters.</h1>
           {!isRecording && <p className="mt-1.5 text-[12px] leading-5 text-muted-foreground">Each person reads their turn. Pass the phone when you're done.</p>}
         </div>
@@ -2700,7 +2713,7 @@ function KeepApp() {
         <p className="mt-6 text-sm leading-6 text-muted-foreground">You can review or share your digital Keep now. Choose your physical card package, engraving, and additional cards during checkout.</p>
       </div>
       <div className="mt-11 space-y-3">
-        {project.publicationId && <KeepFilmRender keepId={project.publicationId} musicMood={project.musicMood} />}
+        {project.publicationId && <KeepFilmRender keepId={project.publicationId} musicMood={project.musicMood} musicMuted={project.audioMix?.musicMuted} />}
         {project.publicationToken && <ViewingLink token={project.publicationToken} />}
         <Button variant="quiet" size="touch" className="w-full" onClick={() => go("editor")}>Back to editor</Button>
         <Button asChild variant="quiet" size="touch" className="w-full"><Link to="/app">Back to Keeps</Link></Button>

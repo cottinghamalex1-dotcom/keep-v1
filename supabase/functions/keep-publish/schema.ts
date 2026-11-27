@@ -2,6 +2,9 @@ import { z } from 'zod';
 const text = (max: number) => z.string().max(max);
 const number = (min: number,max: number) => z.number().finite().min(min).max(max);
 export const manifestSchema = z.object({
+  sourceFingerprint: z.string().regex(/^[0-9a-f]{64}$/).optional(),
+  keepOrder: z.object({ tier:z.enum(['basic','signature']), extraCards:z.number().int().min(0).max(10000),
+    extraCardStyle:z.enum(['classic','engraved']), engravingUpgrade:z.boolean() }).optional(),
   recipientName: text(100).min(1), openingMessage: text(160).optional().default(''), closingLine: text(90).optional().default(''), engraveOpeningMessage: z.boolean().optional().default(false), occasion: text(100),
   messageParagraphs: z.array(text(10000)).min(1).max(100),
   voiceMode: z.enum(['solo','together']).optional(),
