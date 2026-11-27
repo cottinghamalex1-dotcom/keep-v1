@@ -9,7 +9,7 @@ it("places the small logo, large italic dedication and split-aligned bottom deta
   const card = screen.getByLabelText("Preview of the front of your Keep card");
   expect(within(card).getByRole("img", { name: "Keep" })).toHaveClass("row-start-1", "w-[21%]");
   const opening = within(card).getByText("You make our home feel like home.");
-  expect(opening).toHaveClass("text-left", "italic");
+  expect(opening).toHaveClass("text-left", "italic", "leading-[1.28]", "tracking-[.01em]");
   expect(opening.parentElement).toHaveClass("row-start-2");
   expect(opening.parentElement?.style.getPropertyValue("--keep-opening-size")).toBe("5.8cqw");
   const left = within(card).getByText("2026 • HAPPY BIRTHDAY");

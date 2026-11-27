@@ -106,7 +106,7 @@ export function KeepCardFront({ engraving, layout, openingMessage = "", showOpen
         <KeepTapPhoneIcon className="pointer-events-none absolute top-[1.5%] right-0 w-[4.8cqw] text-[#D9CFC2]" />
         {dedication && (
           <div ref={openingArea} style={{ "--keep-opening-size": `${initialOpeningSize}cqw` } as CSSProperties} className="row-start-2 flex min-h-0 min-w-0 items-center">
-            <p ref={openingLine} className="w-full min-w-0 text-[length:var(--keep-opening-size)] text-left font-normal italic leading-[1.18] tracking-[-.025em] text-[#F1EBE3] [overflow-wrap:anywhere]">
+            <p ref={openingLine} className="w-full min-w-0 text-[length:var(--keep-opening-size)] text-left font-normal italic leading-[1.28] tracking-[.01em] text-[#F1EBE3] [overflow-wrap:anywhere]">
               {dedication}
             </p>
           </div>
