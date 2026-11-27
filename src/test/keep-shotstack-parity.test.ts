@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  captionAtTime, captionDisplayIntervals, captionLayout, cameraMotion, cameraGeometry,
+  CAPTION_CHOICES, captionAtTime, captionDisplayIntervals, captionLayout, cameraMotion, cameraGeometry,
   coverCrop, sceneBoundary, filmCardLayout, keepOpeningLeadSeconds, transitionSeconds,
 } from "../../supabase/functions/keep-render/composition";
 import { buildShotstackEdit, filmDuration, type RenderProject, type ShotstackSources } from "../../supabase/functions/keep-render/shotstack";
@@ -56,6 +56,18 @@ describe("editor to MP4 composition parity",()=>{
     expect(clip.asset.font).toMatchObject({family:"Playfair-Display-Italic",size:layout.fontSize,style:"italic"});
     expect(clip.position).toBe("bottom");
     expect(clip.width).toBe(Math.round(1080*base.width));
+  });
+  it.each(CAPTION_CHOICES.filter(c=>c.name!=="None").map(c=>c.name))("uses the shared %s caption design in the MP4",captionStyle=>{
+    const project={...p(),captionStyle,captionSize:125};
+    const layout=captionLayout(captionStyle,project.captionPosition,project.captionLines,project.captionSize);
+    const clip=buildShotstackEdit(project,s()).timeline.tracks.flatMap(t=>t.clips).find(c=>c.asset.text===project.captionCues[0]!.text)!;
+    expect(clip.asset.font).toMatchObject({
+      family:layout.font==="DM Sans"?"DM-Sans":layout.italic?"Playfair-Display-Italic":"Playfair-Display",
+      size:layout.fontSize,weight:String(layout.weight),color:layout.color,
+    });
+    const textStyle=clip.asset.style as {letterSpacing?:number;textTransform?:string};
+    expect(textStyle.letterSpacing??0).toBe(layout.letterSpacing);
+    expect(textStyle.textTransform??"none").toBe(layout.textTransform);
   });
   it("selects the actual authored object-cover crop and interpolates the editor's exact zoom",()=>{
     const project=p(),edit=buildShotstackEdit(project,s());

@@ -2,6 +2,7 @@ import { useState } from "react";
 import { ArrowRight, Check, ChevronDown, Pause, Play, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { MediaItem, VoiceTone } from "@/lib/keep-project";
+import { visibleCaptionChoices } from "../../supabase/functions/keep-render/composition";
 
 type Track = { name: string; note: string; group: string };
 type Look = { name: string; note: string };
@@ -25,14 +26,6 @@ type Props = {
   onCreate: () => void;
 };
 
-const captionChoices = [
-  { name: "Reel", note: "Modern & expressive" },
-  { name: "Clean", note: "Simple and readable" },
-  { name: "Film", note: "Soft cinematic type" },
-  { name: "Minimal", note: "Quiet and subtle" },
-  { name: "Story", note: "Warm and personal" },
-  { name: "None", note: "Without captions" },
-];
 // These previews mirror the typography used for each style in the finished Keep film.
 const captionTitleStyles: Record<string, string> = {
   Reel: "font-sans text-[22px] font-semibold tracking-[-.025em]",
@@ -40,6 +33,13 @@ const captionTitleStyles: Record<string, string> = {
   Film: "font-display text-[27px] font-normal tracking-[-.025em]",
   Minimal: "font-sans text-[18px] font-normal tracking-[.015em]",
   Story: "font-display text-[26px] font-normal italic tracking-[-.025em]",
+  Editorial: "font-display text-[23px] font-semibold tracking-[-.02em]",
+  Bold: "font-sans text-[24px] font-extrabold tracking-[-.025em]",
+  Heirloom: "font-display text-[23px] font-medium text-[#77573D]",
+  Whisper: "font-sans text-[18px] font-light tracking-[.045em]",
+  Letter: "font-display text-[23px] italic text-[#77573D]",
+  Golden: "font-sans text-[22px] font-semibold text-[#846033]",
+  "Classic Caps": "font-sans text-[15px] font-semibold uppercase tracking-[.045em]",
   None: "font-sans text-[18px] font-normal text-muted-foreground",
 };
 const voiceChoices: { name: VoiceTone; label: string; note: string }[] = [
@@ -59,6 +59,7 @@ function CaptionChoice({ name, note, chosen, onSelect }: { name: string; note: s
 }
 
 export function KeepFinishingChoices({ captionStyle, musicMood, visualStyle, voiceTone, tracks, looks, previewMedia, musicSampling, voiceSampling, hasVoice, onCaption, onMusic, onSample, onStyle, onVoice, onVoiceSample, onCreate }: Props) {
+  const [moreCaptions, setMoreCaptions] = useState(false);
   const [moreTracks, setMoreTracks] = useState(false);
   const [moreLooks, setMoreLooks] = useState(false);
   const featuredTracks = tracks.slice(0, 4);
@@ -76,7 +77,8 @@ export function KeepFinishingChoices({ captionStyle, musicMood, visualStyle, voi
 
     <section className="keep-finish-section" aria-labelledby="finish-captions">
       <div className="mb-3"><h2 id="finish-captions" className="font-display text-[29px]">Captions</h2><p className="mt-1 text-xs leading-5 text-muted-foreground">How would you like your words to appear?</p></div>
-      <div className="grid grid-cols-2 gap-2.5">{captionChoices.map((c) => <CaptionChoice key={c.name} name={c.name} note={c.note} chosen={captionStyle === c.name} onSelect={() => onCaption(c.name)} />)}</div>
+      <div id="finish-caption-options" className="grid grid-cols-2 gap-2.5">{visibleCaptionChoices(captionStyle, moreCaptions).map((c) => <CaptionChoice key={c.name} name={c.name} note={c.note} chosen={captionStyle === c.name} onSelect={() => onCaption(c.name)} />)}</div>
+      <button type="button" aria-expanded={moreCaptions} aria-controls="finish-caption-options" onClick={() => setMoreCaptions(open => !open)} className="mt-3 flex min-h-11 items-center gap-2 text-xs font-medium text-[#6A5849]">{moreCaptions ? "Show fewer caption options" : "Explore more captions"} <ChevronDown className={`size-4 transition-transform ${moreCaptions ? "rotate-180" : ""}`} /></button>
     </section>
 
     <section className="keep-finish-section" aria-labelledby="finish-music">

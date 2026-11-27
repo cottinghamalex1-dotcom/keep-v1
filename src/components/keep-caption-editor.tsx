@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Check, ChevronDown, ChevronLeft, ChevronRight, Loader2, Play, RotateCcw, X } from "lucide-react";
 import type { CaptionCue } from "@/lib/keep-project";
-import { CAPTION_SIZE_MIN, CAPTION_SIZE_MAX, CAPTION_SIZE_DEFAULT, normalizeCaptionSize } from "../../supabase/functions/keep-render/composition";
+import { CAPTION_SIZE_MIN, CAPTION_SIZE_MAX, CAPTION_SIZE_DEFAULT, normalizeCaptionSize, captionLayout, visibleCaptionChoices } from "../../supabase/functions/keep-render/composition";
 
 type Props = {
   cues: CaptionCue[]; time: number; style: string; position: "top" | "middle" | "bottom";
@@ -16,8 +16,6 @@ type Props = {
   onChangeLines: (lines: number) => void; onChangeSize: (size: number) => void; onRegroup: (wordsPerCue: number) => void; onRestore: () => void;
   onRetrySync: () => void; onResync: () => void; onPreviewSync: () => void;
 };
-const coreStyles = ["Clean", "Film", "Story", "Minimal"];
-const extraStyles = ["Reel", "None"];
 const format = (seconds: number) => `${Math.floor(seconds / 60)}:${String(Math.floor(seconds % 60)).padStart(2, "0")}`;
 
 export function KeepCaptionEditor({
@@ -36,8 +34,15 @@ export function KeepCaptionEditor({
     if (cues.length && !window.confirm("Changing caption length will rebuild caption segments and replace manual text edits. Continue?")) return;
     onRegroup(words);
   };
-  const styleButton = (name: string) => <button key={name} type="button" onClick={() => onChangeStyle(name)}
-    aria-pressed={style === name} className={`keep-studio-choice min-h-9 px-1 text-[11px] font-medium ${style === name ? "keep-studio-choice--selected" : ""}`}>{name === "None" ? "Hide" : name}</button>;
+  const styleButton = ({ name, note }: { name: string; note: string }) => {
+    const layout = captionLayout(name);
+    return <button key={name} type="button" onClick={() => onChangeStyle(name)}
+      aria-pressed={style === name} aria-label={name === "None" ? "Hide captions" : name} title={note}
+      className={`keep-studio-choice min-h-11 min-w-0 px-1.5 text-[11px] leading-snug ${style === name ? "keep-studio-choice--selected" : ""}`}
+      style={{ fontFamily: layout.font === "Playfair Display" ? "var(--font-display)" : "var(--font-sans)", fontWeight: layout.weight, fontStyle: layout.italic ? "italic" : "normal", letterSpacing: layout.letterSpacing / 6 + "px", textTransform: layout.textTransform }}>
+      {name === "None" ? "Hide" : name}
+    </button>;
+  };
   return <section className="keep-studio-compact px-3.5 pb-4 pt-3.5" aria-label="Caption editing">
     <div className="flex items-center justify-between gap-3">
       <div><h2 className="font-display text-[25px] leading-none">Captions</h2><p className="mt-1 text-[11px] text-[#BDB3AA]">Your words, in time with your voice.</p></div>
@@ -80,8 +85,9 @@ export function KeepCaptionEditor({
         <button type="button" onClick={() => choose(current + 1)} disabled={current === cues.length - 1} className="keep-studio-mini-button">Next <ChevronRight className="size-3.5" /></button>
       </div>
     </div>}
-    <div className="mt-3 grid grid-cols-4 gap-1.5" aria-label="Caption styles">{coreStyles.map(styleButton)}</div>
-    {extraStyles.includes(style) && <div className="mt-2 grid grid-cols-2 gap-2">{extraStyles.map(styleButton)}</div>}
+    <div id="studio-caption-options" className="mt-3 grid grid-cols-4 gap-1.5" aria-label="Caption styles">{visibleCaptionChoices(style, moreStyles).map(styleButton)}</div>
+    <button type="button" aria-expanded={moreStyles} aria-controls="studio-caption-options" onClick={() => setMoreStyles(open => !open)}
+      className="mt-1 flex min-h-10 w-full items-center justify-between text-[11px] font-medium text-[#D7C2A6]">{moreStyles ? "Show fewer caption options" : "Explore more captions"} <ChevronDown className={`size-4 transition-transform ${moreStyles ? "rotate-180" : ""}`} /></button>
     <div className="mt-3 rounded-xl border border-[#55493F] bg-[#26231F] px-3 py-2.5">
       <div className="flex items-center justify-between gap-3">
         <label htmlFor="keep-caption-size" className="text-[12px] font-medium text-[#F5E5D1]">Caption size</label>
@@ -109,9 +115,6 @@ export function KeepCaptionEditor({
       </summary>
       <div className="space-y-3 border-t border-[#51463E] pt-3">
         {timingEstimated && <p className="text-[11px] leading-5 text-[#DFCCB5]">Caption timing is estimated. You can fine-tune it below.</p>}
-        {!extraStyles.includes(style) && <button type="button" onClick={() => setMoreStyles(open => !open)} aria-expanded={moreStyles} className="keep-studio-secondary-action w-full justify-center">
-          {moreStyles ? "Hide extra styles" : "More caption styles"}</button>}
-        {moreStyles && <div className="grid grid-cols-2 gap-2">{extraStyles.map(styleButton)}</div>}
         {cues.length > 1 && <div><p className="mb-2 text-[11px] text-[#D2C2B2]">Jump to a phrase</p><div className="thin-scroll flex gap-2 overflow-x-auto pb-1" aria-label="Caption phrases">
           {cues.map((cue, i) => <button key={i} type="button" onClick={() => choose(i)} aria-pressed={i === current}
             className={`max-w-44 shrink-0 truncate rounded-lg border px-3 py-2 text-[11px] ${i === current ? "border-[#D2BA99] bg-[#3C322A]" : "border-[#595047]"}`}>{cue.text.trim() || `Caption ${i + 1}`}</button>)}</div></div>}

@@ -13,6 +13,7 @@ export function KeepFilmCaption({text, style, position="bottom", lines=2, captio
       fontFamily:layout.font === "Playfair Display" ? "var(--font-display)" : "var(--font-sans)",
       fontSize:layout.fontSize/FILM_WIDTH*100+"cqw", fontWeight:layout.weight,
       fontStyle:layout.italic?"italic":"normal", lineHeight:layout.lineHeight,
+      letterSpacing:layout.letterSpacing/FILM_WIDTH*100+"cqw", textTransform:layout.textTransform,
       color:layout.color, whiteSpace:"pre-line", margin:0,
       textShadow:"0 .28cqw 1.1cqw rgba(0,0,0,.98)",
     }}>{text}</p>

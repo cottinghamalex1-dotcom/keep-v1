@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import Ajv from "ajv";
+import { CAPTION_CHOICES } from "../../supabase/functions/keep-render/composition";
 import schema from "./fixtures/shotstack-edit-schema.json";
 import { buildShotstackEdit, type RenderProject, type ShotstackSources } from "../../supabase/functions/keep-render/shotstack";
 
@@ -21,6 +22,11 @@ describe("Shotstack request contract (offline provider schema)",()=>{
   it.each(["Dreamy","Warm","Film","Modern","Black & White","Vintage","Soft","Original"])("validates all 26 memories and 71 captions with the %s filter",style=>{
     const p=fixture(style), edit=buildShotstackEdit(p,sources(p));
     expect(check(edit), JSON.stringify(check.errors)).toBe(true);
+  });
+  it.each(CAPTION_CHOICES.map(c=>c.name))("validates render payload with %s captions",captionStyle=>{
+    const p={...fixture("Warm"),captionStyle};
+    const edit=buildShotstackEdit(p,sources(p));
+    expect(check(edit),JSON.stringify(check.errors)).toBe(true);
   });
   it("rejects the old invalid Dreamy brightness multiplier",()=>{
     const p=fixture("Dreamy"), edit=buildShotstackEdit(p,sources(p));

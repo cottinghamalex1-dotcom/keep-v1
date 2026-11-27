@@ -50,12 +50,12 @@ const rectangle=(color:string,start:number,length:number,width=FILM_WIDTH,height
   width,height,fit:"none",position:"center",offset:{x:0,y:round(y)},start:round(start),length:round(length),
 });
 const richText=(text:string,start:number,length:number,options:{
-  font:string;size:number;weight?:number|undefined;italic?:boolean|undefined;color?:string|undefined;letterSpacing?:number|undefined;lineHeight?:number|undefined;
+  font:string;size:number;weight?:number|undefined;italic?:boolean|undefined;color?:string|undefined;letterSpacing?:number|undefined;lineHeight?:number|undefined;textTransform?:"uppercase"|"none"|undefined;
   width:number;height:number;position?:string;align?:"top"|"middle"|"bottom";offsetY?:number;shadow?:boolean;
 }):Clip=>({
   asset:{type:"rich-text",text,font:{family:options.font,size:Math.max(1,Math.min(500,Math.round(options.size))),color:options.color??"#F5EDE5",
     weight:String(options.weight??400),...(options.italic?{style:"italic"}:{})},
-    style:{lineHeight:options.lineHeight??1.25,...(options.letterSpacing!==undefined?{letterSpacing:options.letterSpacing}:{})},
+    style:{lineHeight:options.lineHeight??1.25,...(options.letterSpacing!==undefined?{letterSpacing:options.letterSpacing}:{}),...(options.textTransform&&options.textTransform!=="none"?{textTransform:options.textTransform}:{})},
     align:{horizontal:"center",vertical:options.align??"middle"},
     ...(options.shadow?{shadow:{offsetX:0,offsetY:3,blur:12,color:"#000000",opacity:0.98}}:{})},
   start:round(start),length:round(length),width:options.width,height:options.height,fit:"none",
@@ -193,7 +193,7 @@ export function buildShotstackEdit(project:RenderProject,sources:ShotstackSource
     const position=layout.align==="middle"?"center":layout.align;
     const offsetY=layout.align==="top"?-layout.top:layout.align==="bottom"?1-layout.top:0;
     return richText(c.text,intro+c.start,c.end-c.start,{font:layout.font==="DM Sans"?fontFiles.sans:layout.italic?fontFiles.italic:fontFiles.display,
-      size:layout.fontSize,weight:layout.weight,italic:layout.italic,color:layout.color,lineHeight:layout.lineHeight,
+      size:layout.fontSize,weight:layout.weight,italic:layout.italic,color:layout.color,lineHeight:layout.lineHeight,letterSpacing:layout.letterSpacing || undefined,textTransform:layout.textTransform,
       width:Math.round(FILM_WIDTH*layout.width),height:Math.round(FILM_HEIGHT*0.72),position,align:layout.align,offsetY,shadow:true});
   }).filter(c=>c.length>=0.033);
   const card=cards(project,intro,voiceEnd,filmEnd);
