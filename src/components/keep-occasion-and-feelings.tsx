@@ -1,6 +1,7 @@
 import { ArrowRight, Check, Keyboard, Mic, Square } from "lucide-react";
 import { useEffect, useRef, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
+import "./keep-heart-and-feelings.css";
 
 const occasionDetails = [
   ["Birthday", "Which birthday are they celebrating?", "Their 8th birthday, their 30th birthday…"],
@@ -88,16 +89,18 @@ export function KeepOccasionChoices({ occasion, occasionDetail, onChange, contin
 
 export function KeepFeelingChoices({ selected, onChange }: { selected: string[]; onChange: (feelings: string[]) => void }) {
   return (
-    <div className="grid grid-cols-2 gap-3" role="group" aria-label="How you want the recipient to feel">
+    <div className="keep-heart__choices" role="group" aria-label="How you want the recipient to feel">
       {keepRecipientFeelings.map(feeling => {
         const active = selected.includes(feeling);
         return (
-          <Button key={feeling} type="button" variant="quiet" aria-pressed={active}
-            className={`keep-choice-bubble ${active ? "keep-choice-bubble--selected" : ""}`}
+          <button key={feeling} type="button" aria-pressed={active}
+            className="keep-heart__feeling"
             onClick={() => onChange(active ? selected.filter(value => value !== feeling) : [...selected, feeling])}>
-            <span className="min-w-0 flex-1 text-left">{feeling}</span>
-            {active && <span className="keep-choice-check"><Check className="!size-3.5" strokeWidth={2.7} /></span>}
-          </Button>
+            <span>{feeling}</span>
+            <span className="keep-heart__feeling-check" aria-hidden="true">
+              {active && <Check size={12} strokeWidth={2.5} />}
+            </span>
+          </button>
         );
       })}
     </div>
@@ -119,37 +122,61 @@ export function KeepHeartAndFeelings({
 }) {
   const textArea = useRef<HTMLTextAreaElement>(null);
   return (
-    <div className="px-7 pb-12 pt-11">
-      <div className="mb-10 keep-page-heading">
+    <div className="keep-heart">
+      <div className="keep-heart__heading">
+        <p className="keep-heart__eyebrow">The intention</p>
         <h1 className="keep-editorial-title">What is the heart behind this Keep?</h1>
-        <p className="keep-page-description mt-5" id="keep-heart-question">
+        <p className="keep-heart__description" id="keep-heart-question">
           What is this Keep all about? What would you like them to remember?
         </p>
       </div>
-      <textarea ref={textArea} aria-labelledby="keep-heart-question" value={intent}
-        onChange={event => onIntentChange(event.target.value.slice(0, 500))}
-        placeholder="I want Gigi & Pops to know how special it was watching them experience Disney through our kids' eyes, and I want our family to always remember this trip together."
-        className="min-h-44 w-full resize-none rounded-sm border border-border bg-transparent p-4 text-sm leading-7 outline-none focus:border-accent" />
-      <div className="mt-4 grid grid-cols-2 gap-2">
-        <Button type="button" variant={dictating ? "selected" : "quiet"} className="h-12" onClick={onToggleDictation}>
-          {dictating ? <Square className="mr-2 size-4" fill="currentColor" /> : <Mic className="mr-2 size-4" />}
-          {dictating ? "Stop" : "Speak"}
-        </Button>
-        <Button type="button" variant="quiet" className="h-12" onClick={() => textArea.current?.focus()}>
-          <Keyboard aria-hidden="true" className="mr-2 size-4" />Type
-        </Button>
+
+      <div className="keep-heart__paper">
+        <div className="keep-heart__paper-head">
+          <label htmlFor="keep-heart-intent">Your thoughts</label>
+          <span className="keep-heart__character-count" aria-label={`${intent.length} of 500 characters`}>{intent.length} / 500</span>
+        </div>
+        <textarea id="keep-heart-intent" ref={textArea} aria-describedby="keep-heart-question" value={intent}
+          onChange={event => onIntentChange(event.target.value.slice(0, 500))}
+          maxLength={500}
+          placeholder="I want Gigi & Pops to know how special it was watching them experience Disney through our kids' eyes, and I want our family to always remember this trip together."
+          rows={5} />
+        <div className="keep-heart__paper-footer">
+          <div className="keep-heart__methods" role="group" aria-label="Share your thoughts">
+            <button type="button" aria-pressed={dictating} onClick={onToggleDictation}>
+              {dictating ? <Square size={18} strokeWidth={1.6} fill="currentColor" aria-hidden="true" /> : <Mic size={18} strokeWidth={1.7} aria-hidden="true" />}
+              <span>{dictating ? "Stop" : "Speak"}</span>
+            </button>
+            <button type="button" onClick={() => textArea.current?.focus()}>
+              <Keyboard size={18} strokeWidth={1.7} aria-hidden="true" />
+              <span>Type</span>
+            </button>
+          </div>
+        </div>
       </div>
-      {dictating && <p className="mt-3 text-xs leading-5 text-muted-foreground">Speak naturally. Your words will appear above as you talk. Tap Stop when you're finished.</p>}
-      <section aria-labelledby="keep-feelings-heading" className="mt-10 border-t border-border pt-8">
+      {dictating && <div className="keep-heart__listening" role="status">
+        <span className="keep-heart__listening-dot" aria-hidden="true" />
+        <p><strong>Listening</strong><br />Speak naturally. Your words will appear above as you talk. Tap Stop when you're finished.</p>
+      </div>}
+
+      <section aria-labelledby="keep-feelings-heading" className="keep-heart__feelings">
+        <p className="keep-heart__eyebrow">The feeling</p>
         <h2 id="keep-feelings-heading" className="keep-section-title">{forSelf ? "How do you want to feel?" : "How do you want them to feel?"}</h2>
-        <p className="keep-page-description mb-5 mt-3">
-          {forSelf ? "When you revisit this Keep, what do you hope to feel?" : "When they receive their Keep, what do you hope they feel?"} Select all that apply. (Optional)
+        <p className="keep-heart__description">
+          {forSelf ? "When you revisit this Keep, what do you hope to feel?" : "When they receive their Keep, what do you hope they feel?"}
         </p>
+        <div className="keep-heart__selection-guide">
+          <span>Select all that apply <span className="keep-heart__optional">· Optional</span></span>
+          <span className="keep-heart__count" role="status">{selected.length} selected</span>
+        </div>
         <KeepFeelingChoices selected={selected} onChange={onFeelingsChange} />
       </section>
-      <div className="mt-10">
-        <Button type="button" variant="keep" size="touch" className="keep-premium-action w-full justify-between"
-          disabled={!intent.trim()} onClick={onContinue}>Continue<ArrowRight /></Button>
+
+      <div className="keep-heart__footer">
+        <Button type="button" variant="keep" size="touch" className="keep-voices-continue"
+          disabled={!intent.trim()} onClick={onContinue}>
+          Continue <span className="keep-voices-continue__arrow" aria-hidden="true"><ArrowRight strokeWidth={1.6} /></span>
+        </Button>
       </div>
     </div>
   );
