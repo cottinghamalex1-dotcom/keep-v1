@@ -155,15 +155,29 @@ function reliableWordTimes(words: TimedWord[], duration: number): TimedWord[] | 
   if (invalid || reversed || repeated / Math.max(1, words.length - 1) > 0.12 ||
       tiny > Math.max(1, Math.floor(words.length * 0.2))) return null;
   const normalized: TimedWord[] = [];
+  let nextStart: number | undefined;
   for (let i = 0; i < words.length; i++) {
     const w = words[i]!;
-    const start = Math.max(0, w.start);
+    const start = Math.max(0, nextStart ?? w.start);
+    nextStart = undefined;
     let end = Math.min(duration, w.end);
     if (end - start <= 0.045) {
-      const anchor = Math.min(duration, words[i + 1]?.start ?? duration);
+      const next = words[i + 1];
+      const anchor = Math.min(duration, next?.start ?? duration);
       // Keep the original spoken start. Never spread a group of words or
       // shift later speech to fill a pause.
       end = Math.min(anchor, start + 0.12);
+      if (end - start <= 0.045 && next && Math.abs(next.start - start) < 0.03) {
+        // Whisper sometimes gives a brief preceding word (e.g. "we") the
+        // exact start of the next word ("will"). Their measured combined
+        // span is still useful if it is an isolated pair, not a collapsed run.
+        const measuredEnd = Math.min(duration, next.end, words[i + 2]?.start ?? duration);
+        const span = measuredEnd - start;
+        if (span >= 0.15 && span <= 1 && next.end - next.start > 0.12) {
+          end = start + Math.min(0.1, span / 3);
+          nextStart = end;
+        }
+      }
       if (end - start <= 0.045) return null;
     }
     normalized.push({ ...w, start, end });

@@ -59,6 +59,24 @@ describe("long Keep caption transcription", () => {
     expect(result.words[0]).toEqual({word:"The",start:0.3,end:0.42});
     expect(result.words.slice(1)).toEqual(first.slice(1));
   });
+  it("handles an isolated zero-length word sharing its neighbor's actual start", async () => {
+    const {blob} = fakeVoice(10);
+    const first = [
+      ...Array.from({length:10}, (_,i) => ({word:`word${i}`,start:i*0.4,end:i*0.4+0.3})),
+      {word:"we",start:5.76,end:5.76},
+      {word:"will",start:5.76,end:5.98},
+      {word:"pause",start:5.98,end:6.26},
+    ];
+    const fetch = vi.fn(async () => response(first));
+    vi.stubGlobal("fetch",fetch);
+    const result = await transcribeTimedAudio(blob,"audio/wav");
+    expect(fetch).toHaveBeenCalledOnce();
+    expect(result.words[10]!.start).toBe(5.76);
+    expect(result.words[10]!.end).toBeCloseTo(5.833,3);
+    expect(result.words[11]!.start).toBe(result.words[10]!.end);
+    expect(result.words[11]!.end).toBe(5.98);
+    expect(result.words[12]).toEqual(first[12]);
+  });
   it("rejects unresolved collapsed timestamps instead of inventing uniformly spaced captions", async () => {
     const {blob} = fakeVoice(10);
     const fetch = vi.fn(async () => response(bad()));
