@@ -1,8 +1,10 @@
 import { QueryClient } from "@tanstack/react-query";
-import { createMemoryHistory, createRouter, RouterProvider } from "@tanstack/react-router";
+import { createMemoryHistory, createRouter, isRedirect, RouterProvider } from "@tanstack/react-router";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { routeTree } from "@/routeTree.gen";
+import { Route as LegacyShopRoute } from "@/routes/shop";
+import { KeepPurchase } from "@/components/keep-purchase";
 import { KeepCreateCTA } from "@/components/keep-create-cta";
 
 async function openMenu(path: string) {
@@ -28,52 +30,45 @@ afterEach(() => {
 });
 
 describe("Consistent Keep navigation", () => {
-  it("uses one hamburger menu for every shop navigation link and returning-customer login", async () => {
-    await openMenu("/shop");
-    expect(screen.getByRole("navigation", { name: "Keep menu" })).toBeTruthy();
-    expect(screen.getByRole("link", { name: "Log in / Continue editing" }).getAttribute("href")).toBe("/app");
-    expect(screen.getByRole("link", { name: "The experience" }).getAttribute("href")).toBe("/shop#experience");
-    expect(screen.getByRole("link", { name: "How it works" }).getAttribute("href")).toBe("/shop#how-it-works");
-    expect(screen.getByRole("dialog", { name: "Keep navigation" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Close navigation menu" })).toBeTruthy();
-    expect(screen.getByRole("link", { name: "Shop Basic Keep" }).getAttribute("href")).toBe("/shop#package-basic");
-    expect(screen.getByRole("link", { name: "Shop Signature Keep" }).getAttribute("href")).toBe("/shop#package-signature");
-    expect(screen.getByRole("link", { name: /Explore Keep packages/ }).getAttribute("href")).toBe("/shop#packages");
-    expect(screen.getByRole("link", { name: "Frequently Asked Questions" }).getAttribute("href")).toBe("/shop#faqs");
-    expect(screen.getByRole("link", { name: /The Signature Keep Your words, beautifully kept/i }).getAttribute("href")).toBe("/shop#package-signature");
-    expect(screen.getAllByRole("link", { name: "Our story" }).length).toBeGreaterThan(0);
-    expect(document.querySelector('nav[aria-label="Shop navigation"]')).toBeNull();
-    expect(screen.queryByText("SOME THINGS ARE WORTH KEEPING")).toBeNull();
+  it("permanently redirects the old app storefront to the official Keep website", () => {
+    const beforeLoad = LegacyShopRoute.options.beforeLoad!;
+    let result: unknown;
+    try { beforeLoad({} as Parameters<typeof beforeLoad>[0]); } catch (error) { result = error; }
+    expect(isRedirect(result)).toBe(true);
+    if (isRedirect(result)) {
+      expect(result.options.href).toBe("https://keep-official-review-nov9.candypesto.chatgpt.site/shop");
+      expect(result.options.statusCode).toBe(301);
+    }
+    expect(LegacyShopRoute.options.component).toBeUndefined();
   });
-  it("closes the full-height menu and restores page scrolling", async () => {
-    await openMenu("/shop");
+  it("closes the creator menu and restores page scrolling", async () => {
+    await openMenu("/app");
     expect(document.body.style.overflow).toBe("hidden");
-    fireEvent.click(screen.getByRole("button", { name: "Close navigation menu" }));
-    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Keep navigation" })).toBeNull());
+    fireEvent.click(screen.getByRole("button", { name: "Close app menu" }));
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Keep app navigation" })).toBeNull());
     expect(document.body.style.overflow).toBe("");
     fireEvent.click(screen.getByRole("button", { name: "Open navigation menu" }));
-    expect(screen.getByRole("dialog", { name: "Keep navigation" })).toBeTruthy();
+    expect(screen.getByRole("dialog", { name: "Keep app navigation" })).toBeTruthy();
     fireEvent.keyDown(document, { key: "Escape" });
-    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Keep navigation" })).toBeNull());
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Keep app navigation" })).toBeNull());
   });
-  it("presents transparent launch prices and makes Signature the clearer choice", async () => {
-    const router = createRouter({
-      routeTree,
-      isServer: false,
-      context: { queryClient: new QueryClient() },
-      history: createMemoryHistory({ initialEntries: ["/shop"] }),
-    });
-    await router.load();
-    render(<RouterProvider router={router} />, { container: document });
-    expect(screen.getByRole("heading", { name: "Basic Keep" }).closest("article")?.id).toBe("package-basic");
-    expect(screen.getByRole("heading", { name: "Signature Keep" }).closest("article")?.id).toBe("package-signature");
-    expect(screen.getByText("The complete gift for just $20 more")).toBeTruthy();
-    expect(screen.getByText("Recommended · Best value")).toBeTruthy();
-    expect(screen.getByText("2 voices included")).toBeTruthy();
-    expect(screen.getByText("1 voice included")).toBeTruthy();
+  it("presents the current launch packages only in the saved Keep purchase flow", () => {
+    sessionStorage.clear();
+    render(<KeepPurchase keep={{
+      id: "saved-keep", recipient_name: "Mom", recipient_token: "saved-link",
+      published_project: { musicMood: "Intentional", voiceMode: "solo" },
+    }} />);
+    const basic = screen.getByRole("button", { name: /Basic Keep/ });
+    const signature = screen.getByRole("button", { name: /Signature Keep/ });
+    expect(basic).toHaveTextContent("$79");
+    expect(basic).toHaveTextContent("1 voice");
+    expect(signature).toHaveTextContent("$99");
+    expect(signature).toHaveTextContent("2 voices");
+    expect(signature).toHaveTextContent("Engraving included");
+    fireEvent.click(signature);
+    expect(signature).toHaveAttribute("aria-pressed", "true");
     expect(screen.queryByText("$94")).toBeNull();
-    expect(screen.queryByText("Save $30")).toBeNull();
-    expect(screen.getAllByText("Checkout opening soon").length).toBeGreaterThanOrEqual(2);
+    expect(screen.getByRole("button", { name: "Checkout opening soon" })).toBeDisabled();
   });
   it("removes the three unwanted links from the dashboard menu", async () => {
     await openMenu("/app");

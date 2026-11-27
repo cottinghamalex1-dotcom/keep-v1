@@ -1,11 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { Check, Download, Loader2, RotateCcw } from "lucide-react";
+import { Check, Download, Loader2, PenLine, RotateCcw } from "lucide-react";
 import type { RenderResult } from "@/components/keep-film-render";
 import { KeepFinishingDialog } from "@/components/keep-finishing-dialog";
 import { KeepPurchase } from "@/components/keep-purchase";
 import { ViewingLink } from "@/components/keep-publish-panel";
 import { loadCheckoutKeep, type CheckoutKeep } from "@/lib/keep-checkout";
+import { keepFinalTouchesPath } from "@/lib/keep-entry-intent";
 
 export const Route = createFileRoute("/checkout")({
   head: () => ({ meta: [{ title: "Keep — Finish your Keep" }, { name: "robots", content: "noindex, nofollow" }] }),
@@ -42,6 +43,10 @@ export function KeepSaveAndPurchase({ keep }: { keep: CheckoutKeep }) {
   const [film, setFilm] = useState<RenderResult | null>(null);
   return film?.videoUrl ? <div className="space-y-6">
     <div className="flex items-center gap-2 text-xs font-medium text-[#47715B]" role="status"><Check className="size-4" /> Your finished Keep is saved.</div>
+    <a href={keepFinalTouchesPath(keep.id)} className="flex min-h-14 w-full items-center gap-3 rounded-xl border border-[#D8CCBE] bg-[#FFFCF8] px-4 py-3 text-sm text-[#594A3B]">
+      <PenLine className="size-5 shrink-0" aria-hidden="true" />
+      <span><strong className="block font-medium">Edit opening, closing &amp; card</strong><small className="mt-1 block text-xs text-muted-foreground">Review your final words and engraving before checkout</small></span>
+    </a>
     <KeepPurchase keep={keep} />
     <details className="rounded-xl border border-border p-4">
       <summary className="cursor-pointer text-sm">View your finished film &amp; link</summary>

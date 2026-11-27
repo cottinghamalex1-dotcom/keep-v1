@@ -59,6 +59,7 @@ describe("automatic finishing and purchase handoff",()=>{
     await act(async()=>{await vi.advanceTimersByTimeAsync(7000);});
     expect(screen.getByRole("group",{name:"Keep package"})).toBeInTheDocument();
     expect(screen.getByRole("button",{name:"Checkout opening soon"})).toBeDisabled();
+    expect(screen.getByRole("link", {name:/Edit opening, closing & card/})).toHaveAttribute("href", "/?edit="+keepId+"&final=1");
     expect(screen.getByLabelText("Completed, seekable Keep film")).toHaveAttribute("src",ready.videoUrl);
     expect(actions(fetchMock)).toEqual(["status","start","status","status"]);
   });

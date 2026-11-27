@@ -29,7 +29,8 @@ export function KeepOpeningPersonalization({ project, onUpdate, disabled }: Prop
   updateRef.current = onUpdate;
   const [status, setStatus] = useState<"idle" | "loading" | "error">("idle");
   const [retry, setRetry] = useState(0);
-  const selected = !!project.engraveOpeningMessage && !!project.openingMessage?.trim();
+  const selected = !!project.openingMessage?.trim();
+  const engraved = selected && !!project.engraveOpeningMessage;
   const [showFirstFrame, setShowFirstFrame] = useState(false);
   useEffect(() => {
     if (!showFirstFrame) return;
@@ -37,7 +38,13 @@ export function KeepOpeningPersonalization({ project, onUpdate, disabled }: Prop
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [showFirstFrame]);
-  const choose = (message: string) => onUpdate({ openingMessage: message, engraveOpeningMessage: !!message.trim() });
+  const choose = (message: string) => onUpdate({
+    openingMessage: message,
+    engraveOpeningMessage: !!message.trim() && (!selected || engraved),
+  });
+  const editEngraving = (index: number, value: string) => onUpdate({
+    cardEngraving: Array.from({ length: 3 }, (_, i) => i === index ? value.toUpperCase() : project.cardEngraving[i] ?? ""),
+  });
   useEffect(() => {
     if (isCached || !project.messageParagraphs.some(p => p.trim()) || attempted.current === key) return;
     attempted.current = key;
@@ -64,7 +71,7 @@ export function KeepOpeningPersonalization({ project, onUpdate, disabled }: Prop
       </div>}
       {isCached && <div className="mt-5 space-y-3" role="group" aria-label="Personalized opening suggestions">
         {project.openingMessageSuggestions!.map((idea, i) =>
-          <button key={i} type="button" onClick={() => choose(idea)} aria-pressed={selected && project.openingMessage === idea}
+          <button key={i} type="button" disabled={disabled} onClick={() => choose(idea)} aria-pressed={selected && project.openingMessage === idea}
             className={`flex min-h-20 w-full items-start gap-3 rounded-xl border p-4 text-left transition-colors ${selected && project.openingMessage === idea ? "border-[#96795D] bg-white shadow-sm" : "border-[#DFD2C4] bg-white/70 hover:border-[#B69F86]"}`}>
             <span className="pt-1 font-display text-lg text-[#A68A6F]">0{i+1}</span>
             <span className="flex-1 font-display text-[19px] leading-[1.38] text-[#2D2720]">{idea}</span>
@@ -74,7 +81,7 @@ export function KeepOpeningPersonalization({ project, onUpdate, disabled }: Prop
           <RotateCcw className="size-3.5" /> Explore three other suggestions
         </button>
       </div>}
-      <button type="button" aria-pressed={!selected} onClick={() => choose("")} className={`mt-5 flex min-h-12 w-full items-center justify-between gap-3 rounded-xl border px-4 py-3 text-left text-xs font-medium ${!selected ? "border-[#96795D] bg-white" : "border-[#DFD2C4] bg-white/70"}`}>
+      <button type="button" disabled={disabled} aria-pressed={!selected} onClick={() => choose("")} className={`mt-5 flex min-h-12 w-full items-center justify-between gap-3 rounded-xl border px-4 py-3 text-left text-xs font-medium ${!selected ? "border-[#96795D] bg-white" : "border-[#DFD2C4] bg-white/70"}`}>
         No opening message — name and details only
         {!selected && <Check className="size-4 shrink-0" />}
       </button>
@@ -82,8 +89,8 @@ export function KeepOpeningPersonalization({ project, onUpdate, disabled }: Prop
     <section className="mt-9 space-y-3">
       <h2 className="font-display text-[27px]">Or write your own opening line.</h2>
       <p className="text-xs leading-5 text-muted-foreground">One or two meaningful sentences to open your film.</p>
-      <textarea aria-label="Custom opening message" rows={3} maxLength={110}
-        value={selected ? (project.openingMessage ?? "") : ""} placeholder="Write a personal dedication…"
+      <textarea aria-label="Custom opening message" rows={3} maxLength={110} disabled={disabled}
+        value={project.openingMessage ?? ""} placeholder="Write a personal dedication…"
         onChange={e => choose(e.target.value)}
         className="w-full resize-none rounded-xl border border-border bg-background p-4 font-display text-lg leading-relaxed outline-none focus:border-[#A38568]" />
       <div className="flex items-center justify-between gap-2">
@@ -122,16 +129,37 @@ export function KeepOpeningPersonalization({ project, onUpdate, disabled }: Prop
           <KeepCardFront
             engraving={project.cardEngraving}
             openingMessage={project.openingMessage}
-            showOpeningMessage={selected}
+            showOpeningMessage={engraved}
           />
         </div>
         <figcaption className="mt-7 text-center">
           <p className="text-[10px] font-semibold uppercase tracking-[.15em] text-[#8B725A]">Front · Laser engraving preview</p>
           <p className="mx-auto mt-2 max-w-[290px] text-[11px] leading-5 text-[#766A5D]">
-            {selected ? "Your opening line will be laser-engraved on the card alongside your personal details." : "Without an opening line, your engraved card will show only your personal details."}
+            {engraved ? "Your opening line will be laser-engraved on the card alongside your personal details." : "Your engraved card will show only the personal details you enter below."}
           </p>
         </figcaption>
       </figure>
+      <div className="space-y-3 rounded-[20px] border border-[#D8CCBE] bg-white/60 p-4">
+        <h3 className="font-display text-[23px] leading-tight">Personalize your engraving.</h3>
+        <p className="text-xs leading-5 text-muted-foreground">Edit the three optional detail lines below. Your card preview updates as you type.</p>
+        <label className="flex items-start gap-3 rounded-xl border border-[#DFD2C4] bg-[#F8F3EC] p-3 text-xs leading-5">
+          <input type="checkbox" className="mt-0.5 size-4 shrink-0 accent-[#665547]" checked={engraved} disabled={disabled || !selected}
+            onChange={e => onUpdate({ engraveOpeningMessage: e.target.checked })} />
+          <span><strong className="block font-medium">Include my opening line on the card</strong><span className="text-muted-foreground">Turning this off keeps the opening line in your film.</span></span>
+        </label>
+        {[
+          { label: "Name or dedication", placeholder: "MOM" },
+          { label: "From", placeholder: "FROM ALEX" },
+          { label: "Date or year", placeholder: "2026" },
+        ].map(({ label, placeholder }, i) => (
+          <label key={label} className="block text-xs font-medium text-[#594A3B]">
+            {label}
+            <input type="text" maxLength={Math.max(36, project.cardEngraving[i]?.length ?? 0)} disabled={disabled}
+              value={project.cardEngraving[i] ?? ""} onChange={e => editEngraving(i, e.target.value)} placeholder={placeholder}
+              className="mt-1.5 w-full rounded-xl border border-border bg-background px-3 py-3 text-sm uppercase outline-none focus:border-[#A38568]" />
+          </label>
+        ))}
+      </div>
       <p className="text-[11px] leading-5 text-muted-foreground">Your closing line stays in the film. Personalized engraving is exclusive to Signature.</p>
     </section>
     {showFirstFrame && typeof document !== "undefined" && createPortal(
