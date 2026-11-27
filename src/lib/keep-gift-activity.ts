@@ -34,8 +34,9 @@ async function authRequest(body:unknown) {
 // No event on route navigation/resolve, thumbnails, metadata, or link previews.
 // If a stored session cannot be renewed, fail closed rather than treating the
 // creator as an anonymous viewer. This request may never interrupt experience.
-export async function recordFirstExperience(token:string) {
+export async function recordFirstExperience(token:string, requireSession = !!readKeepSession()) {
   const existing=readKeepSession();
+  if(requireSession&&!existing)return false;
   const session=existing?await activeKeepSession():null;
   if(existing&&!session) return false;
   await giftRequest({action:"first-experience",token},session?.access_token,true);

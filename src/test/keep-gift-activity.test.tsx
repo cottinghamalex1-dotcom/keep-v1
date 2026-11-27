@@ -65,6 +65,12 @@ describe("intentional first experience milestone",()=>{
     expect(await recordFirstExperience("viewing-token")).toBe(false);
     expect(fetcher).not.toHaveBeenCalled();
   });
+  it("does not fall back to anonymous viewing after a previously present login disappears",async()=>{
+    vi.mocked(readKeepSession).mockReturnValue(null);
+    const fetcher=vi.fn();vi.stubGlobal("fetch",fetcher);
+    expect(await recordFirstExperience("viewing-token",true)).toBe(false);
+    expect(fetcher).not.toHaveBeenCalled();
+  });
   it("does not collect viewer identifiers from anonymous recipients",async()=>{
     const fetcher=vi.fn().mockResolvedValue(fetchOK());vi.stubGlobal("fetch",fetcher);
     await recordFirstExperience("token");

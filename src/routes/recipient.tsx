@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { KeepRecipientExperience } from '@/components/keep-recipient-experience';
 import { KeepLoadingScreen } from '@/components/keep-loading-screen';
 import { recordFirstExperience } from '@/lib/keep-gift-activity';
+import { readKeepSession } from '@/lib/keep-cloud';
 import { publicationRequest, type PublishedProject } from '@/lib/keep-publish';
 
 export const Route = createFileRoute('/recipient')({
@@ -16,14 +17,14 @@ function Recipient() {
   const [project,setProject]=useState<PublishedProject|null>(null);
   const [error,setError]=useState('');
   const [attempt,setAttempt]=useState(0);
-  const experienceRequest = useRef<{token:string;inFlight:boolean;done:boolean;attempts:number;timer?:number;cancelled?:boolean}>({token:"",inFlight:false,done:false,attempts:0});
+  const experienceRequest = useRef<{token:string;inFlight:boolean;done:boolean;attempts:number;requireSession:boolean;timer?:number;cancelled?:boolean}>({token:"",inFlight:false,done:false,attempts:0,requireSession:false});
   const reportFirstExperience = () => {
-    if(experienceRequest.current.token!==keep)experienceRequest.current={token:keep,inFlight:false,done:false,attempts:0};
+    if(experienceRequest.current.token!==keep)experienceRequest.current={token:keep,inFlight:false,done:false,attempts:0,requireSession:!!readKeepSession()};
     const event=experienceRequest.current;
     const send=()=>{
       if(event.inFlight||event.done||event.cancelled||event.attempts>=3)return;
       event.inFlight=true;event.attempts++;
-      void recordFirstExperience(keep).then(recorded=>{event.done=recorded;}).catch(()=>{ /* Never interrupt the gift. */ }).finally(()=>{
+      void recordFirstExperience(keep,event.requireSession).then(recorded=>{event.done=recorded;if(!recorded)event.cancelled=true;}).catch(()=>{ /* Never interrupt the gift. */ }).finally(()=>{
         event.inFlight=false;
         if(!event.done&&!event.cancelled&&event.attempts<3)event.timer=window.setTimeout(send,event.attempts*2000);
       });
