@@ -31,6 +31,7 @@ import { composeSelfieStory, withoutSelfieScenes } from "@/lib/keep-selfie-story
 import { KeepFinishingChoices } from "@/components/keep-finishing-choices";
 import { KeepAskAIModal, KeepWordChanges } from "@/components/keep-ask-ai-modal";
 import { KeepInterviewIntro } from "@/components/keep-interview-intro";
+import { KeepRecordedAnswerPlayer } from "@/components/keep-recorded-answer-player";
 import { useInterviewViewport } from "@/hooks/use-interview-viewport";
 import { arrangeWords, spreadMemories, recommendedStyle } from "@/lib/keep-story-layout";
 import { filmTotal, sceneBoundary, sceneDuration, sceneElapsed, sceneIndexAt, sceneSeekTime } from "@/lib/keep-film-timing";
@@ -2112,10 +2113,8 @@ function KeepApp() {
         : <div className="mx-auto max-w-md page-enter">
           <p className="keep-interview-question__eyebrow">A question for you</p>
           <h1 id="keep-interview-question" className="keep-interview-question__title">{project.interviewQuestion}</h1>
-          {currentAnswer?.audioUrl && !isRecording && !interviewCompact && <div className="mt-5 rounded-xl border border-border bg-card/60 p-3">
-            <p className="mb-2 text-[10px] font-medium uppercase tracking-widest text-muted-foreground">Your recorded answer · {fmt(currentAnswer.durationSec ?? 0)}</p>
-            <audio controls src={currentAnswer.audioUrl} className="w-full" preload="metadata" />
-          </div>}
+          {currentAnswer?.audioUrl && !isRecording && !interviewCompact && <KeepRecordedAnswerPlayer
+            key={currentAnswer.audioUrl} src={currentAnswer.audioUrl} durationSec={currentAnswer.durationSec} />}
           {aiBusy === "transcribe" && <p role="status" className="mt-5 text-sm text-accent animate-pulse">Turning your recording into words…</p>}
           {micUnavailable && !interviewCompact && <p className="mt-4 text-xs leading-5 text-muted-foreground">{micMessage} You can type your answer instead.</p>}
         </div>}
