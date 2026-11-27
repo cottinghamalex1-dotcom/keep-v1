@@ -46,14 +46,14 @@ const image=(src:string,start:number,length:number,width:number,height:number,po
   asset:{type:"image",src},start:round(start),length:round(length),width,height,fit:"cover",position,...(offset?{offset}:{}),
 });
 const rectangle=(color:string,start:number,length:number,width=FILM_WIDTH,height=FILM_HEIGHT,y=0):Clip=>({
-  asset:{type:"shape",shape:"rectangle",rectangle:{width,height},fill:{color,opacity:1}},
+  asset:{type:"shape",shape:"rectangle",rectangle:{width:Math.max(1,Math.round(width)),height:Math.max(1,Math.round(height))},fill:{color,opacity:1}},
   width,height,fit:"none",position:"center",offset:{x:0,y:round(y)},start:round(start),length:round(length),
 });
 const richText=(text:string,start:number,length:number,options:{
   font:string;size:number;weight?:number|undefined;italic?:boolean|undefined;color?:string|undefined;letterSpacing?:number|undefined;lineHeight?:number|undefined;
   width:number;height:number;position?:string;align?:"top"|"middle"|"bottom";offsetY?:number;shadow?:boolean;
 }):Clip=>({
-  asset:{type:"rich-text",text,font:{family:options.font,size:options.size,color:options.color??"#F5EDE5",
+  asset:{type:"rich-text",text,font:{family:options.font,size:Math.max(1,Math.min(500,Math.round(options.size))),color:options.color??"#F5EDE5",
     weight:String(options.weight??400),...(options.italic?{style:"italic"}:{})},
     style:{lineHeight:options.lineHeight??1.25,...(options.letterSpacing!==undefined?{letterSpacing:options.letterSpacing}:{})},
     align:{horizontal:"center",vertical:options.align??"middle"},

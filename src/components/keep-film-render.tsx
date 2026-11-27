@@ -15,6 +15,7 @@ type RenderResult = {
   id?: string;
   status: "not_started" | "queued" | "rendering" | "ready" | "failed";
   providerStatus?: string;
+  hasProviderRender?: boolean;
   videoUrl?: string;
   error?: string;
 };
@@ -125,7 +126,9 @@ export function KeepFilmRender({ keepId, musicMood }: { keepId: string; musicMoo
   }, [keepId, job]);
   const act = async (action: "start" | "recover" | "retry") => {
     if (busy) return;
-    if (action === "retry" && !window.confirm("Render a new film? This may incur another Shotstack rendering charge. If an existing MP4 was completed, use Retry saving first.")) return;
+    if (action === "retry" && !window.confirm(job.hasProviderRender
+      ? "Render a new film? This may incur another Shotstack rendering charge. If an existing MP4 was completed, use Retry saving first."
+      : "Retry rendering your film? A successfully submitted render may incur the normal Shotstack charge.")) return;
     setBusy(true); setError("");
     try {
       const musicDurationSec = action === "start" || action === "retry" ? await soundtrackLength(musicMood) : undefined;
@@ -135,6 +138,9 @@ export function KeepFilmRender({ keepId, musicMood }: { keepId: string; musicMoo
         // The submission might have reached the server despite a lost response.
         // Require a read-only status check before offering another action.
         setStatusChecked(false);
+      }
+      if (cause instanceof FilmRequestError) {
+        try { if ((await refresh()).status === "failed") return; } catch { setStatusChecked(false); }
       }
       setError(cause instanceof Error ? cause.message : "Couldn't start the finished film.");
     } finally { setBusy(false); }
@@ -158,7 +164,7 @@ export function KeepFilmRender({ keepId, musicMood }: { keepId: string; musicMoo
     : job.status === "rendering" || job.status === "queued" ? <div className="mt-5 flex items-center gap-3 rounded-xl bg-white/70 p-4" role="status"><Loader2 className="size-5 shrink-0 animate-spin" /><p className="text-sm">Preparing your finished MP4… {job.providerStatus ? "(" + job.providerStatus + ")" : "This can continue after you leave this page."}</p></div>
     : job.status === "failed" ? <div className="mt-5 space-y-3">
       <p role="alert" className="text-sm leading-6 text-[#9C473D]">{job.error || "The render needs attention. Your published Keep remains safe."}</p>
-      {job.id && <button type="button" disabled={busy} onClick={() => void act("recover")} className="w-full rounded-xl bg-[#201A15] px-5 py-4 text-sm text-white disabled:opacity-50">{busy ? "Checking…" : "Retry saving existing MP4"}</button>}
+      {job.hasProviderRender && <button type="button" disabled={busy} onClick={() => void act("recover")} className="w-full rounded-xl bg-[#201A15] px-5 py-4 text-sm text-white disabled:opacity-50">{busy ? "Checking…" : "Retry saving existing MP4"}</button>}
       <button type="button" disabled={busy} onClick={() => void act("retry")} className="w-full rounded-xl border border-[#CAB8A5] px-5 py-3 text-sm disabled:opacity-50">Render again <ArrowRight className="ml-2 inline size-4"/></button>
     </div> : <button type="button" disabled={busy} onClick={() => void act("start")} className="mt-5 flex min-h-14 w-full items-center justify-center gap-2 rounded-xl bg-[#201A15] px-5 py-4 text-sm font-medium text-white disabled:opacity-50">{busy ? <Loader2 className="size-5 animate-spin" /> : <ArrowRight className="size-5" />} {busy ? "Starting…" : "Render my 1080p film"}</button>}
     {error && <p role="alert" className="mt-3 text-xs leading-5 text-[#A04F43]">{error}</p>}

@@ -57,4 +57,28 @@ describe("finished Keep film recovery", () => {
     await flush();
     expect(screen.getByRole("button", {name: "Render my 1080p film"})).toBeEnabled();
   });
+  it("offers a new render, not a saving recovery, when submission was rejected", async () => {
+    const fetchMock = vi.fn().mockResolvedValueOnce(response({
+      status:"failed", id:"failed-job", hasProviderRender:false, error:"Could not submit the film."
+    }));
+    vi.stubGlobal("fetch",fetchMock);
+    renderFilm();
+    await flush();
+    expect(screen.getByRole("button",{name:"Render again"})).toBeEnabled();
+    expect(screen.queryByRole("button",{name:"Retry saving existing MP4"})).toBeNull();
+    expect(screen.getByRole("alert")).toHaveTextContent("Could not submit the film");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+  it("retains the nonbillable recovery option for a job with a provider render", async () => {
+    const fetchMock = vi.fn().mockResolvedValueOnce(response({
+      status:"failed", id:"saved-job", hasProviderRender:true, error:"Could not save the completed film."
+    }));
+    vi.stubGlobal("fetch",fetchMock);
+    renderFilm();
+    await flush();
+    expect(screen.getByRole("button",{name:"Retry saving existing MP4"})).toBeEnabled();
+    expect(screen.getByRole("button",{name:"Render again"})).toBeEnabled();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
 });
