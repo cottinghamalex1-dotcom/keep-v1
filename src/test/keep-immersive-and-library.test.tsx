@@ -2,6 +2,7 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { makeReadingFrames, frameAtTime } from "@/lib/keep-immersive-reading";
 import { KeepLibraryCard } from "@/components/keep-library-card";
+import { KeepDraftActions } from "@/components/keep-library-actions";
 import { KeepReadingMusic } from "@/components/keep-reading-music";
 
 afterEach(()=>{cleanup();vi.restoreAllMocks();});
@@ -77,13 +78,40 @@ describe("My Keeps illustrated cards",()=>{
     expect(screen.queryByText("Delete this Keep")).toBeNull();
   });
   it("shows only editing and safe management options for drafts or records without a viewing token",()=>{
-    render(<KeepLibraryCard keep={{...keep,recipient_token:""}} expanded copied={false} deleting={false} onToggle={()=>{}} onCopy={()=>{}} onDelete={()=>{}}/>);
-    expect(screen.getByRole("link",{name:"Continue editing"})).toBeInTheDocument();
+    const onDelete=vi.fn();
+    render(<KeepLibraryCard keep={{...keep,recipient_token:""}} expanded copied={false} deleting={false} onToggle={()=>{}} onCopy={()=>{}} onDelete={onDelete}/>);
+    const edit=screen.getByRole("link",{name:"Continue editing"});
+    expect(edit).toHaveAttribute("href","/?edit=keep-1");
+    expect(edit).toHaveClass("keep-home-create-cta","keep-library-view-button","keep-library-edit-button");
+    expect(edit.querySelector(".keep-library-edit-button__icon svg")).toBeInTheDocument();
+    expect(edit.querySelector(".keep-library-view-button__content")?.textContent?.trim()).toBe("Continue editing");
     expect(screen.queryByRole("link",{name:"View Keep"})).toBeNull();
     expect(screen.queryByRole("button",{name:"Copy link"})).toBeNull();
-    fireEvent.click(screen.getByRole("button",{name:"More"}));
-    expect(screen.getByRole("button",{name:"Delete this Keep"})).toBeInTheDocument();
+    const more=screen.getByRole("button",{name:"More"});
+    expect(more).toHaveClass("keep-draft-actions__more");
+    expect(more).toHaveAttribute("aria-expanded","false");
+    expect(screen.queryByRole("button",{name:"Delete this Keep"})).toBeNull();
+    fireEvent.click(more);
+    expect(more).toHaveAttribute("aria-expanded","true");
+    const remove=screen.getByRole("button",{name:"Delete this Keep"});
+    expect(remove).toHaveClass("keep-draft-actions__delete");
+    expect(remove.querySelector(".keep-draft-actions__delete-icon svg")).toBeInTheDocument();
     expect(screen.queryByRole("link",{name:"Film & card options"})).toBeNull();
+    fireEvent.click(remove);
+    expect(onDelete).toHaveBeenCalledOnce();
+    fireEvent.click(more);
+    expect(screen.queryByRole("button",{name:"Delete this Keep"})).toBeNull();
+  });
+  it("reuses the same premium actions for a standalone cloud draft without changing its direct delete control",()=>{
+    const onDelete=vi.fn();
+    const props={editHref:"/?resume=1&local=standalone",onDelete,discloseDelete:false};
+    const {rerender}=render(<KeepDraftActions {...props} deleting={false}/>);
+    expect(screen.getByRole("link",{name:"Continue editing"})).toHaveAttribute("href",props.editHref);
+    expect(screen.queryByRole("button",{name:"More"})).toBeNull();
+    fireEvent.click(screen.getByRole("button",{name:"Delete draft"}));
+    expect(onDelete).toHaveBeenCalledOnce();
+    rerender(<KeepDraftActions {...props} deleting/>);
+    expect(screen.getByRole("button",{name:"Deleting…"})).toBeDisabled();
   });
 });
 describe("optional Read soundtrack",()=>{

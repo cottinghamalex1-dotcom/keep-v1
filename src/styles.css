@@ -1031,7 +1031,8 @@ body:has(.keep-studio) {
   justify-content: center;
   gap: 9px;
 }
-.keep-library-view-button__play {
+.keep-library-view-button__play,
+.keep-library-edit-button__icon {
   display: inline-flex;
   flex: 0 0 28px;
   width: 28px;
@@ -1046,6 +1047,74 @@ body:has(.keep-studio) {
   outline: 2px solid #AD9275;
   outline-offset: 3px;
 }
+/* The unfinished Keep uses the same signature action as a finished film.
+   Management stays quiet, centered and contained within one ivory surface. */
+.keep-draft-actions { display: grid; gap: 9px; }
+.keep-draft-actions__management {
+  overflow: hidden;
+  border: 1px solid #DED4C8;
+  border-radius: 13px;
+  background: #FCFAF6;
+  box-shadow: inset 0 1px 0 #FFFDF9, 0 2px 6px rgba(57,40,27,.035);
+}
+.keep-draft-actions__more,
+.keep-draft-actions__delete {
+  display: flex;
+  width: 100%;
+  min-height: 45px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 9px 12px;
+  background: transparent;
+  font-family: var(--font-sans);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.3;
+  letter-spacing: -.005em;
+  cursor: pointer;
+  transition: background-color .18s ease, color .18s ease;
+}
+.keep-draft-actions__more {
+  color: #594C40;
+  background: linear-gradient(120deg, #FFFCF8, #F1EBE2);
+}
+.keep-draft-actions__more-content {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+.keep-draft-actions__more[aria-expanded="true"] { background: #EEE7DD; }
+.keep-draft-actions__more:hover { background: #E8DED0; }
+.keep-draft-actions__drawer { border-top: 1px solid #E7DDD2; padding: 3px; }
+.keep-draft-actions__delete {
+  min-height: 49px;
+  color: #8C574C;
+  border-radius: 9px;
+}
+.keep-draft-actions__delete-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 26px;
+  width: 26px;
+  height: 26px;
+  border: 1px solid #E1CFC6;
+  border-radius: 50%;
+  background: #F8F1EC;
+}
+.keep-draft-actions__delete:hover:not(:disabled) { background: #F3E9E3; color: #753E34; }
+.keep-draft-actions__delete:disabled { opacity: .55; cursor: not-allowed; }
+.keep-draft-actions__more:focus-visible,
+.keep-draft-actions__delete:focus-visible {
+  outline: 2px solid #A38D74;
+  outline-offset: -3px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .keep-draft-actions__more, .keep-draft-actions__delete, .keep-draft-actions__more svg { transition: none; }
+}
+
 /* Explicit typography for both anchor and button controls. The global
    unlayered button font reset would otherwise override Tailwind text sizes. */
 .keep-library-secondary-action {
