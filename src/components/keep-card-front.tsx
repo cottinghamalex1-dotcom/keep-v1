@@ -1,4 +1,5 @@
 import { useLayoutEffect, useRef, type CSSProperties } from "react";
+import { KeepTapPhoneIcon } from "@/components/keep-tap-phone-icon";
 import { orderedEngravingLines, type CardEngravingLayout } from "@/lib/keep-card-engraving";
 
 type Props = {
@@ -27,7 +28,7 @@ export function KeepCardFront({ engraving, layout, openingMessage = "", showOpen
   const maxFooterSize = denseDetails ? 2.15 : 2.65;
   // Conservative initial size for SSR; then fit the actual glyph widths in
   // the browser. The calculation depends only on the optional details.
-  const initialFooterSize = Math.min(maxFooterSize, 82 / Math.max(1, Array.from(footerText).length * 1.25));
+  const initialFooterSize = Math.min(maxFooterSize, 71 / Math.max(1, Array.from(footerText).length * 1.25));
   useLayoutEffect(() => {
     const container = footer.current;
     const line = footerLine.current;
@@ -66,10 +67,11 @@ export function KeepCardFront({ engraving, layout, openingMessage = "", showOpen
           </p>
         )}
         {!!lines.length && (
-          <div ref={footer} style={{ "--keep-engraving-size": `${initialFooterSize}cqw` } as CSSProperties} className={`text-[length:var(--keep-engraving-size)] row-start-3 min-w-0 justify-self-stretch self-end text-left font-sans ${denseDetails ? "tracking-[.10em]" : "tracking-[.15em]"} font-normal uppercase leading-[1.2] text-[#BDB1A6]`}>
+          <div ref={footer} style={{ "--keep-engraving-size": `${initialFooterSize}cqw` } as CSSProperties} className={`text-[length:var(--keep-engraving-size)] row-start-3 mr-[11cqw] min-w-0 justify-self-stretch self-end text-left font-sans ${denseDetails ? "tracking-[.10em]" : "tracking-[.15em]"} font-normal uppercase leading-[1.2] text-[#BDB1A6]`}>
             <span ref={footerLine} className="inline-block w-max whitespace-nowrap">{footerText}</span>
           </div>
         )}
+        <KeepTapPhoneIcon className="pointer-events-none absolute bottom-0 right-0 w-[9cqw] text-[#D9CFC2]" />
       </div>
     </div>
   );

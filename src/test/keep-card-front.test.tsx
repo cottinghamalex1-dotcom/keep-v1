@@ -23,10 +23,11 @@ it("retains the footer position without an engraved opening message and omits em
   expect(card.textContent).toBe("ALEX");
 });
 
-it("leaves just the logo when all optional engraving is omitted", () => {
+it("keeps the logo and tap cue when all optional engraving is omitted", () => {
   render(<KeepCardFront engraving={["", "", ""]} />);
   const card = screen.getByLabelText("Preview of the front of your Keep card");
   expect(within(card).getByRole("img", { name: "Keep" })).toBeTruthy();
+  expect(within(card).getByRole("img", { name: "Tap your phone here" })).toBeTruthy();
   expect(card.textContent).toBe("");
 });
 
@@ -74,4 +75,17 @@ it("fits a long bullet-separated row to the card width without wrapping or short
     clientWidth.mockRestore();
     measuredWidth.mockRestore();
   }
+});
+
+it("always places the permanent phone-tap mark at the bottom right and reserves room beside the optional details", () => {
+  const props = { engraving: ["HANNAH", "FROM ALEX", "2026"], openingMessage: "You are so loved." };
+  const { rerender } = render(<KeepCardFront {...props} showOpeningMessage />);
+  const card = screen.getByLabelText("Preview of the front of your Keep card");
+  const mark = within(card).getByRole("img", { name: "Tap your phone here" });
+  expect(mark).toHaveClass("absolute", "bottom-0", "right-0", "w-[9cqw]");
+  expect(within(card).getByText("HANNAH • FROM ALEX • 2026").parentElement).toHaveClass("mr-[11cqw]");
+  rerender(<KeepCardFront {...props} showOpeningMessage={false} />);
+  expect(within(card).getByRole("img", { name: "Tap your phone here" })).toBe(mark);
+  rerender(<KeepCardFront engraving={[]} />);
+  expect(within(card).getByRole("img", { name: "Tap your phone here" })).toBe(mark);
 });

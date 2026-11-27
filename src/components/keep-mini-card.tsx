@@ -1,3 +1,5 @@
+import { KeepTapPhoneIcon } from "@/components/keep-tap-phone-icon";
+
 type KeepMiniCardProps = {
   variant: "basic" | "signature";
   className?: string;
@@ -14,7 +16,7 @@ export function KeepMiniCard({ variant, className = "" }: KeepMiniCardProps) {
   return (
     <div
       role="img"
-      aria-label={engraved ? "Matte-black Signature Keep card with personalized engraving preview" : "Matte-black Basic Keep card with Keep logo only"}
+      aria-label={engraved ? "Matte-black Signature Keep card with personalized engraving and phone-tap icon" : "Matte-black Basic Keep card with Keep logo and phone-tap icon"}
       className={`relative aspect-[1.586] w-full overflow-hidden rounded-[8px] border border-[#6B6662]/70 bg-[#101010] shadow-[0_10px_24px_rgba(16,13,11,.22)] ${className}`}
     >
       <div aria-hidden="true" className="pointer-events-none absolute inset-0 bg-[linear-gradient(142deg,rgba(255,255,255,.10),transparent_28%,rgba(255,255,255,.015)_70%,rgba(255,255,255,.05))]" />
@@ -30,6 +32,7 @@ export function KeepMiniCard({ variant, className = "" }: KeepMiniCardProps) {
           WITH LOVE
         </span>
       )}
+      <KeepTapPhoneIcon decorative className="pointer-events-none absolute bottom-[8%] right-[8%] w-[9%] text-[#D9CFC2]" />
     </div>
   );
 }

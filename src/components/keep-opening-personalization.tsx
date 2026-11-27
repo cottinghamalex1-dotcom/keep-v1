@@ -133,7 +133,7 @@ export function KeepOpeningPersonalization({ project, onUpdate, disabled }: Prop
       <div>
         <p className="text-[10px] font-semibold uppercase tracking-[.17em] text-[#8B725A]">A KEEPSAKE YOU CAN HOLD</p>
         <h2 id="keep-engraving-preview" className="mt-3 font-display text-[29px] leading-[1.14]">Your physical Keep.</h2>
-        <p className="mt-3 text-xs leading-6 text-muted-foreground">Here’s how your matte-black metal card will look with the Signature package. Basic is logo-only.</p>
+        <p className="mt-3 text-xs leading-6 text-muted-foreground">Here’s how your matte-black metal card will look with the Signature package. Basic includes the Keep logo and phone-tap icon, with no personalized engraving.</p>
       </div>
       <figure className="rounded-[20px] border border-[#D8CCBE] bg-[#F5EDE3]/65 px-3 pb-5 pt-6 sm:px-6">
         <div className="mx-auto w-full max-w-[360px]">
@@ -147,7 +147,7 @@ export function KeepOpeningPersonalization({ project, onUpdate, disabled }: Prop
         <figcaption className="mt-7 text-center">
           <p className="text-[10px] font-semibold uppercase tracking-[.15em] text-[#8B725A]">Front · Laser engraving preview</p>
           <p className="mx-auto mt-2 max-w-[290px] text-[11px] leading-5 text-[#766A5D]">
-            {engraved ? "Your opening line will be laser-engraved on the card alongside your personal details." : orderedEngravingLines(project.cardEngraving, layout).length ? "Your engraved card will show only the personal details you enter below." : "Leave every field blank and the card will show only the Keep logo."}
+            {engraved ? "Your opening line will be laser-engraved on the card alongside your personal details." : orderedEngravingLines(project.cardEngraving, layout).length ? "Your engraved card will show only the personal details you enter below." : "Leave every field blank and the card will show the Keep logo and phone-tap icon."}
           </p>
         </figcaption>
       </figure>
