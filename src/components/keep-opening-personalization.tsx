@@ -54,7 +54,7 @@ export function KeepOpeningPersonalization({ project, onUpdate, disabled }: Prop
   return <>
     <section className="mt-9 rounded-[20px] border border-[#D8CCBE] bg-[#F5EDE3]/65 px-5 py-6">
       <div className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[.15em] text-[#8A725C]"><Sparkles className="size-4" /> Inspired by your words</div>
-      <h2 className="mt-4 font-display text-[clamp(26px,7vw,34px)] leading-[1.13]">A few words, just for them.</h2>
+      <h2 className="mt-4 font-display text-[clamp(26px,7vw,34px)] leading-[1.13]">01. Your opening line.</h2>
       <p className="mt-3 text-xs leading-[1.8] text-[#766A5D]">Keep finds three short, personal dedications in your full message. The one you choose appears on a dark opening screen before the photos and voice begin.</p>
       {!isCached && status === "loading" && <div role="status" className="mt-5 flex items-center gap-2 text-xs text-[#766A5D]"><Loader2 className="size-4 animate-spin" /> Finding the heart of your message…</div>}
       {!isCached && status === "error" && <div className="mt-5 rounded-xl border border-[#DACBBD] bg-white/60 p-4">
@@ -79,7 +79,7 @@ export function KeepOpeningPersonalization({ project, onUpdate, disabled }: Prop
       </button>
     </section>
     <section className="mt-9 space-y-3">
-      <h2 className="font-display text-[27px]">Or write your own.</h2>
+      <h2 className="font-display text-[27px]">Or write your own opening line.</h2>
       <p className="text-xs leading-5 text-muted-foreground">One or two meaningful sentences to open your film.</p>
       <textarea aria-label="Custom opening message" rows={3} maxLength={110}
         value={selected ? (project.openingMessage ?? "") : ""} placeholder="Write a personal dedication…"
@@ -93,7 +93,7 @@ export function KeepOpeningPersonalization({ project, onUpdate, disabled }: Prop
     <section className="mt-10 space-y-4 border-t border-border pt-8" aria-label="Closing words">
       <div>
         <p className="text-[10px] font-semibold uppercase tracking-[.17em] text-[#8B725A]">THE FINAL MOMENT</p>
-        <h2 className="mt-3 font-display text-[29px] leading-[1.14]">Leave them with one last thought.</h2>
+        <h2 className="mt-3 font-display text-[29px] leading-[1.14]">02. Your closing line.</h2>
         <p className="mt-3 text-xs leading-6 text-muted-foreground">After the final words of your recording, the memories fade to dark and this personal message appears as the music gently finishes.</p>
       </div>
       <div className="rounded-[20px] bg-[#191514] px-6 py-9 text-center text-[#F7EDE0] shadow-inner" aria-label="Closing moment preview">

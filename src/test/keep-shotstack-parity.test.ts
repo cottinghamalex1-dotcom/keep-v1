@@ -115,4 +115,15 @@ describe("editor to MP4 composition parity",()=>{
     expect(imageDimensions(bytes)).toEqual({width:1600,height:900});
     expect(probeDimensions({response:{streams:[{codec_type:"video",width:1920,height:1080,side_data_list:[{rotation:-90}]}],format:{duration:"12.4"}}})).toEqual({width:1080,height:1920,duration:12.4});
   });
+  it("reads real Shotstack probe metadata for videos, including iPhone rotation and duration fallback",()=>{
+    expect(probeDimensions({success:true,response:{metadata:{
+      streams:[{codec_type:"audio"},{codec_type:"video",width:1920,height:1080,duration:"N/A",side_data_list:[{rotation:-90}]}],
+      format:{duration:"12.4"}
+    }}})).toEqual({width:1080,height:1920,duration:12.4});
+    expect(probeDimensions({response:{metadata:{streams:[{codec_type:"video",width:1080,height:1920,duration:"4.5"}]}}}))
+      .toEqual({width:1080,height:1920,duration:4.5});
+    expect(probeDimensions({success:false,response:{metadata:{streams:[{codec_type:"video",width:1920,height:1080}]}}})).toBeUndefined();
+    expect(probeDimensions({response:{metadata:{streams:[{codec_type:"audio"}]}}})).toBeUndefined();
+  });
+
 });

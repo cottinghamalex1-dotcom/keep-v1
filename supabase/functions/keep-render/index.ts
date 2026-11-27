@@ -243,13 +243,18 @@ Deno.serve(async (req: Request) => {
         let info=m.kind==="image"?await inspectStill(uri):undefined;
         // Centered photos can use Shotstack's native centered crop if a
         // header format is unrecognized; noncentral focal points must be verified.
-        const needsProbe=m.kind==="video" || (m.focusX??50)!==50 || (m.focusY??50)!==50;
+        const needsProbe=renderProject.memories.some(scene=>scene.storagePath===m.storagePath &&
+          (scene.kind==="video" || (scene.focusX??50)!==50 || (scene.focusY??50)!==50));
         if(!info&&needsProbe){
           try {
             info=probeDimensions(await providerCall("/probe/"+encodeURIComponent(uri),{signal:AbortSignal.timeout(12000)}));
           } catch { /* report a safe preflight failure rather than a bad crop */ }
         }
-        if(!info&&needsProbe)throw new Error("Keep could not verify the selected photo or video crop. No video was submitted.");
+        if(!info&&needsProbe){
+          const index=renderProject.memories.findIndex(scene=>scene.storagePath===m.storagePath)+1;
+          console.warn("keep-render media preflight failed", JSON.stringify({index,kind:m.kind}));
+          throw new Error("Keep could not verify "+m.kind+" "+index+" in your story. Your edits are saved. Try rendering again; if it continues, check that moment in the editor. No video was submitted.");
+        }
         if(info)dimensions[m.storagePath]=info;
       }
     };
