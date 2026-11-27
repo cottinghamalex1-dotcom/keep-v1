@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AboutRouteImport } from './routes/about'
 import { Route as AppRouteImport } from './routes/app'
+import { Route as CheckoutRouteImport } from './routes/checkout'
 import { Route as ContributeRouteImport } from './routes/contribute'
 import { Route as MyKeepsRouteImport } from './routes/my-keeps'
 import { Route as RecipientRouteImport } from './routes/recipient'
@@ -30,6 +31,11 @@ const AboutRoute = AboutRouteImport.update({
 const AppRoute = AppRouteImport.update({
   id: '/app',
   path: '/app',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CheckoutRoute = CheckoutRouteImport.update({
+  id: '/checkout',
+  path: '/checkout',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ContributeRoute = ContributeRouteImport.update({
@@ -57,6 +63,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
   '/app': typeof AppRoute
+  '/checkout': typeof CheckoutRoute
   '/contribute': typeof ContributeRoute
   '/my-keeps': typeof MyKeepsRoute
   '/recipient': typeof RecipientRoute
@@ -66,6 +73,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
   '/app': typeof AppRoute
+  '/checkout': typeof CheckoutRoute
   '/contribute': typeof ContributeRoute
   '/my-keeps': typeof MyKeepsRoute
   '/recipient': typeof RecipientRoute
@@ -76,6 +84,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
   '/app': typeof AppRoute
+  '/checkout': typeof CheckoutRoute
   '/contribute': typeof ContributeRoute
   '/my-keeps': typeof MyKeepsRoute
   '/recipient': typeof RecipientRoute
@@ -87,6 +96,7 @@ export interface FileRouteTypes {
     | '/'
     | '/about'
     | '/app'
+    | '/checkout'
     | '/contribute'
     | '/my-keeps'
     | '/recipient'
@@ -96,6 +106,7 @@ export interface FileRouteTypes {
     | '/'
     | '/about'
     | '/app'
+    | '/checkout'
     | '/contribute'
     | '/my-keeps'
     | '/recipient'
@@ -105,6 +116,7 @@ export interface FileRouteTypes {
     | '/'
     | '/about'
     | '/app'
+    | '/checkout'
     | '/contribute'
     | '/my-keeps'
     | '/recipient'
@@ -115,6 +127,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AboutRoute: typeof AboutRoute
   AppRoute: typeof AppRoute
+  CheckoutRoute: typeof CheckoutRoute
   ContributeRoute: typeof ContributeRoute
   MyKeepsRoute: typeof MyKeepsRoute
   RecipientRoute: typeof RecipientRoute
@@ -142,6 +155,13 @@ declare module '@tanstack/react-router' {
       path: '/app'
       fullPath: '/app'
       preLoaderRoute: typeof AppRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/checkout': {
+      id: '/checkout'
+      path: '/checkout'
+      fullPath: '/checkout'
+      preLoaderRoute: typeof CheckoutRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/contribute': {
@@ -179,6 +199,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AboutRoute: AboutRoute,
   AppRoute: AppRoute,
+  CheckoutRoute: CheckoutRoute,
   ContributeRoute: ContributeRoute,
   MyKeepsRoute: MyKeepsRoute,
   RecipientRoute: RecipientRoute,

@@ -1,3 +1,4 @@
+import { keepCheckoutPath } from "@/lib/keep-checkout";
 import { ArrowRight, BookOpen, CalendarDays, Check, ChevronDown, ExternalLink, Heart, Link2, PenLine, Plus, Sparkles, Trash2 } from "lucide-react";
 import { viewingLink } from "@/lib/keep-publish";
 import type { KeepLibraryItem } from "@/components/keep-library-card";
@@ -100,6 +101,7 @@ function CreationCard({
           <PenLine className="size-4" aria-hidden="true" /> Continue editing
         </a>
         {published && <>
+          <a href={keepCheckoutPath(keep.id)} className="keep-premium-action flex min-h-12 items-center justify-center gap-2 px-4 py-3 text-sm">Film &amp; card options</a>
           <a href={viewingLink(keep.recipient_token)} target="_blank" rel="noopener noreferrer"
             className="flex min-h-[48px] items-center justify-center gap-2 rounded-xl border border-[#D6C6B7] bg-[#FFFDF9] px-4 text-[12px] font-medium text-[#4C3B2C] hover:bg-white">
             <ExternalLink className="size-4" aria-hidden="true" /> Open this Keep

@@ -19,7 +19,7 @@ import { KeepPhoneTip } from "@/components/keep-phone-tip";
 import { KeepStudioResize, DEFAULT_PREVIEW_SIZE, constrainPreviewSize } from "@/components/keep-studio-resize";
 import { KeepTeleprompter } from "@/components/keep-teleprompter";
 import { KeepVoiceTransition } from "@/components/keep-voice-transition";
-import { KeepFilmRender } from "@/components/keep-film-render";
+import { keepCheckoutPath } from "@/lib/keep-checkout";
 import { KeepStyleEditor } from "@/components/keep-style-editor";
 import { KeepSelfieEditor } from "@/components/keep-selfie-editor";
 import { KeepSelfieBackup } from "@/components/keep-selfie-backup";
@@ -449,7 +449,7 @@ function KeepApp() {
 
   const resetPageScroll = () => window.requestAnimationFrame(() => window.scrollTo({ top: 0, left: 0, behavior: "auto" }));
   const go = (next: Screen) => { setHistory((h) => [...h, screen]); setScreen(next); resetPageScroll(); };
-  const back = () => { const last = history[history.length - 1] ?? (screen === "intent" ? "voices" : undefined); if (!last || last === "home") { window.location.assign("/app"); return; } setScreen(last); setHistory((h) => h.slice(0, -1)); resetPageScroll(); };
+  const back = () => { if (publishingLock.current) return; const last = history[history.length - 1] ?? (screen === "intent" ? "voices" : undefined); if (!last || last === "home") { window.location.assign("/app"); return; } setScreen(last); setHistory((h) => h.slice(0, -1)); resetPageScroll(); };
   const home = () => { window.location.assign("/app"); };
   const discard = (p: KeepProject) => { releaseUrls(projectObjectUrls(p)); void deleteBlobs(projectBlobIds(p)); };
   const startProject = (p: KeepProject, at: Screen) => {
@@ -1822,10 +1822,10 @@ function KeepApp() {
     saveDraft(next);
     try {
       const result = await publishKeep(next, publicationId, setPublishStatus);
-      const complete = { ...next, stage: "success", publicationId: result.keepId, publicationToken: result.token };
+      const complete = { ...next, stage: "finalizing", publicationId: result.keepId, publicationToken: result.token };
       setProject(complete);
       saveDraft(complete);
-      // The permanent link is updated before we display the success screen.
+      // The source snapshot is saved; checkout waits for the exact finished film.
       // Persist the editable version as well so Back to editor restores these edits.
       try {
         const session = await activeKeepSession();
@@ -1833,14 +1833,11 @@ function KeepApp() {
       } catch {
         toast.info("Your published Keep is saved. A cloud draft backup will retry when you reopen the editor.");
       }
-      if (original.publicationToken) {
-        toast.success(result.unchanged ? "No changes to publish. Your finished film and viewing link are unchanged." : "Your Keep has been updated. Its permanent viewing link stays the same.");
-        window.location.assign("/app");
-        return;
-      }
-      setHistory((h) => [...h, screen]);
-      setScreen("success");
-      resetPageScroll();
+      // Saving is the single authorization to finish the film. The next screen
+      // checks/starts the durable render and only reveals the purchase flow once
+      // the exact saved revision's MP4 is verified in storage.
+      setPublishStatus("Preparing your finished film…");
+      window.location.assign(keepCheckoutPath(result.keepId));
     } catch (error) {
       const message = error instanceof Error ? error.message : "Couldn't save your Keep. Please try again.";
       setPublishError(message);
@@ -1867,7 +1864,7 @@ function KeepApp() {
       : project;
     if (next !== project) setProject(next);
     saveDraft(next);
-    // Re-publish an existing Keep, then return to Your Creations. Show progress
+    // Re-save an existing Keep, then finish its current film. Show progress
     // and any validation errors right here in the editor rather than silently failing.
     if (next.publicationToken) { setPublishError(""); void finishAndShare(next); return; }
     go("card");
@@ -1895,7 +1892,7 @@ function KeepApp() {
   const micMessage = recorder.supported === false ? "This browser can't record audio here." : recorder.status === "denied" ? "Microphone access was blocked. You can allow it in your browser settings." : recorder.status === "error" ? "The microphone couldn't start." : "";
   const isRecording = recorder.status === "recording" || recorder.status === "paused";
   const recordingPreparing = recorder.status === "countdown" || recorder.status === "requesting";
-  const accountLink = <KeepAppMenu />;
+  const accountLink = publishing ? <span className="w-10" /> : <KeepAppMenu />;
   const fileInputs = <><input ref={draftInput} type="file" accept=".docx,.pdf,.txt,.md,.rtf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/pdf,text/plain,text/markdown,application/rtf" className="sr-only" aria-label="Upload something you have already written" tabIndex={-1} onChange={(e) => void importDraft(e)} /><input ref={addInput} type="file" accept="image/*,video/mp4,video/quicktime,video/*" multiple className="sr-only" aria-label="Choose photos and videos" tabIndex={-1} onChange={(e) => void addFiles(e)} /><input ref={replaceInput} type="file" accept="image/*,video/mp4,video/quicktime,video/*" className="sr-only" aria-label="Choose a replacement photo or short video" tabIndex={-1} onChange={(e) => { const id = replaceTargetId.current; replaceTargetId.current = null; void addFiles(e, id ?? undefined); }} /></>;
 
   if (resumeError) return <main className="app-shell flex min-h-dvh flex-col px-8 py-10"><a href="/app" className="keep-wordmark" aria-label="Keep home">Keep</a><div className="my-auto max-w-sm"><h1 className="font-display text-[38px] leading-tight">We couldn't open your Keep.</h1><p role="alert" className="mt-5 text-sm leading-7 text-muted-foreground">{resumeError}</p><div className="mt-9 flex flex-col gap-3"><Button variant="keep" size="touch" onClick={() => window.location.reload()}>Try again</Button><a href="/app" className="rounded-xl border border-border px-5 py-3 text-center text-sm">Back to your creations</a></div></div></main>;
@@ -1923,7 +1920,7 @@ function KeepApp() {
       </div>
     </div>}
     <div key={screen} className={`page-enter keep-screen keep-screen--${screen}`}>
-    {screen === "you" && <>{top()}<div className="px-7 pt-8">{title("Your space", "Your Keeps.", "The things worth keeping, all in one place.")}<div className="mt-12 border-t border-border">{[{ label: "My cards", Icon: Radio }, { label: "Downloads & backups", Icon: Download }, { label: "Privacy", Icon: LockKeyhole }, { label: "Help", Icon: CircleHelp }].map(({ label, Icon }) => <Button key={label} variant="bare" className="flex h-17 w-full justify-between border-b border-border px-0 text-sm font-normal" onClick={() => setSetting(label)}><span className="flex items-center gap-4"><Icon className="size-4 text-accent" />{label}</span><ChevronRight className="size-4 text-muted-foreground" /></Button>)}{project.active && <Button variant="bare" className="flex h-17 w-full justify-between border-b border-border px-0 text-sm font-normal text-destructive" onClick={() => { if (!window.confirm("Delete your draft Keep? Recordings and photos added to it will be removed from this device.")) return; discard(project); clearDraft(project.publicationId); setProject({...newProject(),draftOwnerId:project.draftOwnerId}); toast.success("Draft deleted"); }}><span className="flex items-center gap-4"><Trash2 className="size-4" />Delete draft Keep</span></Button>}</div><p className="mt-9 text-xs leading-6 text-muted-foreground">Your Keeps are private.</p></div>{setting && sheet(setting, () => setSetting(""), <><p className="mt-5 text-sm leading-7 text-muted-foreground">{setting === "Privacy" ? "Your working draft is saved on this device and can sync to your signed-in Keep account. Published Keeps use private viewing links; anyone with a link can view that Keep, so share it intentionally." : setting === "My cards" ? "Digital Keeps can be viewed and managed in My Keeps. Physical card ordering and fulfillment are not yet live." : setting === "Downloads & backups" ? "Keep saves drafts on this device and syncs to your account when signed in. If an upload is still in progress, keep this browser's data until backup finishes. Published Keeps can be rendered and saved as finished 1080p MP4 films from My Keeps." : "If something doesn't work, don't clear your browser data. Return to My Keeps and preserve your draft. In-app support is being prepared for launch."}</p><Button variant="quiet" className="mt-8 w-full" onClick={() => setSetting("")}>Done</Button></>)}</>}
+    {screen === "you" && <>{top()}<div className="px-7 pt-8">{title("Your space", "Your Keeps.", "The things worth keeping, all in one place.")}<div className="mt-12 border-t border-border">{[{ label: "My cards", Icon: Radio }, { label: "Downloads & backups", Icon: Download }, { label: "Privacy", Icon: LockKeyhole }, { label: "Help", Icon: CircleHelp }].map(({ label, Icon }) => <Button key={label} variant="bare" className="flex h-17 w-full justify-between border-b border-border px-0 text-sm font-normal" onClick={() => setSetting(label)}><span className="flex items-center gap-4"><Icon className="size-4 text-accent" />{label}</span><ChevronRight className="size-4 text-muted-foreground" /></Button>)}{project.active && <Button variant="bare" className="flex h-17 w-full justify-between border-b border-border px-0 text-sm font-normal text-destructive" onClick={() => { if (!window.confirm("Delete your draft Keep? Recordings and photos added to it will be removed from this device.")) return; discard(project); clearDraft(project.publicationId); setProject({...newProject(),draftOwnerId:project.draftOwnerId}); toast.success("Draft deleted"); }}><span className="flex items-center gap-4"><Trash2 className="size-4" />Delete draft Keep</span></Button>}</div><p className="mt-9 text-xs leading-6 text-muted-foreground">Your Keeps are private.</p></div>{setting && sheet(setting, () => setSetting(""), <><p className="mt-5 text-sm leading-7 text-muted-foreground">{setting === "Privacy" ? "Your working draft is saved on this device and can sync to your signed-in Keep account. Published Keeps use private viewing links; anyone with a link can view that Keep, so share it intentionally." : setting === "My cards" ? "Digital Keeps can be viewed and managed in My Keeps. Physical card ordering and fulfillment are not yet live." : setting === "Downloads & backups" ? "Keep saves drafts on this device and syncs to your account when signed in. If an upload is still in progress, keep this browser's data until backup finishes. Finished Keeps are saved as 1080p MP4 films. Find your finished film in My Keeps." : "If something doesn't work, don't clear your browser data. Return to My Keeps and preserve your draft. In-app support is being prepared for launch."}</p><Button variant="quiet" className="mt-8 w-full" onClick={() => setSetting("")}>Done</Button></>)}</>}
     {screen === "detail" && <>{top("READY")}<div className="relative mx-4 h-[min(55dvh,520px)] overflow-hidden"><img src={memoryImages[0]} alt="Couple at the coast, illustrative prototype photograph" className="h-full w-full object-cover" /><div className="absolute inset-0 photo-bottom" /><div className="absolute bottom-8 left-6"><p className="eyebrow text-foreground">ANNIVERSARY · 2026</p><h1 className="display mt-3 text-5xl">HANNA</h1><p className="mt-3 text-sm">from Alex · 2:30</p></div></div><div className="space-y-3 px-6 pt-7">{nextButton("Play Keep", () => { setViewingDemo(true); go("preview"); })}<Button variant="quiet" size="touch" className="w-full" onClick={editDemoCopy}><Settings2 /> Edit a copy</Button><Button variant="bare" size="touch" className="w-full" asChild><Link to="/recipient" search={{ keep: "" }}><Radio /> View as recipient</Link></Button></div></>}
     {screen === "recipient" && <>{top("01 / 05")}<div className="px-7 pb-12 pt-11">
       {title("Begin with someone", "Who is this Keep for?")}<KeepPhoneTip />
@@ -2724,11 +2721,11 @@ function KeepApp() {
       <KeepOpeningPersonalization project={project} onUpdate={patch} disabled={publishing} />
       <div className="mt-10 border-t border-border pt-7">
         <Button variant="keep" size="touch" className="keep-premium-action w-full justify-between" disabled={publishing} onClick={() => void finishAndShare()}>
-          {publishing ? "Saving your Keep…" : "Finish my Keep"} <ArrowRight className="size-5" />
+          {publishing ? "Saving your Keep…" : "Save my Keep"} <ArrowRight className="size-5" />
         </Button>
         {publishing && <p role="status" className="mt-3 text-center text-xs text-muted-foreground">{publishStatus}</p>}
         {publishError && <p role="alert" className="mt-3 text-sm leading-6 text-[#9B3529]">{publishError}</p>}
-        <p className="mt-3 text-center text-[11px] leading-5 text-muted-foreground">Finishing saves your changes and creates or refreshes the same permanent viewing link.</p>
+        <p className="mt-3 text-center text-[11px] leading-5 text-muted-foreground">We’ll save your finished film to your permanent link, then take you straight to your card options.</p>
       </div>
     </div>
     </>}
@@ -2742,7 +2739,7 @@ function KeepApp() {
         <p className="mt-6 text-sm leading-6 text-muted-foreground">You can review or share your digital Keep now. Choose your physical card package, engraving, and additional cards during checkout.</p>
       </div>
       <div className="mt-11 space-y-3">
-        {project.publicationId && <KeepFilmRender keepId={project.publicationId} musicMood={project.musicMood} musicMuted={project.audioMix?.musicMuted} />}
+        {project.publicationId && <a className="keep-premium-action flex min-h-14 items-center justify-between px-5 text-sm" href={keepCheckoutPath(project.publicationId)}>Continue to your Keep <ArrowRight className="size-5" /></a>}
         {project.publicationToken && <ViewingLink token={project.publicationToken} />}
         <Button variant="quiet" size="touch" className="w-full" onClick={() => go("editor")}>Back to editor</Button>
         <Button asChild variant="quiet" size="touch" className="w-full"><Link to="/app">Back to Keeps</Link></Button>

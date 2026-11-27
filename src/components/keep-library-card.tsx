@@ -1,3 +1,4 @@
+import { keepCheckoutPath } from "@/lib/keep-checkout";
 import { CalendarDays, Check, ChevronDown, ExternalLink, Gift, Link2, PenLine, Trash2 } from "lucide-react";
 import { viewingLink } from "@/lib/keep-publish";
 import { FirstExperienceBadge, KeepGiftTimeline } from "@/components/keep-gift-activity";
@@ -53,6 +54,7 @@ export function KeepLibraryCard({ keep, thumbnail, expanded, copied, deleting, o
       <div className="grid gap-2">
         <a href={`/?edit=${encodeURIComponent(keep.id)}`} className="keep-premium-action relative flex min-h-12 items-center justify-center px-4 py-3 text-center text-sm"><PenLine className="absolute left-5 size-4" /><span className="w-full text-center">Continue editing</span></a>
         {published && <>
+          <a href={keepCheckoutPath(keep.id)} className="keep-premium-action flex min-h-12 items-center justify-center gap-2 px-4 py-3 text-sm">Film &amp; card options</a>
           <button type="button" onClick={onCopy} className="flex min-h-12 items-center justify-center gap-2 rounded-xl border border-border bg-white px-4 py-3 text-sm">
             {copied ? <Check className="size-4" /> : <Link2 className="size-4" />}
             {copied ? "Link copied" : "Copy viewing link"}
