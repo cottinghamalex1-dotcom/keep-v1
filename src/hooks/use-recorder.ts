@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
-export type RecorderStatus = "idle" | "requesting" | "recording" | "paused" | "denied" | "error";
+export type RecorderStatus = "idle" | "requesting" | "countdown" | "recording" | "paused" | "denied" | "error";
 export type RecordingResult = {
   blob: Blob; durationSec: number; mimeType: string;
   /** A simultaneous, muted-on-playback front-camera take, when requested and supported. */
@@ -29,6 +29,7 @@ export function useRecorder() {
   const [canPause,setCanPause]=useState(false);
   const [status,setStatus]=useState<RecorderStatus>("idle");
   const [elapsed,setElapsed]=useState(0);
+  const [countdown,setCountdown]=useState<number|null>(null);
   const [previewStream,setPreviewStream]=useState<MediaStream|null>(null);
   const [cameraError,setCameraError]=useState("");
   const rec=useRef<MediaRecorder|null>(null);
@@ -41,6 +42,8 @@ export function useRecorder() {
   const since=useRef<number|null>(null);
   const timer=useRef<number|null>(null);
   const requestGeneration=useRef(0);
+  const pendingStart=useRef(false);
+  const cancelCountdown=useRef<(()=>void)|null>(null);
 
   useEffect(()=>{
     const ok=typeof navigator!=="undefined" && !!navigator.mediaDevices?.getUserMedia && typeof MediaRecorder!=="undefined";
@@ -62,22 +65,27 @@ export function useRecorder() {
   },[]);
   const cancel=useCallback(()=>{
     requestGeneration.current++;
+    pendingStart.current=false;
+    cancelCountdown.current?.();
     for(const r of [rec.current,videoRec.current]){
       if(r){r.onstop=null;try{if(r.state!=="inactive")r.stop();}catch{/* ignore */}}
     }
     since.current=null;
+    setCountdown(null);
     teardown();
-    setStatus(previous=>(previous==="recording"||previous==="paused"||previous==="requesting")?"idle":previous);
+    setStatus(previous=>(previous==="recording"||previous==="paused"||previous==="requesting"||previous==="countdown")?"idle":previous);
   },[teardown]);
   useEffect(()=>()=>{
     requestGeneration.current++;
+    pendingStart.current=false;
+    cancelCountdown.current?.();
     for(const r of [rec.current,videoRec.current])try{if(r?.state!=="inactive")r?.stop();}catch{/* ignore */}
     if(timer.current!==null)window.clearInterval(timer.current);
     stream.current?.getTracks().forEach(track=>track.stop());
   },[]);
 
   const disableSelfie=useCallback(()=>{
-    if(rec.current?.state==="recording"||rec.current?.state==="paused")return;
+    if(pendingStart.current||rec.current?.state==="recording"||rec.current?.state==="paused")return;
     requestGeneration.current++;
     stream.current?.getTracks().forEach(track=>track.stop());
     stream.current=null;cameraPrepared.current=false;
@@ -86,6 +94,7 @@ export function useRecorder() {
   },[]);
 
   const prepareSelfie=useCallback(async()=>{
+    if(pendingStart.current)return false;
     if(!supported){setCameraError("Camera recording isn't supported on this device.");return false;}
     if(cameraPrepared.current && stream.current?.getVideoTracks().some(track=>track.readyState==="live"))return true;
     const request=++requestGeneration.current;
@@ -99,6 +108,7 @@ export function useRecorder() {
       setStatus("idle");
       return true;
     }catch(error){
+      if(request!==requestGeneration.current)return false;
       const message=(error as {name?:string})?.name==="NotAllowedError"
         ?"Allow camera and microphone access in your browser settings, or choose voice only."
         :"Your front camera isn't available. You can still record your voice.";
@@ -106,29 +116,55 @@ export function useRecorder() {
     }
   },[supported]);
 
-  const start=useCallback(async(options?:{selfie?:boolean})=>{
+  const start=useCallback(async(options?:{selfie?:boolean;countdown?:boolean})=>{
     if(!supported)return false;
+    if(pendingStart.current||rec.current)return null;
+    const request=++requestGeneration.current;
+    pendingStart.current=true;
     const wantsSelfie=!!options?.selfie;
-    setStatus("requesting");setCameraError("");
+    setStatus("requesting");setCameraError("");setElapsed(0);setCountdown(null);
     try{
-      if(wantsSelfie){
-        if(!stream.current?.getVideoTracks().some(track=>track.readyState==="live")){
-          stream.current=await navigator.mediaDevices.getUserMedia({audio:audioConstraints,video:videoConstraints});
-          cameraPrepared.current=true;
-          setPreviewStream(stream.current);
-        }
-      } else {
-        if(stream.current)stream.current.getTracks().forEach(track=>track.stop());
-        stream.current=await navigator.mediaDevices.getUserMedia({audio:audioConstraints});
-        cameraPrepared.current=false;
-        setPreviewStream(null);
+      const reuse=wantsSelfie&&stream.current?.getVideoTracks().some(track=>track.readyState==="live")&&stream.current?.getAudioTracks().some(track=>track.readyState==="live");
+      if(!reuse){
+        stream.current?.getTracks().forEach(track=>track.stop());
+        stream.current=null;
+        const captured=await navigator.mediaDevices.getUserMedia(wantsSelfie?{audio:audioConstraints,video:videoConstraints}:{audio:audioConstraints});
+        if(request!==requestGeneration.current){captured.getTracks().forEach(track=>track.stop());return null;}
+        stream.current=captured;
       }
+      cameraPrepared.current=wantsSelfie;
+      setPreviewStream(wantsSelfie?stream.current:null);
     }catch(error){
+      if(request!==requestGeneration.current)return null;
+      pendingStart.current=false;
+      teardown();
       const name=(error as {name?:string})?.name;
       setStatus(name==="NotAllowedError"||name==="SecurityError"?"denied":"error");
       setCameraError(wantsSelfie?"Camera unavailable. Choose voice only to continue.":"");
       return false;
     }
+    // Permissions first, then three full seconds to settle. No media encoder
+    // or recording timer starts until the countdown completes.
+    if(options?.countdown){
+      setCountdown(3);setStatus("countdown");
+      const completed=await new Promise<boolean>(resolve=>{
+        let remaining=3;
+        const finish=(completed:boolean)=>{
+          window.clearInterval(interval);
+          cancelCountdown.current=null;
+          resolve(completed);
+        };
+        const interval=window.setInterval(()=>{
+          remaining--;
+          if(remaining===0)finish(true);
+          else setCountdown(remaining);
+        },1000);
+        cancelCountdown.current=()=>finish(false);
+      });
+      if(!completed||request!==requestGeneration.current)return null;
+    }
+    pendingStart.current=false;
+    setCountdown(null);
     try{
       const captured=stream.current!;
       // Separate audio recorder guarantees a clean narration, independent of
@@ -212,6 +248,6 @@ export function useRecorder() {
     };
   },[teardown]);
 
-  return {supported,canPause,status,elapsed,start,pause,resume,stop,cancel,
+  return {supported,canPause,status,elapsed,countdown,start,pause,resume,stop,cancel,
     previewStream,cameraError,prepareSelfie,disableSelfie};
 }

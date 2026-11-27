@@ -92,8 +92,8 @@ function KeepRemoteContributor() {
     recorder.cancel(); // Discard this unsaved take; previously uploaded sections stay safe.
     setRestartNonce(value=>value+1);
     setSent(false);setError("");setUploadRetry(null);
-    const success=await recorder.start({selfie:selfieSelected});
-    if(!success)setError("Couldn't restart the microphone or camera. Try Start recording again.");
+    const success=await recorder.start({selfie:selfieSelected,countdown:true});
+    if(success===false)setError("Couldn't restart the microphone or camera. Try Start recording again.");
   };
   const finish=async()=>{
     const result=await recorder.stop();
@@ -117,6 +117,7 @@ function KeepRemoteContributor() {
     }catch(issue){setError(issue instanceof Error?issue.message:"That audio file couldn't be opened.");}
   };
   const recording=recorder.status==="recording"||recorder.status==="paused";
+  const recordingPreparing=recorder.status==="countdown"||(recorder.status==="requesting"&&!selfiePreparing);
   if(loading)return <main className="flex min-h-dvh flex-col items-center justify-center bg-[#F7F5F2] px-7 text-[#30271F]">
     <span className="font-display text-[58px]">Keep</span><p className="mt-5 text-xs text-[#7B6A57]">Opening your private invitation…</p></main>;
   if(!invite)return <main className="flex min-h-dvh flex-col items-center justify-center bg-[#F7F5F2] px-7 text-center text-[#30271F]">
@@ -212,7 +213,7 @@ function KeepRemoteContributor() {
       <p className="text-[11px] text-[#827568]">Section {invite.parts.findIndex(p=>p.index===currentPart!.index)+1} of {invite.parts.length} · {pending.length-1} after this</p>
     </div>
     {sent&&!recording&&!sending&&<p role="status" className="mx-auto mb-2 w-full max-w-[620px] rounded-lg bg-[#EAF3E6] px-3 py-2 text-center text-[11px] font-semibold text-[#517449]">Section saved successfully · {pending.length} {pending.length===1?"section":"sections"} remaining</p>}
-    {!recording&&!sending&&!uploadRetry&&<div className="mx-auto w-full max-w-[620px] shrink-0 pb-2">
+    {!recording&&!recordingPreparing&&!sending&&!uploadRetry&&<div className="mx-auto w-full max-w-[620px] shrink-0 pb-2">
       <KeepSelfiePrompt enabled={selfieSelected} preparing={selfiePreparing}
         error={recorder.cameraError} onChoose={()=>void chooseSelfie()}
         onVoiceOnly={()=>{recorder.disableSelfie();setSelfieSelected(false);}}/>
@@ -220,7 +221,7 @@ function KeepRemoteContributor() {
     <div className="mx-auto flex w-full max-w-[620px] min-h-0 flex-1 flex-col">
       <KeepTeleprompter key={currentPart!.index} label="YOUR EXACT WORDS" speaker={invite.contributorName}
         text={currentPart!.text} cameraStream={selfieSelected?recorder.previewStream:null}
-        isRecording={recording} isPaused={recorder.status==="paused"} elapsed={recorder.elapsed}
+        isRecording={recording} isPaused={recorder.status==="paused"} elapsed={recorder.elapsed} countdown={recorder.countdown} preparing={recordingPreparing}
         onRestartRecording={restartSection} restartNonce={restartNonce}/>
     </div>
     <div className="mx-auto w-full max-w-[620px] shrink-0 pt-2">
@@ -236,9 +237,9 @@ function KeepRemoteContributor() {
           </button>}
           <button type="button" onClick={()=>void finish()} className="flex min-h-12 items-center justify-center gap-2 rounded-xl bg-[#161411] px-4 text-sm font-medium text-white"><Square className="size-4" fill="currentColor"/> {pending.length===1?"Save final section":"Save & next section"}</button>
         </div>
-      : <button type="button" disabled={recorder.status==="requesting"} onClick={async()=>{setError("");setSent(false);if(!(await recorder.start({selfie:selfieSelected})))setError("Allow microphone and camera access, or choose voice only.");}}
-          className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#171512] text-sm font-semibold text-[#FAF5ED] disabled:opacity-50"><Mic className="size-4"/> {recorder.status==="requesting"?"Opening microphone…":"Start recording"}</button>}
-      {!recording&&!sending&&!uploadRetry&&<details className="mt-2 rounded-xl border border-[#D8CAB9] bg-[#FFFCF7] px-3 py-1.5 text-xs">
+      : <button type="button" disabled={recordingPreparing||selfiePreparing||recorder.supported!==true} onClick={async()=>{setError("");setSent(false);if((await recorder.start({selfie:selfieSelected,countdown:true}))===false)setError("Allow microphone and camera access, or choose voice only.");}}
+          className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#171512] text-sm font-semibold text-[#FAF5ED] disabled:opacity-50"><Mic className="size-4"/> {recordingPreparing?"Getting ready…":"Start recording"}</button>}
+      {!recording&&!recordingPreparing&&!sending&&!uploadRetry&&<details className="mt-2 rounded-xl border border-[#D8CAB9] bg-[#FFFCF7] px-3 py-1.5 text-xs">
         <summary className="min-h-9 cursor-pointer py-2 font-medium text-[#6D5745]">Prefer using iPhone Voice Memos instead?</summary>
         <div className="border-t border-[#E1D7CA] pb-3 pt-2 text-[11px] leading-6 text-[#716356]">
           <p>1. Open Voice Memos and record yourself reading the words above.</p>
