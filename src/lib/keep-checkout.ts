@@ -1,5 +1,5 @@
 import { activeKeepSession } from "@/lib/keep-cloud";
-import { defaultKeepOrder, normalizeExtraCards, type KeepOrderSelection } from "@/lib/keep-pricing";
+import { defaultKeepOrder, keepOrderQuote, normalizeExtraCards, type KeepOrderSelection } from "@/lib/keep-pricing";
 
 const endpoint = "https://lwkzhpwugtosbidxvdcr.supabase.co";
 const publicKey = "sb_publishable_K8_SWJByLhV78h7gY4NySw_4sgjEVTi";
@@ -60,11 +60,14 @@ export function loadCheckoutSelection(keepId: string, voices: number): KeepOrder
   try {
     const saved = JSON.parse(sessionStorage.getItem("keep-checkout:" + keepId) || "null");
     if (!saved || (saved.tier !== "basic" && saved.tier !== "signature")) return fallback;
-    return {
+    const selection: KeepOrderSelection = {
       ...fallback, tier: saved.tier,
-      engravingUpgrade: saved.tier === "basic" && saved.engravingUpgrade === true,
+      engravingUpgrade: saved.engravingUpgrade === true,
       extraCards: normalizeExtraCards(saved.extraCards),
       extraCardStyle: saved.extraCardStyle === "classic" || saved.extraCardStyle === "engraved" ? saved.extraCardStyle : undefined,
     };
+    const quote = keepOrderQuote(selection, voices);
+    return { ...selection, tier: quote.tier, engravingUpgrade: false, extraCardStyle: quote.extraCardStyle };
   } catch { return fallback; }
 }
+

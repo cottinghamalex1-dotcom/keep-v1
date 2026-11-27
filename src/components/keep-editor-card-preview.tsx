@@ -58,7 +58,7 @@ export function KeepEditorCardPreview({ project, variant = "editor" }: {
             <figcaption className="mt-7 text-center text-[10px] font-semibold uppercase tracking-[.15em] text-[#8B725A]">Front · Laser engraving preview</figcaption>
           </figure>
           {!project.cardEngraving && <p className="mt-4 text-xs leading-5 text-[#6C5B4B]">The saved card details are unavailable for this older Keep.</p>}
-          <p className="mt-4 text-xs leading-5 text-[#6C5B4B]">Engraving is included with Signature and optional with Basic. Your closing line stays in your film.</p>
+          <p className="mt-4 text-xs leading-5 text-[#6C5B4B]">Personalized engraving is exclusive to Signature. Your closing line stays in your film.</p>
           <Dialog.Close asChild>
             <Button variant="keep" size="touch" className="keep-premium-action mt-5 w-full justify-center">{variant === "library" ? "Back to your Keeps" : "Back to previews"}</Button>
           </Dialog.Close>

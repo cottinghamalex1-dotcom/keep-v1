@@ -119,8 +119,9 @@ describe("automatic finishing and purchase handoff",()=>{
     await flush();
     expect(screen.getByRole("button",{name:/Signature Keep/})).toHaveAttribute("aria-pressed","true");
     expect(screen.getByText("$99.00")).toBeInTheDocument();
+    expect(screen.getByRole("button",{name:/Basic Keep/})).toBeDisabled();
     fireEvent.click(screen.getByRole("button",{name:/Basic Keep/}));
-    expect(screen.getByText("$98.00")).toBeInTheDocument();
+    expect(screen.getByText("$99.00")).toBeInTheDocument();
     expect(actions(fetchMock)).toEqual(["status"]);
   });
   it("does not automatically resubmit a failed provider job or allow checkout",async()=>{
