@@ -4,6 +4,7 @@ import { activeKeepSession, readKeepSession } from "@/lib/keep-cloud";
 import { KeepAppMenu } from "@/components/keep-app-menu";
 import { viewingLink } from "@/lib/keep-publish";
 import { KeepLibraryCard } from "@/components/keep-library-card";
+import { KeepDraftActions } from "@/components/keep-library-actions";
 import { KeepCreateCTA } from "@/components/keep-create-cta";
 import { KeepPhoneTip } from "@/components/keep-phone-tip";
 import { KeepLoadingScreen } from "@/components/keep-loading-screen";
@@ -15,7 +16,7 @@ import { clearDraft, loadDraft, projectBlobIds } from "@/lib/keep-project";
 import { deleteBlobs } from "@/lib/keep-media-store";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useCallback, useEffect, useState } from "react";
-import { ArrowRight, Gift, Heart, LockKeyhole, LogOut, Plus, ChevronDown, BookOpen, ExternalLink, Link2, Check, PenLine, Trash2 } from "lucide-react";
+import { ArrowRight, Gift, Heart, LockKeyhole, LogOut, Plus, ChevronDown, BookOpen, ExternalLink, Link2, Check } from "lucide-react";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/app")({
@@ -209,9 +210,9 @@ function KeepDashboard() {
                   <span className="min-w-0 flex-1"><span className="block truncate font-display text-[29px]">For {cloudDraft.recipientName||"someone special"}</span><span className="mt-2 block text-xs text-[#796957]">Unfinished draft</span></span>
                   <ChevronDown className={`size-5 shrink-0 text-[#685747] transition-transform ${expandedDraft?"rotate-180":""}`}/>
                 </button>
-                {expandedDraft && <div className="space-y-3 border-t border-border/75 px-5 py-5">
-                  <a href={cloudDraft.publicationId ? "/?resume=1&local=" + encodeURIComponent(cloudDraft.publicationId) : "/?resume=1"} className="keep-premium-action flex min-h-12 items-center justify-center gap-2 px-4 py-3 text-sm"><PenLine className="size-4"/> Continue editing</a>
-                  <button type="button" disabled={deletingDraft} onClick={()=>void removeStandaloneDraft()} className="flex min-h-11 items-center gap-2 text-xs text-[#8C574C] disabled:opacity-50"><Trash2 className="size-4"/>{deletingDraft?"Deleting…":"Delete draft"}</button>
+                {expandedDraft && <div className="border-t border-border/75 px-5 py-5">
+                  <KeepDraftActions editHref={cloudDraft.publicationId ? "/?resume=1&local=" + encodeURIComponent(cloudDraft.publicationId) : "/?resume=1"}
+                    deleting={deletingDraft} onDelete={()=>void removeStandaloneDraft()} discloseDelete={false} />
                 </div>}
               </article>}
             {keeps.map(keep=><div key={keep.id}><KeepLibraryCard keep={keep} thumbnail={thumbnails[keep.id]} activity={gift.activities[keep.id]} activityFailed={gift.failed}
