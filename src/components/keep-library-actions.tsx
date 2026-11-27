@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { keepCheckoutPath } from "@/lib/keep-checkout";
 import { viewingLink } from "@/lib/keep-publish";
+import { KeepEditorCardPreview } from "@/components/keep-editor-card-preview";
 import { KeepGiftSummary, KeepGiftTimeline } from "@/components/keep-gift-activity";
 import type { KeepLibraryItem } from "@/components/keep-library-card";
 import type { GiftActivity } from "@/lib/keep-gift-activity";
@@ -160,6 +161,7 @@ export function KeepLibraryActions({
       </div>
       {moreOpen && (
         <div id={moreId} className="keep-library-more-panel">
+          <KeepEditorCardPreview variant="library" project={{ ...keep.published_project, publicationToken: keep.recipient_token }} />
           <a href={keepCheckoutPath(keep.id)} className="keep-library-more-option">
             <span className="keep-library-more-icon" aria-hidden="true">
               <Gift className="size-4" strokeWidth={1.7} />

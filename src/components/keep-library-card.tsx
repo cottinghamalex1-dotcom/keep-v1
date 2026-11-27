@@ -7,7 +7,7 @@ export type KeepLibraryItem = {
   id: string; recipient_name: string | null; occasion?: string | null;
   status: string; recipient_token: string; published_at: string | null;
   created_at?: string | null;
-  published_project?: { openingMessage?: string; messageParagraphs?: string[] } | null;
+  published_project?: { openingMessage?: string; messageParagraphs?: string[]; cardEngraving?: string[]; engraveOpeningMessage?: boolean } | null;
 };
 type Props = {
   keep: KeepLibraryItem;

@@ -6,7 +6,7 @@ import type { KeepLibraryItem } from "@/components/keep-library-card";
 const published: KeepLibraryItem = {
   id: "mom", recipient_name: "Mom", occasion: "Milestone", status: "ready",
   recipient_token: "recipient-mom-token", published_at: "2026-11-11", created_at: "2026-11-11",
-  published_project: { openingMessage: "Thank you for all the ways you love our family." },
+  published_project: { openingMessage: "Thank you for all the ways you love our family.", cardEngraving: ["MOM", "WITH LOVE", "2026"], engraveOpeningMessage: true },
 };
 const unfinished: KeepLibraryItem = {
   id: "new", recipient_name: null, occasion: "Anniversary", status: "draft",
@@ -64,6 +64,35 @@ describe("Your Keeps editorial collection", () => {
     expect(within(options).getByText("Thank you for all the ways you love our family.")).toBeInTheDocument();
   });
 
+  it("shows the saved card mockup under More and returns to the same Keep", () => {
+    render(<KeepMyKeepsCollection {...props(actions(), { expandedId: "mom" })} />);
+    expect(screen.queryByRole("button", { name: "Preview Keep Card" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "More" }));
+    const button = screen.getByRole("button", { name: "Preview Keep Card" });
+    expect(button).toHaveClass("keep-library-more-option");
+    fireEvent.click(button);
+    const dialog = screen.getByRole("dialog", { name: "Your Keep card." });
+    const card = within(dialog).getByLabelText("Preview of the front of your Keep card");
+    expect(card).toHaveTextContent("Thank you for all the ways you love our family.");
+    expect(card).toHaveTextContent("MOM");
+    expect(card).toHaveTextContent("WITH LOVE");
+    expect(card).toHaveTextContent("2026");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Back to your Keeps" }));
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(button).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "More" })).toHaveAttribute("aria-expanded", "true");
+  });
+
+  it("does not invent an engraving for older saved Keeps without card details", () => {
+    const older = { ...published, published_project: { openingMessage: "A film-only message." } };
+    render(<KeepMyKeepsCollection {...props(actions(), { keeps: [older], expandedId: older.id })} />);
+    fireEvent.click(screen.getByRole("button", { name: "More" }));
+    fireEvent.click(screen.getByRole("button", { name: "Preview Keep Card" }));
+    const card = screen.getByLabelText("Preview of the front of your Keep card");
+    expect(card).not.toHaveTextContent("A film-only message.");
+    expect(screen.getByText(/saved card details are unavailable/)).toBeInTheDocument();
+  });
+
   it("never offers an unpublished Keep's viewing link", () => {
     render(<KeepMyKeepsCollection {...props(actions(), { keeps: [unfinished], expandedId: "new" })} />);
     expect(screen.getByText("someone special")).toBeInTheDocument();
@@ -71,6 +100,8 @@ describe("Your Keeps editorial collection", () => {
     expect(screen.getByRole("link", { name: /Continue editing/i })).toHaveAttribute("href", "/?edit=new");
     expect(screen.queryByRole("link", { name: "View Keep" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Copy link" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "More" }));
+    expect(screen.queryByRole("button", { name: "Preview Keep Card" })).not.toBeInTheDocument();
   });
 
   it("offers a premium empty state without claiming creations that do not exist", () => {
