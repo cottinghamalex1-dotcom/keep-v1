@@ -31,6 +31,7 @@ import { composeSelfieStory, withoutSelfieScenes } from "@/lib/keep-selfie-story
 import { KeepFinishingChoices } from "@/components/keep-finishing-choices";
 import { KeepAskAIModal, KeepWordChanges } from "@/components/keep-ask-ai-modal";
 import { KeepInterviewIntro } from "@/components/keep-interview-intro";
+import { KeepInterviewSummary } from "@/components/keep-interview-summary";
 import { KeepRecordedAnswerPlayer } from "@/components/keep-recorded-answer-player";
 import { useInterviewViewport } from "@/hooks/use-interview-viewport";
 import { arrangeWords, spreadMemories, recommendedStyle } from "@/lib/keep-story-layout";
@@ -2158,7 +2159,9 @@ function KeepApp() {
     </div>}
     {screen === "interview" && q === 0 && !project.interviewWelcomeSeen &&
       <KeepInterviewIntro onReady={acknowledgeInterviewTips} />}
-    {screen === "summary" && <>{top()}<div className="flex keep-min-screen-minus-100 flex-col px-7 pb-10 pt-12"><div className="flex-1">{title("Your story", "I think we have it.")}<p className="max-w-md font-display text-[22px] leading-[1.55] text-foreground/88 page-enter sm:text-[24px]">{project.interviewSummary || "You've shared what matters. Let's put it into words."}</p></div><div className="mt-16 space-y-3">{nextButton("Create My Message", createAiMessage, !aiReady)}<Button variant="quiet" size="touch" className="w-full" onClick={() => go("write")}>Write it myself</Button></div></div></>}
+    {screen === "summary" && <>{top()}
+      <KeepInterviewSummary summary={project.interviewSummary} aiReady={aiReady} onCreate={createAiMessage} onWrite={() => go("write")} />
+    </>}
     {screen === "messageGenerating" && <div className="relative flex keep-min-screen flex-col overflow-hidden px-7 pb-[max(40px,env(safe-area-inset-bottom))] pt-[max(36px,env(safe-area-inset-top))]">
       <div className="pointer-events-none absolute inset-x-[-25%] top-[20%] h-72 rounded-full bg-accent/[0.06] blur-3xl" />
       <span className="brand relative z-10">Keep</span>
