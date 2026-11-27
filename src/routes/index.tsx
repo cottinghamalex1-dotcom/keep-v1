@@ -2772,16 +2772,25 @@ function KeepApp() {
       onCreatorExit={() => { setScreen("card"); resetPageScroll(); }}
       onCreatorContinue={() => { setScreen("card"); resetPageScroll(); }}
     />}
-    {screen === "card" && <>{top()}<div className="mx-auto max-w-xl px-7 pb-14 pt-7">
-      {title("The final touch", project.publicationToken ? "Edit your final touches." : "Choose your opening and closing lines.", "Personalize the words before and after your film, and preview the engraving on your black Keep card.")}
+    {screen === "card" && <>{top()}<div className="keep-final-page mx-auto w-full max-w-xl px-5 pb-[max(32px,env(safe-area-inset-bottom))] pt-6 sm:px-8">
+      <header className="mb-6">
+        <h1 className="font-display text-[clamp(34px,9vw,43px)] leading-[1.1] tracking-[-.035em]">Final touches.</h1>
+        <p className="mt-2 text-[13px] leading-5 text-muted-foreground">Make it unmistakably yours.</p>
+        <nav aria-label="Final touches sections" className="mt-5 grid grid-cols-3 overflow-hidden rounded-[10px] border border-[#D9D2C9] bg-[#FFFDFC]">
+          {([["Opening", "opening"], ["Closing", "closing"], ["Card", "card"]] as const).map(([label, id]) => (
+            <button key={id} type="button" onClick={() => document.getElementById(`keep-final-${id}`)?.scrollIntoView({ block: "start", behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" })}
+              className="min-h-11 border-r border-[#D9D2C9] px-2 text-[12px] font-medium text-[#5D5146] transition-colors last:border-r-0 hover:bg-[#EBE5DC]">{label}</button>
+          ))}
+        </nav>
+      </header>
       {!project.publicationToken && <KeepFinalTouchGuide recipientName={project.recipientName} />}
       <KeepOpeningPersonalization project={project} onUpdate={patch} disabled={publishing} />
-      <div className="mt-10 border-t border-border pt-7">
-        <Button variant="keep" size="touch" className="keep-premium-action w-full justify-between" disabled={publishing} onClick={() => void finishAndShare()}>
+      <div className="border-t border-[#D9D2C9] pt-6">
+        <Button variant="keep" size="touch" className="keep-premium-action w-full justify-between !rounded-[10px]" disabled={publishing} onClick={() => void finishAndShare()}>
           {publishing ? "Saving your Keep…" : project.publicationToken ? "Save changes & continue" : "Save my Keep"} <ArrowRight className="size-5" />
         </Button>
         {publishError && <p role="alert" className="mt-3 text-sm leading-6 text-[#9B3529]">{publishError}</p>}
-        <p className="mt-3 text-center text-[11px] leading-5 text-muted-foreground">We’ll save your finished film and card details to the same permanent link, then take you straight to your card options.</p>
+        <p className="mt-3 text-center text-[11px] leading-5 text-muted-foreground">Next: choose your card package.</p>
       </div>
     </div>
     </>}
