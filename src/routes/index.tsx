@@ -2122,34 +2122,36 @@ function KeepApp() {
           <Button variant="bare" size="sm" className="mt-2 px-0 text-accent" onClick={aiError.retry}><RotateCcw /> Retry</Button>
         </div>}
       </div>
-      <div className={`z-10 w-full shrink-0 border-t border-border/75 bg-background px-5 pt-3 shadow-[0_-12px_30px_rgba(0,0,0,.045)] ${interviewKeyboardOpen ? "pb-2" : "pb-[max(18px,env(safe-area-inset-bottom))]"}`}>
-        {!aiReady ? <Button variant="keep" size="touch" className="w-full justify-between" onClick={() => go("write")}>Write it myself <ArrowRight /></Button>
-        : isRecording ? <div className="space-y-3">
-          <p role="status" className="text-center text-sm tabular-nums text-accent">● Recording · {fmt(recorder.elapsed)}</p>
-          <Button variant="keep" size="touch" className="w-full" onClick={() => void stopAnswer()}><Square fill="currentColor" /> Stop recording</Button>
-        </div> : !project.interviewQuestion ? <Button variant="quiet" size="touch" className="w-full" onClick={() => go("write")}>Write it myself</Button>
-        : <div className="mx-auto max-w-md">
-          {aiBusy !== "transcribe" && <>
-            <label htmlFor="keep-interview-answer" className="mb-2 block text-xs font-medium text-foreground/75">Your answer</label>
-            <textarea id="keep-interview-answer" aria-label="Your answer" value={currentAnswer?.transcript ?? ""}
-              onChange={(e) => setTypedAnswer(e.target.value)}
-              onFocus={() => setInterviewInputFocused(true)}
-              onBlur={() => setInterviewInputFocused(false)}
-              placeholder="Tap here to type your answer…"
-              rows={interviewKeyboardOpen ? 2 : 3}
-              className="block w-full min-h-[76px] max-h-[19dvh] resize-none overflow-y-auto rounded-xl border border-border bg-card px-4 py-3 text-left text-[16px] leading-6 text-foreground outline-none placeholder:text-muted-foreground/75 focus:border-accent focus:ring-1 focus:ring-accent/20"
-            />
+      <div className={`keep-interview-response z-10 w-full shrink-0 ${interviewKeyboardOpen ? "keep-interview-response--keyboard" : ""}`}>
+        <div className="keep-interview-response__inner mx-auto max-w-md">
+          {!aiReady ? <Button variant="keep" size="touch" className="keep-interview-response__primary" onClick={() => go("write")}><span>Write my message instead</span><span className="keep-interview-response__icon"><ArrowRight strokeWidth={1.5}/></span></Button>
+          : isRecording ? <div className="keep-interview-response__recording">
+            <p role="status" className="keep-interview-response__recording-status"><span className="keep-interview-response__recording-dot" aria-hidden="true" /> Recording <span className="keep-interview-response__timer">{fmt(recorder.elapsed)}</span></p>
+            <Button variant="keep" size="touch" className="keep-interview-response__primary" onClick={() => void stopAnswer()}><span className="keep-interview-response__icon"><Square fill="currentColor" strokeWidth={1.5}/></span> Stop recording</Button>
+          </div> : !project.interviewQuestion ? <Button variant="quiet" size="touch" className="keep-interview-response__secondary" onClick={() => go("write")}>Write my message instead <ArrowRight strokeWidth={1.5}/></Button>
+          : <>
+            {aiBusy !== "transcribe" && <div className="keep-interview-response__paper">
+              <label htmlFor="keep-interview-answer" className="keep-interview-response__label">Your answer</label>
+              <textarea id="keep-interview-answer" aria-label="Your answer" value={currentAnswer?.transcript ?? ""}
+                onChange={(e) => setTypedAnswer(e.target.value)}
+                onFocus={() => setInterviewInputFocused(true)}
+                onBlur={() => setInterviewInputFocused(false)}
+                placeholder="Begin in your own words…"
+                rows={interviewKeyboardOpen ? 2 : 3}
+                className="keep-interview-response__input thin-scroll"
+              />
+            </div>}
+            <div className="keep-interview-response__actions">
+              {currentAnswer?.transcript?.trim()
+                ? <Button variant="keep" size="touch" className="keep-interview-response__primary" disabled={!!aiBusy} onClick={nextQuestion}>Continue <span className="keep-interview-response__icon"><ArrowRight strokeWidth={1.5}/></span></Button>
+                : !micUnavailable && aiBusy !== "transcribe"
+                  ? <Button variant="keep" size="touch" className="keep-interview-response__primary" disabled={!!aiBusy || recorder.status === "requesting" || recorder.supported === null} onClick={() => void startAnswer()}><span className="keep-interview-response__icon"><Mic strokeWidth={1.6}/></span>{recorder.status === "requesting" ? "Waiting for microphone…" : "Speak your answer"}</Button>
+                  : aiBusy === "transcribe" ? <p className="keep-interview-response__saving" role="status">Saving your words…</p> : null}
+              {!interviewKeyboardOpen && !interviewInputFocused && (currentAnswer?.transcript?.trim() ? !micUnavailable : true) && !micUnavailable && !!currentAnswer?.transcript?.trim() && <Button variant="bare" size="sm" className="keep-interview-response__secondary" disabled={!!aiBusy} onClick={() => void startAnswer()}><Mic strokeWidth={1.5}/> Record again</Button>}
+              {!interviewKeyboardOpen && !interviewInputFocused && <Button variant="bare" size="sm" className="keep-interview-response__secondary keep-interview-response__alternative" onClick={() => go("write")}>Write my message instead <ArrowRight strokeWidth={1.5}/></Button>}
+            </div>
           </>}
-          <div className="mt-3 space-y-2">
-            {currentAnswer?.transcript?.trim()
-              ? <Button variant="keep" size="touch" className="w-full justify-between" disabled={!!aiBusy} onClick={nextQuestion}>Continue <ArrowRight /></Button>
-              : !micUnavailable && aiBusy !== "transcribe"
-                ? <Button variant="keep" size="touch" className="w-full" disabled={!!aiBusy || recorder.status === "requesting" || recorder.supported === null} onClick={() => void startAnswer()}><Mic className="size-4" /> {recorder.status === "requesting" ? "Waiting for microphone…" : "Or tap to speak"}</Button>
-                : aiBusy === "transcribe" ? <p className="py-2 text-center text-xs text-muted-foreground">Saving your words…</p> : null}
-            {!interviewKeyboardOpen && !interviewInputFocused && (currentAnswer?.transcript?.trim() ? !micUnavailable : true) && !micUnavailable && !!currentAnswer?.transcript?.trim() && <Button variant="bare" size="sm" className="w-full text-muted-foreground" disabled={!!aiBusy} onClick={() => void startAnswer()}><Mic className="size-4" /> Record again</Button>}
-            {!interviewKeyboardOpen && !interviewInputFocused && <Button variant="bare" size="sm" className="w-full text-muted-foreground" onClick={() => go("write")}>Write it myself</Button>}
-          </div>
-        </div>}
+        </div>
       </div>
     </div>}
     {screen === "interview" && q === 0 && !project.interviewWelcomeSeen &&
