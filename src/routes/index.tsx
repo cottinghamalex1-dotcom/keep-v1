@@ -38,7 +38,7 @@ import { activeKeepSession, loadEditableKeep, loadCloudDraft, saveCloudDraft, re
 import { CinematicMedia } from "@/components/cinematic-media";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useRef, useState, type ChangeEvent, type ReactNode, type CSSProperties } from "react";
-import { ArrowLeft, ArrowRight, BookOpen, Camera, Check, ChevronLeft, ChevronRight, Headphones, CircleHelp, Download, Ellipsis, GripVertical, Images, LockKeyhole, MessageCircle, Mic, Music2, FileUp, Loader2, Pause, Play, Plus, Radio, RotateCcw, Settings2, Sparkles, Square, Trash2, Undo2, Redo2, VolumeX, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, BookOpen, Camera, Check, ChevronLeft, ChevronRight, Headphones, CircleHelp, Download, Ellipsis, GripVertical, Images, LockKeyhole, MessageCircle, Mic, Music2, Loader2, Pause, Play, Plus, Radio, RotateCcw, Settings2, Sparkles, Square, Trash2, Undo2, Redo2, VolumeX, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { KeepPlayer, memoryImages, memoryLabels } from "@/components/keep-player";
@@ -47,6 +47,7 @@ import { KeepOpeningPersonalization } from "@/components/keep-opening-personaliz
 import { KeepFinalTouchGuide } from "@/components/keep-final-touch-guide";
 import { KeepErrorBoundary } from "@/components/keep-error-boundary";
 import { KeepLengthGuide } from "@/components/keep-length-guide";
+import { KeepWritingStep } from "@/components/keep-writing-step";
 import { relationshipGroups, chosenKeepRecipientRelationship } from "@/lib/keep-recipient-categories";
 import { checkKeepVideo, KEEP_VIDEO_MAX_BYTES, KEEP_VIDEO_MAX_SOURCE_BYTES, KEEP_VIDEO_MAX_SECONDS, readKeepVideoDuration } from "@/lib/keep-video-upload";
 import { compressKeepVideo, keepCompressedSizeText, shouldCompressKeepVideo } from "@/lib/keep-video-compression";
@@ -2170,7 +2171,25 @@ function KeepApp() {
         {aiError?.kind === "draft" && <div className="mt-10 w-full max-w-sm border-l border-accent pl-4 text-left page-enter" role="alert"><p className="text-sm leading-6 text-foreground/85">{aiErrorText}</p><div className="mt-3 flex gap-4"><Button variant="bare" size="sm" className="px-0 text-accent" onClick={aiError.retry}><RotateCcw /> Try again</Button><Button variant="bare" size="sm" className="px-0 text-muted-foreground" onClick={back}>Back</Button></div></div>}
       </div>
     </div>}
-    {screen === "write" && <>{top("05 / 05")}<div className="px-7 pb-12 pt-9">{title("In your own words", "Bring us what you want to say.", "Speak it, type it, or upload something you've already written. Aim for 2–3 minutes, but make it yours.")}<div className="mb-5 grid grid-cols-3 gap-2"><Button variant={writeInputMode === "speak" ? "selected" : "quiet"} className="h-20 flex-col px-2" onClick={() => { setWriteInputMode("speak"); toggleDictation("write"); }}>{dictating && writeInputMode === "speak" ? <Square fill="currentColor" /> : <Mic />}{dictating && writeInputMode === "speak" ? "Stop" : "Speak"}</Button><Button variant={writeInputMode === "type" ? "selected" : "quiet"} className="h-20 flex-col px-2" onClick={() => { setWriteInputMode("type"); if (dictationRef.current && dictating) dictationRef.current.stop(); window.setTimeout(() => document.querySelector<HTMLTextAreaElement>('textarea[aria-label="Your message"]')?.focus(), 0); }}><MessageCircle />Type</Button><Button variant={writeInputMode === "upload" ? "selected" : "quiet"} className="h-20 flex-col px-2" disabled={busy} onClick={() => draftInput.current?.click()}><FileUp />{busy ? "Reading…" : "Upload"}</Button></div>{dictating && writeInputMode === "speak" && <div className="mb-4 rounded-sm border border-accent/40 p-4 text-center page-enter"><div className="mb-2 flex items-center justify-center gap-2 text-sm text-accent"><span className="size-2 animate-pulse rounded-full bg-accent" />Listening</div><p className="text-xs leading-5 text-muted-foreground">Speak naturally. Your words will appear below as you talk. Tap Stop when you're finished.</p></div>}{uploadedDraftName && writeInputMode === "upload" && <div className="mb-4 flex items-center justify-between rounded-sm border border-border px-4 py-3 page-enter"><span className="min-w-0"><span className="eyebrow block">IMPORTED</span><span className="mt-1 block truncate text-xs text-muted-foreground">{uploadedDraftName}</span></span><Button variant="bare" size="sm" className="shrink-0 text-muted-foreground" onClick={() => draftInput.current?.click()}>Replace</Button></div>}<KeepLengthGuide text={project.writtenText} className="mb-4" /><textarea aria-label="Your message" value={project.writtenText} onChange={(e) => { setWriteInputMode("type"); patch({ writtenText: e.target.value }); }} placeholder="Start here…" rows={12} className="min-h-[320px] w-full resize-y rounded-sm border border-border bg-transparent p-4 font-display text-[22px] leading-[1.35] outline-none focus:border-accent" /><div className="mt-3 flex items-center justify-between"><Button variant="bare" size="sm" className="text-muted-foreground" onClick={() => { patch({ writtenText: "" }); setUploadedDraftName(""); setWriteInputMode("type"); }}>Clear</Button><span className="text-[10px] tracking-wide text-muted-foreground">DOCX · PDF · TXT · MD · RTF</span></div><div className="mt-8">{nextButton("Continue", () => { const paras = project.writtenText.split(/\n\s*\n/).map((p) => p.trim()).filter(Boolean); patch({ messageParagraphs: paras, messageSource: "own", paragraphSpeakers: paras.map((_,i)=>project.contributors?.[i % Math.max(1,project.contributors?.length ?? 0)]?.id ?? "") }); setActiveParagraph(0); go("message"); }, !project.writtenText.trim())}</div></div></>}
+    {screen === "write" && <>{top("05 / 05")}
+      <KeepWritingStep
+        text={project.writtenText}
+        mode={writeInputMode}
+        dictating={dictating}
+        busy={busy}
+        uploadedName={uploadedDraftName}
+        onSpeak={() => { setWriteInputMode("speak"); toggleDictation("write"); }}
+        onType={() => { setWriteInputMode("type"); if (dictationRef.current && dictating) dictationRef.current.stop(); window.setTimeout(() => document.querySelector<HTMLTextAreaElement>('textarea[aria-label="Your message"]')?.focus(), 0); }}
+        onUpload={() => draftInput.current?.click()}
+        onTextChange={(text) => { setWriteInputMode("type"); patch({ writtenText: text }); }}
+        onClear={() => { patch({ writtenText: "" }); setUploadedDraftName(""); setWriteInputMode("type"); }}
+        onContinue={() => {
+          const paras = project.writtenText.split(/\n\s*\n/).map((p) => p.trim()).filter(Boolean);
+          patch({ messageParagraphs: paras, messageSource: "own", paragraphSpeakers: paras.map((_,i)=>project.contributors?.[i % Math.max(1,project.contributors?.length ?? 0)]?.id ?? "") });
+          setActiveParagraph(0); go("message");
+        }}
+      />
+    </>}
     {screen === "message" && <>{top()}
       <div className="mx-auto max-w-[650px] px-7 pb-32 pt-9">
         {title("", project.messageSource === "own" ? "Your message." : "Your message is ready.", "These are your words. Make them yours, or let Keep help you shape them.")}

@@ -833,11 +833,6 @@ body:has(.keep-studio) {
     gap: 10px;
   }
   .keep-creator-app .keep-creator-photo-grid > * { border-radius: 10px; }
-  .keep-creator-app .keep-screen--write textarea[aria-label="Your message"] {
-    min-height: 440px;
-    padding: 28px;
-    font-size: 24px;
-  }
   .keep-creator-app .keep-screen--message textarea[aria-label^="Message paragraph"] { padding: 22px 26px; }
   .keep-creator-app .keep-screen--storyStyle .grid.grid-cols-2 {
     grid-template-columns: repeat(3, minmax(0,1fr));
