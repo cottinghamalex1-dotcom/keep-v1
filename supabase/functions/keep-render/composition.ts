@@ -175,6 +175,25 @@ export function cameraMotion(moment: FilmMoment, index: number) {
   };
   return {focusX:x,focusY:y,from,to,shift:[safeShift(from,desired[0]!),safeShift(to,desired[1]!)] as const};
 }
+/** Full-photo camera: contain the original aspect ratio, then animate only
+ * inside the available film canvas. Even legacy zoom/focus settings cannot
+ * crop a face at the edge. Offsets are fractions of the canvas (positive y
+ * is up, matching the render provider); both endpoints and the linear
+ * interpolation between them stay inside the frame. */
+export function photoCameraGeometry(moment: FilmMoment, index: number) {
+  const motion = motionFor(moment, index);
+  const wide = 0.94;
+  const focusX = (50 - clamp(finite(moment.focusX, 50), 0, 100)) / 50;
+  const focusY = (clamp(finite(moment.focusY, 50), 0, 100) - 50) / 50;
+  const point = (scale: number, pan = 0) => {
+    const margin = (1 - scale) / 2;
+    return { scale, x: clamp(focusX * margin + pan, -margin, margin), y: focusY * margin };
+  };
+  if (motion === "left") return { from: point(wide, 0.024), to: point(wide, -0.024) };
+  if (motion === "right") return { from: point(wide, -0.024), to: point(wide, 0.024) };
+  return motion === "out" ? { from: point(1), to: point(wide) } : { from: point(wide), to: point(1) };
+}
+
 export const transitionSeconds = (transition: FilmMoment["transition"]) =>
   transition === "cut" ? 0 : transition === "fade" ? 0.57 : 0.83;
 

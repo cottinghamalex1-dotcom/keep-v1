@@ -105,7 +105,7 @@ export function KeepFinishingChoices({ captionStyle, musicMood, visualStyle, voi
           <div className="relative h-24 overflow-hidden bg-gradient-to-br from-[#867769] to-[#DAC8AE]">
             {previewMedia?.url && (previewMedia.kind === "video"
               ? <video src={previewMedia.url} muted playsInline preload="metadata" className={`h-full w-full object-cover editor-image-${slug(look.name)}`} />
-              : <img src={previewMedia.url} alt="" className={`h-full w-full object-cover editor-image-${slug(look.name)}`} />)}
+              : <img src={previewMedia.url} alt="" className={`h-full w-full object-contain editor-image-${slug(look.name)}`} />)}
             {chosen && <span className="keep-choice-check absolute right-2 top-2"><Check className="!size-3.5" /></span>}
           </div>
           <div className="px-3 py-3"><span className="block text-[13px] font-medium">{look.name}</span><span className="mt-1 block text-[11px] leading-4 text-muted-foreground">{look.note}</span></div>

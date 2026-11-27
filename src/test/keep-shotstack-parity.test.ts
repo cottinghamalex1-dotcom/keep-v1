@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
-  captionAtTime, captionDisplayIntervals, captionLayout, cameraMotion, cameraGeometry,
-  coverCrop, sceneBoundary, filmCardLayout, keepOpeningLeadSeconds, transitionSeconds,
+  captionAtTime, captionDisplayIntervals, captionLayout, photoCameraGeometry,
+  coverCrop, FILM_BACKGROUND, sceneBoundary, filmCardLayout, keepOpeningLeadSeconds, transitionSeconds,
 } from "../../supabase/functions/keep-render/composition";
 import { buildShotstackEdit, filmDuration, type RenderProject, type ShotstackSources } from "../../supabase/functions/keep-render/shotstack";
 import { imageDimensions, probeDimensions } from "../../supabase/functions/keep-render/media-metadata";
@@ -57,21 +57,47 @@ describe("editor to MP4 composition parity",()=>{
     expect(clip.position).toBe("bottom");
     expect(clip.width).toBe(Math.round(1080*base.width));
   });
-  it("selects the actual authored object-cover crop and interpolates the editor's exact zoom",()=>{
+  it("preserves the entire source image with the same subtle camera motion as Watch",()=>{
     const project=p(),edit=buildShotstackEdit(project,s());
-    const clip=edit.timeline.tracks.flatMap(t=>t.clips).find(c=>c.asset.src===s().memoryUrls.one)!;
-    const crop=coverCrop(1600,900,75,20)!;
-    expect(clip.asset.crop).toEqual(crop);
-    expect(crop.left).toBeGreaterThan(crop.right);
-    const cam=cameraMotion(project.memories[0]!,0);
-    const scale=clip.scale as Array<{from:number;to:number}>;
-    expect(scale[0]!.from).toBeCloseTo(cam.from,3);
-    expect(scale.at(-1)!.to).toBeCloseTo(cam.to,3);
-    const geometry=cameraGeometry(project.memories[0]!,0,1080,1920);
-    expect((clip.offset?.x as Array<{from:number}>)[0]!.from).toBeCloseTo(geometry.from.x,3);
-    expect(clip.filters).toContainEqual({type:"saturation",value:1.22});
-    expect(clip.filters).toContainEqual({type:"contrast",value:1.06});
-    expect(edit.timeline.tracks.some(t=>t.clips.some(c=>String(c.asset.src).endsWith("keep-film-shade.png")))).toBe(true);
+    const clips=edit.timeline.tracks.flatMap(t=>t.clips);
+    for (const index of [0,1]) {
+      const photo=project.memories[index]!;
+      const track=edit.timeline.tracks.findIndex(t=>t.clips.some(c=>c.asset.src===s().memoryUrls[photo.storagePath]));
+      const clip=edit.timeline.tracks[track]!.clips.find(c=>c.asset.src===s().memoryUrls[photo.storagePath])!;
+      expect(clip.fit).toBe("contain");
+      expect(clip.asset.crop).toBeUndefined();
+      const cam=photoCameraGeometry(photo,index);
+      const scale=clip.scale as Array<{from:number;to:number}>;
+      expect(scale[0]!.from).toBeCloseTo(cam.from.scale,3);
+      expect(scale.at(-1)!.to).toBeCloseTo(cam.to.scale,3);
+      expect((clip.offset?.x as Array<{from:number}>)[0]!.from).toBeCloseTo(cam.from.x,3);
+      expect((clip.offset?.y as Array<{from:number}>)[0]!.from).toBeCloseTo(cam.from.y,3);
+      expect(clip.filters).toContainEqual({type:"saturation",value:1.22});
+      expect(clip.filters).toContainEqual({type:"contrast",value:1.06});
+      const matte=edit.timeline.tracks[track+1]!.clips.find(c=>c.start===clip.start&&c.length===clip.length)!;
+      expect(matte.asset).toMatchObject({type:"shape",fill:{color:FILM_BACKGROUND,opacity:1}});
+      expect(matte.opacity).toEqual(clip.opacity);
+    }
+    // Video framing and filters are intentionally unchanged.
+    const video=clips.find(c=>c.asset.type==="video")!;
+    expect(video.fit).toBe("crop");
+    expect(video.asset.crop).toEqual(coverCrop(1080,1920));
+    expect(clips.some(c=>String(c.asset.src).endsWith("keep-film-shade.png"))).toBe(true);
+  });
+  it.each(["in","out","left","right"] as const)("keeps every corner visible throughout %s motion, even with old zoom and extreme focus values",motion=>{
+    for (const [width,height] of [[1600,900],[900,1600],[1000,1000],[3500,700],[700,3500]]) {
+      const fitted=Math.min(1080/width!,1920/height!);
+      for (const focusX of [0,50,100]) for(const focusY of [0,50,100]) {
+        const cam=photoCameraGeometry({motion,focusX,focusY,zoom:4},0);
+        for (let t=0;t<=1;t+=0.05) {
+          const scale=cam.from.scale+(cam.to.scale-cam.from.scale)*t;
+          const x=cam.from.x+(cam.to.x-cam.from.x)*t;
+          const y=cam.from.y+(cam.to.y-cam.from.y)*t;
+          expect(Math.abs(x)*1080+width!*fitted*scale/2).toBeLessThanOrEqual(540.001);
+          expect(Math.abs(y)*1920+height!*fitted*scale/2).toBeLessThanOrEqual(960.001);
+        }
+      }
+    }
   });
   it("holds the outgoing scene over the actual dissolve then cuts on the next boundary",()=>{
     const project=p(),edit=buildShotstackEdit(project,s()),clips=edit.timeline.tracks.flatMap(t=>t.clips);
