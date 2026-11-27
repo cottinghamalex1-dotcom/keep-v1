@@ -37,7 +37,14 @@ describe("My Keeps illustrated cards",()=>{
     expect(screen.getByText("Birthday")).toBeTruthy();
     expect(screen.queryByText("View Keep")).toBeNull();
     rerender(<KeepLibraryCard {...props} expanded/>);
-    expect(screen.getByRole("link",{name:"View Keep"})).toHaveAttribute("href",expect.stringContaining("example"));
+    const view=screen.getByRole("link",{name:"View Keep"});
+    expect(view).toHaveAttribute("href",expect.stringContaining("example"));
+    expect(view).toHaveClass("keep-home-create-cta","keep-library-view-button");
+    expect(view.querySelector(".keep-library-view-button__content")?.textContent?.trim()).toBe("View Keep");
+    expect(view.querySelector(".keep-library-view-button__play svg")).toBeInTheDocument();
+    for(const control of [screen.getByRole("link",{name:"Edit"}),screen.getByRole("button",{name:"Copy link"}),screen.getByRole("button",{name:"More"})]){
+      expect(control).toHaveClass("keep-library-secondary-action");
+    }
     expect(screen.getByRole("link",{name:"Edit"})).toHaveAttribute("href","/?edit=keep-1");
     expect(screen.getByText("Not yet viewed")).toBeInTheDocument();
     expect(screen.queryByText("Your gift journey")).toBeNull();
