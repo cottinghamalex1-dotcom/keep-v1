@@ -26,6 +26,23 @@ describe("shared recording teleprompter", () => {
     expect(screen.getByLabelText("Recording paused")).toHaveTextContent("PAUSED");
   });
 
+  it("omits redundant solo labels and only scrolls once the countdown is complete", () => {
+    const { rerender } = render(<KeepTeleprompter {...props} label={undefined} speaker={undefined} />);
+    expect(screen.queryByText("PART 1 OF 3")).not.toBeInTheDocument();
+    expect(screen.queryByText("Mom")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Practice scrolling" }));
+    rerender(<KeepTeleprompter {...props} label={undefined} speaker={undefined} countdown={3} />);
+    expect(screen.getByLabelText("Recording starts in 3")).toHaveTextContent("3");
+    expect(screen.queryByLabelText("Recording in progress")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Practice scrolling" })).toBeDisabled();
+    rerender(<KeepTeleprompter {...props} label={undefined} speaker={undefined} countdown={1} />);
+    expect(screen.getByLabelText("Recording starts in 1")).toHaveTextContent("1");
+    rerender(<KeepTeleprompter {...props} label={undefined} speaker={undefined} isRecording />);
+    expect(screen.queryByText("Get ready")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Recording in progress")).toHaveTextContent("RECORDING 00:00");
+    expect(screen.getByRole("status")).toHaveTextContent("AUTO-SCROLLING");
+  });
+
   it("scrolls by default when recording; touching text does not disable the teleprompter", () => {
     render(<KeepTeleprompter {...props} isRecording />);
     const viewport = screen.getByLabelText("Auto-scrolling teleprompter script");
