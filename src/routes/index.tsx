@@ -41,6 +41,7 @@ import { Button } from "@/components/ui/button";
 import { KeepPlayer, memoryImages, memoryLabels } from "@/components/keep-player";
 import { KeepRecipientExperience, type KeepExperienceMode } from "@/components/keep-recipient-experience";
 import { KeepOpeningPersonalization } from "@/components/keep-opening-personalization";
+import { KeepFinalTouchGuide } from "@/components/keep-final-touch-guide";
 import { KeepErrorBoundary } from "@/components/keep-error-boundary";
 import { KeepLengthGuide } from "@/components/keep-length-guide";
 import { relationshipGroups, chosenKeepRecipientRelationship } from "@/lib/keep-recipient-categories";
@@ -2726,7 +2727,8 @@ function KeepApp() {
       onCreatorContinue={() => { setScreen("card"); resetPageScroll(); }}
     />}
     {screen === "card" && <>{top()}<div className="mx-auto max-w-xl px-7 pb-14 pt-7">
-      {title("The final touch", "Make the first and last moments theirs.", "Choose the opening and closing words for the finished film. You’ll finalize your physical Keep card details at checkout.")}
+      {title("The final touch", "Choose your opening and closing lines.", "Two short written messages: one before your story begins, and one after your recording ends.")}
+      <KeepFinalTouchGuide recipientName={project.recipientName} />
       <KeepOpeningPersonalization project={project} onUpdate={patch} disabled={publishing} />
       <div className="mt-10 border-t border-border pt-7">
         <Button variant="keep" size="touch" className="keep-premium-action w-full justify-between" disabled={publishing} onClick={() => void finishAndShare()}>

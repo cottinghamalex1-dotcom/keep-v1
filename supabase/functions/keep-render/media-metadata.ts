@@ -62,13 +62,19 @@ export async function inspectStill(url:string):Promise<MediaDimensions|undefined
     } finally { await reader.cancel().catch(()=>undefined); }
   } catch { return undefined; }
 }
+type ProbeStream = {codec_type?:string;width?:number;height?:number;duration?:string;tags?:{rotate?:string};side_data_list?:Array<{rotation?:number}>;disposition?:{attached_pic?:number}};
+type ProbeMetadata = {streams?:ProbeStream[];format?:{duration?:string}};
 export function probeDimensions(response:unknown):MediaDimensions|undefined {
-  const result=response as {response?: {streams?: Array<{codec_type?:string;width?:number;height?:number;duration?:string;tags?:{rotate?:string};side_data_list?:Array<{rotation?:number}>}>;format?:{duration?:string}}};
-  const stream=result?.response?.streams?.find(s=>s.codec_type==="video" && s.width && s.height);
+  const result=response as {success?:boolean;response?: ProbeMetadata & {metadata?:ProbeMetadata}};
+  if(result?.success===false)return undefined;
+  // Shotstack wraps FFprobe's streams and format in response.metadata.
+  // Continue accepting the older unwrapped shape for compatibility.
+  const metadata=result?.response?.metadata ?? result?.response;
+  const stream=metadata?.streams?.find(s=>s.codec_type==="video" && !s.disposition?.attached_pic && dimensions(Number(s.width),Number(s.height)));
   if(!stream)return undefined;
   const rotation=Number(stream.side_data_list?.find(s=>s.rotation!==undefined)?.rotation ?? stream.tags?.rotate ?? 0);
   const swap=Math.abs(rotation)%180===90;
   const d=dimensions(Number(swap?stream.height:stream.width),Number(swap?stream.width:stream.height));
-  const duration=Number(stream.duration??result.response?.format?.duration);
-  return d ? {...d,...(Number.isFinite(duration)&&duration>0?{duration}:{})} : undefined;
+  const duration=[Number(stream.duration),Number(metadata?.format?.duration)].find(n=>Number.isFinite(n)&&n>0);
+  return d ? {...d,...(duration!==undefined?{duration}:{})} : undefined;
 }
