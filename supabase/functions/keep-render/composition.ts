@@ -225,14 +225,17 @@ export function coverCrop(width: number, height: number, focusX=50, focusY=50) {
  * Sepia itself is represented by a warmth grade on providers without a
  * sepia matrix, so hue/contrast/brightness values are still carried through. */
 export function visualFilters(style: string) {
+  // CSS brightness() is multiplicative. Shotstack brightness is a signed
+  // additive shift (-1..1), so use exposure in stops for the intended gain.
+  const exposure = (multiplier: number) => ({type:"grade",exposure:Math.log2(multiplier)});
   const data: Record<string, Array<Record<string,unknown>>> = {
-    "Warm": [{type:"grade",temperature:0.24},{type:"saturation",value:1.22},{type:"contrast",value:1.06},{type:"brightness",value:1.025}],
-    "Film": [{type:"grade",temperature:0.20},{type:"saturation",value:0.72},{type:"contrast",value:1.23},{type:"brightness",value:0.93}],
-    "Modern": [{type:"contrast",value:1.16},{type:"saturation",value:1.32},{type:"brightness",value:1.035}],
-    "Black & White": [{type:"saturation",value:0},{type:"contrast",value:1.22},{type:"brightness",value:1.03}],
-    "Vintage": [{type:"grade",temperature:0.58},{type:"saturation",value:0.76},{type:"contrast",value:0.90},{type:"brightness",value:1.045}],
-    "Soft": [{type:"saturation",value:0.78},{type:"contrast",value:0.83},{type:"brightness",value:1.13}],
-    "Dreamy": [{type:"grade",temperature:0.05},{type:"saturation",value:1.15},{type:"contrast",value:0.85},{type:"brightness",value:1.13},{type:"hue",value:352}],
+    "Warm": [{type:"grade",temperature:0.24},{type:"saturation",value:1.22},{type:"contrast",value:1.06},exposure(1.025)],
+    "Film": [{type:"grade",temperature:0.20},{type:"saturation",value:0.72},{type:"contrast",value:1.23},exposure(0.93)],
+    "Modern": [{type:"contrast",value:1.16},{type:"saturation",value:1.32},exposure(1.035)],
+    "Black & White": [{type:"saturation",value:0},{type:"contrast",value:1.22},exposure(1.03)],
+    "Vintage": [{type:"grade",temperature:0.58},{type:"saturation",value:0.76},{type:"contrast",value:0.90},exposure(1.045)],
+    "Soft": [{type:"saturation",value:0.78},{type:"contrast",value:0.83},exposure(1.13)],
+    "Dreamy": [{type:"grade",temperature:0.05},{type:"saturation",value:1.15},{type:"contrast",value:0.85},exposure(1.13),{type:"hue",value:352}],
   };
   return data[style] ?? [];
 }

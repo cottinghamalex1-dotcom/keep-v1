@@ -30,12 +30,23 @@ const providerCall = async (path: string, init: RequestInit = {}) => {
     ...init,
     headers: { "x-api-key": secret, "Content-Type": "application/json" },
   });
-  if (!result.ok) throw new Error("Shotstack could not process this render request.");
+  if (!result.ok) {
+    // Record only the operation, status and known schema-field paths. Never
+    // log the response body: a provider error can contain signed source URLs,
+    // private captions, the API key, or other personal media metadata.
+    const body = await result.text().catch(() => "");
+    const paths = [...new Set(body.slice(0, 16000).match(/\b(?:timeline|output)(?:(?:\.(?:tracks|clips|asset|filters|font|style|crop|width|height|scale|offset|opacity|value|exposure|temperature|type|start|length|size|x|y|color|volume|trim|fit|position|quality|fps|format|destinations))|\[\d+\]){1,20}/g) ?? [])].slice(0, 8);
+    console.warn("keep-render provider rejection", JSON.stringify({
+      operation: path === "/render" ? "submit" : path.startsWith("/probe/") ? "probe" : "status",
+      status: result.status, fields: paths,
+    }));
+    throw new Error("Shotstack could not process this render request (HTTP " + result.status + ").");
+  }
   return await result.json();
 };
 type Job = { id: string; status: string; provider_render_id: string | null; revision_hash: string;
   expected_duration_seconds: number; render_path: string | null; error_message: string | null };
-const publicStatus = (job: Job) => ({ id: job.id, status: job.status, error: job.error_message ?? undefined });
+const publicStatus = (job: Job) => ({ id: job.id, status: job.status, hasProviderRender: !!job.provider_render_id, error: job.error_message ?? undefined });
 /** Only the authenticated creator may receive this short-lived private test URL. */
 async function ownerStatus(job: Job) {
   if (job.status !== "ready" || !job.render_path) return publicStatus(job);
@@ -94,7 +105,7 @@ Deno.serve(async (req: Request) => {
         await admin.from("keep_render_jobs").update({
           status: "failed", error_message: "Shotstack could not complete the film.", updated_at: new Date().toISOString(),
         }).eq("id", job.id);
-        return reply({ id: job.id, status: "failed", error: "Rendering failed; your existing Keep remains available." });
+        return reply({ id: job.id, status: "failed", hasProviderRender: true, error: "Rendering failed; your existing Keep remains available." });
       }
       if (shot?.status !== "done") return reply({ id: job.id, status: "rendering", providerStatus: String(shot?.status || "queued") });
       if (typeof shot.url !== "string" || !shot.url.startsWith("https://"))
@@ -141,7 +152,7 @@ Deno.serve(async (req: Request) => {
       await admin.from("keep_render_jobs").update({
         status: "failed", error_message: message, updated_at: new Date().toISOString(),
       }).eq("id", job.id);
-      return reply({ id: job.id, status: "failed", error: message });
+      return reply({ id: job.id, status: "failed", hasProviderRender: true, error: message });
     }
   }
   if (request.action === "recover") {
@@ -157,15 +168,6 @@ Deno.serve(async (req: Request) => {
   if (job && request.action === "start") return reply(await ownerStatus(job));
   if (request.action === "retry" && (!job || job.status !== "failed"))
     return reply(job ? await ownerStatus(job) : { status: "not_started" });
-  // An explicit user retry can resubmit a failed revision. Never retry a
-  // still-active job: that could generate duplicate billable videos.
-  if (request.action === "retry" && job) {
-    const { data: reset, error: resetError } = await admin.from("keep_render_jobs")
-      .update({ status: "queued", provider_render_id: null, error_message: null,
-        updated_at: new Date().toISOString() })
-      .eq("id", job.id).eq("status", "failed").select("id").maybeSingle();
-    if (resetError || !reset) return fail("The saved film couldn't be restarted. Please try again.", 409);
-  }
   if (!Deno.env.get("SHOTSTACK_API_KEY"))
     return fail("Rendering is not enabled yet. Your existing Keep is still available.", 503);
   // Legacy whole-file caption recovery can space every phrase uniformly.
@@ -195,6 +197,17 @@ Deno.serve(async (req: Request) => {
      !Number.isFinite(renderProject.voiceDuration) || renderProject.voiceDuration<=0 || renderProject.voiceDuration>7200)
     return fail("The Keep timeline is incomplete.");
   const expected=filmDuration(renderProject);
+  // Only reset a failed job after the nonbillable project validation. The
+  // compare-and-set prevents two concurrent retries creating duplicate renders.
+  // An explicit user retry can resubmit a failed revision. Never retry a
+  // still-active job: that could generate duplicate billable videos.
+  if (request.action === "retry" && job) {
+    const { data: reset, error: resetError } = await admin.from("keep_render_jobs")
+      .update({ status: "queued", provider_render_id: null, error_message: null,
+        updated_at: new Date().toISOString() })
+      .eq("id", job.id).eq("status", "failed").select("id").maybeSingle();
+    if (resetError || !reset) return fail("The saved film couldn't be restarted. Please try again.", 409);
+  }
   let insertedId: string;
   if (request.action === "retry" && job) {
     insertedId = job.id;
@@ -261,6 +274,9 @@ Deno.serve(async (req: Request) => {
       status: "failed", error_message: detail,
       updated_at: new Date().toISOString(),
     }).eq("id", insertedId);
-    return fail(detail + " Your existing Keep remains available.", 503);
+    // Return the durable failed state, so the creator can immediately retry
+    // a rejected submission. Never represent it as a recoverable finished MP4.
+    return reply({ id: insertedId, status: "failed", hasProviderRender: false,
+      error: detail + " Your existing Keep remains available." });
   }
 });
