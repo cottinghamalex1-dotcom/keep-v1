@@ -12,8 +12,8 @@ function MenuArrow() {
 }
 
 /**
- * Creator-side navigation. Keep's public /shop pages intentionally use the
- * separate editorial storefront menu; all creator/app pages use this menu.
+ * Creator-side navigation. Public sales and marketing live exclusively on
+ * the official Keep website; all creator/app pages use this menu.
  */
 export function KeepAppMenu({ onHome, onAccount }: {
   onHome?: () => void;
