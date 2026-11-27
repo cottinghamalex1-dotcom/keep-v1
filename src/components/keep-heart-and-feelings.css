@@ -1,0 +1,285 @@
+/* The intention step shares the warm editorial writing-desk treatment. */
+.keep-heart {
+  width: 100%;
+  margin-inline: auto;
+  padding: 32px clamp(20px, 6vw, 48px) max(40px, env(safe-area-inset-bottom));
+  color: #0b0b0b;
+}
+
+.keep-heart__heading {
+  margin-bottom: 24px;
+}
+
+.keep-heart__eyebrow {
+  margin: 0 0 10px;
+  color: #6a5849;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+}
+
+.keep-heart .keep-editorial-title {
+  margin: 0;
+  font-size: clamp(35px, 9.2vw, 48px);
+  line-height: 1.13;
+  letter-spacing: -.035em;
+  text-wrap: balance;
+}
+
+.keep-heart__description {
+  max-width: 52ch;
+  margin-top: 12px;
+  color: #5d5750;
+  font-size: 15px;
+  line-height: 1.65;
+}
+
+.keep-heart__paper {
+  overflow: hidden;
+  border: 1px solid #dcd4ca;
+  border-radius: 18px;
+  background: #fffdf9;
+  box-shadow: 0 6px 24px rgba(43, 33, 24, .055), 0 1px 2px rgba(43, 33, 24, .035);
+  transition: border-color .18s, box-shadow .18s;
+}
+
+.keep-heart__paper:focus-within {
+  border-color: #9d8b79;
+  box-shadow: 0 7px 24px rgba(43, 33, 24, .09);
+}
+
+.keep-heart__paper-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 13px 18px;
+  border-bottom: 1px solid #ebe4db;
+}
+
+.keep-heart__paper-head label {
+  color: #2e2822;
+  font-family: "Playfair Display", Georgia, serif;
+  font-size: 18px;
+  letter-spacing: -.02em;
+}
+
+.keep-heart__character-count {
+  flex-shrink: 0;
+  color: #6a5849;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: .02em;
+}
+
+.keep-heart__paper textarea {
+  display: block;
+  width: 100%;
+  min-height: 145px;
+  padding: 16px 18px;
+  border: 0;
+  background: transparent;
+  color: #211e1a;
+  font-size: 16px;
+  line-height: 1.7;
+  resize: vertical;
+}
+
+.keep-heart .keep-heart__paper textarea:focus-visible {
+  outline: none;
+}
+
+.keep-heart .keep-heart__paper textarea::placeholder {
+  color: #746e67;
+}
+
+.keep-heart__paper-footer {
+  padding: 10px 12px 12px;
+  border-top: 1px solid #ebe4db;
+}
+
+.keep-heart__methods {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid #e1d9cf;
+  border-radius: 13px;
+  background: #ebe6df;
+}
+
+.keep-heart__methods button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-width: 0;
+  min-height: 46px;
+  border: 1px solid #e3dbd1;
+  border-radius: 9px;
+  background: #fffdf9;
+  color: #352e27;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  box-shadow: 0 1px 3px rgba(38, 29, 20, .055);
+  transition: background .18s, border-color .18s, color .18s;
+}
+
+.keep-heart__methods button:hover {
+  background: #f7f5f2;
+  border-color: #b8a999;
+}
+
+.keep-heart__methods button[aria-pressed="true"] {
+  border-color: #211e1a;
+  background: #211e1a;
+  color: #f7f5f2;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .1);
+}
+
+.keep-heart__methods svg { flex-shrink: 0; }
+
+.keep-heart__listening {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  margin-top: 12px;
+  padding: 12px 15px;
+  border: 1px solid #ded5c9;
+  border-radius: 12px;
+  background: #f0ebe4;
+  color: #6a5849;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.keep-heart__listening strong {
+  color: #332c25;
+  font-weight: 600;
+}
+
+.keep-heart__listening-dot {
+  flex: 0 0 auto;
+  width: 8px;
+  height: 8px;
+  margin-inline: 4px;
+  border-radius: 50%;
+  background: #937760;
+  box-shadow: 0 0 0 4px #e2d7ca;
+}
+
+.keep-heart__feelings {
+  margin-top: 34px;
+  padding-top: 27px;
+  border-top: 1px solid #dcd4ca;
+}
+
+.keep-heart .keep-section-title {
+  margin: 0;
+  max-width: 24ch;
+  font-size: clamp(28px, 7.5vw, 36px);
+  line-height: 1.18;
+  letter-spacing: -.025em;
+  text-wrap: balance;
+}
+
+.keep-heart__selection-guide {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  margin: 18px 0 10px;
+  color: #554a40;
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.keep-heart__optional { color: #74685c; font-weight: 400; }
+.keep-heart__count { color: #6a5849; font-variant-numeric: tabular-nums; }
+
+.keep-heart__choices {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 9px;
+}
+
+.keep-heart__feeling {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 7px;
+  min-width: 0;
+  min-height: 52px;
+  padding: 11px 12px;
+  border: 1px solid #dcd4ca;
+  border-radius: 13px;
+  background: linear-gradient(145deg, #fffdf9, #faf8f4);
+  color: #2e2822;
+  text-align: left;
+  font-size: 13px;
+  line-height: 1.25;
+  font-weight: 500;
+  cursor: pointer;
+  box-shadow: 0 2px 5px rgba(43, 33, 24, .035);
+  transition: background .18s, border-color .18s, box-shadow .18s;
+}
+
+.keep-heart__feeling > span:first-child { min-width: 0; overflow-wrap: anywhere; }
+
+.keep-heart__feeling-check {
+  display: grid;
+  place-items: center;
+  flex: 0 0 18px;
+  width: 18px;
+  height: 18px;
+  border: 1px solid #b8a999;
+  border-radius: 50%;
+  color: #f7f5f2;
+}
+
+.keep-heart__feeling:hover {
+  border-color: #a59381;
+  background: #f0ebe5;
+}
+
+.keep-heart__feeling[aria-pressed="true"] {
+  border-color: #6a5849;
+  background: #e6ded3;
+  color: #211e1a;
+  box-shadow: inset 0 0 0 1px #6a5849;
+}
+
+.keep-heart__feeling[aria-pressed="true"] .keep-heart__feeling-check {
+  border-color: #302923;
+  background: #302923;
+}
+
+.keep-heart__feeling:focus-visible,
+.keep-heart__methods button:focus-visible {
+  outline: 2px solid #6a5849;
+  outline-offset: 2px;
+}
+
+.keep-heart__footer { margin-top: 26px; }
+
+@media (max-width: 360px) {
+  .keep-heart { padding-inline: 16px; }
+  .keep-heart__feeling { padding-inline: 10px; gap: 5px; }
+}
+
+@media (min-width: 768px) {
+  .keep-heart { padding: 42px 64px max(48px, env(safe-area-inset-bottom)); }
+  .keep-heart__paper-head { padding-inline: 24px; }
+  .keep-heart__paper textarea { min-height: 175px; padding: 20px 24px; }
+  .keep-heart__paper-footer { padding-inline: 20px; }
+  .keep-heart__methods { max-width: 340px; }
+  .keep-heart__choices { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+  .keep-heart__feeling { min-height: 56px; font-size: 14px; padding-inline: 14px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .keep-heart__paper, .keep-heart__methods button, .keep-heart__feeling { transition: none; }
+}
