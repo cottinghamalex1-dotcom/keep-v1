@@ -4,7 +4,6 @@ import { activeKeepSession, readKeepSession } from "@/lib/keep-cloud";
 import { KeepAppMenu } from "@/components/keep-app-menu";
 import { viewingLink } from "@/lib/keep-publish";
 import { KeepLibraryCard } from "@/components/keep-library-card";
-import { KeepFilmRender } from "@/components/keep-film-render";
 import { KeepCreateCTA } from "@/components/keep-create-cta";
 import { KeepPhoneTip } from "@/components/keep-phone-tip";
 import { KeepLoadingScreen } from "@/components/keep-loading-screen";
@@ -220,7 +219,6 @@ function KeepDashboard() {
               onToggle={()=>setExpandedKeep(expandedKeep===keep.id?null:keep.id)}
               onCopy={()=>void (async()=>{try{await navigator.clipboard.writeText(viewingLink(keep.recipient_token));setCopiedKeep(keep.id);toast.success("Link copied");}catch{toast.error("Copy unavailable. Open the Keep and copy its address.");}})()}
               onDelete={()=>void removeKeep(keep)}/>
-              {expandedKeep===keep.id && keep.status==="ready" && !!keep.published_at && <div className="mt-3"><KeepFilmRender keepId={keep.id} musicMood={keep.published_project?.musicMood ?? "Warm + Nostalgic"} musicMuted={keep.published_project?.audioMix?.musicMuted} /></div>}
             </div>)}
           </div>
         </section>}

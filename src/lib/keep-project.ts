@@ -163,7 +163,7 @@ export function resumeKeepCreationStage(stage: string): string {
 export const stageLabels: Record<string, string> = {
   recipient: "Choosing who it's for", occasion: "Choosing the occasion", voices: "Choosing the voices", intent: "Expressing the heart behind it", feelings: "Expressing the heart behind it", remoteInvite: "Collecting voices remotely", groupRecord: "Recording together", path: "Finding the words", interview: "In the interview",
   summary: "Story gathered", write: "Writing the message", message: "Shaping the message", recordPrep: "Getting ready to record", record: "Recording your voice",
-  recorded: "Voice recorded", memories: "Adding memories", editor: "In the editor", card: "Designing the card", success: "Ready",
+  recorded: "Voice recorded", memories: "Adding memories", editor: "In the editor", card: "Final touches", finalizing: "Finishing film", success: "Ready",
 };
 
 // Keep the latest pointer and per-Keep snapshots separate for each account.

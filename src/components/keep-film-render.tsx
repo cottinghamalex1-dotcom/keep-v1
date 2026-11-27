@@ -11,7 +11,7 @@ const soundtrack: Record<string, string> = {
   Acoustic: "acoustic", Piano: "piano", "Worth Keeping": "intentional",
 };
 class FilmRequestError extends Error {}
-type RenderResult = {
+export type RenderResult = {
   id?: string;
   status: "not_started" | "queued" | "rendering" | "ready" | "failed";
   providerStatus?: string;
@@ -68,12 +68,17 @@ async function renderRequest(keepId: string, action: string, musicDurationSec?: 
   }
 }
 
-/** Owner-only controls. Nothing billable is submitted until the creator presses Render. */
-export function KeepFilmRender({ keepId, musicMood, musicMuted = false }: { keepId: string; musicMood: string; musicMuted?: boolean }) {
+/** In finishing mode the creator's Save action authorizes a single render.
+ * Always check the durable job before starting; never automatically resubmit a failed job. */
+export function KeepFilmRender({ keepId, musicMood, musicMuted = false, autoStart = false, onReady }: {
+  keepId: string; musicMood: string; musicMuted?: boolean; autoStart?: boolean;
+  onReady?: (job: RenderResult) => void;
+}) {
   const [job, setJob] = useState<RenderResult>({ status: "not_started" });
   const [statusChecked, setStatusChecked] = useState(false);
   const [busy, setBusy] = useState(false);
   const actionLock = useRef(false);
+  const autoAttempt = useRef(false);
   const [error, setError] = useState("");
   const refresh = useCallback(async () => {
     const next = await renderRequest(keepId, "status");
@@ -102,7 +107,7 @@ export function KeepFilmRender({ keepId, musicMood, musicMuted = false }: { keep
     return () => { cancelled = true; };
   }, [keepId]);
   useEffect(() => {
-    if (job.status !== "rendering" && job.status !== "queued") return;
+    if (job.status !== "rendering" && job.status !== "queued" && !(autoStart && job.status === "ready" && !job.videoUrl)) return;
     let cancelled = false;
     let timeout: number;
     let delay = 7000;
@@ -124,7 +129,7 @@ export function KeepFilmRender({ keepId, musicMood, musicMuted = false }: { keep
     };
     poll();
     return () => { cancelled = true; window.clearTimeout(timeout); };
-  }, [keepId, job]);
+  }, [keepId, job, autoStart]);
   const act = async (action: "start" | "recover" | "retry") => {
     if (actionLock.current || busy) return;
     if (action === "retry" && !window.confirm(job.hasProviderRender
@@ -147,12 +152,20 @@ export function KeepFilmRender({ keepId, musicMood, musicMuted = false }: { keep
       setError(cause instanceof Error ? cause.message : "Couldn't start the finished film.");
     } finally { actionLock.current = false; setBusy(false); }
   };
-  return <section className="rounded-[22px] border border-[#D8C8B6] bg-[#F6EFE7] p-5 text-[#30271E]" aria-label="Finished Keep film">
-    <h2 className="font-display text-[27px] leading-tight">Your finished film</h2>
-    <p className="mt-2 text-xs leading-6 text-[#776553]">A single 1080p MP4 with your voice, music, memories and captions. Unlike the live preview, this video can be scrubbed, paused and saved.</p>
+  useEffect(() => {
+    if (!autoStart || autoAttempt.current || !statusChecked || busy || error || job.status !== "not_started") return;
+    autoAttempt.current = true;
+    void act("start");
+  }, [autoStart, statusChecked, busy, error, job.status]);
+  useEffect(() => {
+    if (statusChecked && job.status === "ready" && job.videoUrl) onReady?.(job);
+  }, [statusChecked, job, onReady]);
+  return <section className="rounded-[22px] border border-[#D8C8B6] bg-[#F6EFE7] p-5 text-[#30271E]" aria-label={autoStart ? "Saving your Keep" : "Finished Keep film"}>
+    <h2 className="font-display text-[27px] leading-tight">{autoStart ? "Bringing it all together." : "Your finished film"}</h2>
+    <p className="mt-2 text-xs leading-6 text-[#776553]">{autoStart ? "We're creating your finished film and saving it to your permanent viewing link. You'll choose your card as soon as it's ready." : "A single 1080p MP4 with your voice, music, memories and captions. Unlike the live preview, this video can be scrubbed, paused and saved."}</p>
     {!statusChecked ? <button type="button" disabled={busy || !error} onClick={() => void checkStatus()}
         className="mt-5 flex min-h-12 w-full items-center justify-center gap-2 rounded-xl border border-[#CAB8A5] px-5 py-3 text-sm disabled:opacity-60">
-      {busy || !error ? <><Loader2 className="size-4 animate-spin" /> Checking saved film…</> : <><RotateCcw className="size-4" /> Check film status</>}
+      {busy || !error ? <><Loader2 className="size-4 animate-spin" /> {autoStart ? "Checking your saved Keep…" : "Checking saved film…"}</> : <><RotateCcw className="size-4" /> Check film status</>}
     </button> : job.status === "ready" && job.videoUrl ? <>
       <video key={job.videoUrl} src={job.videoUrl} controls playsInline preload="metadata"
         className="mx-auto mt-5 aspect-[9/16] max-h-[68dvh] w-full max-w-[320px] rounded-xl bg-[#171311] object-contain"
@@ -162,13 +175,15 @@ export function KeepFilmRender({ keepId, musicMood, musicMuted = false }: { keep
       </a>
       <button type="button" onClick={() => void refresh().catch(e => setError(String(e)))} className="mt-3 flex min-h-10 w-full items-center justify-center gap-2 text-xs text-[#76604B]"><RotateCcw className="size-4"/> Refresh private viewing link</button>
       <p className="mt-2 flex items-center justify-center gap-2 text-xs text-[#47715B]"><Check className="size-4" /> Finished film saved securely</p>
-    </> : job.status === "ready" ? <button type="button" onClick={() => void refresh().catch(e => setError(String(e)))} className="mt-5 w-full rounded-xl bg-[#201A15] px-5 py-4 text-sm text-white">Refresh film link</button>
-    : job.status === "rendering" || job.status === "queued" ? <div className="mt-5 flex items-center gap-3 rounded-xl bg-white/70 p-4" role="status"><Loader2 className="size-5 shrink-0 animate-spin" /><p className="text-sm">Preparing your finished MP4… {job.providerStatus ? "(" + job.providerStatus + ")" : "This can continue after you leave this page."}</p></div>
+    </> : job.status === "ready" && autoStart ? <div role="status" className="mt-5 flex items-center gap-3 rounded-xl bg-white/70 p-4"><Loader2 className="size-5 shrink-0 animate-spin" /> Verifying your saved film…</div>
+    : job.status === "ready" ? <button type="button" onClick={() => void refresh().catch(e => setError(String(e)))} className="mt-5 w-full rounded-xl bg-[#201A15] px-5 py-4 text-sm text-white">Refresh film link</button>
+    : job.status === "rendering" || job.status === "queued" ? <div className="mt-5 flex items-center gap-3 rounded-xl bg-white/70 p-4" role="status"><Loader2 className="size-5 shrink-0 animate-spin" /><p className="text-sm">{autoStart ? "Preparing your finished film…" : "Preparing your finished MP4…"} {autoStart ? "This may take a few minutes." : job.providerStatus ? "(" + job.providerStatus + ")" : "This can continue after you leave this page."}</p></div>
     : job.status === "failed" ? <div className="mt-5 space-y-3">
       <p role="alert" className="text-sm leading-6 text-[#9C473D]">{job.error || "The render needs attention. Your published Keep remains safe."}</p>
       {job.hasProviderRender && <button type="button" disabled={busy} onClick={() => void act("recover")} className="w-full rounded-xl bg-[#201A15] px-5 py-4 text-sm text-white disabled:opacity-50">{busy ? "Checking…" : "Retry saving existing MP4"}</button>}
       <button type="button" disabled={busy} onClick={() => void act("retry")} className="w-full rounded-xl border border-[#CAB8A5] px-5 py-3 text-sm disabled:opacity-50">Render again <ArrowRight className="ml-2 inline size-4"/></button>
-    </div> : <button type="button" disabled={busy} onClick={() => void act("start")} className="mt-5 flex min-h-14 w-full items-center justify-center gap-2 rounded-xl bg-[#201A15] px-5 py-4 text-sm font-medium text-white disabled:opacity-50">{busy ? <Loader2 className="size-5 animate-spin" /> : <ArrowRight className="size-5" />} {busy ? "Starting…" : "Render my 1080p film"}</button>}
+    </div> : autoStart && (!autoAttempt.current || busy) ? <div role="status" className="mt-5 flex items-center gap-3 rounded-xl bg-white/70 p-4"><Loader2 className="size-5 shrink-0 animate-spin" /><p className="text-sm">Preparing your finished film…</p></div>
+    : <button type="button" disabled={busy} onClick={() => void act("start")} className="mt-5 flex min-h-14 w-full items-center justify-center gap-2 rounded-xl bg-[#201A15] px-5 py-4 text-sm font-medium text-white disabled:opacity-50">{busy ? <Loader2 className="size-5 animate-spin" /> : <ArrowRight className="size-5" />} {busy ? "Starting…" : autoStart ? "Retry saving my Keep" : "Render my 1080p film"}</button>}
     {error && <p role="alert" className="mt-3 text-xs leading-5 text-[#A04F43]">{error}</p>}
   </section>;
 }
