@@ -19,7 +19,17 @@ describe("Moments uploader", () => {
     expect(add).toHaveClass("min-h-[168px]");
     expect(screen.getByText("Tap to choose from your library")).toBeInTheDocument();
     fireEvent.click(add);
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(screen.getByText("blue checkmark", { exact: true })).toBeInTheDocument();
+    expect(screen.getByText(/even if the screen seems unchanged/i)).toBeInTheDocument();
+    expect(actions.onAdd).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "I understand", exact: true }));
+    expect(screen.getByRole("heading", { name: "A little movement goes a long way." })).toBeInTheDocument();
+    expect(screen.getByText("10 seconds or less.", { exact: true })).toBeInTheDocument();
+    expect(actions.onAdd).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "I understand — open library" }));
     expect(actions.onAdd).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
   it("allows the creator to continue without photos using either path", () => {
@@ -37,11 +47,26 @@ describe("Moments uploader", () => {
     expect(screen.getByLabelText("Family clip")).toBeInTheDocument();
     expect(screen.getByText("1 photo · 1 video added")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Add more" }));
+    expect(actions.onAdd).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "I understand", exact: true }));
+    fireEvent.click(screen.getByRole("button", { name: "I understand — open library" }));
     expect(actions.onAdd).toHaveBeenCalledTimes(1);
     fireEvent.click(screen.getByRole("button", { name: "Remove memory 2" }));
     expect(actions.onRemove).toHaveBeenCalledWith(1);
     fireEvent.click(screen.getByRole("button", { name: "Continue without more photos" }));
     expect(actions.onContinue).toHaveBeenCalledTimes(1);
+  });
+
+  it("cancels without opening the picker and starts again at the first reminder", () => {
+    const actions = controls();
+    render(<KeepMomentsUploader moments={[]} busy={false} {...actions} />);
+    fireEvent.click(screen.getByRole("button", { name: /Add photos & videos/i }));
+    fireEvent.click(screen.getByRole("button", { name: "I understand", exact: true }));
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(actions.onAdd).not.toHaveBeenCalled();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /Add photos & videos/i }));
+    expect(screen.getByRole("heading", { name: "Your photos may take a moment." })).toBeInTheDocument();
   });
 
   it("prevents re-opening the upload picker while another upload is underway", () => {
