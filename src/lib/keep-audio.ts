@@ -1,3 +1,5 @@
+import { KEEP_MUSIC_LEAD_SECONDS, KEEP_MUSIC_TAIL_SECONDS, musicEnvelope, musicBalanceLevel, musicUnderLevel } from "../../supabase/functions/keep-render/composition";
+export { KEEP_MUSIC_LEAD_SECONDS, KEEP_MUSIC_TAIL_SECONDS, musicEnvelope };
 import type { AudioMix, VoiceTone } from "./keep-project";
 import { musicCrossfadeCurves, musicLoopPlan, shouldPrepareMusicLoop } from "./keep-music-loop";
 import { KEEP_VOICE_PROFILES } from "./keep-voice-profiles";
@@ -32,24 +34,6 @@ const balanceLevels: Record<string, { intro: number; under: number; outro: numbe
 };
 
 /** The same audio envelope is used in Watch and Listen, including the supplied MP3. */
-export const KEEP_MUSIC_LEAD_SECONDS = 2.8;
-export const KEEP_MUSIC_TAIL_SECONDS = 4.5;
-
-export function musicEnvelope(introSeconds: number, voiceDuration: number, fadeInSeconds = 2.5, fadeOutSeconds = 3) {
-  const intro = Math.max(0, introSeconds);
-  const voiceEnd = intro + Math.max(1, voiceDuration);
-  return {
-    introPeak: Math.min(Math.max(0.25, intro - 0.55), Math.max(0.25, Math.min(1.35, fadeInSeconds * 0.4))),
-    duckStart: Math.max(Math.min(Math.max(0.25, intro - 0.55), Math.max(0.25, Math.min(1.35, fadeInSeconds * 0.4))) + 0.05, intro - 0.45),
-    duckEnd: Math.max(intro + 0.38, Math.max(0.25, intro - 0.55) + 0.35),
-    voiceStart: intro,
-    voiceEnd,
-    outroRise: voiceEnd + 0.72,
-    outroFadeStart: voiceEnd + Math.max(0.8, KEEP_MUSIC_TAIL_SECONDS - Math.max(1.1, Math.min(3.7, fadeOutSeconds))),
-    outroEnd: voiceEnd + KEEP_MUSIC_TAIL_SECONDS,
-  };
-}
-
 /** Music opens alone, ducks under the voice, then lifts and fades after the last word. */
 function applyMusicEnvelope(gain: AudioParam, start: number, intro: number, duration: number, introLevel: number, underLevel: number, outroLevel: number, options: MixOptions) {
   const e = musicEnvelope(intro, duration, options.fadeIn, options.fadeOut);
@@ -205,9 +189,8 @@ function createMusicBed(ctx: AudioContext, destination: AudioNode, mood: string,
   musicGain.connect(destination);
   musicGain.gain.value = 0;
 
-  const levels: Record<MusicBalance, number> = { Soft: 0.22, Balanced: 0.32, Full: 0.45 };
-  const level = levels[balance] ?? levels.Balanced;
-  const under = options.ducking === false ? level * 0.75 : level * 0.36;
+  const level = musicBalanceLevel(balance);
+  const under = musicUnderLevel(level,options.ducking !== false);
   const expectedKeepSeconds = introSeconds + voiceDuration + KEEP_MUSIC_TAIL_SECONDS;
   const curves = musicCrossfadeCurves();
   let active = 0;

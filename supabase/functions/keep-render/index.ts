@@ -1,5 +1,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { buildShotstackEdit, type ShotstackSources } from "./shotstack.ts";
+import { buildShotstackEdit, filmDuration, type ShotstackSources, type RenderProject } from "./shotstack.ts";
+import { inspectStill, probeDimensions, type MediaDimensions } from "./media-metadata.ts";
+import { renderRevisionHash } from "./revision.ts";
 
 const endpoint = Deno.env.get("SUPABASE_URL")!;
 const admin = createClient(endpoint, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, { auth: { persistSession: false } });
@@ -31,55 +33,6 @@ const providerCall = async (path: string, init: RequestInit = {}) => {
   if (!result.ok) throw new Error("Shotstack could not process this render request.");
   return await result.json();
 };
-const hashOf = async (project: unknown) => Array.from(new Uint8Array(await crypto.subtle.digest(
-  "SHA-256", new TextEncoder().encode(JSON.stringify(project)),
-))).map(n => n.toString(16).padStart(2, "0")).join("");
-
-/** Server-only equivalent of Keep's canonical render-plan clock. */
-function planFromProject(p: Record<string, unknown>) {
-  const moments = p.memories as Array<Record<string, unknown>>;
-  const voiceDuration = Number(p.voiceDuration);
-  if (!Array.isArray(moments) || moments.length < 1 || moments.length > 300 ||
-    !Number.isFinite(voiceDuration) || voiceDuration <= 0 || voiceDuration > 7200)
-    throw new Error("This Keep has no valid recording or photos.");
-  const lengths = moments.map(m => Number(m.displayDurationSec) > 0 ? Math.max(0.6, Number(m.displayDurationSec)) : 7);
-  const total = lengths.reduce((a,b) => a + b, 0);
-  const lead = 2.8, tail = 4.5;
-  let cursor = 0;
-  const scenes = moments.map((m, i) => {
-    const activeStartSec = i === 0 ? 0 : lead + cursor;
-    cursor += lengths[i]! / total * voiceDuration;
-    const activeEndSec = i === moments.length - 1 ? lead + voiceDuration + tail : lead + cursor;
-    const transitionIn = i === 0 || m.transition === "cut" ? 0 : 0.3;
-    const transitionOut = i === moments.length - 1 || moments[i + 1]?.transition === "cut" ? 0 : 0.3;
-    return {
-      sourcePath: String(m.storagePath ?? ""), kind: String(m.kind) as "image" | "video",
-      startSec: t(Math.max(0, activeStartSec - transitionIn)), endSec: t(activeEndSec + transitionOut),
-      activeStartSec: t(activeStartSec), activeEndSec: t(activeEndSec),
-      dissolveInSec: transitionIn, dissolveOutSec: transitionOut,
-      videoStartSec: Number(m.videoStartSec ?? 0), muted: true as const,
-      motion: String(m.motion ?? ["in", "left", "out", "right"][i % 4]) as "in" | "out" | "left" | "right",
-      focusX: Number(m.focusX ?? 50), focusY: Number(m.focusY ?? 50),
-      zoom: Number(m.zoom ?? 1), visualStyle: String(p.visualStyle ?? "Natural"),
-    };
-  });
-  const cues = Array.isArray(p.captionCues) ? p.captionCues as Array<Record<string, unknown>> : [];
-  const captions = p.captionStyle === "None" ? [] : cues.flatMap(cue => {
-    const start = Math.max(0, Math.min(voiceDuration, Number(cue.start)));
-    const end = Math.max(0, Math.min(voiceDuration, Number(cue.end)));
-    return end > start && String(cue.text ?? "").trim() ?
-      [{ text: String(cue.text).trim(), startSec: t(lead + start), endSec: t(lead + end) }] : [];
-  });
-  return {
-    durationSec: t(lead + voiceDuration + tail),
-    voice: { sourcePath: String(p.voicePath), startSec: lead, endSec: t(lead + voiceDuration),
-      volume: Number(p.voiceVolume ?? 60) / 100, muted: Boolean((p.audioMix as Record<string, unknown> | undefined)?.voiceMuted) },
-    music: { balance: String(p.voiceMusicBalance ?? "Balanced"), volume: Number(p.musicVolume ?? 60) / 100,
-      muted: Boolean((p.audioMix as Record<string, unknown> | undefined)?.musicMuted) },
-    scenes, captions, captionStyle: String(p.captionStyle ?? "Reel"),
-    captionPosition: p.captionPosition === "top" ? "top" as const : p.captionPosition === "middle" ? "middle" as const : "bottom" as const,
-  };
-}
 type Job = { id: string; status: string; provider_render_id: string | null; revision_hash: string;
   expected_duration_seconds: number; render_path: string | null; error_message: string | null };
 const publicStatus = (job: Job) => ({ id: job.id, status: job.status, error: job.error_message ?? undefined });
@@ -126,7 +79,7 @@ Deno.serve(async (req: Request) => {
   const prefix = owner + "/publications/" + keepId + "/";
   if (paths.length < 2 || paths.some(p => !p.startsWith(prefix) || !/^[-a-zA-Z0-9/]+$/.test(p)))
     return fail("The Keep sources could not be validated.", 403);
-  const revision = await hashOf(project);
+  const revision = await renderRevisionHash(project);
   const { data: found } = await admin.from("keep_render_jobs").select("*")
     .eq("keep_id", keepId).eq("owner_id", owner).eq("revision_hash", revision).maybeSingle();
   const job = found as Job | null;
@@ -237,10 +190,11 @@ Deno.serve(async (req: Request) => {
   if (MUSIC[mood] && !((project.audioMix as Record<string, unknown> | undefined)?.musicMuted) &&
       (!Number.isFinite(musicDurationSec) || musicDurationSec < 30 || musicDurationSec > 900))
     return fail("The selected music file duration must be checked before rendering.");
-  let renderPlan;
-  try { renderPlan = planFromProject(project); } catch { return fail("The Keep timeline is incomplete."); }
-  const intro = Math.min(14, Math.max(7.5, 5.5 + String(project.openingMessage ?? "").trim().length / 26));
-  const expected = t(renderPlan.durationSec + intro - renderPlan.voice.startSec);
+  const renderProject=project as unknown as RenderProject;
+  if(!Array.isArray(renderProject.memories) || !renderProject.memories.length ||
+     !Number.isFinite(renderProject.voiceDuration) || renderProject.voiceDuration<=0 || renderProject.voiceDuration>7200)
+    return fail("The Keep timeline is incomplete.");
+  const expected=filmDuration(renderProject);
   let insertedId: string;
   if (request.action === "retry" && job) {
     insertedId = job.id;
@@ -262,31 +216,51 @@ Deno.serve(async (req: Request) => {
     if (signError || !signed || signed.some(s => s.error || !s.signedUrl))
       throw new Error("One of the original files could not be read.");
     const map = new Map(signed.map(s => [s.path, s.signedUrl!]));
+    const dimensions: Record<string,MediaDimensions>={};
+    // Only inspect the already-validated, signed original assets. No uploads,
+    // no new provider, and no generated replacement media. Small photo headers
+    // are inspected locally; videos/unsupported headers use the existing
+    // Shotstack read-only media inspector.
+    const unique=[...new Map(renderProject.memories.map(m=>[m.storagePath,m])).values()];
+    const pending=unique.slice();
+    const inspect=async()=>{
+      for(let m=pending.shift();m;m=pending.shift()){
+        const uri=map.get(m.storagePath);
+        if(!uri)throw new Error("Missing memory source.");
+        let info=m.kind==="image"?await inspectStill(uri):undefined;
+        // Centered photos can use Shotstack's native centered crop if a
+        // header format is unrecognized; noncentral focal points must be verified.
+        const needsProbe=m.kind==="video" || (m.focusX??50)!==50 || (m.focusY??50)!==50;
+        if(!info&&needsProbe){
+          try {
+            info=probeDimensions(await providerCall("/probe/"+encodeURIComponent(uri),{signal:AbortSignal.timeout(12000)}));
+          } catch { /* report a safe preflight failure rather than a bad crop */ }
+        }
+        if(!info&&needsProbe)throw new Error("Keep could not verify the selected photo or video crop. No video was submitted.");
+        if(info)dimensions[m.storagePath]=info;
+      }
+    };
+    await Promise.all(Array.from({length:Math.min(8,pending.length)},inspect));
     const sources: ShotstackSources = {
       voiceUrl: map.get(String(project.voicePath))!,
-      memoryUrls: Object.fromEntries((project.memories as Array<Record<string, unknown>>)
-        .map(m => [String(m.storagePath), map.get(String(m.storagePath))!])),
+      memoryUrls: Object.fromEntries(renderProject.memories.map(m=>[m.storagePath,map.get(m.storagePath)!])),
+      mediaDimensions:dimensions,
       musicUrl: MUSIC[mood] ? "https://keep-v1.vercel.app/audio/" + MUSIC[mood] + ".mp3" : undefined,
       musicDurationSec,
     };
-    const edit = buildShotstackEdit(renderPlan, sources, {
-      recipientName: String(project.recipientName ?? ""), openingMessage: String(project.openingMessage ?? ""),
-      closingLine: String(project.closingLine ?? ""),
-      from: Array.isArray(project.contributors) && project.contributors.length ?
-        (project.contributors as Array<Record<string, unknown>>).map(x => String(x.name)).join(" & ") :
-        String((project.cardEngraving as string[] | undefined)?.[1] ?? "").replace(/^FROM\s+/i, ""),
-    });
+    const edit = buildShotstackEdit(renderProject, sources);
     const result = await providerCall("/render", { method: "POST", body: JSON.stringify(edit) });
     if (!uuid(result?.response?.id)) throw new Error("The provider did not create a render job.");
     await admin.from("keep_render_jobs").update({
       status: "rendering", provider_render_id: result.response.id, updated_at: new Date().toISOString(),
     }).eq("id", insertedId).eq("status", "queued");
     return reply({ id: insertedId, status: "rendering" }, 202);
-  } catch {
+  } catch (cause) {
+    const detail=cause instanceof Error && cause.message.startsWith("Keep could not verify") ? cause.message : "Could not submit the film. No published Keep was changed.";
     await admin.from("keep_render_jobs").update({
-      status: "failed", error_message: "Could not submit the film. No published Keep was changed.",
+      status: "failed", error_message: detail,
       updated_at: new Date().toISOString(),
     }).eq("id", insertedId);
-    return fail("Saving couldn't be restarted. Your existing Keep remains available.", 503);
+    return fail(detail + " Your existing Keep remains available.", 503);
   }
 });
