@@ -1,5 +1,32 @@
 import type { CaptionCue, CaptionWord } from "./keep-project";
 
+/** Regroup words without splitting a measured provider phrase into invented word times. */
+export const groupTimedWords = (words: CaptionWord[], limit = 5): CaptionCue[] => {
+  const cues: CaptionCue[] = [];
+  let group: CaptionWord[] = [];
+  const flush = () => {
+    if (!group.length) return;
+    const text = group.map((w) => w.word).join(" ").replace(/\s+([,.!?;:])/g, "$1").trim();
+    if (text) cues.push({ text, start: Math.max(0, group[0]!.start - 0.05), end: group[group.length - 1]!.end + 0.16 });
+    group = [];
+  };
+  for (const word of words) {
+    if (word.phrase) {
+      flush();
+      const prior = cues[cues.length - 1];
+      if (prior && prior.end > word.start && prior.start < word.start) prior.end = word.start;
+      cues.push({ text: word.word.trim(), start: word.start, end: word.end });
+      continue;
+    }
+    const prev = group[group.length - 1];
+    if (prev && word.start - prev.end > 0.72) flush();
+    group.push(word);
+    if (group.length >= limit || (limit > 2 && /[.!?]$/.test(word.word))) flush();
+  }
+  flush();
+  return cues;
+};
+
 /**
  * The timestamp transcription provider can occasionally return batches of words
  * with zero durations or identical timestamps. Those cues disappear or pile up

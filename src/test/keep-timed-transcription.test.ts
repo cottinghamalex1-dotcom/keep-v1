@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { transcribeTimedAudio } from "@/lib/keep-ai";
+import { captionTimingIsBroken, groupTimedWords } from "@/lib/keep-caption-timing";
 
 function fakeVoice(duration: number, silent = false) {
   const sampleRate = 16000;
@@ -101,5 +102,87 @@ describe("long Keep caption transcription", () => {
     const result = await transcribeTimedAudio(blob,"audio/wav","script");
     expect(fetch).toHaveBeenCalledTimes(2);
     expect(result.transcript).toBe("correct spoken");
+  });
+
+  it("recovers section 3 of a seven-section voice using measured phrase boundaries, not estimated words", async () => {
+    const {blob} = fakeVoice(120);
+    const files: string[] = [];
+    const fetch = vi.fn(async (_url: string, init: RequestInit) => {
+      const fd = init.body as FormData;
+      const name = (fd.get("file") as File).name;
+      files.push(name);
+      if (name !== "keep-voice-3.wav") return response(valid(name));
+      const segments = [{text:"I remember that day.",start:0.7,end:2.85},{text:"You were always there.",start:7.1,end:9.4}];
+      const transcript = segments.map(s => s.text).join(" ");
+      return new Response(JSON.stringify({transcript,words:transcript.split(" ").map(word=>({word,start:1,end:1})),segments}));
+    });
+    vi.stubGlobal("fetch",fetch);
+    const result = await transcribeTimedAudio(blob,"audio/wav");
+    expect(files).toEqual(Array.from({length:7},(_,i)=>`keep-voice-${i+1}.wav`));
+    const phrases = result.words.filter(w=>w.phrase);
+    expect(phrases).toEqual([
+      {word:"I remember that day.",start:36.7,end:38.85,phrase:true},
+      {word:"You were always there.",start:43.1,end:45.4,phrase:true},
+    ]);
+    for (const limit of [2,5,8]) {
+      const cues = groupTimedWords(result.words, limit);
+      expect(cues).toContainEqual({text:"I remember that day.",start:36.7,end:38.85});
+      expect(cues).toContainEqual({text:"You were always there.",start:43.1,end:45.4});
+      expect(captionTimingIsBroken(result.words,cues,120)).toBe(false);
+    }
+  });
+  it("prefers usable individual word timestamps over a phrase", async () => {
+    const {blob} = fakeVoice(6);
+    const fetch = vi.fn(async () => new Response(JSON.stringify({
+      transcript:"correct spoken",words:valid("correct"),segments:[{text:"correct spoken",start:0.2,end:1.8}]
+    })));
+    vi.stubGlobal("fetch",fetch);
+    const result = await transcribeTimedAudio(blob,"audio/wav");
+    expect(result.words).toEqual(valid("correct"));
+    expect(fetch).toHaveBeenCalledOnce();
+  });
+  it("requests segment-only timing if both timestamp streams initially fail", async () => {
+    const {blob} = fakeVoice(6);
+    const fetch = vi.fn(async (_url: string, init: RequestInit) => {
+      const fd = init.body as FormData;
+      const transcript = "You were always there.";
+      return new Response(JSON.stringify({transcript,words:bad(),
+        segments:[{text:transcript,start:0.6,end:fd.get("timing")==="segment"?3:0.6}]}));
+    });
+    vi.stubGlobal("fetch",fetch);
+    const result = await transcribeTimedAudio(blob,"audio/wav");
+    expect(fetch).toHaveBeenCalledTimes(2);
+    expect(result.words).toEqual([{word:"You were always there.",start:0.6,end:3,phrase:true}]);
+  });
+  it("rejects invalid or incomplete measured phrases", async () => {
+    const {blob} = fakeVoice(6);
+    for (const segments of [
+      [{text:"You were there.",start:0.5,end:0.5}],
+      [{text:"You were there.",start:3,end:1}],
+      [{text:"You were there.",start:1,end:20}],
+      [{text:"You were",start:0.5,end:1}],
+      [{text:"You were",start:0.5,end:3},{text:"there.",start:1,end:4}],
+    ]) {
+      const fetch = vi.fn(async () => new Response(JSON.stringify({transcript:"You were there.",words:bad(),segments})));
+      vi.stubGlobal("fetch",fetch);
+      await expect(transcribeTimedAudio(blob,"audio/wav")).rejects.toThrow("section 1 of 1");
+    }
+  });
+  it("preserves an actual pause when the recognizer explicitly confirms no speech in a section", async () => {
+    const {blob} = fakeVoice(54);
+    const fetch = vi.fn(async (_url: string, init: RequestInit) => {
+      const name = ((init.body as FormData).get("file") as File).name;
+      return name==="keep-voice-2.wav" ? new Response(JSON.stringify({transcript:"",words:[],segments:[],noSpeech:true})) : response(valid(name));
+    });
+    vi.stubGlobal("fetch",fetch);
+    const result = await transcribeTimedAudio(blob,"audio/wav");
+    expect(result.words.map(w=>w.start)).toEqual([0.4,1.2,36.4,37.2]);
+    expect(fetch).toHaveBeenCalledTimes(3);
+  });
+  it("does not skip a section when its no-speech metadata is missing or inconsistent", async () => {
+    const {blob} = fakeVoice(6);
+    const fetch = vi.fn(async () => new Response(JSON.stringify({transcript:"words",words:[],segments:[],noSpeech:true})));
+    vi.stubGlobal("fetch",fetch);
+    await expect(transcribeTimedAudio(blob,"audio/wav")).rejects.toThrow("section 1 of 1");
   });
 });
