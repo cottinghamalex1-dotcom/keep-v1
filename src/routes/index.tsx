@@ -1,3 +1,4 @@
+import { KeepFilmCaption } from "@/components/keep-film-caption";
 import { KeepAppMenu } from "@/components/keep-app-menu";
 import { KeepOpeningScreen } from "@/components/keep-opening-screen";
 import { KeepLoadingScreen } from "@/components/keep-loading-screen";
@@ -2444,11 +2445,7 @@ function KeepApp() {
             <div className="absolute inset-0 photo-shade" />
             {editorPanel === "Memories" && <div className="absolute inset-x-0 top-0 bottom-14 z-20 cursor-grab touch-none active:cursor-grabbing" aria-label="Drag photo to reposition" onPointerDown={(e) => { e.currentTarget.setPointerCapture(e.pointerId); const r = e.currentTarget.getBoundingClientRect(); photoDrag.current = { x: e.clientX, y: e.clientY, focusX: selected.focusX ?? 50, focusY: selected.focusY ?? 50, width: r.width, height: r.height }; setEditorPlaying(false); }} onPointerMove={(e) => { const d = photoDrag.current; if (!d) return; updateSelectedMoment({ focusX: Math.max(0, Math.min(100, d.focusX - (e.clientX - d.x) / d.width * 100)), focusY: Math.max(0, Math.min(100, d.focusY - (e.clientY - d.y) / d.height * 100)) }); }} onPointerUp={() => { photoDrag.current = null; }} onPointerCancel={() => { photoDrag.current = null; }}><span className="absolute left-1/2 top-3 -translate-x-1/2 whitespace-nowrap rounded-full bg-black/65 px-3 py-1 text-[10px] text-white">Drag photo to reposition</span></div>}
 
-            {project.captionStyle !== "None" && editorCaption && <div className={`absolute left-5 right-5 text-center ${project.captionPosition === "top" ? "top-16" : project.captionPosition === "middle" ? "top-1/2 -translate-y-1/2" : "bottom-32"}`}>
-              <p className={`${project.captionStyle === "Film" ? "font-display text-3xl font-normal" : project.captionStyle === "Minimal" ? "text-sm" : project.captionStyle === "Story" ? "font-display text-2xl italic" : project.captionStyle === "Clean" ? "text-sm font-medium" : "text-lg font-semibold"} keep-caption-visible leading-tight drop-shadow-md`} style={{ maxWidth: (project.captionLines ?? 2) === 1 ? "95%" : (project.captionLines ?? 2) === 3 ? "65%" : "80%", marginInline: "auto", whiteSpace: "pre-line" }}>
-                {editorCaption}
-              </p>
-            </div>}
+            <KeepFilmCaption text={editorCaption} style={project.captionStyle} position={project.captionPosition} lines={project.captionLines} />
 
             {editorPanel !== "Memories" && <button type="button" aria-label={editorPlaying ? "Pause video preview" : "Play video preview"} aria-pressed={editorPlaying}
               onClick={() => { if (editorTime >= editorDuration - .1) seekEditor(0); setEditorPlaying(!editorPlaying); }}

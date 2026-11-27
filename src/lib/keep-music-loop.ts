@@ -1,33 +1,6 @@
-/**
- * Full-length Keep soundtracks contain musical outros, many of which fade to
- * silence during the final seconds. Crossfade *before* that outro into the
- * established body of the same track. Voice/music ducking and the actual Keep
- * end fade are intentionally handled by musicEnvelope, not this loop.
- */
-export const MUSIC_CROSSFADE_SECONDS = 7;
-export const MUSIC_OUTRO_SKIP_SECONDS = 9;
-export const MUSIC_REENTRY_SECONDS = 8;
-
-export type MusicLoopPlan = {
-  crossfadeStart: number;
-  crossfadeSeconds: number;
-  loopFrom: number;
-  crossfadeEnd: number;
-};
-
-export function musicLoopPlan(trackSeconds: number, keepSeconds: number): MusicLoopPlan | null {
-  if (!Number.isFinite(trackSeconds) || trackSeconds < 40 || !Number.isFinite(keepSeconds)) return null;
-  const crossfadeEnd = trackSeconds - MUSIC_OUTRO_SKIP_SECONDS;
-  if (keepSeconds <= crossfadeEnd) return null;
-  const crossfadeStart = crossfadeEnd - MUSIC_CROSSFADE_SECONDS;
-  return {
-    crossfadeStart,
-    crossfadeSeconds: MUSIC_CROSSFADE_SECONDS,
-    loopFrom: MUSIC_REENTRY_SECONDS,
-    crossfadeEnd,
-  };
-}
-
+import { musicLoopPlan } from "../../supabase/functions/keep-render/composition";
+export { musicLoopPlan, MUSIC_CROSSFADE_SECONDS, MUSIC_OUTRO_SKIP_SECONDS, MUSIC_REENTRY_SECONDS } from "../../supabase/functions/keep-render/composition";
+export type { MusicLoopPlan } from "../../supabase/functions/keep-render/composition";
 /** Keep one music decoder running for short Keeps. A secondary silent
  * decoder is only needed when the soundtrack may actually have to loop. */
 export function shouldPrepareMusicLoop(keepSeconds: number, trackSeconds?: number): boolean {

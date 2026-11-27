@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { motionFor } from "@/lib/keep-film-timing";
+import { cameraMotion, transitionSeconds } from "../../supabase/functions/keep-render/composition";
 
 export type CinematicMoment = {
   url: string;
@@ -68,7 +68,7 @@ export function CinematicMedia({
   const prefetched = useRef<Map<string, HTMLImageElement>>(new Map());
   const activeScene = state.slots[state.active];
   const transition = activeScene?.item.transition ?? "dissolve";
-  const fadeMs = transition === "cut" ? 0 : transition === "fade" ? 570 : 830;
+  const fadeMs = Math.round(transitionSeconds(transition)*1000);
 
   useLayoutEffect(() => {
     const next: Scene = { key, item, duration, imageClassName, index: motionIndex };
@@ -213,14 +213,8 @@ export function CinematicMedia({
           : <span className="font-display text-[45px] text-[#564739]">Keep</span>}
       </div>;
     }
-    const x = Math.max(0, Math.min(100, moment.focusX ?? 50));
-    const y = Math.max(0, Math.min(100, moment.focusY ?? 50));
-    const zoom = Math.max(1.03, Math.min(1.35, moment.zoom ?? 1.08));
-    const motion = motionFor(moment, scene.index);
+    const { focusX: x, focusY: y, from, to, shift } = cameraMotion(moment, scene.index);
     const isPending = state.pending === slot;
-    const from = motion === "out" ? zoom * 1.065 : zoom;
-    const to = motion === "out" ? zoom : zoom * 1.065;
-    const shift = motion === "left" ? [2.4, -2.4] : motion === "right" ? [-2.4, 2.4] : [0, 0];
     // In narrated Keeps the actual recording clock owns every frame. Do not
     // let a one-shot CSS animation finish and freeze while the photo stays up.
     // The outgoing layer settles at 100% while the incoming photo starts at 0%.

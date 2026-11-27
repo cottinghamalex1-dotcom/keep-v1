@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { manifestSchema, ownedPaths } from './schema.ts';
+import {renderRevisionHash} from './revision.ts';
 const endpoint=Deno.env.get('SUPABASE_URL')!;
 const admin=createClient(endpoint,Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,{auth:{persistSession:false}});
 const cors={'Access-Control-Allow-Origin':'*','Access-Control-Allow-Headers':'authorization,apikey,content-type','Access-Control-Allow-Methods':'POST,OPTIONS'};
@@ -27,9 +28,7 @@ Deno.serve(async(req:Request)=>{
       const {voicePath,memories,keepOrder:_checkoutPreferences,...settings}=project;
       // Only expose a completed video for the exact published revision.
       // A previous film must not be shown after the creator edits the Keep.
-      const bytes=new TextEncoder().encode(JSON.stringify(keep.published_project));
-      const digest=await crypto.subtle.digest('SHA-256',bytes);
-      const revision=Array.from(new Uint8Array(digest)).map(n=>n.toString(16).padStart(2,'0')).join('');
+      const revision=await renderRevisionHash(keep.published_project);
       const {data:film}=await admin.from('keep_render_jobs').select('render_path')
         .eq('keep_id',keep.id).eq('owner_id',keep.owner_id)
         .eq('revision_hash',revision).eq('status','ready').maybeSingle();

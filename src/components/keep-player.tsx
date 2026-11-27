@@ -1,3 +1,5 @@
+import { KeepFilmCard } from "@/components/keep-film-card";
+import { KeepFilmCaption } from "@/components/keep-film-caption";
 import { CinematicMedia } from "@/components/cinematic-media";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, Volume2, VolumeX, Pause, Play, Maximize, Minimize } from "lucide-react";
@@ -362,7 +364,7 @@ export function KeepPlayer({ name, from, year, onExit, onFinish, recipient = fal
   // A real recording must never display demo captions as a fallback.
   const captionText = audioUrl ? (voiceStarted && !voiceEnded ? activeCue?.text ?? "" : "") : (scene >= 0 ? words[scene % words.length] : "");
 
-  return <div className="relative keep-h-screen min-h-0 w-full overflow-hidden bg-[#F7F5F2] text-foreground" onClick={(event) => {
+  return <div className="relative keep-h-screen keep-film-frame min-h-0 w-full overflow-hidden bg-[#F7F5F2] text-foreground" onClick={(event) => {
     if (closing || (event.target as HTMLElement).closest("button")) return;
     if (controlsVisible) setControlsVisible(false);
     else showControls();
@@ -379,14 +381,7 @@ export function KeepPlayer({ name, from, year, onExit, onFinish, recipient = fal
     {cinematicOpening && !end && <div
       aria-hidden={openingTransitioning}
       className={`pointer-events-none absolute inset-0 z-[25] flex items-center justify-center bg-[#171311] px-7 text-center text-[#F5EDE5] transition-opacity duration-[1500ms] ease-in-out motion-reduce:duration-0 ${openingTransitioning ? "opacity-0" : "opacity-100"}`}>
-      <div className={`max-w-[540px] transition-all duration-[1200ms] ease-out motion-reduce:duration-0 ${openingTextVisible ? "translate-y-0 opacity-100" : "translate-y-3 opacity-0"}`}>
-        <p className="text-[10px] font-semibold uppercase tracking-[.27em] text-[#B8A38F]">A KEEP FOR</p>
-        <p className="mt-3 font-display text-[clamp(38px,10vw,60px)] leading-[1.08] tracking-[-.045em]">{name}</p>
-        {openingDedication && <>
-          <div className="mx-auto my-8 h-px w-12 bg-[#9D8571]" aria-hidden="true" />
-          <blockquote className="font-display text-[clamp(24px,6vw,35px)] italic leading-[1.32] tracking-[-.018em] whitespace-pre-line">{openingDedication}</blockquote>
-        </>}
-      </div>
+      <KeepFilmCard mode="opening" name={name} message={openingDedication} visible={openingTextVisible}/>
     </div>}
     {blocked && !end && <div className="absolute inset-x-0 bottom-24 z-40 flex justify-center px-6">
       <Button variant="keep" size="touch" onClick={resumeAudio}><Volume2 /> Tap to start your Keep</Button>
@@ -414,7 +409,7 @@ export function KeepPlayer({ name, from, year, onExit, onFinish, recipient = fal
             </button>
           </div>
         </div>
-      </div>{scene >= 0 && <div className={`absolute left-7 right-7 text-center ${captionPosition === "top" ? "top-28" : captionPosition === "middle" ? "top-1/2 -translate-y-1/2" : "bottom-36"}`}>{!media?.length && <div className="eyebrow mb-5 text-foreground/80">{memoryLabels[scene % memoryLabels.length]}</div>}{captions !== "None" && captionText && <p key={activeCue?.start ?? scene} className={`keep-caption-visible mx-auto max-w-sm leading-snug ${captions === "Film" ? "font-display text-4xl font-normal" : captions === "Story" ? "font-display text-3xl italic" : captions === "Minimal" ? "text-xl font-normal" : captions === "Clean" ? "text-2xl font-medium" : "text-2xl font-semibold"}`} style={{ maxWidth: captionLines === 1 ? "95%" : captionLines === 3 ? "65%" : "80%", whiteSpace: "pre-line", marginInline: "auto" }}>{captionText}</p>}</div>}
+      </div>{scene >= 0 && <>{!media?.length && <div className="absolute inset-x-7 top-28 text-center eyebrow mb-5 text-foreground/80">{memoryLabels[scene % memoryLabels.length]}</div>}<KeepFilmCaption text={captionText??""} style={captions} position={captionPosition} lines={captionLines} /></>}
       <div aria-hidden={!controlsVisible} inert={!controlsVisible} className={`pointer-events-none absolute inset-x-7 z-30 text-white drop-shadow-[0_1px_3px_rgba(0,0,0,.65)] transition-opacity duration-500 ease-out ${controlsVisible ? "opacity-100" : "opacity-0"}`} style={{ bottom: "max(22px, env(safe-area-inset-bottom))" }}>
         <div className="mb-2 flex items-center justify-between text-[11px] font-medium tabular-nums tracking-[.025em]">
           <span>{stamp(shownSeconds)}</span>
@@ -433,12 +428,7 @@ export function KeepPlayer({ name, from, year, onExit, onFinish, recipient = fal
         original soundtrack completes. No extra blank photo or hard cut. */}
     <div aria-hidden={!closing}
       className={`pointer-events-none absolute inset-0 z-[45] flex items-center justify-center bg-[#171311] px-9 text-center text-[#F5EDE5] transition-opacity duration-[1600ms] ease-in-out motion-reduce:duration-0 ${closing ? "opacity-100" : "opacity-0"}`}>
-      <div className={`max-w-[520px] transition-all duration-[1350ms] delay-[1000ms] ease-out motion-reduce:duration-0 motion-reduce:delay-0 ${closing ? "translate-y-0 opacity-100" : "translate-y-4 opacity-0"}`}>
-        <p className="mb-7 text-[10px] font-semibold uppercase tracking-[.26em] text-[#B8A38F]">{name ? `FOR ${name}` : "JUST FOR YOU"}</p>
-        <p className="font-display text-[clamp(36px,9vw,64px)] italic leading-[1.13] tracking-[-.032em]">{finalWords}</p>
-        <div className="mx-auto mt-8 h-px w-11 bg-[#9D8571]" aria-hidden="true" />
-        {from && <p className="mt-6 text-[12px] tracking-[.13em] text-[#D4C4B3]">With love, {from}</p>}
-      </div>
+      <KeepFilmCard mode="closing" name={name} message={finalWords} sender={from} visible={closing}/>
     </div>
   </div>;
 }
