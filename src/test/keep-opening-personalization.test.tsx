@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { useState } from "react";
 import { afterEach, expect, it, vi } from "vitest";
 import { KeepOpeningPersonalization } from "@/components/keep-opening-personalization";
@@ -26,6 +26,7 @@ it("offers three transcript-specific opening choices and permits no opening", as
   const second = screen.getByText(options[1]!);
   fireEvent.click(second);
   expect(screen.getByRole("textbox", { name: "Custom opening message" })).toHaveValue(options[1]);
+  expect(screen.getByLabelText("Preview of the front of your Keep card")).toHaveTextContent(options[1]!);
   fireEvent.click(screen.getByRole("button", { name: /No opening message/ }));
   expect(screen.getByRole("textbox", { name: "Custom opening message" })).toHaveValue("");
 });
@@ -51,4 +52,34 @@ it("opens the dark dedication screen immediately without covering the first phot
   expect(dialog.querySelector('div[class*="bg-[#171311]"]')).toBeTruthy();
   fireEvent.click(screen.getByRole("button", { name: "Close opening preview" }));
   expect(screen.queryByRole("dialog", { name: "Opening screen preview" })).toBeNull();
+});
+
+
+it("previews the same opening line and saved engraving details on the black card before saving", () => {
+  function Harness() {
+    const [p, setP] = useState({
+      ...newProject(),
+      recipientName: "Mom",
+      cardEngraving: ["MOM", "FROM ALEX", "2026"],
+      openingMessage: "You made our house a home.",
+      engraveOpeningMessage: true,
+    });
+    return <KeepOpeningPersonalization project={p} onUpdate={values => setP(old => ({ ...old, ...values }))} />;
+  }
+  render(<Harness />);
+  const card = screen.getByLabelText("Preview of the front of your Keep card");
+  expect(within(card).getByRole("img", { name: "Keep" })).toBeTruthy();
+  expect(card).toHaveTextContent("You made our house a home.");
+  expect(card).toHaveTextContent("MOM");
+  expect(card).toHaveTextContent("FROM ALEX");
+  expect(card).toHaveTextContent("2026");
+  fireEvent.change(screen.getByRole("textbox", { name: "Custom opening message" }), { target: { value: "My forever thank you." } });
+  expect(card).toHaveTextContent("My forever thank you.");
+  expect(card).not.toHaveTextContent("You made our house a home.");
+  fireEvent.change(screen.getByRole("textbox", { name: "Your closing line" }), { target: { value: "See you soon." } });
+  expect(card).not.toHaveTextContent("See you soon.");
+  fireEvent.click(screen.getByRole("button", { name: /No opening message/ }));
+  expect(card).not.toHaveTextContent("My forever thank you.");
+  expect(card).toHaveTextContent("MOM");
+  expect(screen.getByText(/Basic can add it at checkout/)).toBeTruthy();
 });
