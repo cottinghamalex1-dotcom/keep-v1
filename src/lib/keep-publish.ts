@@ -2,11 +2,12 @@ import { activeKeepSession, type KeepSession } from './keep-cloud';
 import { getBlob, putBlob } from './keep-media-store';
 import { keepOptimizedPhotoId, optimizeKeepPhoto, shouldOptimizeKeepPhoto } from './keep-photo-optimization';
 import type { KeepProject, MediaItem } from './keep-project';
+import { normalizeCaptionSize, CAPTION_SIZE_DEFAULT } from '../../supabase/functions/keep-render/composition';
 
 const endpoint = 'https://lwkzhpwugtosbidxvdcr.supabase.co';
 const publicKey = 'sb_publishable_K8_SWJByLhV78h7gY4NySw_4sgjEVTi';
 export const viewingLink = (token: string) => `https://keep-v1.vercel.app/recipient?keep=${encodeURIComponent(token)}`;
-export type PublishedProject = Pick<KeepProject, 'recipientName' | 'openingMessage' | 'closingLine' | 'engraveOpeningMessage' | 'occasion' | 'messageParagraphs' | 'readMemoryOrder' | 'musicMood' | 'voiceMusicBalance' | 'voiceVolume' | 'musicVolume' | 'audioMix' | 'captionStyle' | 'captionPosition' | 'captionLines' | 'captionCues' | 'visualStyle' | 'cardEngraving' | 'voiceMode' | 'contributors' | 'paragraphSpeakers'> & {
+export type PublishedProject = Pick<KeepProject, 'recipientName' | 'openingMessage' | 'closingLine' | 'engraveOpeningMessage' | 'occasion' | 'messageParagraphs' | 'readMemoryOrder' | 'musicMood' | 'voiceMusicBalance' | 'voiceVolume' | 'musicVolume' | 'audioMix' | 'captionStyle' | 'captionPosition' | 'captionLines' | 'captionSize' | 'captionCues' | 'visualStyle' | 'cardEngraving' | 'voiceMode' | 'contributors' | 'paragraphSpeakers'> & {
   memories: MediaItem[]; voiceUrl?: string; renderedVideoUrl?: string; voiceDuration: number;
 };
 async function boundedFetch(url: string, init: RequestInit, timeoutMs = 120_000): Promise<Response> {
@@ -27,6 +28,8 @@ export async function publicationRequest(body: unknown, session?: KeepSession | 
 export function publicationSettings(p: KeepProject) {
   return { voiceMode: p.voiceMode ?? "solo", contributors: p.contributors ?? [], paragraphSpeakers: p.paragraphSpeakers ?? [], recipientName: p.recipientName, openingMessage: (p.openingMessage ?? '').trim().slice(0, 160), closingLine: (p.closingLine ?? '').trim().slice(0, 90), engraveOpeningMessage: !!p.engraveOpeningMessage && !!p.openingMessage?.trim(), occasion: p.occasion, messageParagraphs: p.messageParagraphs, readMemoryOrder: p.readMemoryOrder,
     musicMood: p.musicMood, voiceMusicBalance: p.voiceMusicBalance, voiceVolume: p.voiceVolume ?? 60, musicVolume: p.musicVolume ?? 60,
+    // Omit the unchanged default to preserve fingerprints of previously rendered Keeps.
+    ...(normalizeCaptionSize(p.captionSize) !== CAPTION_SIZE_DEFAULT ? {captionSize: normalizeCaptionSize(p.captionSize)} : {}),
     audioMix: p.audioMix, captionStyle: p.captionStyle, captionPosition: p.captionPosition, captionLines: p.captionLines,
     captionCues: p.captionCues, visualStyle: p.visualStyle, cardEngraving: p.cardEngraving, voiceDuration: p.finalVoiceRecording?.durationSec ?? 0 };
 }

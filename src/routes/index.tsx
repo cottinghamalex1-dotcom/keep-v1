@@ -116,7 +116,7 @@ const styles = [
   { name: "Soft", note: "Airy highlights and lower contrast" },
   { name: "Dreamy", note: "Glow, softness, and lifted color" },
 ];
-const EDIT_KEYS = ["memories", "selfieBaseMedia", "selfieVideos", "selfiePresentation", "selfieBookendSeconds", "selfieIntroId", "selfieOutroId", "captionCues", "captionStyle", "visualStyle", "musicMood", "voiceMusicBalance", "voiceVolume", "musicVolume", "captionPosition", "captionLines", "captionWordsPerCue", "audioMix"] as const;
+const EDIT_KEYS = ["memories", "selfieBaseMedia", "selfieVideos", "selfiePresentation", "selfieBookendSeconds", "selfieIntroId", "selfieOutroId", "captionCues", "captionStyle", "visualStyle", "musicMood", "voiceMusicBalance", "voiceVolume", "musicVolume", "captionPosition", "captionLines", "captionSize", "captionWordsPerCue", "audioMix"] as const;
 type EditSnapshot = Pick<KeepProject, (typeof EDIT_KEYS)[number]>;
 const takeSnapshot = (p: KeepProject): EditSnapshot => Object.fromEntries(EDIT_KEYS.map((k) => [k, p[k]])) as EditSnapshot;
 const sameSnapshot = (a: EditSnapshot, b: EditSnapshot) => EDIT_KEYS.every((k) => a[k] === b[k]);
@@ -2487,7 +2487,7 @@ function KeepApp() {
             <div className="absolute inset-0 photo-shade" />
             {editorPanel === "Memories" && <div className="absolute inset-x-0 top-0 bottom-14 z-20 cursor-grab touch-none active:cursor-grabbing" aria-label="Drag photo to reposition" onPointerDown={(e) => { e.currentTarget.setPointerCapture(e.pointerId); const r = e.currentTarget.getBoundingClientRect(); photoDrag.current = { x: e.clientX, y: e.clientY, focusX: selected.focusX ?? 50, focusY: selected.focusY ?? 50, width: r.width, height: r.height }; setEditorPlaying(false); }} onPointerMove={(e) => { const d = photoDrag.current; if (!d) return; updateSelectedMoment({ focusX: Math.max(0, Math.min(100, d.focusX - (e.clientX - d.x) / d.width * 100)), focusY: Math.max(0, Math.min(100, d.focusY - (e.clientY - d.y) / d.height * 100)) }); }} onPointerUp={() => { photoDrag.current = null; }} onPointerCancel={() => { photoDrag.current = null; }}><span className="absolute left-1/2 top-3 -translate-x-1/2 whitespace-nowrap rounded-full bg-black/65 px-3 py-1 text-[10px] text-white">Drag photo to reposition</span></div>}
 
-            <KeepFilmCaption text={editorCaption} style={project.captionStyle} position={project.captionPosition} lines={project.captionLines} />
+            <KeepFilmCaption text={editorCaption} style={project.captionStyle} position={project.captionPosition} lines={project.captionLines} captionSize={project.captionSize} />
 
             {editorPanel !== "Memories" && <button type="button" aria-label={editorPlaying ? "Pause video preview" : "Play video preview"} aria-pressed={editorPlaying}
               onClick={() => { if (editorTime >= editorDuration - .1) seekEditor(0); setEditorPlaying(!editorPlaying); }}
@@ -2550,6 +2550,7 @@ function KeepApp() {
           style={project.captionStyle}
           position={project.captionPosition ?? "bottom"}
           maxLines={project.captionLines ?? 2}
+          captionSize={project.captionSize}
           wordsPerCue={project.captionWordsPerCue ?? 5}
           syncing={captionSyncing}
           syncError={captionSyncError}
@@ -2565,6 +2566,14 @@ function KeepApp() {
           onChangeStyle={(style) => patch({captionStyle:style})}
           onChangePosition={(position) => patch({captionPosition:position})}
           onChangeLines={(lines) => patch({captionLines:lines})}
+          onChangeSize={(captionSize) => {
+            patch({captionSize});
+            // If paused between phrases, show a real caption immediately as the size changes.
+            if (!editorPlaying && !editorCaption && project.captionCues.length) {
+              const cue = project.captionCues.find(c => c.end >= editorTime) ?? project.captionCues.at(-1);
+              if (cue) seekEditor(cue.start + .02);
+            }
+          }}
           onRegroup={(wordsPerCue) => patch({captionWordsPerCue:wordsPerCue,...(project.captionWords?.length ? {captionCues:groupTimedWords(project.captionWords,wordsPerCue)}:{})})}
           onRestore={() => patch({captionCues:groupTimedWords(project.captionWords ?? [],project.captionWordsPerCue ?? 5)})}
           onRetrySync={() => void retryCaptionSync()}
@@ -2673,7 +2682,7 @@ function KeepApp() {
     </div>}
     {screen === "preview" && (viewingDemo
       ? <KeepPlayer name="HANNA" from="Alex" year="2026" onExit={back} onFinish={home} />
-      : <KeepPlayer name={(name || "Your Keep").toUpperCase()} from={giverNames} year="2026" subtitle={project.occasion} onExit={back} onFinish={() => { setScreen("editor"); resetPageScroll(); }} closingLine={project.closingLine} style={project.visualStyle} captions={project.captionStyle} media={frames.length ? frames.map((m) => ({ url: m.url, kind: m.kind, isSelfie:m.isSelfie, videoStartSec:m.videoStartSec, displayDurationSec: m.displayDurationSec ?? 7, focusX: m.focusX, focusY: m.focusY, zoom: m.zoom, motion: m.motion, transition: m.transition })) : undefined} audioUrl={rec && !rec.demo ? rec.audioUrl : undefined} audioDuration={rec?.durationSec} lines={captionLines} captionCues={project.captionCues} musicMood={project.musicMood} voiceMusicBalance={project.voiceMusicBalance} voiceVolume={project.voiceVolume} musicVolume={project.musicVolume} captionPosition={project.captionPosition} captionLines={project.captionLines} audioMix={mix} />)}
+      : <KeepPlayer name={(name || "Your Keep").toUpperCase()} from={giverNames} year="2026" subtitle={project.occasion} onExit={back} onFinish={() => { setScreen("editor"); resetPageScroll(); }} closingLine={project.closingLine} style={project.visualStyle} captions={project.captionStyle} media={frames.length ? frames.map((m) => ({ url: m.url, kind: m.kind, isSelfie:m.isSelfie, videoStartSec:m.videoStartSec, displayDurationSec: m.displayDurationSec ?? 7, focusX: m.focusX, focusY: m.focusY, zoom: m.zoom, motion: m.motion, transition: m.transition })) : undefined} audioUrl={rec && !rec.demo ? rec.audioUrl : undefined} audioDuration={rec?.durationSec} lines={captionLines} captionCues={project.captionCues} musicMood={project.musicMood} voiceMusicBalance={project.voiceMusicBalance} voiceVolume={project.voiceVolume} musicVolume={project.musicVolume} captionPosition={project.captionPosition} captionLines={project.captionLines} captionSize={project.captionSize} audioMix={mix} />)}
     {screen === "recipientPreview" && <KeepRecipientExperience
       name={(name || engraving[0] || "You").trim()}
       from={isTogether ? giverNames : (engraving[1]?.replace(/^FROM\s+/i, "") || "Alex").trim()}
@@ -2692,7 +2701,7 @@ function KeepApp() {
       lines={captionLines}
       captionCues={project.captionCues}
       musicMood={project.musicMood}
-      voiceMusicBalance={project.voiceMusicBalance} voiceVolume={project.voiceVolume} musicVolume={project.musicVolume} captionPosition={project.captionPosition} captionLines={project.captionLines} audioMix={mix}
+      voiceMusicBalance={project.voiceMusicBalance} voiceVolume={project.voiceVolume} musicVolume={project.musicVolume} captionPosition={project.captionPosition} captionLines={project.captionLines} captionSize={project.captionSize} audioMix={mix}
       persistVisit={false}
       creatorPreview
       initialExperience={creatorPreviewMode ?? "watch"}
@@ -2714,7 +2723,7 @@ function KeepApp() {
       speakerNames={isTogether ? project.messageParagraphs.map((_,i)=>speakerName(i)) : undefined}
       style={project.visualStyle} captions={project.captionStyle} lines={captionLines} captionCues={project.captionCues}
       musicMood={project.musicMood} voiceMusicBalance={project.voiceMusicBalance} voiceVolume={project.voiceVolume} musicVolume={project.musicVolume}
-      captionPosition={project.captionPosition} captionLines={project.captionLines} audioMix={mix}
+      captionPosition={project.captionPosition} captionLines={project.captionLines} captionSize={project.captionSize} audioMix={mix}
       persistVisit={false} creatorPreview
       onCreatorExit={() => { setScreen("card"); resetPageScroll(); }}
       onCreatorContinue={() => { setScreen("card"); resetPageScroll(); }}

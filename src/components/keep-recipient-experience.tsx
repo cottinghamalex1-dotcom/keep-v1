@@ -37,6 +37,7 @@ type Props = {
   musicVolume?: number | undefined;
   captionPosition?: "top" | "middle" | "bottom" | undefined;
   captionLines?: number | undefined;
+  captionSize?: number | undefined;
   audioMix?: AudioMix | undefined;
   persistVisit?: boolean;
   creatorPreview?: boolean;
@@ -78,6 +79,7 @@ export function KeepRecipientExperience({
   musicVolume = 60,
   captionPosition = "bottom",
   captionLines = 2,
+  captionSize = 100,
   audioMix,
   persistVisit = true,
   creatorPreview = false,
@@ -354,7 +356,7 @@ export function KeepRecipientExperience({
         audioDuration={audioDuration} lines={lines} captionCues={captionCues}
         musicMood={musicMood} voiceMusicBalance={voiceMusicBalance}
         voiceVolume={voiceVolume} musicVolume={musicVolume}
-        captionPosition={captionPosition} captionLines={captionLines}
+        captionPosition={captionPosition} captionLines={captionLines} captionSize={captionSize}
         audioMix={audioMix} onOpeningFrameReady={() => { setOpeningFrameReady(true); reportExperience(); }} />}
       {(stage === "reveal" || (introHandoff && !renderedVideoUrl)) && <div key="recipient-intro"
         aria-hidden={watching} inert={watching}

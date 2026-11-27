@@ -1,4 +1,5 @@
 import { KEEP_MUSIC_LEAD_SECONDS, KEEP_MUSIC_TAIL_SECONDS, MUSIC_FILES, musicEnvelope } from "./keep-audio";
+import { normalizeCaptionSize } from "../../supabase/functions/keep-render/composition";
 import { motionFor, sceneBoundary, sceneDuration } from "./keep-film-timing";
 import type { AudioMix, CaptionCue, MediaItem } from "./keep-project";
 
@@ -19,6 +20,7 @@ export type RenderInput = {
   captionStyle: string;
   captionPosition?: "top" | "middle" | "bottom";
   captionLines?: number;
+  captionSize?: number;
   visualStyle: string;
   musicMood: string;
   voiceMusicBalance: string;
@@ -65,6 +67,7 @@ export type KeepRenderPlan = {
   captionStyle: string;
   captionPosition: "top" | "middle" | "bottom";
   captionLines: number;
+  captionSize: number;
 };
 
 const finitePositive = (n: number) => Number.isFinite(n) && n > 0;
@@ -152,5 +155,6 @@ export function buildKeepRenderPlan(input: RenderInput): KeepRenderPlan {
     captionStyle: input.captionStyle,
     captionPosition: input.captionPosition ?? "bottom",
     captionLines: clamp(input.captionLines ?? 2, 1, 3),
+    captionSize: normalizeCaptionSize(input.captionSize),
   };
 }

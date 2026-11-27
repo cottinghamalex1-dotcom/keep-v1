@@ -12,7 +12,7 @@ export type RenderProject = {
   contributors?: Array<{name:string}>;
   voicePath: string; voiceDuration: number; voiceVolume?: number; musicVolume?: number;
   voiceMusicBalance?: string; audioMix?: {voiceMuted?:boolean;musicMuted?:boolean;ducking?:boolean;fadeIn?:number;fadeOut?:number};
-  captionStyle: string; captionPosition?: CaptionPosition; captionLines?:number;
+  captionStyle: string; captionPosition?: CaptionPosition; captionLines?:number; captionSize?:number;
   captionCues: FilmCaptionCue[]; visualStyle: string;
   memories: Array<FilmMoment & {storagePath:string;kind:"image"|"video";videoStartSec?:number;videoDurationSec?:number;isSelfie?:boolean}>;
 };
@@ -188,7 +188,7 @@ export function buildShotstackEdit(project:RenderProject,sources:ShotstackSource
       }
     }
   }
-  const layout=captionLayout(project.captionStyle,project.captionPosition??"bottom",project.captionLines??2);
+  const layout=captionLayout(project.captionStyle,project.captionPosition??"bottom",project.captionLines??2,project.captionSize);
   const captions=project.captionStyle==="None"?[]:captionDisplayIntervals(project.captionCues??[],project.voiceDuration).map(c=>{
     const position=layout.align==="middle"?"center":layout.align;
     const offsetY=layout.align==="top"?-layout.top:layout.align==="bottom"?1-layout.top:0;
