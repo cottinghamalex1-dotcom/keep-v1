@@ -8,6 +8,8 @@ export type InterviewContext = {
   recipientName: string;
   relationship: string;
   occasion: string;
+  occasionDetail?: string;
+  recipientFeelings?: string[];
   intent: string;
   contributors?: string[];
   answers: { question: string; transcript: string }[];
