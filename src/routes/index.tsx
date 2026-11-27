@@ -48,6 +48,7 @@ import { Button } from "@/components/ui/button";
 import { KeepPlayer, memoryImages, memoryLabels } from "@/components/keep-player";
 import { KeepRecipientExperience, type KeepExperienceMode } from "@/components/keep-recipient-experience";
 import { KeepOpeningPersonalization } from "@/components/keep-opening-personalization";
+import { KeepEditorCardPreview } from "@/components/keep-editor-card-preview";
 import { KeepFinalTouchGuide } from "@/components/keep-final-touch-guide";
 import { KeepErrorBoundary } from "@/components/keep-error-boundary";
 import { KeepLengthGuide } from "@/components/keep-length-guide";
@@ -2707,6 +2708,7 @@ function KeepApp() {
           <Button variant="quiet" className="h-auto w-full justify-between p-4 text-left" onClick={() => openCreatorPreview("watch")}><span className="flex items-center gap-3"><Images className="size-5" /><span><strong className="block font-normal">Watch, Listen &amp; Read</strong><small className="mt-1 block font-normal text-muted-foreground">Voice, photos, videos, music &amp; captions</small></span></span><ArrowRight /></Button>
           <Button variant="quiet" className="h-auto w-full justify-between p-4 text-left" onClick={() => openCreatorPreview("listen")}><span className="flex items-center gap-3"><Headphones className="size-5" /><span><strong className="block font-normal">Listen &amp; Read</strong><small className="mt-1 block font-normal text-muted-foreground">Listen to their voice while reading every word</small></span></span><ArrowRight /></Button>
           <Button variant="quiet" className="h-auto w-full justify-between p-4 text-left" onClick={() => openCreatorPreview("read")}><span className="flex items-center gap-3"><BookOpen className="size-5" /><span><strong className="block font-normal">Read</strong><small className="mt-1 block font-normal text-muted-foreground">Just the written message, no media</small></span></span><ArrowRight /></Button>
+          <KeepEditorCardPreview project={project} />
         </div>
 
         <div className="mt-5 border-t border-border pt-4">
