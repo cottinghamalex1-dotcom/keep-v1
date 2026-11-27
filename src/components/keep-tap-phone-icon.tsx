@@ -6,10 +6,10 @@ export function KeepTapPhoneIcon({ className = "", decorative = false }: {
   return (
     <svg
       xmlns="http://www.w3.org/2000/svg"
-      viewBox="0 0 32 26"
+      viewBox="0 0 32 32"
       fill="none"
       stroke="currentColor"
-      strokeWidth="1.55"
+      strokeWidth="2"
       strokeLinecap="round"
       strokeLinejoin="round"
       className={className}
@@ -18,9 +18,8 @@ export function KeepTapPhoneIcon({ className = "", decorative = false }: {
       aria-hidden={decorative || undefined}
       focusable="false"
     >
-      <rect x="3" y="2.25" width="13" height="21.5" rx="2.5" />
-      <path d="M8 20.5h3" />
-      <path d="M19 9q4 4 0 8M22 6q7 7 0 14M25 3q10 10 0 20" />
+      <circle cx="16" cy="16" r="15" strokeWidth="1.15" />
+      <path d="M8.9 12.4C11.5 14.9 11.5 17.9 8.9 20.4M11.9 10.1C15.6 14 15.9 18.5 12.2 22.5M15.1 7.5C19.8 12.7 20 19.1 15.7 24.8M18.2 4.9C24.4 12.1 24.6 20.1 19.2 27.1" />
     </svg>
   );
 }

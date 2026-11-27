@@ -32,7 +32,7 @@ export function KeepMiniCard({ variant, className = "" }: KeepMiniCardProps) {
           WITH LOVE
         </span>
       )}
-      <KeepTapPhoneIcon decorative className="pointer-events-none absolute bottom-[8%] right-[8%] w-[9%] text-[#D9CFC2]" />
+      <KeepTapPhoneIcon decorative className="pointer-events-none absolute bottom-[8%] right-[8%] w-[4.8%] text-[#D9CFC2]" />
     </div>
   );
 }

@@ -82,8 +82,11 @@ it("always places the permanent phone-tap mark at the bottom right and reserves 
   const { rerender } = render(<KeepCardFront {...props} showOpeningMessage />);
   const card = screen.getByLabelText("Preview of the front of your Keep card");
   const mark = within(card).getByRole("img", { name: "Tap your phone here" });
-  expect(mark).toHaveClass("absolute", "bottom-0", "right-0", "w-[9cqw]");
-  expect(within(card).getByText("HANNAH • FROM ALEX • 2026").parentElement).toHaveClass("mr-[11cqw]");
+  expect(mark).toHaveClass("absolute", "bottom-0", "right-0", "w-[4.8cqw]");
+  expect(mark.querySelector("circle")).toBeTruthy();
+  expect(mark.querySelector("path")?.getAttribute("d")?.match(/M/g)).toHaveLength(4);
+  expect(mark.querySelector("rect")).toBeNull();
+  expect(within(card).getByText("HANNAH • FROM ALEX • 2026").parentElement).toHaveClass("mr-[6.5cqw]");
   rerender(<KeepCardFront {...props} showOpeningMessage={false} />);
   expect(within(card).getByRole("img", { name: "Tap your phone here" })).toBe(mark);
   rerender(<KeepCardFront engraving={[]} />);
