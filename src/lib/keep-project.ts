@@ -97,6 +97,8 @@ export type KeepProject = {
   voiceParts?: KeepVoicePart[];
   /** Snapshot of the script and parts used to build the final narration. */
   groupVoiceSignature?: string;
+  /** Selected before recording; absent for drafts created with the older voice-first flow. */
+  recordingVisualMode?: "photos" | "selfie";
   finalVoiceRecording: VoiceRecording | null;
   captionTranscript: string;
   captionCues: CaptionCue[];
