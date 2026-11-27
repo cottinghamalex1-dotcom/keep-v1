@@ -1,3 +1,4 @@
+import { KeepCollaborativeVoices } from "@/components/keep-collaborative-voices";
 import { KeepOccasionChoices, KeepHeartAndFeelings, chosenKeepOccasion } from "@/components/keep-occasion-and-feelings";
 import { KeepFilmCaption } from "@/components/keep-film-caption";
 import { KeepAppMenu } from "@/components/keep-app-menu";
@@ -2035,31 +2036,21 @@ function KeepApp() {
           <span className="keep-step-choice__description">Different voices. One beautiful Keep.</span>
         </button>
       </div>
-      {project.voiceMode === "together" && <div className="mt-6 rounded-2xl border border-border bg-white/40 p-5">
-        <h2 className="font-display text-2xl">Who will speak?</h2>
-        <p className="mt-2 text-xs leading-5 text-muted-foreground">Add every person who will speak, including yourself. You can be any voice on this list; when recording remotely, just choose your name and record right here—no text to yourself.</p>
-        <div className="mt-5 space-y-3">{(project.contributors ?? []).map((person,i) => <div key={person.id} className="flex items-center gap-2">
-          <label className="min-w-0 flex-1"><span className="mb-1 block text-[10px] font-medium uppercase tracking-widest text-muted-foreground">Voice {i+1}</span>
-            <input aria-label={`Voice ${i+1} name`} placeholder={i===0?"First speaker's name":i===1?"Second speaker's name":"Another speaker's name"} maxLength={60} value={person.name} onChange={event=>patch({contributors:(project.contributors ?? []).map(p=>p.id===person.id?{...p,name:event.target.value}:p)})} className="w-full rounded-lg border border-border bg-background px-4 py-3 text-base outline-none focus:border-accent"/></label>
-          {(project.contributors?.length ?? 0) > 2 && <button type="button" aria-label={`Remove ${person.name || `voice ${i+1}`}`} className="mt-5 rounded-lg border border-border p-3 text-muted-foreground" onClick={()=>patch({contributors:(project.contributors ?? []).filter(p=>p.id!==person.id)})}><Trash2 className="size-4"/></button>}
-        </div>)}</div>
-        {(project.contributors?.length ?? 0) < 8 && <Button variant="bare" size="sm" className="mt-3" onClick={()=>patch({contributors:[...(project.contributors ?? []),{id:newId("speaker"),name:""}]})}><Plus className="size-4"/> Add another voice</Button>}
-        <div className="mt-6 border-t border-[#DDD3C9] pt-4">
-          <p className="mb-3 text-[11px] font-semibold uppercase tracking-[.13em] text-[#8A725A]">How will you record?</p>
-          <div className="grid grid-cols-2 gap-2">
-            <button type="button" aria-pressed={project.voiceRecordingLocation!=="remote"} onClick={()=>patch({voiceRecordingLocation:"in_person"})}
-              className={`rounded-xl border px-3 py-4 text-left ${project.voiceRecordingLocation!=="remote"?"border-[#AD9275] bg-[#EDE1D2]":"border-[#DAD1C8] bg-[#FFFDF9]"}`}>
-              <span className="block text-sm font-semibold">Together here</span><span className="mt-1 block text-[11px] leading-5 text-[#776A5D]">Pass one phone around.</span>
-            </button>
-            <button type="button" aria-pressed={project.voiceRecordingLocation==="remote"} onClick={()=>patch({voiceRecordingLocation:"remote"})}
-              className={`rounded-xl border px-3 py-4 text-left ${project.voiceRecordingLocation==="remote"?"border-[#AD9275] bg-[#EDE1D2]":"border-[#DAD1C8] bg-[#FFFDF9]"}`}>
-              <span className="block text-sm font-semibold">From anywhere</span><span className="mt-1 block text-[11px] leading-5 text-[#776A5D]">Record yours here; invite others by text.</span>
-            </button>
-          </div>
-          <p className="mt-3 text-[11px] leading-5 text-[#74685D]">Keep will blend and polish all voices consistently.</p>
-        </div>
-      </div>}
-      <div className="mt-8">{nextButton("Continue",()=>go("intent"),project.voiceMode === "together" && ((project.contributors?.length ?? 0)<2 || (project.contributors ?? []).some(p=>!p.name.trim()) || new Set((project.contributors ?? []).map(p=>p.name.trim().toLowerCase())).size !== (project.contributors?.length ?? 0)))}</div>
+      {project.voiceMode === "together" && <KeepCollaborativeVoices
+        contributors={project.contributors ?? []}
+        location={project.voiceRecordingLocation}
+        onRename={(id, name) => patch({ contributors: (project.contributors ?? []).map(person => person.id === id ? { ...person, name } : person) })}
+        onAdd={() => patch({ contributors: [...(project.contributors ?? []), { id: newId("speaker"), name: "" }] })}
+        onRemove={(id) => patch({ contributors: (project.contributors ?? []).filter(person => person.id !== id) })}
+        onLocationChange={(voiceRecordingLocation) => patch({ voiceRecordingLocation })}
+      />}
+      <div className="mt-7">
+        <Button type="button" variant="keep" size="touch" className="keep-voices-continue"
+          onClick={() => go("intent")}
+          disabled={project.voiceMode === "together" && ((project.contributors?.length ?? 0) < 2 || (project.contributors ?? []).some(p => !p.name.trim()) || new Set((project.contributors ?? []).map(p => p.name.trim().toLowerCase())).size !== (project.contributors?.length ?? 0))}>
+          Continue <span className="keep-voices-continue__arrow" aria-hidden="true"><ArrowRight strokeWidth={1.6} /></span>
+        </Button>
+      </div>
     </div></>}
     {screen === "intent" && <>{top("04 / 05")}
       <KeepHeartAndFeelings intent={project.intent} selected={project.recipientFeelings ?? []}
