@@ -4,14 +4,14 @@ import { KeepCardFront } from "@/components/keep-card-front";
 
 afterEach(cleanup);
 
-it("places the small logo, large italic dedication and split-aligned bottom details in the #10 design", () => {
+it("places the small logo, reduced italic dedication and split-aligned bottom details in the #10 design", () => {
   render(<KeepCardFront engraving={["HANNAH", "ALEX", "2026"]} layout={{ title: "HAPPY BIRTHDAY", order: ["date", "title", "to", "from"] }} openingMessage="You make our home feel like home." showOpeningMessage />);
   const card = screen.getByLabelText("Preview of the front of your Keep card");
   expect(within(card).getByRole("img", { name: "Keep" })).toHaveClass("row-start-1", "w-[21%]");
   const opening = within(card).getByText("You make our home feel like home.");
   expect(opening).toHaveClass("text-left", "italic", "leading-[1.28]", "tracking-[.01em]");
   expect(opening.parentElement).toHaveClass("row-start-2");
-  expect(opening.parentElement?.style.getPropertyValue("--keep-opening-size")).toBe("5.8cqw");
+  expect(opening.parentElement?.style.getPropertyValue("--keep-opening-size")).toBe("4.2cqw");
   const left = within(card).getByText("2026 • HAPPY BIRTHDAY");
   const right = within(card).getByText("HANNAH • ALEX");
   expect(left).toHaveClass("whitespace-nowrap", "text-left");

@@ -51,6 +51,7 @@ import { KeepOpeningPersonalization } from "@/components/keep-opening-personaliz
 import { engravingLayout } from "@/lib/keep-card-engraving";
 import { KeepEditorCardPreview } from "@/components/keep-editor-card-preview";
 import { KeepFinalTouchGuide } from "@/components/keep-final-touch-guide";
+import { KeepFinalTouchNavigation } from "@/components/keep-final-touch-navigation";
 import { KeepErrorBoundary } from "@/components/keep-error-boundary";
 import { KeepLengthGuide } from "@/components/keep-length-guide";
 import { KeepWritingStep } from "@/components/keep-writing-step";
@@ -2773,22 +2774,18 @@ function KeepApp() {
       onCreatorContinue={() => { setScreen("card"); resetPageScroll(); }}
     />}
     {screen === "card" && <>{top()}<div className="keep-final-page mx-auto w-full max-w-xl px-5 pb-[max(32px,env(safe-area-inset-bottom))] pt-6 sm:px-8">
-      <header className="mb-6">
-        <h1 className="font-display text-[clamp(34px,9vw,43px)] leading-[1.1] tracking-[-.035em]">Final touches.</h1>
-        <p className="mt-2 text-[13px] leading-5 text-muted-foreground">Make it unmistakably yours.</p>
-        <nav aria-label="Final touches sections" className="mt-5 grid grid-cols-3 overflow-hidden rounded-[10px] border border-[#D9D2C9] bg-[#FFFDFC]">
-          {([["Opening", "opening"], ["Closing", "closing"], ["Card", "card"]] as const).map(([label, id]) => (
-            <button key={id} type="button" onClick={() => document.getElementById(`keep-final-${id}`)?.scrollIntoView({ block: "start", behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" })}
-              className="min-h-11 border-r border-[#D9D2C9] px-2 text-[12px] font-medium text-[#5D5146] transition-colors last:border-r-0 hover:bg-[#EBE5DC]">{label}</button>
-          ))}
-        </nav>
+      <header className="mb-3">
+        <h1 className="font-display text-[clamp(34px,9vw,43px)] leading-[1.1] tracking-[-.035em] [text-wrap:balance]">Let’s add the final touches.</h1>
+        <p className="mt-2 text-[13px] leading-5 text-muted-foreground">The details that matter.</p>
       </header>
+      <KeepFinalTouchNavigation />
       {!project.publicationToken && <KeepFinalTouchGuide recipientName={project.recipientName} />}
       <KeepOpeningPersonalization project={project} onUpdate={patch} disabled={publishing} />
-      <div className="border-t border-[#D9D2C9] pt-6">
-        <Button variant="keep" size="touch" className="keep-premium-action w-full justify-between !rounded-[10px]" disabled={publishing} onClick={() => void finishAndShare()}>
-          {publishing ? "Saving your Keep…" : project.publicationToken ? "Save changes & continue" : "Save my Keep"} <ArrowRight className="size-5" />
-        </Button>
+      <div className="keep-final-footer">
+        <button type="button" className="keep-message-actions__primary w-full" disabled={publishing} aria-busy={publishing} onClick={() => void finishAndShare()}>
+          <span>{publishing ? "Saving your Keep…" : project.publicationToken ? "Save changes & continue" : "Save my Keep"}</span>
+          <span aria-hidden="true" className="keep-message-actions__arrow">{publishing ? <Loader2 className="size-4 animate-spin" /> : <ArrowRight className="size-4" />}</span>
+        </button>
         {publishError && <p role="alert" className="mt-3 text-sm leading-6 text-[#9B3529]">{publishError}</p>}
         <p className="mt-3 text-center text-[11px] leading-5 text-muted-foreground">Next: choose your card package.</p>
       </div>

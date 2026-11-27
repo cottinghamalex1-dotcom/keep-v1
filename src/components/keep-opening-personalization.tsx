@@ -69,8 +69,8 @@ export function KeepOpeningPersonalization({ project, onUpdate, disabled }: Prop
             showOpeningMessage={engraved}
           />
         </div>
-        <figcaption className="mt-5 flex items-center justify-center gap-1.5 text-[10px] font-medium uppercase tracking-[.12em] text-[#62584E]">
-          <span className="size-1.5 rounded-full bg-[#87725C]" aria-hidden="true" /> Live engraving preview
+        <figcaption className="mt-5 text-center text-[10px] font-medium uppercase tracking-[.15em] text-[#62584E]">
+          Live engraving preview
         </figcaption>
       </figure>
       <label className="mt-4 flex min-h-14 cursor-pointer items-center gap-3 rounded-[10px] border border-[#D9D2C9] bg-[#FFFDFC] px-3.5 py-3 has-[:disabled]:cursor-default has-[:disabled]:opacity-55">
@@ -103,7 +103,10 @@ export function KeepOpeningPersonalization({ project, onUpdate, disabled }: Prop
           </div>;
         })}
       </div>
-      <p className="mt-2 text-[11px] leading-5 text-muted-foreground">Basic cards have the Keep logo and tap icon only. Your closing line stays in the film.</p>
+      <aside aria-label="Card engraving note" className="keep-final-card-note">
+        <p><strong>Basic cards</strong> feature the Keep logo and tap icon only.</p>
+        <p>Your closing line stays in the film.</p>
+      </aside>
     </section>
   </>;
 }
