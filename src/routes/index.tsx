@@ -2448,20 +2448,6 @@ function KeepApp() {
         onContinue={continueFromMedia}
         continueLabel={personalMedia.length ? "Review photo & video framing" : !project.finalVoiceRecording && !usesRemoteRecording(project) ? "Continue to recording" : "Continue"}
       />
-      <aside aria-label="iPhone photo upload tip" className="mb-5 flex items-start gap-3 rounded-xl border border-[#DAD0C5] bg-[#F0EAE2]/65 px-4 py-4">
-        <CircleHelp className="mt-0.5 size-5 shrink-0 text-[#79654F]" strokeWidth={1.6} aria-hidden="true" />
-        <div>
-          <p className="text-[12px] font-semibold tracking-[.01em] text-[#44382D]">Quick tip for iPhone uploads</p>
-          <p className="mt-1 text-[12px] leading-5 text-[#675B50]">After tapping the blue checkmark in your iPhone library, it may take a moment to prepare your photos or clips. Keep will show progress when the files arrive. Please leave this page open.</p>
-        </div>
-      </aside>
-      <aside aria-label="Video upload recommendation" className="mb-5 flex items-start gap-3 rounded-xl border border-[#DAD0C5] bg-white/50 px-4 py-3.5">
-        <Play className="mt-0.5 size-4 shrink-0 text-[#79654F]" aria-hidden="true" />
-        <div>
-          <p className="text-[12px] font-semibold text-[#44382D]">Adding videos? Keep them short.</p>
-          <p className="mt-1 text-[12px] leading-5 text-[#675B50]">Short clips of <strong>10 seconds or less</strong> usually tell the story best. For longer videos, Keep will <strong>automatically compress</strong> the file on your device when possible (up to 90 seconds). This can take a little while. The video plays muted so your narration and music stay front and center.</p>
-        </div>
-      </aside>
     </div></>}
     {screen === "framing" && <>{top()}<KeepFramingReview
       moments={personalMedia}
