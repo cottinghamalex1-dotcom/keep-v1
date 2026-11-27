@@ -1,5 +1,5 @@
 import { useId, useState } from "react";
-import { Check, ChevronDown, ChevronRight, Ellipsis, Gift, Link2, PenLine, Play, Trash2 } from "lucide-react";
+import { Check, ChevronDown, ChevronRight, Ellipsis, Gift, Heart, Link2, PenLine, Play, Trash2 } from "lucide-react";
 import { keepCheckoutPath } from "@/lib/keep-checkout";
 import { viewingLink } from "@/lib/keep-publish";
 import { KeepGiftSummary, KeepGiftTimeline } from "@/components/keep-gift-activity";
@@ -18,7 +18,6 @@ type Props = {
 };
 
 const actionClass = "keep-library-secondary-action flex min-h-12 flex-col items-center justify-center gap-1.5 rounded-lg px-1 py-2 text-[#594C40] transition-colors hover:bg-[#EEE7DD] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#776451]";
-const optionClass = "flex min-h-11 w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-left text-[13px] font-medium transition-colors hover:bg-[#F1EBE3] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#776451]";
 
 /** Same actions on the home gallery and the full creation archive. */
 export function KeepLibraryActions({ keep, published, copied, deleting, activity, activityFailed, onCopy, onDelete }: Props) {
@@ -55,24 +54,28 @@ export function KeepLibraryActions({ keep, published, copied, deleting, activity
         {!published && <ChevronDown className={`size-3.5 transition-transform ${moreOpen ? "rotate-180" : ""}`} aria-hidden="true" />}
       </button>
     </div>
-    {moreOpen && <div id={moreId} className="rounded-xl border border-[#E1D8CF] bg-[#FFFCF8] p-1.5">
+    {moreOpen && <div id={moreId} className="keep-library-more-panel">
       {published && <>
-        <a href={keepCheckoutPath(keep.id)} className={`${optionClass} text-[#44372D]`}>
-          <Gift className="size-[17px] shrink-0" strokeWidth={1.7} aria-hidden="true" /> Film &amp; card options
-          <ChevronRight className="ml-auto size-4 shrink-0 text-[#887868]" aria-hidden="true" />
+        <a href={keepCheckoutPath(keep.id)} className="keep-library-more-option">
+          <span className="keep-library-more-icon" aria-hidden="true"><Gift className="size-4" strokeWidth={1.7} /></span>
+          <span className="keep-library-more-label">Film &amp; card options</span>
+          <ChevronRight className="keep-library-more-arrow" aria-hidden="true" />
         </a>
-        {(activity || activityFailed) && <div className="my-1 border-t border-[#EAE1D7] px-2 pt-2">
-          <details className="group">
-            <summary className="flex min-h-10 cursor-pointer list-none items-center justify-between gap-2 rounded-lg px-1 text-xs font-medium text-[#665747] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#776451] [&::-webkit-details-marker]:hidden">
-              Gift activity <ChevronDown className="size-4 transition-transform group-open:rotate-180" aria-hidden="true" />
-            </summary>
+        {(activity || activityFailed) && <details className="keep-library-more-details">
+          <summary className="keep-library-more-option">
+            <span className="keep-library-more-icon" aria-hidden="true"><Heart className="size-4" strokeWidth={1.7} /></span>
+            <span className="keep-library-more-label">Gift activity</span>
+            <ChevronDown className="keep-library-more-arrow" aria-hidden="true" />
+          </summary>
+          <div className="keep-library-more-details__body">
             <KeepGiftTimeline activity={activity} failed={activityFailed} />
-          </details>
-        </div>}
+          </div>
+        </details>}
       </>}
       <button type="button" disabled={deleting} onClick={onDelete}
-        className={`${optionClass} text-[#8C574C] disabled:opacity-50 ${published ? "border-t border-[#EAE1D7] rounded-t-none" : ""}`}>
-        <Trash2 className="size-[17px] shrink-0" strokeWidth={1.7} aria-hidden="true" /> {deleting ? "Deleting…" : "Delete this Keep"}
+        className="keep-library-more-option keep-library-more-option--danger">
+        <span className="keep-library-more-icon" aria-hidden="true"><Trash2 className="size-4" strokeWidth={1.7} /></span>
+        <span className="keep-library-more-label">{deleting ? "Deleting…" : "Delete this Keep"}</span>
       </button>
     </div>}
   </div>;

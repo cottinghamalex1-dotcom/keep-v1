@@ -1067,6 +1067,102 @@ body:has(.keep-studio) {
 }
 
 
+/* Secondary gallery actions: tactile ivory tiles, matched typography and icons. */
+.keep-library-more-panel {
+  display: grid;
+  gap: 7px;
+  padding-top: 2px;
+}
+.keep-library-more-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 52px;
+  padding: 8px 12px;
+  border: 1px solid #DCD0C1;
+  border-radius: 12px;
+  background: linear-gradient(125deg, #FFFCF8, #F3EBE1);
+  box-shadow: inset 0 1px 0 #FFFDF9, 0 2px 5px rgba(57,40,27,.045);
+  color: #4B3D31;
+  font-family: var(--font-sans);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.3;
+  letter-spacing: -.005em;
+  text-align: left;
+  transition: background .18s ease, border-color .18s ease, box-shadow .18s ease;
+}
+.keep-library-more-option:hover:not(:disabled) {
+  background: linear-gradient(125deg, #FFFCF8, #EDE2D3);
+  border-color: #BBA78F;
+  box-shadow: inset 0 1px 0 #FFFDF9, 0 3px 8px rgba(57,40,27,.075);
+}
+.keep-library-more-option:focus-visible {
+  outline: 2px solid #AD9275;
+  outline-offset: 2px;
+}
+.keep-library-more-option:disabled { opacity: .55; }
+.keep-library-more-label {
+  min-width: 0;
+  flex: 1;
+  font: inherit;
+  letter-spacing: inherit;
+}
+.keep-library-more-icon {
+  display: flex;
+  flex: 0 0 30px;
+  width: 30px;
+  height: 30px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #D6C6B3;
+  border-radius: 50%;
+  background: linear-gradient(145deg, #FFFCF8, #EDE3D6);
+  color: #725A43;
+}
+.keep-library-more-arrow {
+  flex-shrink: 0;
+  width: 15px;
+  height: 15px;
+  margin-inline-start: auto;
+  color: #8C7764;
+  stroke-width: 1.7;
+  transition: transform .18s ease;
+}
+.keep-library-more-details > summary {
+  cursor: pointer;
+  list-style: none;
+}
+.keep-library-more-details > summary::-webkit-details-marker { display: none; }
+.keep-library-more-details[open] > summary {
+  border-radius: 12px 12px 0 0;
+  box-shadow: inset 0 1px 0 #FFFDF9;
+}
+.keep-library-more-details[open] > summary .keep-library-more-arrow { transform: rotate(180deg); }
+.keep-library-more-details__body {
+  padding: 12px 11px 0;
+  border: 1px solid #DCD0C1;
+  border-top: 0;
+  border-radius: 0 0 12px 12px;
+  background: #FFFCF8;
+}
+.keep-library-more-option--danger {
+  background: linear-gradient(125deg, #FFFCF8, #F7F0ED);
+  border-color: #E4D4CE;
+  color: #8C574C;
+}
+.keep-library-more-option--danger .keep-library-more-icon {
+  background: #F9F0EB;
+  border-color: #E2CFC6;
+  color: #8C574C;
+}
+.keep-library-more-option--danger:hover:not(:disabled) {
+  background: linear-gradient(125deg, #FFFCF8, #F0E1DA);
+  border-color: #CDAA9F;
+}
+
+
 /* Signed-in home collection: the rich outer shell frames quiet, ivory Keeps. */
 .keep-creations-frame {
   background:

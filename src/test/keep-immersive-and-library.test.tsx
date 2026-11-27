@@ -56,9 +56,21 @@ describe("My Keeps illustrated cards",()=>{
     expect(screen.getByRole("button",{name:"Copied!"})).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button",{name:"More"}));
     expect(screen.getByRole("button",{name:"More"})).toHaveAttribute("aria-expanded","true");
-    expect(screen.getByRole("link",{name:"Film & card options"})).toHaveAttribute("href","/checkout?keep=keep-1");
-    expect(screen.getByText("Gift activity")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button",{name:"Delete this Keep"}));
+    const film=screen.getByRole("link",{name:"Film & card options"});
+    expect(film).toHaveAttribute("href","/checkout?keep=keep-1");
+    const gift=screen.getByText("Gift activity").closest("summary")!;
+    const remove=screen.getByRole("button",{name:"Delete this Keep"});
+    for(const option of [film,gift,remove]){
+      expect(option).toHaveClass("keep-library-more-option");
+      expect(option.querySelector(".keep-library-more-icon svg")).toBeInTheDocument();
+      expect(option.querySelector(".keep-library-more-label")).toBeInTheDocument();
+    }
+    expect(remove).toHaveClass("keep-library-more-option--danger");
+    expect(gift.closest("details")).not.toHaveAttribute("open");
+    fireEvent.click(gift);
+    expect(gift.closest("details")).toHaveAttribute("open");
+    expect(screen.getByText("Not yet recorded")).toBeInTheDocument();
+    fireEvent.click(remove);
     expect(onDelete).toHaveBeenCalledOnce();
     rerender(<KeepLibraryCard {...props} expanded={false}/>);
     rerender(<KeepLibraryCard {...props} expanded/>);
