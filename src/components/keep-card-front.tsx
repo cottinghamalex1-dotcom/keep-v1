@@ -63,7 +63,8 @@ export function KeepCardFront({ engraving, layout, openingMessage = "", showOpen
 
   const openingArea = useRef<HTMLDivElement>(null);
   const openingLine = useRef<HTMLParagraphElement>(null);
-  const maxOpeningSize = 5.8;
+  const maxOpeningSize = 4.2;
+  const preferredMinOpeningSize = 3.0;
   const initialOpeningSize = Math.min(maxOpeningSize, maxOpeningSize * Math.sqrt(110 / Math.max(1, dedication.length)));
   useLayoutEffect(() => {
     const area = openingArea.current;
@@ -73,17 +74,26 @@ export function KeepCardFront({ engraving, layout, openingMessage = "", showOpen
     const fit = () => {
       if (!active || !area.clientWidth || !area.clientHeight) return;
       const setSize = (size: number) => area.style.setProperty("--keep-opening-size", `${size}cqw`);
-      const fits = () => line.scrollHeight <= area.clientHeight && line.scrollWidth <= area.clientWidth;
+      const fits = (twoLines: boolean) => {
+        const lineHeight = Number.parseFloat(window.getComputedStyle(line).lineHeight);
+        const heightLimit = twoLines && Number.isFinite(lineHeight)
+          ? Math.min(area.clientHeight, Math.ceil(2 * lineHeight) + 1)
+          : area.clientHeight;
+        return line.scrollHeight <= heightLimit && line.scrollWidth <= area.clientWidth;
+      };
+      // Prefer the smaller central inscription on two lines. If an unusually
+      // long dedication cannot fit two lines at a readable size, preserve every
+      // word and allow additional lines rather than squeezing it too far.
+      setSize(preferredMinOpeningSize);
+      const twoLines = fits(true);
       setSize(maxOpeningSize);
-      if (fits()) return;
-      // Let longer dedications scale into the available central area without
-      // moving the logo, tap cue or engraving footer, or clipping any words.
+      if (fits(twoLines)) return;
       let low = 0.5;
       let high = maxOpeningSize;
       for (let i = 0; i < 12; i++) {
         const mid = (low + high) / 2;
         setSize(mid);
-        if (fits()) low = mid;
+        if (fits(twoLines)) low = mid;
         else high = mid;
       }
       setSize(Math.floor(low * 1000) / 1000);

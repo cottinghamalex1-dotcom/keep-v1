@@ -51,6 +51,7 @@ import { KeepOpeningPersonalization } from "@/components/keep-opening-personaliz
 import { engravingLayout } from "@/lib/keep-card-engraving";
 import { KeepEditorCardPreview } from "@/components/keep-editor-card-preview";
 import { KeepFinalTouchGuide } from "@/components/keep-final-touch-guide";
+import { KeepFinalTouchNavigation } from "@/components/keep-final-touch-navigation";
 import { KeepErrorBoundary } from "@/components/keep-error-boundary";
 import { KeepLengthGuide } from "@/components/keep-length-guide";
 import { KeepWritingStep } from "@/components/keep-writing-step";
@@ -2772,16 +2773,21 @@ function KeepApp() {
       onCreatorExit={() => { setScreen("card"); resetPageScroll(); }}
       onCreatorContinue={() => { setScreen("card"); resetPageScroll(); }}
     />}
-    {screen === "card" && <>{top()}<div className="mx-auto max-w-xl px-7 pb-14 pt-7">
-      {title("The final touch", project.publicationToken ? "Edit your final touches." : "Choose your opening and closing lines.", "Personalize the words before and after your film, and preview the engraving on your black Keep card.")}
+    {screen === "card" && <>{top()}<div className="keep-final-page mx-auto w-full max-w-xl px-5 pb-[max(32px,env(safe-area-inset-bottom))] pt-6 sm:px-8">
+      <header className="mb-3">
+        <h1 className="font-display text-[clamp(34px,9vw,43px)] leading-[1.1] tracking-[-.035em] [text-wrap:balance]">Let’s add the final touches.</h1>
+        <p className="mt-2 text-[13px] leading-5 text-muted-foreground">The details that matter.</p>
+      </header>
+      <KeepFinalTouchNavigation />
       {!project.publicationToken && <KeepFinalTouchGuide recipientName={project.recipientName} />}
       <KeepOpeningPersonalization project={project} onUpdate={patch} disabled={publishing} />
-      <div className="mt-10 border-t border-border pt-7">
-        <Button variant="keep" size="touch" className="keep-premium-action w-full justify-between" disabled={publishing} onClick={() => void finishAndShare()}>
-          {publishing ? "Saving your Keep…" : project.publicationToken ? "Save changes & continue" : "Save my Keep"} <ArrowRight className="size-5" />
-        </Button>
+      <div className="keep-final-footer">
+        <button type="button" className="keep-message-actions__primary w-full" disabled={publishing} aria-busy={publishing} onClick={() => void finishAndShare()}>
+          <span>{publishing ? "Saving your Keep…" : project.publicationToken ? "Save changes & continue" : "Save my Keep"}</span>
+          <span aria-hidden="true" className="keep-message-actions__arrow">{publishing ? <Loader2 className="size-4 animate-spin" /> : <ArrowRight className="size-4" />}</span>
+        </button>
         {publishError && <p role="alert" className="mt-3 text-sm leading-6 text-[#9B3529]">{publishError}</p>}
-        <p className="mt-3 text-center text-[11px] leading-5 text-muted-foreground">We’ll save your finished film and card details to the same permanent link, then take you straight to your card options.</p>
+        <p className="mt-3 text-center text-[11px] leading-5 text-muted-foreground">Next: choose your card package.</p>
       </div>
     </div>
     </>}
