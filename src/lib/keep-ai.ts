@@ -15,11 +15,11 @@ export type InterviewContext = {
   answers: { question: string; transcript: string }[];
 };
 
-async function post<T>(body: BodyInit, json: boolean): Promise<T> {
-  if (!URL_ || !KEY) throw new Error("unavailable");
+async function post<T>(body: BodyInit, json: boolean, url = URL_): Promise<T> {
+  if (!url || !KEY) throw new Error("unavailable");
   const headers: Record<string, string> = { apikey: KEY };
   if (json) headers["Content-Type"] = "application/json";
-  const res = await fetch(URL_, { method: "POST", headers, body });
+  const res = await fetch(url, { method: "POST", headers, body });
   if (!res.ok) throw new Error(`status ${res.status}`);
   return (await res.json()) as T;
 }
@@ -324,6 +324,24 @@ export async function fetchOpeningSuggestions(
   );
   const unique = [...new Set((r.suggestions ?? []).map(s => String(s).trim()).filter(s => s.length > 8 && s.length <= 110))];
   if (unique.length !== 3) throw new Error("The three personal openings could not be generated.");
+  return unique;
+}
+
+/** Three personal closing dedications, separate from the engraving-only opening suggestions. */
+export async function fetchClosingSuggestions(
+  recipientName: string,
+  occasion: string,
+  messageParagraphs: string[],
+): Promise<string[]> {
+  const url = (import.meta.env["VITE_KEEP_FINAL_LINES_URL"] as string | undefined) ||
+    new URL("keep-final-lines", URL_.replace(/\/$/, "")).toString();
+  const r = await post<{ suggestions?: string[] }>(
+    JSON.stringify({ action: "closing_suggestions", recipientName, occasion, messageParagraphs }),
+    true,
+    url,
+  );
+  const unique = [...new Set((r.suggestions ?? []).filter((s): s is string => typeof s === "string").map(s => s.trim()).filter(s => s.length >= 10 && s.length <= 90))];
+  if (unique.length !== 3) throw new Error("The three personal closing lines could not be generated.");
   return unique;
 }
 

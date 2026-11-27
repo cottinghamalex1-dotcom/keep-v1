@@ -2496,3 +2496,51 @@ label.keep-message-paragraph__head {
   .keep-final-section { padding-block: 30px 34px; }
   .keep-final-heading { font-size: 29px; }
 }
+
+/* Matching dedication editors: a simple message bubble, two equal actions. */
+.keep-final-message {
+  overflow: hidden;
+  border: 1px solid #D9D2C9;
+  border-radius: 14px;
+  background: #FFFDFC;
+  transition: border-color .18s ease, box-shadow .18s ease;
+}
+.keep-final-message:focus-within { border-color: #A38C76; box-shadow: 0 0 0 2px #D9D2C94D; }
+.keep-final-message-input {
+  display: block;
+  width: 100%;
+  min-height: 102px;
+  resize: none;
+  field-sizing: content;
+  max-height: 170px;
+  border: 0;
+  padding: 14px 14px 4px;
+  background: transparent;
+  color: #29251F;
+  font: 400 17px/1.6 var(--font-sans);
+  outline: none !important;
+}
+.keep-final-clear {
+  min-height: 32px;
+  color: #6A5849;
+  font: 500 12px/1.4 var(--font-sans);
+}
+.keep-final-clear:disabled { opacity: .45; }
+.keep-final-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 46px;
+  padding: 8px;
+  border: 1px solid #D9D2C9;
+  border-radius: 10px;
+  background: #FFFDFC;
+  color: #5D5146;
+  font: 500 13px/1.35 var(--font-sans) !important;
+  transition: background-color .18s ease, border-color .18s ease;
+}
+.keep-final-action:hover { background: #F0EBE5; border-color: #B3A494; }
+.keep-final-action--generate { background: #EBE5DC; border-color: #D6CCBF; color: #40352B; }
+.keep-final-action--generate:hover { background: #E1D8CB; }
+.keep-final-action:disabled { opacity: .48; cursor: not-allowed; }

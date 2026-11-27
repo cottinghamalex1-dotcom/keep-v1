@@ -25,14 +25,14 @@ export function KeepMiniCard({ variant, className = "" }: KeepMiniCardProps) {
         src="/brand/keep-wordmark-ivory.svg"
         alt=""
         aria-hidden="true"
-        className="absolute left-[9%] top-[12%] h-[33%] w-[57%] object-contain object-left"
+        className="absolute left-[9%] top-[12%] h-[25%] w-[35%] object-contain object-left"
       />
       {engraved && (
-        <span aria-hidden="true" className="absolute bottom-[14%] left-[9%] text-[6px] font-medium uppercase tracking-[.22em] text-[#D9CFC2] sm:text-[7px]">
-          WITH LOVE
+        <span aria-hidden="true" className="absolute top-[45%] left-[9%] font-display text-[8px] italic leading-none text-[#D9CFC2] sm:text-[10px]">
+          With love
         </span>
       )}
-      <KeepTapPhoneIcon decorative className="pointer-events-none absolute bottom-[8%] right-[8%] w-[4.8%] text-[#D9CFC2]" />
+      <KeepTapPhoneIcon decorative className="pointer-events-none absolute top-[12%] right-[8%] w-[4.8%] text-[#D9CFC2]" />
     </div>
   );
 }

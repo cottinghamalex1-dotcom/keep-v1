@@ -41,8 +41,10 @@ describe("cinematic Keep farewell", () => {
     const p = { ...newProject(), recipientName: "Dad", closingLine: "Until we meet again." };
     expect(publicationSettings(p).closingLine).toBe("Until we meet again.");
     const update = vi.fn();
-    render(<KeepOpeningPersonalization project={p} onUpdate={update} onPreview={() => {}} />);
+    render(<KeepOpeningPersonalization project={p} onUpdate={update} />);
+    fireEvent.click(screen.getByRole("button", { name: "Preview closing screen" }));
     expect(screen.getByLabelText("Closing moment preview")).toHaveTextContent("Until we meet again.");
+    fireEvent.click(screen.getByRole("button", { name: "Close closing preview" }));
     fireEvent.change(screen.getByRole("textbox", { name: "Your closing line" }), {
       target: { value: "I love you, Dad." },
     });
