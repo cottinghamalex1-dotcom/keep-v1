@@ -115,7 +115,7 @@ export function KeepOpeningPersonalization({ project, onUpdate, disabled }: Prop
       <div>
         <p className="text-[10px] font-semibold uppercase tracking-[.17em] text-[#8B725A]">A KEEPSAKE YOU CAN HOLD</p>
         <h2 id="keep-engraving-preview" className="mt-3 font-display text-[29px] leading-[1.14]">Your physical Keep.</h2>
-        <p className="mt-3 text-xs leading-6 text-muted-foreground">Here’s how your matte-black metal card will look if you choose personalized engraving at checkout.</p>
+        <p className="mt-3 text-xs leading-6 text-muted-foreground">Here’s how your matte-black metal card will look with the Signature package. Basic is logo-only.</p>
       </div>
       <figure className="rounded-[20px] border border-[#D8CCBE] bg-[#F5EDE3]/65 px-3 pb-5 pt-6 sm:px-6">
         <div className="mx-auto w-full max-w-[360px]">
@@ -132,7 +132,7 @@ export function KeepOpeningPersonalization({ project, onUpdate, disabled }: Prop
           </p>
         </figcaption>
       </figure>
-      <p className="text-[11px] leading-5 text-muted-foreground">Your closing line stays in the film. Signature includes engraving; Basic can add it at checkout.</p>
+      <p className="text-[11px] leading-5 text-muted-foreground">Your closing line stays in the film. Personalized engraving is exclusive to Signature.</p>
     </section>
     {showFirstFrame && typeof document !== "undefined" && createPortal(
       <div className="fixed inset-0 z-[220] flex items-center justify-center overflow-y-auto bg-[#17130F]/85 p-4 backdrop-blur-sm"

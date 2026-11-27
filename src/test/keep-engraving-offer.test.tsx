@@ -3,15 +3,17 @@ import { describe, it, expect, vi } from "vitest";
 import { KeepEngravingOffer } from "@/components/keep-engraving-offer";
 
 describe("completion engraving offer", () => {
-  it("requires explicit acceptance at the approved $19 price", () => {
-    const select=vi.fn();
-    render(<KeepEngravingOffer open onOpenChange={vi.fn()} onSelect={select} />);
+  it("requires upgrading to Signature for engraving", () => {
+    const select=vi.fn(), upgrade=vi.fn();
+    render(<KeepEngravingOffer open onOpenChange={vi.fn()} onSelect={select} onUpgradeToSignature={upgrade} />);
     expect(screen.getByRole("dialog", {name:"Make it unmistakably theirs."})).toBeVisible();
-    expect(screen.getByText("$19.00")).toBeVisible();
-    expect(screen.queryByText("$20.00")).toBeNull();
+    expect(screen.queryByText("$19.00")).toBeNull();
+    expect(screen.getByText("$20.00")).toBeVisible();
     expect(select).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole("button", {name:"Add engraving to Basic · $19"}));
-    expect(select).toHaveBeenCalledExactlyOnceWith(true);
+    expect(screen.queryByRole("button", {name:/Add engraving to Basic/})).toBeNull();
+    fireEvent.click(screen.getByRole("button", {name:"Upgrade to Signature · $99"}));
+    expect(upgrade).toHaveBeenCalledOnce();
+    expect(select).not.toHaveBeenCalled();
   });
   it("lets the creator decline without selecting engraving", () => {
     const select=vi.fn();

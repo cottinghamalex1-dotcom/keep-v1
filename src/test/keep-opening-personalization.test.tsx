@@ -81,5 +81,5 @@ it("previews the same opening line and saved engraving details on the black card
   fireEvent.click(screen.getByRole("button", { name: /No opening message/ }));
   expect(card).not.toHaveTextContent("My forever thank you.");
   expect(card).toHaveTextContent("MOM");
-  expect(screen.getByText(/Basic can add it at checkout/)).toBeTruthy();
+  expect(screen.getByText(/Personalized engraving is exclusive to Signature/)).toBeTruthy();
 });
