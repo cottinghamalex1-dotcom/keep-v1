@@ -808,9 +808,7 @@ body:has(.keep-studio) {
     box-shadow: 0 12px 44px rgba(45,33,23,.035);
   }
   .keep-creator-app .keep-screen--interview .max-w-md { max-width: 680px; }
-  .keep-creator-app .keep-screen--interview .keep-interview-screen > div:not(.thin-scroll) { padding-inline: clamp(28px,5vw,65px); }
   .keep-creator-app .keep-screen--interview .keep-interview-screen > header { padding-inline: 36px; }
-  .keep-creator-app .keep-screen--interview .keep-interview-screen .thin-scroll { padding-inline: clamp(28px,5vw,65px); }
   .keep-creator-app .keep-page-heading { max-width: 760px; }
   .keep-creator-app .keep-page-description { max-width: 60ch; }
   .keep-creator-app .keep-screen--recipient [role="group"].grid-cols-2,
@@ -1790,18 +1788,111 @@ body:has(.keep-studio) {
 }
 
 
-/* Guided interview: a quiet paper writing surface and signature Keep actions.
-   Intentionally scoped to the response panel; the question and progress stay unchanged. */
+/* Guided interview: one keyboard-aware canvas, with the prompt ahead of
+   the answer in normal flow. Neither panel can cover or clip the question. */
+html.keep-interview-active, html.keep-interview-active body {
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+.keep-creator-app .keep-screen--interview {
+  position: fixed;
+  inset: var(--keep-interview-top, 0px) 0 auto;
+  height: var(--keep-interview-height, 100dvh);
+  min-height: 0;
+  max-width: 540px;
+  margin-inline: auto;
+  animation: none; /* a transformed ancestor would break viewport positioning */
+}
+.keep-interview-screen {
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+.keep-interview-screen > header {
+  position: relative;
+  flex-shrink: 0;
+}
+.keep-interview-progress {
+  flex-shrink: 0;
+  padding: 16px 24px 12px;
+}
+.keep-interview-progress__line {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+}
+.keep-interview-progress__count {
+  color: var(--muted-foreground);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.keep-interview-progress__track { margin-top: 11px; }
+.keep-interview-progress__done {
+  color: #6A5849;
+  font-weight: 600;
+  font-size: 13px;
+  min-height: 34px;
+  padding: 4px 0 4px 12px;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.keep-interview-body {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 14px 24px max(20px, env(safe-area-inset-bottom));
+  gap: 22px;
+}
+.keep-interview-question {
+  flex: 0 0 auto;
+  overflow-wrap: anywhere;
+}
+.keep-interview-question__eyebrow {
+  margin-bottom: 10px;
+  color: #817365;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+}
+.keep-interview-question__title {
+  font-family: var(--font-display);
+  font-size: clamp(25px, 6.6vw, 35px);
+  line-height: 1.2;
+  letter-spacing: -.025em;
+  color: var(--foreground);
+}
 .keep-interview-response {
-  padding: 14px 20px max(16px, env(safe-area-inset-bottom));
-  background: linear-gradient(180deg, #F7F5F200, #F7F5F2 24px);
+  flex: 1 0 auto;
+  display: flex;
+  width: 100%;
+  min-height: 0;
 }
 .keep-interview-response__inner {
   display: flex;
+  flex: 1;
+  width: 100%;
   flex-direction: column;
-  gap: 10px;
+  gap: 12px;
+}
+@media (min-width: 768px) {
+  .keep-creator-app .keep-screen--interview {
+    max-width: 960px;
+    min-height: 0;
+  }
+  .keep-interview-body, .keep-interview-progress {
+    padding-inline: clamp(28px,5vw,65px);
+  }
+  .keep-interview-response__paper { max-height: 340px; }
 }
 .keep-interview-response__paper {
+  display: flex;
+  flex: 1 0 auto;
+  flex-direction: column;
   padding: 15px 17px 12px;
   border: 1px solid #D8D0C7;
   border-radius: 17px;
@@ -1826,8 +1917,9 @@ body:has(.keep-studio) {
 .keep-interview-response__input {
   display: block;
   width: 100%;
-  min-height: 68px;
-  max-height: 19dvh;
+  flex: 1 0 auto;
+  min-height: 100px;
+  max-height: none;
   resize: none;
   overflow-y: auto;
   border: 0;
@@ -1955,20 +2047,48 @@ body:has(.keep-studio) {
   color: #6A5849;
   font-size: 12px;
 }
-.keep-interview-response--keyboard {
-  padding-top: 7px;
-  padding-bottom: 8px;
+/* Focus mode: reclaim navigation and decorative space before the software
+   keyboard opens. Allow the writing surface, not the prompt, to shrink. */
+.keep-interview-screen--compact > header { display: none; }
+.keep-interview-screen--compact .keep-interview-progress {
+  padding: max(4px, env(safe-area-inset-top)) 18px 7px;
 }
-.keep-interview-response--keyboard .keep-interview-response__paper {
-  padding-block: 9px 7px;
+.keep-interview-screen--compact .keep-interview-progress__eyebrow { display: none; }
+.keep-interview-screen--compact .keep-interview-progress__count {
+  font-size: 12px;
+  color: #6A5849;
+  font-weight: 500;
 }
-.keep-interview-response--keyboard .keep-interview-response__input {
-  min-height: 52px;
-  max-height: 64px;
+.keep-interview-screen--compact .keep-interview-progress__track {
+  margin-top: 3px;
 }
-.keep-interview-response--keyboard .keep-interview-response__primary {
-  min-height: 48px;
-  padding-block: 7px;
+.keep-interview-screen--compact .keep-interview-body {
+  padding: 8px 18px 8px;
+  gap: 12px;
+}
+.keep-interview-screen--compact .keep-interview-question__eyebrow { display: none; }
+.keep-interview-screen--compact .keep-interview-question__title {
+  font-size: clamp(20px, 5.6vw, 27px);
+  line-height: 1.22;
+}
+.keep-interview-screen--compact .keep-interview-response__inner { gap: 8px; }
+.keep-interview-screen--compact .keep-interview-response__paper {
+  padding: 8px 12px 6px;
+}
+.keep-interview-screen--compact .keep-interview-response__label { margin-bottom: 3px; }
+.keep-interview-screen--compact .keep-interview-response__input {
+  min-height: 45px;
+  line-height: 1.4;
+}
+.keep-interview-screen--compact .keep-interview-response__primary {
+  min-height: 46px;
+  height: auto;
+  padding-block: 6px;
+}
+.keep-interview-screen--compact .keep-interview-response__icon {
+  width: 26px;
+  height: 26px;
+  flex-basis: 26px;
 }
 @media (prefers-reduced-motion: reduce) {
   .keep-interview-response__paper, .keep-interview-response__primary { transition: none; }

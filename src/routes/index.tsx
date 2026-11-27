@@ -31,6 +31,7 @@ import { composeSelfieStory, withoutSelfieScenes } from "@/lib/keep-selfie-story
 import { KeepFinishingChoices } from "@/components/keep-finishing-choices";
 import { KeepAskAIModal, KeepWordChanges } from "@/components/keep-ask-ai-modal";
 import { KeepInterviewIntro } from "@/components/keep-interview-intro";
+import { useInterviewViewport } from "@/hooks/use-interview-viewport";
 import { arrangeWords, spreadMemories, recommendedStyle } from "@/lib/keep-story-layout";
 import { filmTotal, sceneBoundary, sceneDuration, sceneElapsed, sceneIndexAt, sceneSeekTime } from "@/lib/keep-film-timing";
 import { captionAtTime, captionTimingIsBroken, groupTimedWords, recoverCaptionTiming } from "@/lib/keep-caption-timing";
@@ -181,10 +182,12 @@ function KeepApp() {
   const [askLastScope, setAskLastScope] = useState<"section" | "message">("section");
   const [askSuggestion, setAskSuggestion] = useState<null | { paragraphs: string[]; changedIndexes: number[]; note: string }>(null);
   const [aiBusy, setAiBusy] = useState<null | "start" | "transcribe" | "next" | "draft">(null);
-  const [interviewViewportHeight, setInterviewViewportHeight] = useState<number | null>(null);
-  const [interviewKeyboardOpen, setInterviewKeyboardOpen] = useState(false);
+  const interviewViewport = useInterviewViewport(screen === "interview");
   const [interviewInputFocused, setInterviewInputFocused] = useState(false);
-  const interviewFullHeight = useRef(0);
+  const interviewAnswerRef = useRef<HTMLTextAreaElement>(null);
+  const interviewBodyRef = useRef<HTMLDivElement>(null);
+  const interviewKeyboardOpen = !!interviewViewport?.keyboardOpen;
+  const interviewCompact = interviewKeyboardOpen || (interviewInputFocused && (interviewViewport?.width ?? 1000) < 768);
   const [aiError, setAiError] = useState<null | { kind: "start" | "transcribe" | "next" | "draft"; retry: () => void }>(null);
   const [generation, setGeneration] = useState(0);
   const [mode, setMode] = useState<Mode>("Memories");
@@ -469,28 +472,16 @@ function KeepApp() {
   const continueDraft = () => { setViewingDemo(false); setHistory(["home"]); setScreen(resumeKeepRecordingFlow(project) as Screen); };
 
 
-  // On iPhone the keyboard shrinks the visual viewport without consistently
-  // updating 100dvh. Size this screen to the actual visible area instead.
   useEffect(() => {
-    if (screen !== "interview") return;
-    const viewport = window.visualViewport;
-    interviewFullHeight.current = Math.max(window.innerHeight, viewport?.height ?? 0);
-    const measure = () => {
-      const height = Math.round(viewport?.height ?? window.innerHeight);
-      setInterviewViewportHeight(height);
-      setInterviewKeyboardOpen(interviewFullHeight.current - height > 135);
-    };
-    measure();
-    viewport?.addEventListener("resize", measure);
-    viewport?.addEventListener("scroll", measure);
-    window.addEventListener("resize", measure);
-    return () => {
-      viewport?.removeEventListener("resize", measure);
-      viewport?.removeEventListener("scroll", measure);
-      window.removeEventListener("resize", measure);
-      setInterviewInputFocused(false);
-    };
+    if (screen !== "interview") setInterviewInputFocused(false);
   }, [screen]);
+  // Each question starts at the top. Compacting on focus also brings the
+  // question back into view instead of leaving the browser scrolled to the caret.
+  useEffect(() => {
+    if (screen === "interview" && interviewBodyRef.current) {
+      interviewBodyRef.current.scrollTop = 0;
+    }
+  }, [screen, project.questionIndex, interviewCompact]);
 
   // ---- Interview ----
   // A crash between media storage and draft metadata can leave a valid voice
@@ -578,11 +569,16 @@ function KeepApp() {
       setProject((o) => ({ ...o, interviewAnswers: o.interviewAnswers.map((a) => (a.questionIndex === answer.questionIndex && a.audioUrl === answer.audioUrl ? { ...a, transcript: text } : a)) }));
     });
   };
-  const nextQuestion = () => void runAi("next", async () => {
-    const r = await fetchNextQuestion(aiContext());
-    if (r.done) { patch({ interviewSummary: r.summary }); go("summary"); }
-    else patch({ questionIndex: q + 1, interviewQuestion: r.question });
-  });
+  const nextQuestion = () => {
+    // Keep the next prompt at the top and let the creator choose when to type.
+    interviewAnswerRef.current?.blur();
+    setInterviewInputFocused(false);
+    void runAi("next", async () => {
+      const r = await fetchNextQuestion(aiContext());
+      if (r.done) { patch({ interviewSummary: r.summary }); go("summary"); }
+      else patch({ questionIndex: q + 1, interviewQuestion: r.question });
+    });
+  };
   const createAiMessage = () => {
     go("messageGenerating");
     void runAi("draft", async () => {
@@ -1944,7 +1940,11 @@ function KeepApp() {
         <p className="mt-3 text-[11px] text-[#8B8177]">You can continue as soon as these finish saving.</p>
       </div>
     </div>}
-    <div key={screen} className={`page-enter keep-screen keep-screen--${screen}`}>
+    <div key={screen} className={`page-enter keep-screen keep-screen--${screen}`}
+      style={screen === "interview" && interviewViewport ? {
+        "--keep-interview-height": `${interviewViewport.height}px`,
+        "--keep-interview-top": `${interviewViewport.top}px`,
+      } as CSSProperties : undefined}>
     {screen === "you" && <>{top()}<div className="px-7 pt-8">{title("Your space", "Your Keeps.", "The things worth keeping, all in one place.")}<div className="mt-12 border-t border-border">{[{ label: "My cards", Icon: Radio }, { label: "Downloads & backups", Icon: Download }, { label: "Privacy", Icon: LockKeyhole }, { label: "Help", Icon: CircleHelp }].map(({ label, Icon }) => <Button key={label} variant="bare" className="flex h-17 w-full justify-between border-b border-border px-0 text-sm font-normal" onClick={() => setSetting(label)}><span className="flex items-center gap-4"><Icon className="size-4 text-accent" />{label}</span><ChevronRight className="size-4 text-muted-foreground" /></Button>)}{project.active && <Button variant="bare" className="flex h-17 w-full justify-between border-b border-border px-0 text-sm font-normal text-destructive" onClick={() => { if (!window.confirm("Delete your draft Keep? Recordings and photos added to it will be removed from this device.")) return; discard(project); clearDraft(project.publicationId); setProject({...newProject(),draftOwnerId:project.draftOwnerId}); toast.success("Draft deleted"); }}><span className="flex items-center gap-4"><Trash2 className="size-4" />Delete draft Keep</span></Button>}</div><p className="mt-9 text-xs leading-6 text-muted-foreground">Your Keeps are private.</p></div>{setting && sheet(setting, () => setSetting(""), <><p className="mt-5 text-sm leading-7 text-muted-foreground">{setting === "Privacy" ? "Your working draft is saved on this device and can sync to your signed-in Keep account. Published Keeps use private viewing links; anyone with a link can view that Keep, so share it intentionally." : setting === "My cards" ? "Digital Keeps can be viewed and managed in My Keeps. Physical card ordering and fulfillment are not yet live." : setting === "Downloads & backups" ? "Keep saves drafts on this device and syncs to your account when signed in. If an upload is still in progress, keep this browser's data until backup finishes. Finished Keeps are saved as 1080p MP4 films. Find your finished film in My Keeps." : "If something doesn't work, don't clear your browser data. Return to My Keeps and preserve your draft. In-app support is being prepared for launch."}</p><Button variant="quiet" className="mt-8 w-full" onClick={() => setSetting("")}>Done</Button></>)}</>}
     {screen === "detail" && <>{top("READY")}<div className="relative mx-4 h-[min(55dvh,520px)] overflow-hidden"><img src={memoryImages[0]} alt="Couple at the coast, illustrative prototype photograph" className="h-full w-full object-cover" /><div className="absolute inset-0 photo-bottom" /><div className="absolute bottom-8 left-6"><p className="eyebrow text-foreground">ANNIVERSARY · 2026</p><h1 className="display mt-3 text-5xl">HANNA</h1><p className="mt-3 text-sm">from Alex · 2:30</p></div></div><div className="space-y-3 px-6 pt-7">{nextButton("Play Keep", () => { setViewingDemo(true); go("preview"); })}<Button variant="quiet" size="touch" className="w-full" onClick={editDemoCopy}><Settings2 /> Edit a copy</Button><Button variant="bare" size="touch" className="w-full" asChild><Link to="/recipient" search={{ keep: "" }}><Radio /> View as recipient</Link></Button></div></>}
     {screen === "recipient" && <>{top("01 / 05")}<div className="px-7 pb-12 pt-11">
@@ -2083,16 +2083,16 @@ function KeepApp() {
       </div>
     </div></>}
     {screen === "interview" && <div
-      className="keep-interview-screen flex min-h-0 w-full flex-col overflow-hidden bg-background"
-      style={{ height: interviewViewportHeight ? `${interviewViewportHeight}px` : "100dvh" }}
+      className={`keep-interview-screen flex min-h-0 w-full flex-col bg-background ${interviewCompact ? "keep-interview-screen--compact" : ""}`}
     >
       {top()}
-      <div className={`shrink-0 px-6 pt-4 ${interviewKeyboardOpen ? "pb-2" : "pb-4"}`}>
-        <div className="flex items-center justify-between gap-3">
-          <p className="eyebrow !text-[10px]">YOUR STORY, YOUR WORDS</p>
-          <p className="text-[11px] tabular-nums text-muted-foreground">Question {q + 1} · 8–10 total</p>
+      <div className="keep-interview-progress">
+        <div className="keep-interview-progress__line">
+          <p className="keep-interview-progress__eyebrow eyebrow">Your story, your words</p>
+          <p className="keep-interview-progress__count">Question {q + 1} · 8–10 total</p>
+          {interviewCompact && <button type="button" className="keep-interview-progress__done" onPointerDown={e => e.preventDefault()} onClick={() => { interviewAnswerRef.current?.blur(); setInterviewInputFocused(false); }}>Done typing</button>}
         </div>
-        <div className="mt-3 grid h-[5px] gap-1.5" style={{ gridTemplateColumns: "repeat(10, minmax(0, 1fr))" }}
+        <div className="keep-interview-progress__track grid h-[5px] gap-1.5" style={{ gridTemplateColumns: "repeat(10, minmax(0, 1fr))" }}
              role="progressbar" aria-label="Interview progress" aria-valuemin={0}
              aria-valuemax={10} aria-valuenow={Math.min(q + 1, 10)}
              aria-valuetext={`Question ${q + 1} of 8 to 10. Some stories need one or two extra questions.`}>
@@ -2100,7 +2100,8 @@ function KeepApp() {
             <span key={i} className={`h-[4px] rounded-full ${i < completedAnswers ? "bg-accent" : i === q ? "bg-accent/60" : "bg-border"}`} />)}
         </div>
       </div>
-      <div key={q} className="thin-scroll min-h-0 flex-1 overflow-y-auto overscroll-contain px-6 pb-5 pt-4">
+      <div ref={interviewBodyRef} className="keep-interview-body thin-scroll">
+      <div key={q} className="keep-interview-question">
         {!aiReady ? <div className="mx-auto max-w-md py-4 text-center page-enter">
           <h1 className="font-display text-3xl leading-tight">Let's find your words another way.</h1>
           <p className="mt-4 text-sm leading-6 text-muted-foreground">The guided interview is temporarily unavailable. You can still write your message.</p>
@@ -2109,21 +2110,21 @@ function KeepApp() {
           <p className="mt-5 font-display text-2xl">{aiBusy === "start" ? "Getting ready to listen…" : "Thinking about your words…"}</p>
         </div> : !project.interviewQuestion ? <p className="mx-auto max-w-md py-8 text-center font-display text-2xl">{aiError ? aiErrorText : "Getting ready to listen…"}</p>
         : <div className="mx-auto max-w-md page-enter">
-          <p className="mb-3 text-[10px] font-medium uppercase tracking-[.18em] text-accent">A question for you</p>
-          <h1 className="font-display text-[clamp(25px,6.6vw,35px)] font-normal leading-[1.16] tracking-[-.025em] text-foreground">{project.interviewQuestion}</h1>
-          {currentAnswer?.audioUrl && !isRecording && <div className="mt-5 rounded-xl border border-border bg-card/60 p-3">
+          <p className="keep-interview-question__eyebrow">A question for you</p>
+          <h1 id="keep-interview-question" className="keep-interview-question__title">{project.interviewQuestion}</h1>
+          {currentAnswer?.audioUrl && !isRecording && !interviewCompact && <div className="mt-5 rounded-xl border border-border bg-card/60 p-3">
             <p className="mb-2 text-[10px] font-medium uppercase tracking-widest text-muted-foreground">Your recorded answer · {fmt(currentAnswer.durationSec ?? 0)}</p>
             <audio controls src={currentAnswer.audioUrl} className="w-full" preload="metadata" />
           </div>}
           {aiBusy === "transcribe" && <p role="status" className="mt-5 text-sm text-accent animate-pulse">Turning your recording into words…</p>}
-          {micUnavailable && <p className="mt-4 text-xs leading-5 text-muted-foreground">{micMessage} You can type your answer instead.</p>}
+          {micUnavailable && !interviewCompact && <p className="mt-4 text-xs leading-5 text-muted-foreground">{micMessage} You can type your answer instead.</p>}
         </div>}
         {aiError && aiReady && <div className="mx-auto mt-5 max-w-md border-l-2 border-accent pl-4 text-left" role="alert">
           <p className="text-sm leading-6">{aiErrorText}</p>
           <Button variant="bare" size="sm" className="mt-2 px-0 text-accent" onClick={aiError.retry}><RotateCcw /> Retry</Button>
         </div>}
       </div>
-      <div className={`keep-interview-response z-10 w-full shrink-0 ${interviewKeyboardOpen ? "keep-interview-response--keyboard" : ""}`}>
+      <div className="keep-interview-response">
         <div className="keep-interview-response__inner mx-auto max-w-md">
           {!aiReady ? <Button variant="keep" size="touch" className="keep-interview-response__primary" onClick={() => go("write")}><span>Write my message instead</span><span className="keep-interview-response__icon"><ArrowRight strokeWidth={1.5}/></span></Button>
           : isRecording ? <div className="keep-interview-response__recording">
@@ -2133,26 +2134,27 @@ function KeepApp() {
           : <>
             {aiBusy !== "transcribe" && <div className="keep-interview-response__paper">
               <label htmlFor="keep-interview-answer" className="keep-interview-response__label">Your answer</label>
-              <textarea id="keep-interview-answer" aria-label="Your answer" value={currentAnswer?.transcript ?? ""}
+              <textarea ref={interviewAnswerRef} id="keep-interview-answer" aria-label="Your answer" aria-describedby={aiBusy === "start" || aiBusy === "next" ? undefined : "keep-interview-question"} disabled={aiBusy === "start" || aiBusy === "next"} value={currentAnswer?.transcript ?? ""}
                 onChange={(e) => setTypedAnswer(e.target.value)}
                 onFocus={() => setInterviewInputFocused(true)}
                 onBlur={() => setInterviewInputFocused(false)}
                 placeholder="Begin in your own words…"
-                rows={interviewKeyboardOpen ? 2 : 3}
+                rows={interviewCompact ? 2 : 4}
                 className="keep-interview-response__input thin-scroll"
               />
             </div>}
             <div className="keep-interview-response__actions">
               {currentAnswer?.transcript?.trim()
-                ? <Button variant="keep" size="touch" className="keep-interview-response__primary" disabled={!!aiBusy} onClick={nextQuestion}>Continue <span className="keep-interview-response__icon"><ArrowRight strokeWidth={1.5}/></span></Button>
+                ? <Button variant="keep" size="touch" className="keep-interview-response__primary" disabled={!!aiBusy} onPointerDown={e => { if (interviewInputFocused) e.preventDefault(); }} onClick={nextQuestion}>Continue <span className="keep-interview-response__icon"><ArrowRight strokeWidth={1.5}/></span></Button>
                 : !micUnavailable && aiBusy !== "transcribe"
                   ? <Button variant="keep" size="touch" className="keep-interview-response__primary" disabled={!!aiBusy || recorder.status === "requesting" || recorder.supported === null} onClick={() => void startAnswer()}><span className="keep-interview-response__icon"><Mic strokeWidth={1.6}/></span>{recorder.status === "requesting" ? "Waiting for microphone…" : "Speak your answer"}</Button>
                   : aiBusy === "transcribe" ? <p className="keep-interview-response__saving" role="status">Saving your words…</p> : null}
-              {!interviewKeyboardOpen && !interviewInputFocused && (currentAnswer?.transcript?.trim() ? !micUnavailable : true) && !micUnavailable && !!currentAnswer?.transcript?.trim() && <Button variant="bare" size="sm" className="keep-interview-response__secondary" disabled={!!aiBusy} onClick={() => void startAnswer()}><Mic strokeWidth={1.5}/> Record again</Button>}
-              {!interviewKeyboardOpen && !interviewInputFocused && <Button variant="bare" size="sm" className="keep-interview-response__secondary keep-interview-response__alternative" onClick={() => go("write")}>Write my message instead <ArrowRight strokeWidth={1.5}/></Button>}
+              {!interviewCompact && (currentAnswer?.transcript?.trim() ? !micUnavailable : true) && !micUnavailable && !!currentAnswer?.transcript?.trim() && <Button variant="bare" size="sm" className="keep-interview-response__secondary" disabled={!!aiBusy} onClick={() => void startAnswer()}><Mic strokeWidth={1.5}/> Record again</Button>}
+              {!interviewCompact && <Button variant="bare" size="sm" className="keep-interview-response__secondary keep-interview-response__alternative" onClick={() => go("write")}>Write my message instead <ArrowRight strokeWidth={1.5}/></Button>}
             </div>
           </>}
         </div>
+      </div>
       </div>
     </div>}
     {screen === "interview" && q === 0 && !project.interviewWelcomeSeen &&
