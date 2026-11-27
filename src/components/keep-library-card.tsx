@@ -1,7 +1,6 @@
-import { keepCheckoutPath } from "@/lib/keep-checkout";
-import { CalendarDays, Check, ChevronDown, ExternalLink, Gift, Link2, PenLine, Trash2 } from "lucide-react";
-import { viewingLink } from "@/lib/keep-publish";
-import { FirstExperienceBadge, KeepGiftTimeline } from "@/components/keep-gift-activity";
+import { CalendarDays, ChevronDown, Gift } from "lucide-react";
+import { FirstExperienceBadge } from "@/components/keep-gift-activity";
+import { KeepLibraryActions } from "@/components/keep-library-actions";
 import type { GiftActivity } from "@/lib/keep-gift-activity";
 
 export type KeepLibraryItem = {
@@ -31,7 +30,7 @@ const dateLabel = (date?: string | null) => {
 
 /** Identical creation cards on Home and My Keeps, with actions hidden under the arrow. */
 export function KeepLibraryCard({ keep, thumbnail, expanded, copied, deleting, onToggle, onCopy, onDelete, activity, activityFailed }: Props) {
-  const published=keep.status==="ready" && !!keep.published_at;
+  const published=keep.status==="ready" && !!keep.published_at && !!keep.recipient_token;
   const excerpt=keep.published_project?.openingMessage?.trim() ||
     keep.published_project?.messageParagraphs?.[0]?.trim().slice(0,180);
   return <article className="keep-editorial-surface overflow-hidden border border-[#DED8D1]">
@@ -44,30 +43,14 @@ export function KeepLibraryCard({ keep, thumbnail, expanded, copied, deleting, o
         <h3 className="truncate font-display text-[clamp(26px,7vw,32px)] leading-tight text-[#2B241D]">For {keep.recipient_name || "someone special"}</h3>
         <p className="mt-1.5 truncate text-xs text-[#796957]">{keep.occasion || "A personal Keep"}</p>
         <p className="mt-3 flex items-center gap-1.5 text-[11px] text-muted-foreground"><CalendarDays className="size-3.5" />{dateLabel(keep.created_at || keep.published_at)}</p>
-        {published && <FirstExperienceBadge activity={activity} />}
+        {published && !expanded && <FirstExperienceBadge activity={activity} />}
       </div>
       <ChevronDown className={`size-5 shrink-0 text-[#685747] transition-transform ${expanded ? "rotate-180" : ""}`} />
     </button>
     {expanded && <div className="border-t border-[#E6DCD2] px-5 pb-5 pt-5">
-      {excerpt && <p className="mb-5 line-clamp-3 font-display text-[18px] leading-7 text-[#665547]">{excerpt}</p>}
-      {published && <KeepGiftTimeline activity={activity} failed={activityFailed} />}
-      <div className="grid gap-2">
-        <a href={`/?edit=${encodeURIComponent(keep.id)}`} className="keep-premium-action relative flex min-h-12 items-center justify-center px-4 py-3 text-center text-sm"><PenLine className="absolute left-5 size-4" /><span className="w-full text-center">Continue editing</span></a>
-        {published && <>
-          <a href={keepCheckoutPath(keep.id)} className="keep-premium-action flex min-h-12 items-center justify-center gap-2 px-4 py-3 text-sm">Film &amp; card options</a>
-          <button type="button" onClick={onCopy} className="flex min-h-12 items-center justify-center gap-2 rounded-xl border border-border bg-white px-4 py-3 text-sm">
-            {copied ? <Check className="size-4" /> : <Link2 className="size-4" />}
-            {copied ? "Link copied" : "Copy viewing link"}
-          </button>
-          <a href={viewingLink(keep.recipient_token)} target="_blank" rel="noreferrer" className="flex min-h-12 items-center justify-center gap-2 rounded-xl border border-border bg-white px-4 py-3 text-sm"><ExternalLink className="size-4" /> Open Keep</a>
-          <p className="mt-2 text-[11px] leading-5 text-muted-foreground">This permanent link stays the same after editing and can be programmed onto your NFC card.</p>
-        </>}
-      </div>
-      <div className="mt-4 border-t border-border/75 pt-3">
-        <button type="button" disabled={deleting} onClick={onDelete} className="flex min-h-10 items-center gap-2 text-xs text-[#8C574C] disabled:opacity-50">
-          <Trash2 className="size-4" /> {deleting ? "Deleting…" : "Delete this Keep"}
-        </button>
-      </div>
+      {excerpt && <p className="mb-4 line-clamp-3 font-display text-[18px] leading-7 text-[#665547]">{excerpt}</p>}
+      <KeepLibraryActions keep={keep} published={published} copied={copied} deleting={deleting}
+        activity={activity} activityFailed={activityFailed} onCopy={onCopy} onDelete={onDelete} />
     </div>}
   </article>;
 }

@@ -28,15 +28,43 @@ describe("hands-free reading frames",()=>{
 });
 describe("My Keeps illustrated cards",()=>{
   const keep={id:"keep-1",recipient_name:"Andi",occasion:"Birthday",status:"ready",recipient_token:"example",published_at:"2026-11-12T00:00:00Z",created_at:"2026-11-10T00:00:00Z"};
-  it("shows a cover photo, occasion and creation date while keeping actions behind the arrow",()=>{
-    const {rerender}=render(<KeepLibraryCard keep={keep} thumbnail="/moment.jpg" expanded={false} copied={false} deleting={false} onToggle={()=>{}} onCopy={()=>{}} onDelete={()=>{}}/>);
+  it("shows cover and date, then one primary action with simple secondary controls",()=>{
+    const onCopy=vi.fn(),onDelete=vi.fn();
+    const activity={firstExperiencedAt:null,shipments:[]};
+    const props={keep,thumbnail:"/moment.jpg",activity,copied:false,deleting:false,onToggle:()=>{},onCopy,onDelete};
+    const {rerender}=render(<KeepLibraryCard {...props} expanded={false}/>);
     expect(screen.getByAltText("Cover photo for Andi")).toBeTruthy();
     expect(screen.getByText("Birthday")).toBeTruthy();
-    expect(screen.queryByText("Continue editing")).toBeNull();
-    rerender(<KeepLibraryCard keep={keep} thumbnail="/moment.jpg" expanded copied={false} deleting={false} onToggle={()=>{}} onCopy={()=>{}} onDelete={()=>{}}/>);
-    expect(screen.getByText("Continue editing")).toBeTruthy();
-    expect(screen.getByText("Copy viewing link")).toBeTruthy();
-    expect(screen.getByText("Delete this Keep")).toBeTruthy();
+    expect(screen.queryByText("View Keep")).toBeNull();
+    rerender(<KeepLibraryCard {...props} expanded/>);
+    expect(screen.getByRole("link",{name:"View Keep"})).toHaveAttribute("href",expect.stringContaining("example"));
+    expect(screen.getByRole("link",{name:"Edit"})).toHaveAttribute("href","/?edit=keep-1");
+    expect(screen.getByText("Not yet viewed")).toBeInTheDocument();
+    expect(screen.queryByText("Your gift journey")).toBeNull();
+    expect(screen.queryByText("No card shipment yet.")).toBeNull();
+    expect(screen.queryByText("Delete this Keep")).toBeNull();
+    fireEvent.click(screen.getByRole("button",{name:"Copy link"}));
+    expect(onCopy).toHaveBeenCalledOnce();
+    rerender(<KeepLibraryCard {...props} expanded copied/>);
+    expect(screen.getByRole("button",{name:"Copied!"})).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button",{name:"More"}));
+    expect(screen.getByRole("button",{name:"More"})).toHaveAttribute("aria-expanded","true");
+    expect(screen.getByRole("link",{name:"Film & card options"})).toHaveAttribute("href","/checkout?keep=keep-1");
+    expect(screen.getByText("Gift activity")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button",{name:"Delete this Keep"}));
+    expect(onDelete).toHaveBeenCalledOnce();
+    rerender(<KeepLibraryCard {...props} expanded={false}/>);
+    rerender(<KeepLibraryCard {...props} expanded/>);
+    expect(screen.queryByText("Delete this Keep")).toBeNull();
+  });
+  it("shows only editing and safe management options for drafts or records without a viewing token",()=>{
+    render(<KeepLibraryCard keep={{...keep,recipient_token:""}} expanded copied={false} deleting={false} onToggle={()=>{}} onCopy={()=>{}} onDelete={()=>{}}/>);
+    expect(screen.getByRole("link",{name:"Continue editing"})).toBeInTheDocument();
+    expect(screen.queryByRole("link",{name:"View Keep"})).toBeNull();
+    expect(screen.queryByRole("button",{name:"Copy link"})).toBeNull();
+    fireEvent.click(screen.getByRole("button",{name:"More"}));
+    expect(screen.getByRole("button",{name:"Delete this Keep"})).toBeInTheDocument();
+    expect(screen.queryByRole("link",{name:"Film & card options"})).toBeNull();
   });
 });
 describe("optional Read soundtrack",()=>{

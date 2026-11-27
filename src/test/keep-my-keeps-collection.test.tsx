@@ -49,11 +49,15 @@ describe("Your Keeps editorial collection", () => {
     expect(cb.onToggle).toHaveBeenCalledWith("mom");
     rerender(<KeepMyKeepsCollection {...props(cb, { expandedId: "mom" })} />);
     const options = screen.getByRole("button", { name: "Options for Mom" }).closest("article")!;
-    expect(within(options).getByRole("link", { name: /Continue editing/i })).toHaveAttribute("href", "/?edit=mom");
-    const open = within(options).getByRole("link", { name: /Open this Keep/i });
+    expect(within(options).getByRole("link", { name: "Edit" })).toHaveAttribute("href", "/?edit=mom");
+    const open = within(options).getByRole("link", { name: "View Keep" });
     expect(open.getAttribute("href")).toContain("recipient-mom-token");
     expect(open).toHaveAttribute("target", "_blank");
-    fireEvent.click(within(options).getByRole("button", { name: /Copy viewing link/i }));
+    fireEvent.click(within(options).getByRole("button", { name: "Copy link" }));
+    expect(within(options).queryByRole("button", { name: /Delete this Keep/i })).not.toBeInTheDocument();
+    expect(within(options).queryByRole("link", { name: /Film & card options/i })).not.toBeInTheDocument();
+    fireEvent.click(within(options).getByRole("button", { name: "More" }));
+    expect(within(options).getByRole("link", { name: /Film & card options/i })).toHaveAttribute("href", "/checkout?keep=mom");
     fireEvent.click(within(options).getByRole("button", { name: /Delete this Keep/i }));
     expect(cb.onCopy).toHaveBeenCalledWith(published);
     expect(cb.onDelete).toHaveBeenCalledWith(published);
@@ -65,8 +69,8 @@ describe("Your Keeps editorial collection", () => {
     expect(screen.getByText("someone special")).toBeInTheDocument();
     expect(screen.getByText("In progress")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Continue editing/i })).toHaveAttribute("href", "/?edit=new");
-    expect(screen.queryByRole("link", { name: /Open this Keep/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /Copy viewing link/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "View Keep" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Copy link" })).not.toBeInTheDocument();
   });
 
   it("offers a premium empty state without claiming creations that do not exist", () => {

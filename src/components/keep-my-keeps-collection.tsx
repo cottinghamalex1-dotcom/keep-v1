@@ -1,8 +1,7 @@
-import { keepCheckoutPath } from "@/lib/keep-checkout";
-import { ArrowRight, BookOpen, CalendarDays, Check, ChevronDown, ExternalLink, Heart, Link2, PenLine, Plus, Sparkles, Trash2 } from "lucide-react";
-import { viewingLink } from "@/lib/keep-publish";
+import { ArrowRight, BookOpen, CalendarDays, ChevronDown, Heart, Plus, Sparkles } from "lucide-react";
 import type { KeepLibraryItem } from "@/components/keep-library-card";
-import { FirstExperienceBadge, KeepGiftTimeline } from "@/components/keep-gift-activity";
+import { FirstExperienceBadge } from "@/components/keep-gift-activity";
+import { KeepLibraryActions } from "@/components/keep-library-actions";
 import type { GiftActivities, GiftActivity } from "@/lib/keep-gift-activity";
 
 type Props = {
@@ -70,7 +69,7 @@ function CreationCard({
           <CalendarDays className="size-3.5 shrink-0" aria-hidden="true" />
           {formatCreated(keep.created_at || keep.published_at)}
         </span>
-        {published && <FirstExperienceBadge activity={activity} />}
+        {published && !expanded && <FirstExperienceBadge activity={activity} />}
       </span>
       <span className="flex size-8 shrink-0 items-center justify-center rounded-full border border-[#E3D8CB] bg-[#F7F0E7] text-[#73604E] transition-colors group-hover:bg-[#EFE3D4]" aria-hidden="true">
         <ChevronDown className={`size-4 transition-transform ${expanded ? "rotate-180" : ""}`} strokeWidth={1.7}/>
@@ -94,32 +93,8 @@ function CreationCard({
       {excerpt && <div className="mb-4 border-l-2 border-[#CBB295] pl-3.5">
         <p className="line-clamp-4 font-display text-[19px] leading-7 text-[#65503F]">{excerpt}</p>
       </div>}
-      {published && <KeepGiftTimeline activity={activity} failed={activityFailed} />}
-      <div className="grid gap-2">
-        <a href={`/?edit=${encodeURIComponent(keep.id)}`}
-          className="flex min-h-[51px] items-center justify-center gap-2 rounded-xl bg-[#211B17] px-4 text-[13px] font-medium text-[#FFF8F0] transition-colors hover:bg-[#3B3028]">
-          <PenLine className="size-4" aria-hidden="true" /> Continue editing
-        </a>
-        {published && <>
-          <a href={keepCheckoutPath(keep.id)} className="keep-premium-action flex min-h-12 items-center justify-center gap-2 px-4 py-3 text-sm">Film &amp; card options</a>
-          <a href={viewingLink(keep.recipient_token)} target="_blank" rel="noopener noreferrer"
-            className="flex min-h-[48px] items-center justify-center gap-2 rounded-xl border border-[#D6C6B7] bg-[#FFFDF9] px-4 text-[12px] font-medium text-[#4C3B2C] hover:bg-white">
-            <ExternalLink className="size-4" aria-hidden="true" /> Open this Keep
-          </a>
-          <button type="button" onClick={onCopy}
-            className="flex min-h-[46px] items-center justify-center gap-2 rounded-xl border border-[#DDD0C1] px-4 text-[12px] font-medium text-[#6B533F] hover:bg-white">
-            {copied ? <Check className="size-4" aria-hidden="true" /> : <Link2 className="size-4" aria-hidden="true" />}
-            {copied ? "Link copied" : "Copy viewing link"}
-          </button>
-          <p className="px-1 pt-0.5 text-[10px] leading-[1.65] text-[#857463]">
-            Your permanent viewing link remains the same when you edit this Keep.
-          </p>
-        </>}
-      </div>
-      <button type="button" disabled={deleting} onClick={onDelete}
-        className="mt-4 inline-flex min-h-10 items-center gap-2 border-t border-[#E5D9CD] pt-3 text-[11px] text-[#966253] disabled:opacity-50">
-        <Trash2 className="size-3.5" aria-hidden="true" /> {deleting ? "Deleting…" : "Delete this Keep"}
-      </button>
+      <KeepLibraryActions keep={keep} published={published} copied={copied} deleting={deleting}
+        activity={activity} activityFailed={activityFailed} onCopy={onCopy} onDelete={onDelete} />
     </div>}
   </article>;
 }

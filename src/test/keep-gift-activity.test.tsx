@@ -1,7 +1,7 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { KeepRecipientExperience } from "@/components/keep-recipient-experience";
-import { KeepGiftTimeline, FirstExperienceBadge } from "@/components/keep-gift-activity";
+import { KeepGiftSummary, KeepGiftTimeline, FirstExperienceBadge } from "@/components/keep-gift-activity";
 import { recordFirstExperience, loadGiftActivities, type GiftActivity } from "@/lib/keep-gift-activity";
 import { activeKeepSession, readKeepSession } from "@/lib/keep-cloud";
 import { canConfirmDelivery, deliveryEmail, emailRetryable, validDeliveryDate } from "../../supabase/functions/keep-gift-events/policy";
@@ -113,6 +113,19 @@ describe("gift delivery safeguards",()=>{
     expect(message.text).toContain("confirmed delivered");
     expect(message.text).toContain("/my-keeps");
     expect(message.text).not.toContain("/recipient?");
+  });
+  it("shows compact, accurate activity status and does not speculate when unavailable",()=>{
+    const activity:GiftActivity={firstExperiencedAt:null,shipments:[]};
+    const {rerender}=render(<KeepGiftSummary activity={activity}/>);
+    expect(screen.getByText("Not yet viewed")).toBeInTheDocument();
+    expect(screen.queryByText(/shipment/i)).toBeNull();
+    rerender(<KeepGiftSummary failed/>);
+    expect(screen.getByText("Gift status temporarily unavailable")).toBeInTheDocument();
+    expect(screen.queryByText("Not yet viewed")).toBeNull();
+    const shipment={purchaseId:"p",shipped:true,shippedAt:"2026-11-24T12:00:00Z",carrier:"USPS",tracking:"TRACK",deliveredAt:null,emailSent:false};
+    rerender(<KeepGiftSummary activity={{firstExperiencedAt:"2026-11-27T15:00:00Z",shipments:[shipment,{...shipment,purchaseId:"p2",deliveredAt:"2026-11-26T14:00:00Z"}]}}/>);
+    expect(screen.getByText(/First viewed ·/)).toBeInTheDocument();
+    expect(screen.getByText("Partially delivered")).toBeInTheDocument();
   });
   it("clearly distinguishes shipped, delivered, and first-view milestones",()=>{
     const activity:GiftActivity={firstExperiencedAt:null,shipments:[{purchaseId:"p",shipped:true,shippedAt:"2026-11-24T12:00:00Z",carrier:"USPS",tracking:"TRACK",deliveredAt:null,emailSent:false}]};
