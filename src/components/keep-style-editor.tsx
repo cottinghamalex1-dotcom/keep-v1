@@ -18,7 +18,7 @@ export function KeepStyleEditor({ looks, currentLook, moment, compareOriginal, o
       <div className="relative h-[62px] overflow-hidden rounded-lg bg-[#393330]">
         {moment.url && (moment.kind === "video"
           ? <video src={moment.url} muted preload="metadata" playsInline className={`h-full w-full object-cover editor-image-${slug(look.name)}`} />
-          : <img src={moment.url} alt="" loading="lazy" className={`h-full w-full object-cover editor-image-${slug(look.name)}`} />)}
+          : <img src={moment.url} alt="" loading="lazy" className={`h-full w-full object-contain editor-image-${slug(look.name)}`} />)}
         {selected && <span className="absolute right-1 top-1 flex size-5 items-center justify-center rounded-full bg-[#F5EADB] text-[#29231D]"><Check className="size-3" /></span>}
       </div>
       <span className="mt-1.5 block truncate px-1 text-[11px] font-medium text-[#F9F1E6]">{look.name}</span>
