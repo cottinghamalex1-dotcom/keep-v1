@@ -2092,7 +2092,6 @@ function KeepApp() {
       {top()}
       <div className="keep-interview-progress">
         <div className="keep-interview-progress__line">
-          <p className="keep-interview-progress__eyebrow eyebrow">Your story, your words</p>
           <p className="keep-interview-progress__count">Question {q + 1} · 8–10 total</p>
           {interviewCompact && <button type="button" className="keep-interview-progress__done" onPointerDown={e => e.preventDefault()} onClick={() => { interviewAnswerRef.current?.blur(); setInterviewInputFocused(false); }}>Done typing</button>}
         </div>
