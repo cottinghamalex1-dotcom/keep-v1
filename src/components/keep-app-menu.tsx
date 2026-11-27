@@ -1,6 +1,15 @@
-import { ChevronDown, CircleHelp, Gift, Home, Menu, UserRound } from "lucide-react";
+import { ChevronDown, ChevronRight, CircleHelp, Gift, Home, Layers, Menu, Plus, UserRound, type LucideIcon } from "lucide-react";
 import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { createPortal } from "react-dom";
+import "./keep-app-menu.css";
+
+function MenuIcon({ icon: Icon }: { icon: LucideIcon }) {
+  return <span className="keep-app-menu__icon" aria-hidden="true"><Icon size={18} strokeWidth={1.65} /></span>;
+}
+
+function MenuArrow() {
+  return <ChevronRight className="keep-app-menu__arrow" aria-hidden="true" />;
+}
 
 /**
  * Creator-side navigation. Keep's public /shop pages intentionally use the
@@ -61,7 +70,7 @@ export function KeepAppMenu({ onHome, onAccount }: {
   };
 
   const close = () => setOpen(false);
-  const linkClass = "flex min-h-12 w-full items-center gap-3 rounded-lg px-2 py-2 text-left text-[15px] text-[#211B17] transition-colors hover:bg-[#F4EEE7] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[#8B755F]";
+  const linkClass = "keep-app-menu__option";
 
   return <>
     <button ref={triggerRef} type="button" aria-label="Open navigation menu"
@@ -77,30 +86,35 @@ export function KeepAppMenu({ onHome, onAccount }: {
           onKeyDown={trapFocus}
           style={{ top: position.top, right: position.right,
             maxHeight: `calc(100dvh - ${position.top + 16}px)` }}
-          className="absolute w-[min(310px,calc(100vw-28px))] overflow-y-auto overscroll-contain rounded-2xl border border-[#E0D7CE] bg-[#FFFCF9] p-4 text-[#211B17] shadow-[0_14px_45px_rgba(38,28,18,.22)]">
-          <p className="mb-3 px-2 text-[11px] uppercase tracking-[.2em] text-[#786657]">Menu</p>
-          <nav aria-label="Keep app menu">
+          className="keep-app-menu__panel absolute overflow-y-auto overscroll-contain">
+          <p className="keep-app-menu__eyebrow">Menu</p>
+          <nav aria-label="Keep app menu" className="keep-app-menu__nav">
             <a ref={firstLinkRef} href="/app" className={linkClass}
               onClick={event => { close(); if (onHome) { event.preventDefault(); onHome(); } }}>
-              <Home className="size-[18px] shrink-0 text-[#756350]" strokeWidth={1.7} aria-hidden="true" />Home
+              <MenuIcon icon={Home} /><span className="keep-app-menu__label">Home</span><MenuArrow />
             </a>
             <button type="button" className={linkClass} aria-expanded={keepsOpen}
               onClick={() => setKeepsOpen(current => !current)}>
-              <Gift className="size-[18px] shrink-0 text-[#756350]" strokeWidth={1.7} aria-hidden="true" />
-              My Keeps
-              <ChevronDown className={`ml-auto size-4 transition-transform ${keepsOpen ? "rotate-180" : ""}`} aria-hidden="true" />
+              <MenuIcon icon={Gift} />
+              <span className="keep-app-menu__label">My Keeps</span>
+              <ChevronDown className={`keep-app-menu__arrow keep-app-menu__chevron ${keepsOpen ? "keep-app-menu__chevron--open" : ""}`} aria-hidden="true" />
             </button>
-            {keepsOpen && <div className="space-y-1 pb-1 pl-[38px] text-[14px]">
-              <a href="/?create=1" onClick={close} className="block rounded-md py-2 text-[#211B17] hover:text-[#856C54]">+ Create a new Keep</a>
-              <a href="/my-keeps" onClick={close} className="block rounded-md py-2 text-[#211B17] hover:text-[#856C54]">See all my Keeps</a>
+            {keepsOpen && <div className="keep-app-menu__submenu">
+              <a href="/?create=1" onClick={close} aria-label="+ Create a new Keep"
+                className={`${linkClass} keep-app-menu__option--primary`}>
+                <MenuIcon icon={Plus} /><span className="keep-app-menu__label">Create a new Keep</span><MenuArrow />
+              </a>
+              <a href="/my-keeps" onClick={close} className={linkClass}>
+                <MenuIcon icon={Layers} /><span className="keep-app-menu__label">See all my Keeps</span><MenuArrow />
+              </a>
             </div>}
-            <div className="my-3 border-t border-[#E1D8CD]" />
+            <div className="keep-app-menu__divider" />
             <a href="/app#account" className={linkClass}
               onClick={event => { close(); if (onAccount) { event.preventDefault(); onAccount(); } }}>
-              <UserRound className="size-[18px] shrink-0 text-[#756350]" strokeWidth={1.7} aria-hidden="true" />Account
+              <MenuIcon icon={UserRound} /><span className="keep-app-menu__label">Account</span><MenuArrow />
             </a>
             <a href="mailto:support@keep.com" className={linkClass} onClick={close}>
-              <CircleHelp className="size-[18px] shrink-0 text-[#756350]" strokeWidth={1.7} aria-hidden="true" />Help &amp; Support
+              <MenuIcon icon={CircleHelp} /><span className="keep-app-menu__label">Help &amp; Support</span><MenuArrow />
             </a>
           </nav>
         </aside>
