@@ -107,6 +107,8 @@ export type KeepProject = {
   captionTimingEstimated?: boolean;
   captionWordsPerCue?: number;
   captionLines?: number;
+  /** Percentage of the selected caption style; absent in older Keeps (100%). */
+  captionSize?: number | undefined;
   captionPosition?: "top" | "middle" | "bottom";
   creationStyle?: "memories" | "words";
   memories: MediaItem[];
@@ -144,7 +146,7 @@ export const sampleMemories = (): MediaItem[] =>
 export function newProject(): KeepProject {
   return {
     active: false, stage: "recipient", recipientName: "", openingMessage: "", closingLine: "", engraveOpeningMessage: false, openingMessageSuggestions: [], openingSuggestionsFor: "", relationship: "", occasion: "", occasionDetail: "", recipientFeelings: [], intent: "", questionIndex: 0, interviewWelcomeSeen: false, interviewQuestion: "", interviewSummary: "",
-    interviewAnswers: [], messageSource: null, writtenText: "", messageParagraphs: [], voiceMode: "solo", voiceRecordingLocation: "in_person", contributors: [], paragraphSpeakers: [], voiceParts: [], finalVoiceRecording: null, captionTranscript: "", captionCues: [], captionWords: [], captionWordsPerCue: 5, captionLines: 2, captionPosition: "bottom", creationStyle: "memories", memories: [], selfieVideos: [], selfieBaseMedia: [], selfiePresentation: "auto", selfieBookendSeconds: 4, readMemoryOrder: [],
+    interviewAnswers: [], messageSource: null, writtenText: "", messageParagraphs: [], voiceMode: "solo", voiceRecordingLocation: "in_person", contributors: [], paragraphSpeakers: [], voiceParts: [], finalVoiceRecording: null, captionTranscript: "", captionCues: [], captionWords: [], captionWordsPerCue: 5, captionLines: 2, captionSize: 100, captionPosition: "bottom", creationStyle: "memories", memories: [], selfieVideos: [], selfieBaseMedia: [], selfiePresentation: "auto", selfieBookendSeconds: 4, readMemoryOrder: [],
     musicMood: "Warm + Nostalgic", voiceMusicBalance: "Balanced", musicMix: 50, voiceVolume: 60, musicVolume: 60, audioMixVersion: 2, captionStyle: "Reel", visualStyle: "Natural", cardEngraving: ["", "", ""], keepOrder: defaultKeepOrder(),
   };
 }

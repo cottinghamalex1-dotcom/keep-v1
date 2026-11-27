@@ -40,8 +40,19 @@ describe('Publishing a Keep',()=>{
    const original=await publicationFingerprint(p);
    expect(await publicationFingerprint({...p,memories:p.memories.map(m=>({...m,zoom:1.3}))})).not.toBe(original);
    expect(await publicationFingerprint({...p,captionPosition:'top'})).not.toBe(original);
+   expect(await publicationFingerprint({...p,captionSize:125})).not.toBe(original);
+   expect(await publicationFingerprint({...p,captionSize:undefined})).toBe(original);
    expect(await publicationFingerprint({...p,finalVoiceRecording:{...p.finalVoiceRecording,audioId:'new-voice'}})).not.toBe(original);
    expect(await publicationFingerprint({...p,memories:[...p.memories,{...p.memories[0]!,id:'another'}]})).not.toBe(original);
+ });
+ it('preserves custom caption size and keeps older default publications unchanged',()=>{
+   const payload={...publicationSettings({...project(),captionSize:135}),voicePath:`${owner}/publications/${id}/version/voice`,
+     memories:[{id:'photo',kind:'image',source:'upload',storagePath:`${owner}/publications/${id}/version/photo`}]};
+   const published=manifestSchema.parse(payload);
+   expect(published.captionSize).toBe(135);
+   expect(manifestSchema.parse(JSON.parse(JSON.stringify(published))).captionSize).toBe(135);
+   expect(manifestSchema.safeParse({...payload,captionSize:151}).success).toBe(false);
+   expect(publicationSettings(project()).captionSize).toBeUndefined();
  });
  it('preserves the chosen voice treatment through server validation and recipient serialization',()=>{
    for(const voiceTone of ['natural','warm','clear'] as const){

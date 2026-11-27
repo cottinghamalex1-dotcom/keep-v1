@@ -31,11 +31,12 @@ it('does not fall back to another draft if the selected Keep is missing', async 
 it('saves changes to the selected Keep without changing its published version or link', async () => {
   const fetcher = vi.fn().mockResolvedValue(response([]));
   vi.stubGlobal('fetch', fetcher);
-  await saveCloudDraft({ ...newProject(), active: true, publicationId: 'hannah', recipientName: 'Hannah' }, session);
+  await saveCloudDraft({ ...newProject(), active: true, publicationId: 'hannah', recipientName: 'Hannah', captionSize: 125 }, session);
   const body = JSON.parse(fetcher.mock.calls[0]![1].body);
   expect(body.id).toBe('hannah');
   expect(body.owner_id).toBe('owner');
   expect(body.draft_project.recipientName).toBe('Hannah');
+  expect(body.draft_project.captionSize).toBe(125);
   expect(body).not.toHaveProperty('published_project');
   expect(body).not.toHaveProperty('recipient_token');
   expect(body).not.toHaveProperty('status');
@@ -48,7 +49,7 @@ it('restores a published Keep with its voice, media, settings and original viewi
   vi.mocked(putBlob).mockResolvedValue(true);
   vi.stubGlobal('URL', { createObjectURL: vi.fn(() => 'blob:restored') });
   vi.stubGlobal('fetch', vi.fn()
-    .mockResolvedValueOnce(response([{ recipient_token: 'original-link', published_project: { recipientName: 'Hannah', voicePath: 'owner/publications/hannah/voice', voiceDuration: 60, musicMood: 'Warm', memories: [{ id: 'original-photo', kind: 'image', storagePath: 'owner/publications/hannah/photo', focusX: 20 }], readMemoryOrder: ['original-photo'] } }]))
+    .mockResolvedValueOnce(response([{ recipient_token: 'original-link', published_project: { recipientName: 'Hannah', voicePath: 'owner/publications/hannah/voice', voiceDuration: 60, musicMood: 'Warm', captionSize: 125, memories: [{ id: 'original-photo', kind: 'image', storagePath: 'owner/publications/hannah/photo', focusX: 20 }], readMemoryOrder: ['original-photo'] } }]))
     .mockResolvedValueOnce(response([]))
     .mockResolvedValueOnce(new Response(new Blob(['photo'])))
     .mockResolvedValueOnce(new Response(new Blob(['voice']))));
@@ -57,6 +58,7 @@ it('restores a published Keep with its voice, media, settings and original viewi
   expect(result.publicationId).toBe('hannah');
   expect(result.publicationToken).toBe('original-link');
   expect(result.finalVoiceRecording?.durationSec).toBe(60);
+  expect(result.captionSize).toBe(125);
   expect(result.memories[0]?.focusX).toBe(20);
   expect(result.memories[0]?.persisted).toBe(true);
   expect(result.readMemoryOrder).toEqual([result.memories[0]?.id]);

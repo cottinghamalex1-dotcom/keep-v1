@@ -26,12 +26,12 @@ export type PlayerMedia = { url: string; kind: "image" | "video"; isSelfie?: boo
 type Props = {
   name: string; from: string; year: string; onExit: () => void; onFinish?: () => void; recipient?: boolean; style?: string; captions?: string;
   subtitle?: string | undefined; openingMessage?: string | undefined; closingLine?: string | undefined; media?: PlayerMedia[] | undefined; audioUrl?: string | undefined; audioDuration?: number | undefined; lines?: string[] | undefined;
-  captionCues?: CaptionCue[] | undefined; musicMood?: string | undefined; voiceMusicBalance?: string | undefined; voiceVolume?: number | undefined; musicVolume?: number | undefined; captionPosition?: "top" | "middle" | "bottom" | undefined; captionLines?: number | undefined; audioMix?: AudioMix | undefined;
+  captionCues?: CaptionCue[] | undefined; musicMood?: string | undefined; voiceMusicBalance?: string | undefined; voiceVolume?: number | undefined; musicVolume?: number | undefined; captionPosition?: "top" | "middle" | "bottom" | undefined; captionLines?: number | undefined; captionSize?: number | undefined; audioMix?: AudioMix | undefined;
   /** Notify the recipient experience once the first real photo/video frame can be displayed. */
   onOpeningFrameReady?: (() => void) | undefined;
 };
 
-export function KeepPlayer({ name, from, year, onExit, onFinish, recipient = false, style = "Natural", captions = "Reel", subtitle, openingMessage, closingLine, media, audioUrl, audioDuration, lines, captionCues = [], musicMood = "Warm + Nostalgic", voiceMusicBalance = "Balanced", voiceVolume = 60, musicVolume = 60, captionPosition = "bottom", captionLines = 2, audioMix, onOpeningFrameReady }: Props) {
+export function KeepPlayer({ name, from, year, onExit, onFinish, recipient = false, style = "Natural", captions = "Reel", subtitle, openingMessage, closingLine, media, audioUrl, audioDuration, lines, captionCues = [], musicMood = "Warm + Nostalgic", voiceMusicBalance = "Balanced", voiceVolume = 60, musicVolume = 60, captionPosition = "bottom", captionLines = 2, captionSize = 100, audioMix, onOpeningFrameReady }: Props) {
   const cinematicOpening = !!recipient && !!audioUrl;
   const introSeconds = audioUrl ? keepOpeningLeadSeconds(openingMessage, cinematicOpening) : 0;
   const [scene, setScene] = useState(0);
@@ -409,7 +409,7 @@ export function KeepPlayer({ name, from, year, onExit, onFinish, recipient = fal
             </button>
           </div>
         </div>
-      </div>{scene >= 0 && <>{!media?.length && <div className="absolute inset-x-7 top-28 text-center eyebrow mb-5 text-foreground/80">{memoryLabels[scene % memoryLabels.length]}</div>}<KeepFilmCaption text={captionText??""} style={captions} position={captionPosition} lines={captionLines} /></>}
+      </div>{scene >= 0 && <>{!media?.length && <div className="absolute inset-x-7 top-28 text-center eyebrow mb-5 text-foreground/80">{memoryLabels[scene % memoryLabels.length]}</div>}<KeepFilmCaption text={captionText??""} style={captions} position={captionPosition} lines={captionLines} captionSize={captionSize} /></>}
       <div aria-hidden={!controlsVisible} inert={!controlsVisible} className={`pointer-events-none absolute inset-x-7 z-30 text-white drop-shadow-[0_1px_3px_rgba(0,0,0,.65)] transition-opacity duration-500 ease-out ${controlsVisible ? "opacity-100" : "opacity-0"}`} style={{ bottom: "max(22px, env(safe-area-inset-bottom))" }}>
         <div className="mb-2 flex items-center justify-between text-[11px] font-medium tabular-nums tracking-[.025em]">
           <span>{stamp(shownSeconds)}</span>

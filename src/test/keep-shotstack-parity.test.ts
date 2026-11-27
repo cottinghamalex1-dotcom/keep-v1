@@ -47,6 +47,16 @@ describe("editor to MP4 composition parity",()=>{
     expect(clip.asset.font).toMatchObject({family:"Playfair-Display-Italic",color:"#FFFFFF",size:90,style:"italic"});
     expect(clip.length).toBeGreaterThan(0);
   });
+  it.each([50, 75, 100, 125, 150])("preserves caption font and position at %i%% size in the MP4", captionSize => {
+    const project={...p(),captionSize};
+    const layout=captionLayout(project.captionStyle,project.captionPosition,project.captionLines,captionSize);
+    const base=captionLayout(project.captionStyle,project.captionPosition,project.captionLines);
+    expect(layout).toEqual({...base,fontSize:Math.round(base.fontSize*captionSize/100)});
+    const clip=buildShotstackEdit(project,s()).timeline.tracks.flatMap(t=>t.clips).find(c=>c.asset.text===project.captionCues[0]!.text)!;
+    expect(clip.asset.font).toMatchObject({family:"Playfair-Display-Italic",size:layout.fontSize,style:"italic"});
+    expect(clip.position).toBe("bottom");
+    expect(clip.width).toBe(Math.round(1080*base.width));
+  });
   it("selects the actual authored object-cover crop and interpolates the editor's exact zoom",()=>{
     const project=p(),edit=buildShotstackEdit(project,s());
     const clip=edit.timeline.tracks.flatMap(t=>t.clips).find(c=>c.asset.src===s().memoryUrls.one)!;
@@ -97,6 +107,7 @@ describe("editor to MP4 composition parity",()=>{
     const current=await renderRevisionHash(project);
     expect(current).not.toBe(old);expect(current).toBe(await recipientHash(project));
     expect(current).not.toBe(await renderRevisionHash({...project,captionPosition:"top"}));
+    expect(current).not.toBe(await renderRevisionHash({...project,captionSize:125}));
   });
   it("extracts dimensions from saved photo headers and respects rotated video metadata",()=>{
     const bytes=new Uint8Array(24);bytes.set([137,80,78,71,13,10,26,10]);const view=new DataView(bytes.buffer);

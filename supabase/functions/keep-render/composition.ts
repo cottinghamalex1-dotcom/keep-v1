@@ -139,8 +139,16 @@ export const FILM_FONTS = {
   sans: "DM Sans", display: "Playfair Display",
 } as const;
 export type CaptionPosition = "top" | "middle" | "bottom";
-export function captionLayout(style: string, position: CaptionPosition = "bottom", lines = 2) {
-  const size = style === "Film" ? 108 : style === "Story" ? 90 : style === "Minimal" ? 60 : 72;
+export const CAPTION_SIZE_MIN = 50;
+export const CAPTION_SIZE_MAX = 150;
+export const CAPTION_SIZE_DEFAULT = 100;
+/** Percent of the selected style's original font size; legacy films stay at 100%. */
+export function normalizeCaptionSize(value: unknown): number {
+  return Math.round(clamp(finite(value, CAPTION_SIZE_DEFAULT), CAPTION_SIZE_MIN, CAPTION_SIZE_MAX));
+}
+export function captionLayout(style: string, position: CaptionPosition = "bottom", lines = 2, captionSize = CAPTION_SIZE_DEFAULT) {
+  const baseSize = style === "Film" ? 108 : style === "Story" ? 90 : style === "Minimal" ? 60 : 72;
+  const size = Math.round(baseSize * normalizeCaptionSize(captionSize) / 100);
   return {
     font: style === "Film" || style === "Story" ? FILM_FONTS.display : FILM_FONTS.sans,
     fontSize: size, weight: style === "Clean" ? 500 : style === "Reel" ? 600 : 400,

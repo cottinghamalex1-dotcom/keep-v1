@@ -2,11 +2,11 @@ import { captionLayout, FILM_WIDTH, type CaptionPosition } from "../../supabase/
 
 /** Identical relative typography and positioning at every preview size and
  * at the final portrait render size. Controls are outside this composition. */
-export function KeepFilmCaption({text, style, position="bottom", lines=2}: {
-  text:string; style:string; position?:CaptionPosition|undefined; lines?:number|undefined;
+export function KeepFilmCaption({text, style, position="bottom", lines=2, captionSize=100}: {
+  text:string; style:string; position?:CaptionPosition|undefined; lines?:number|undefined; captionSize?:number|undefined;
 }) {
   if (!text || style === "None") return null;
-  const layout = captionLayout(style, position, lines);
+  const layout = captionLayout(style, position, lines, captionSize);
   return <div className="pointer-events-none absolute left-1/2 -translate-x-1/2 text-center"
     style={{width: layout.width*100+"%", top: layout.top*100+"%", transform: layout.align==="bottom"?"translateY(-100%)":layout.align==="middle"?"translateY(-50%)":undefined}}>
     <p className="keep-caption-visible" style={{

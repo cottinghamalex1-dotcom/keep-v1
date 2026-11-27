@@ -1,10 +1,11 @@
 import { useState } from "react";
 import { Check, ChevronDown, ChevronLeft, ChevronRight, Loader2, Play, RotateCcw, X } from "lucide-react";
 import type { CaptionCue } from "@/lib/keep-project";
+import { CAPTION_SIZE_MIN, CAPTION_SIZE_MAX, CAPTION_SIZE_DEFAULT, normalizeCaptionSize } from "../../supabase/functions/keep-render/composition";
 
 type Props = {
   cues: CaptionCue[]; time: number; style: string; position: "top" | "middle" | "bottom";
-  maxLines: number; wordsPerCue: number; syncing: boolean; syncError: boolean;
+  maxLines: number; captionSize?: number | undefined; wordsPerCue: number; syncing: boolean; syncError: boolean;
   timingEstimated: boolean; hasVoice: boolean; canRestore: boolean;
   syncProgress?: { completed: number; total: number } | null;
   syncErrorMessage?: string;
@@ -12,7 +13,7 @@ type Props = {
   onChangeCaption: (index: number, text: string) => void;
   onChangeCaptionTime: (index: number, start: number, end: number) => void;
   onChangeStyle: (style: string) => void; onChangePosition: (position: "top" | "middle" | "bottom") => void;
-  onChangeLines: (lines: number) => void; onRegroup: (wordsPerCue: number) => void; onRestore: () => void;
+  onChangeLines: (lines: number) => void; onChangeSize: (size: number) => void; onRegroup: (wordsPerCue: number) => void; onRestore: () => void;
   onRetrySync: () => void; onResync: () => void; onPreviewSync: () => void;
 };
 const coreStyles = ["Clean", "Film", "Story", "Minimal"];
@@ -20,10 +21,11 @@ const extraStyles = ["Reel", "None"];
 const format = (seconds: number) => `${Math.floor(seconds / 60)}:${String(Math.floor(seconds % 60)).padStart(2, "0")}`;
 
 export function KeepCaptionEditor({
-  cues, time, style, position, maxLines, wordsPerCue, syncing, syncError, timingEstimated, hasVoice, canRestore, syncProgress, syncErrorMessage,
+  cues, time, style, position, maxLines, captionSize, wordsPerCue, syncing, syncError, timingEstimated, hasVoice, canRestore, syncProgress, syncErrorMessage,
   onClose, onSeek, onChangeCaption, onChangeCaptionTime, onChangeStyle, onChangePosition,
-  onChangeLines, onRegroup, onRestore, onRetrySync, onResync, onPreviewSync,
+  onChangeLines, onChangeSize, onRegroup, onRestore, onRetrySync, onResync, onPreviewSync,
 }: Props) {
+  const size = normalizeCaptionSize(captionSize);
   const [moreStyles, setMoreStyles] = useState(false);
   const [confirmResync, setConfirmResync] = useState(false);
   const current = cues.reduce((last, cue, index) => time + .01 >= cue.start ? index : last, 0);
@@ -80,6 +82,23 @@ export function KeepCaptionEditor({
     </div>}
     <div className="mt-3 grid grid-cols-4 gap-1.5" aria-label="Caption styles">{coreStyles.map(styleButton)}</div>
     {extraStyles.includes(style) && <div className="mt-2 grid grid-cols-2 gap-2">{extraStyles.map(styleButton)}</div>}
+    <div className="mt-3 rounded-xl border border-[#55493F] bg-[#26231F] px-3 py-2.5">
+      <div className="flex items-center justify-between gap-3">
+        <label htmlFor="keep-caption-size" className="text-[12px] font-medium text-[#F5E5D1]">Caption size</label>
+        <div className="flex items-center gap-3">
+          <span className="text-[11px] tabular-nums text-[#E2D8CC]">{size}%</span>
+          <button type="button" onClick={() => onChangeSize(CAPTION_SIZE_DEFAULT)} disabled={size === CAPTION_SIZE_DEFAULT}
+            className="min-h-9 text-[11px] font-medium text-[#D7C2A6] disabled:opacity-40">Reset size</button>
+        </div>
+      </div>
+      <div className="flex items-center gap-3">
+        <span aria-hidden="true" className="text-xs text-[#D7C2A6]">A</span>
+        <input id="keep-caption-size" type="range" min={CAPTION_SIZE_MIN} max={CAPTION_SIZE_MAX} step={5}
+          value={size} aria-valuetext={`${size}% of original`} onChange={event => onChangeSize(Number(event.target.value))}
+          className="h-10 w-full min-w-0 accent-[#E2C9A9]" />
+        <span aria-hidden="true" className="text-xl text-[#D7C2A6]">A</span>
+      </div>
+    </div>
     <div className="mt-2 grid grid-cols-3 gap-1.5" aria-label="Caption position">
       {(["top", "middle", "bottom"] as const).map(pos => <button type="button" key={pos} aria-pressed={position === pos}
         onClick={() => onChangePosition(pos)} className={`keep-studio-choice min-h-9 px-2 text-[11px] capitalize ${position === pos ? "keep-studio-choice--selected" : ""}`}>{pos}</button>)}

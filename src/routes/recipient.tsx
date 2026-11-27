@@ -47,5 +47,5 @@ function Recipient() {
     subtitle={project.occasion} openingMessage={project.openingMessage} closingLine={project.closingLine} media={project.memories} readMedia={readMedia} audioUrl={project.voiceUrl} renderedVideoUrl={project.renderedVideoUrl} audioDuration={project.voiceDuration}
     messageParagraphs={project.messageParagraphs} style={project.visualStyle} captions={project.captionStyle} lines={project.captionCues.map(c=>c.text)} captionCues={project.captionCues}
     musicMood={project.musicMood} voiceMusicBalance={project.voiceMusicBalance} voiceVolume={project.voiceVolume} musicVolume={project.musicVolume}
-    captionPosition={project.captionPosition} captionLines={project.captionLines} audioMix={project.audioMix} persistVisit={false} onFirstExperience={reportFirstExperience} />;
+    captionPosition={project.captionPosition} captionLines={project.captionLines} captionSize={project.captionSize} audioMix={project.audioMix} persistVisit={false} onFirstExperience={reportFirstExperience} />;
 }
