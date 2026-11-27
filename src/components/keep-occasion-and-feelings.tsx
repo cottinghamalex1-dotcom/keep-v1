@@ -123,8 +123,7 @@ export function KeepHeartAndFeelings({
       <div className="mb-10 keep-page-heading">
         <h1 className="keep-editorial-title">What is the heart behind this Keep?</h1>
         <p className="keep-page-description mt-5" id="keep-heart-question">
-          <span className="block">What is this Keep all about?</span>
-          <span className="mt-1 block">What would you like them to remember?</span>
+          What is this Keep all about? What would you like them to remember?
         </p>
       </div>
       <textarea ref={textArea} aria-labelledby="keep-heart-question" value={intent}
