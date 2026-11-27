@@ -4,7 +4,7 @@ import { KeepCardFront } from "@/components/keep-card-front";
 import { Button } from "@/components/ui/button";
 import type { KeepProject } from "@/lib/keep-project";
 
-type CardPreviewProject = Pick<KeepProject, "publicationToken" | "openingMessage" | "engraveOpeningMessage"> & {
+type CardPreviewProject = Pick<KeepProject, "publicationToken" | "openingMessage" | "engraveOpeningMessage" | "cardEngravingLayout"> & {
   cardEngraving?: readonly string[];
 };
 
@@ -53,7 +53,7 @@ export function KeepEditorCardPreview({ project, variant = "editor" }: {
           </div>
           <figure className="mt-6 rounded-[20px] border border-[#D8CCBE] bg-[#F5EDE3]/65 px-3 pb-5 pt-6 sm:px-6">
             <div className="mx-auto w-full max-w-[360px]">
-              <KeepCardFront engraving={project.cardEngraving ?? []} openingMessage={project.openingMessage ?? ""} showOpeningMessage={!!project.engraveOpeningMessage} />
+              <KeepCardFront engraving={project.cardEngraving ?? []} layout={project.cardEngravingLayout} openingMessage={project.openingMessage ?? ""} showOpeningMessage={!!project.engraveOpeningMessage} />
             </div>
             <figcaption className="mt-7 text-center text-[10px] font-semibold uppercase tracking-[.15em] text-[#8B725A]">Front · Laser engraving preview</figcaption>
           </figure>

@@ -1,3 +1,4 @@
+import type { CardEngravingLayout } from "./keep-card-engraving";
 import { activeKeepSession } from "@/lib/keep-cloud";
 import { defaultKeepOrder, keepOrderQuote, normalizeExtraCards, type KeepOrderSelection } from "@/lib/keep-pricing";
 
@@ -17,6 +18,8 @@ export type CheckoutKeep = {
     contributors?: unknown[];
     openingMessage?: string;
     engraveOpeningMessage?: boolean;
+    cardEngraving?: string[];
+    cardEngravingLayout?: CardEngravingLayout;
   };
 };
 

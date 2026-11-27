@@ -70,6 +70,19 @@ describe("Consistent Keep navigation", () => {
     expect(screen.queryByText("$94")).toBeNull();
     expect(screen.getByRole("button", { name: "Checkout opening soon" })).toBeDisabled();
   });
+  it("previews the saved engraving order in Signature checkout only", () => {
+    sessionStorage.clear();
+    render(<KeepPurchase keep={{
+      id: "saved-keep", recipient_name: "Mom", recipient_token: "saved-link",
+      published_project: { musicMood: "Intentional", voiceMode: "solo",
+        cardEngraving: ["MOM", "", "2026"], cardEngravingLayout: { title: "THANK YOU", order: ["date", "title", "to", "from"] },
+      },
+    }} />);
+    fireEvent.click(screen.getByRole("button", { name: /Card details & extras/ }));
+    expect(screen.queryByLabelText("Preview of the front of your Keep card")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: /Signature Keep/ }));
+    expect(screen.getByLabelText("Preview of the front of your Keep card").textContent).toBe("2026THANK YOUMOM");
+  });
   it("removes the three unwanted links from the dashboard menu", async () => {
     await openMenu("/app");
     expect(screen.queryByText("Keeps given")).toBeNull();

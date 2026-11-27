@@ -1,12 +1,13 @@
 import { useEffect, useRef, useState } from "react";
-import { ArrowRight, Check, Loader2, RotateCcw, Sparkles, X } from "lucide-react";
+import { ArrowDown, ArrowRight, ArrowUp, Check, Loader2, RotateCcw, Sparkles, X } from "lucide-react";
 import { fetchOpeningSuggestions } from "@/lib/keep-ai";
 import { createPortal } from "react-dom";
 import type { KeepProject } from "@/lib/keep-project";
 import { Button } from "@/components/ui/button";
 import { KeepCardFront } from "@/components/keep-card-front";
+import { engravingLayout, engravingValues, engravingFieldDetails, orderedEngravingLines, type EngravingField } from "@/lib/keep-card-engraving";
 
-type OpeningFields = Pick<KeepProject, "openingMessage" | "closingLine" | "engraveOpeningMessage" | "openingMessageSuggestions" | "openingSuggestionsFor" | "cardEngraving">;
+type OpeningFields = Pick<KeepProject, "openingMessage" | "closingLine" | "engraveOpeningMessage" | "openingMessageSuggestions" | "openingSuggestionsFor" | "cardEngraving" | "cardEngravingLayout">;
 type Props = {
   project: KeepProject;
   onUpdate: (updates: Partial<OpeningFields>) => void;
@@ -42,9 +43,19 @@ export function KeepOpeningPersonalization({ project, onUpdate, disabled }: Prop
     openingMessage: message,
     engraveOpeningMessage: !!message.trim() && (!selected || engraved),
   });
-  const editEngraving = (index: number, value: string) => onUpdate({
-    cardEngraving: Array.from({ length: 3 }, (_, i) => i === index ? value.toUpperCase() : project.cardEngraving[i] ?? ""),
-  });
+  const layout = engravingLayout(project.cardEngravingLayout);
+  const values = engravingValues(project.cardEngraving, layout);
+  const editEngraving = (field: EngravingField, value: string) => {
+    const next = { ...values, [field]: value.toUpperCase() };
+    onUpdate({ cardEngraving: [next.to, next.from, next.date], cardEngravingLayout: { ...layout, title: next.title } });
+  };
+  const moveEngraving = (index: number, direction: -1 | 1) => {
+    const order = [...layout.order];
+    const target = index + direction;
+    if (target < 0 || target >= order.length) return;
+    [order[index], order[target]] = [order[target]!, order[index]!];
+    onUpdate({ cardEngravingLayout: { ...layout, order } });
+  };
   useEffect(() => {
     if (isCached || !project.messageParagraphs.some(p => p.trim()) || attempted.current === key) return;
     attempted.current = key;
@@ -82,7 +93,7 @@ export function KeepOpeningPersonalization({ project, onUpdate, disabled }: Prop
         </button>
       </div>}
       <button type="button" disabled={disabled} aria-pressed={!selected} onClick={() => choose("")} className={`mt-5 flex min-h-12 w-full items-center justify-between gap-3 rounded-xl border px-4 py-3 text-left text-xs font-medium ${!selected ? "border-[#96795D] bg-white" : "border-[#DFD2C4] bg-white/70"}`}>
-        No opening message — name and details only
+        No opening message — card details only
         {!selected && <Check className="size-4 shrink-0" />}
       </button>
     </section>
@@ -128,6 +139,7 @@ export function KeepOpeningPersonalization({ project, onUpdate, disabled }: Prop
         <div className="mx-auto w-full max-w-[360px]">
           <KeepCardFront
             engraving={project.cardEngraving}
+            layout={layout}
             openingMessage={project.openingMessage}
             showOpeningMessage={engraved}
           />
@@ -135,30 +147,37 @@ export function KeepOpeningPersonalization({ project, onUpdate, disabled }: Prop
         <figcaption className="mt-7 text-center">
           <p className="text-[10px] font-semibold uppercase tracking-[.15em] text-[#8B725A]">Front · Laser engraving preview</p>
           <p className="mx-auto mt-2 max-w-[290px] text-[11px] leading-5 text-[#766A5D]">
-            {engraved ? "Your opening line will be laser-engraved on the card alongside your personal details." : "Your engraved card will show only the personal details you enter below."}
+            {engraved ? "Your opening line will be laser-engraved on the card alongside your personal details." : orderedEngravingLines(project.cardEngraving, layout).length ? "Your engraved card will show only the personal details you enter below." : "Leave every field blank and the card will show only the Keep logo."}
           </p>
         </figcaption>
       </figure>
       <div className="space-y-3 rounded-[20px] border border-[#D8CCBE] bg-white/60 p-4">
         <h3 className="font-display text-[23px] leading-tight">Personalize your engraving.</h3>
-        <p className="text-xs leading-5 text-muted-foreground">Edit the three optional detail lines below. Your card preview updates as you type.</p>
+        <p className="text-xs leading-5 text-muted-foreground">All four fields are optional. Leave any blank to omit it, and use the arrows to arrange them in any order. Your card preview updates as you type.</p>
         <label className="flex items-start gap-3 rounded-xl border border-[#DFD2C4] bg-[#F8F3EC] p-3 text-xs leading-5">
           <input type="checkbox" className="mt-0.5 size-4 shrink-0 accent-[#665547]" checked={engraved} disabled={disabled || !selected}
             onChange={e => onUpdate({ engraveOpeningMessage: e.target.checked })} />
           <span><strong className="block font-medium">Include my opening line on the card</strong><span className="text-muted-foreground">Turning this off keeps the opening line in your film.</span></span>
         </label>
-        {[
-          { label: "Name or dedication", placeholder: "MOM" },
-          { label: "From", placeholder: "FROM ALEX" },
-          { label: "Date or year", placeholder: "2026" },
-        ].map(({ label, placeholder }, i) => (
-          <label key={label} className="block text-xs font-medium text-[#594A3B]">
-            {label}
-            <input type="text" maxLength={Math.max(36, project.cardEngraving[i]?.length ?? 0)} disabled={disabled}
-              value={project.cardEngraving[i] ?? ""} onChange={e => editEngraving(i, e.target.value)} placeholder={placeholder}
-              className="mt-1.5 w-full rounded-xl border border-border bg-background px-3 py-3 text-sm uppercase outline-none focus:border-[#A38568]" />
-          </label>
-        ))}
+        <div role="group" aria-label="Engraving fields in card order" className="space-y-4">
+          {layout.order.map((field, i) => {
+            const { label, placeholder } = engravingFieldDetails[field];
+            return <div key={field} className="flex items-end gap-2">
+              <label className="min-w-0 flex-1 text-xs font-medium text-[#594A3B]">
+                {label} <span className="font-normal text-muted-foreground">(optional)</span>
+                <input type="text" aria-label={label} maxLength={Math.max(36, values[field].length)} disabled={disabled}
+                  value={values[field]} onChange={e => editEngraving(field, e.target.value)} placeholder={placeholder}
+                  className="mt-1.5 w-full rounded-xl border border-border bg-background px-3 py-3 text-sm uppercase outline-none focus:border-[#A38568]" />
+              </label>
+              <div className="flex shrink-0 gap-1">
+                <button type="button" aria-label={`Move ${label} up`} disabled={disabled || i === 0} onClick={() => moveEngraving(i, -1)}
+                  className="flex size-11 items-center justify-center rounded-lg border border-border bg-background text-[#594A3B] disabled:opacity-30"><ArrowUp className="size-4" /></button>
+                <button type="button" aria-label={`Move ${label} down`} disabled={disabled || i === layout.order.length - 1} onClick={() => moveEngraving(i, 1)}
+                  className="flex size-11 items-center justify-center rounded-lg border border-border bg-background text-[#594A3B] disabled:opacity-30"><ArrowDown className="size-4" /></button>
+              </div>
+            </div>;
+          })}
+        </div>
       </div>
       <p className="text-[11px] leading-5 text-muted-foreground">Your closing line stays in the film. Personalized engraving is exclusive to Signature.</p>
     </section>

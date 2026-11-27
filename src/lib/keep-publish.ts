@@ -7,7 +7,7 @@ import { normalizeCaptionSize, CAPTION_SIZE_DEFAULT } from '../../supabase/funct
 const endpoint = 'https://lwkzhpwugtosbidxvdcr.supabase.co';
 const publicKey = 'sb_publishable_K8_SWJByLhV78h7gY4NySw_4sgjEVTi';
 export const viewingLink = (token: string) => `https://keep-v1.vercel.app/recipient?keep=${encodeURIComponent(token)}`;
-export type PublishedProject = Pick<KeepProject, 'recipientName' | 'openingMessage' | 'closingLine' | 'engraveOpeningMessage' | 'occasion' | 'messageParagraphs' | 'readMemoryOrder' | 'musicMood' | 'voiceMusicBalance' | 'voiceVolume' | 'musicVolume' | 'audioMix' | 'captionStyle' | 'captionPosition' | 'captionLines' | 'captionSize' | 'captionCues' | 'visualStyle' | 'cardEngraving' | 'voiceMode' | 'contributors' | 'paragraphSpeakers'> & {
+export type PublishedProject = Pick<KeepProject, 'recipientName' | 'openingMessage' | 'closingLine' | 'engraveOpeningMessage' | 'occasion' | 'messageParagraphs' | 'readMemoryOrder' | 'musicMood' | 'voiceMusicBalance' | 'voiceVolume' | 'musicVolume' | 'audioMix' | 'captionStyle' | 'captionPosition' | 'captionLines' | 'captionSize' | 'captionCues' | 'visualStyle' | 'cardEngraving' | 'cardEngravingLayout' | 'voiceMode' | 'contributors' | 'paragraphSpeakers'> & {
   memories: MediaItem[]; voiceUrl?: string; renderedVideoUrl?: string; voiceDuration: number;
 };
 async function boundedFetch(url: string, init: RequestInit, timeoutMs = 120_000): Promise<Response> {
@@ -31,7 +31,7 @@ export function publicationSettings(p: KeepProject) {
     // Omit the unchanged default to preserve fingerprints of previously rendered Keeps.
     ...(normalizeCaptionSize(p.captionSize) !== CAPTION_SIZE_DEFAULT ? {captionSize: normalizeCaptionSize(p.captionSize)} : {}),
     audioMix: p.audioMix, captionStyle: p.captionStyle, captionPosition: p.captionPosition, captionLines: p.captionLines,
-    captionCues: p.captionCues, visualStyle: p.visualStyle, cardEngraving: p.cardEngraving, voiceDuration: p.finalVoiceRecording?.durationSec ?? 0 };
+    captionCues: p.captionCues, visualStyle: p.visualStyle, cardEngraving: p.cardEngraving, ...(p.cardEngravingLayout ? { cardEngravingLayout: p.cardEngravingLayout } : {}), voiceDuration: p.finalVoiceRecording?.durationSec ?? 0 };
 }
 // Hash only saved source identities and the authored film settings, not temporary
 // URLs, timestamps, or private interview answers. A no-op Done must not replace

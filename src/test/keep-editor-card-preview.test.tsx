@@ -47,3 +47,11 @@ it("allows a finalized card without an opening inscription and keeps the engravi
   expect(card).toHaveTextContent("MOM");
   expect(card).not.toHaveTextContent("You made every day special.");
 });
+
+it("shows the same saved title and reordered details from My Keeps", () => {
+  render(<KeepEditorCardPreview variant="library" project={{ ...project, publicationToken: "saved-link",
+    cardEngravingLayout: { title: "HAPPY BIRTHDAY", order: ["date", "title", "to", "from"] }, engraveOpeningMessage: false }} />);
+  fireEvent.click(screen.getByRole("button", { name: /Preview Keep Card/ }));
+  const card = screen.getByLabelText("Preview of the front of your Keep card");
+  expect(card.textContent).toBe("2026HAPPY BIRTHDAYMOMFROM ALEX");
+});

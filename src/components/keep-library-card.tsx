@@ -1,13 +1,14 @@
 import { CalendarDays, ChevronDown, Gift } from "lucide-react";
 import { FirstExperienceBadge } from "@/components/keep-gift-activity";
 import { KeepLibraryActions } from "@/components/keep-library-actions";
+import type { CardEngravingLayout } from "@/lib/keep-card-engraving";
 import type { GiftActivity } from "@/lib/keep-gift-activity";
 
 export type KeepLibraryItem = {
   id: string; recipient_name: string | null; occasion?: string | null;
   status: string; recipient_token: string; published_at: string | null;
   created_at?: string | null;
-  published_project?: { openingMessage?: string; messageParagraphs?: string[]; cardEngraving?: string[]; engraveOpeningMessage?: boolean } | null;
+  published_project?: { openingMessage?: string; messageParagraphs?: string[]; cardEngraving?: string[]; cardEngravingLayout?: CardEngravingLayout; engraveOpeningMessage?: boolean } | null;
 };
 type Props = {
   keep: KeepLibraryItem;

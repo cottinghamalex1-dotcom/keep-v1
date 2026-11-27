@@ -1,5 +1,6 @@
 import { webcrypto } from 'node:crypto';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { orderedEngravingLines, type CardEngravingLayout } from '@/lib/keep-card-engraving';
 import { newProject } from '@/lib/keep-project';
 import { publishKeep, publicationSettings, publicationFingerprint, viewingLink } from '@/lib/keep-publish';
 import { activeKeepSession } from '@/lib/keep-cloud';
@@ -64,6 +65,20 @@ describe('Publishing a Keep',()=>{
      const delivered=manifestSchema.parse(JSON.parse(JSON.stringify(published)));
      expect(delivered.audioMix?.voiceTone).toBe(voiceTone);
    }
+ });
+ it('persists all four optional engraving fields and their exact order without changing legacy positions', async()=>{
+   const layout: CardEngravingLayout = {title:'HAPPY BIRTHDAY',order:['date','title','from','to']};
+   const p={...project(),cardEngraving:['HANNAH','FROM ALEX','2026'],cardEngravingLayout:layout};
+   const payload={...publicationSettings(p),voicePath:`${owner}/publications/${id}/version/voice`,memories:[{id:'photo',kind:'image',source:'upload',storagePath:`${owner}/publications/${id}/version/photo`}]};
+   const saved=manifestSchema.parse(payload);
+   const restored=manifestSchema.parse(JSON.parse(JSON.stringify(saved)));
+   expect(restored.cardEngraving).toEqual(['HANNAH','FROM ALEX','2026']);
+   expect(restored.cardEngravingLayout).toEqual(layout);
+   expect(orderedEngravingLines(restored.cardEngraving,restored.cardEngravingLayout)).toEqual(['2026','HAPPY BIRTHDAY','FROM ALEX','HANNAH']);
+   expect(await publicationFingerprint(p)).not.toBe(await publicationFingerprint({...p,cardEngravingLayout:{...layout,order:['title','date','from','to']}}));
+   expect(manifestSchema.safeParse({...payload,cardEngravingLayout:{title:'',order:['title','to','to','date']}}).success).toBe(false);
+   expect(manifestSchema.safeParse({...payload,cardEngraving:['','',''],cardEngravingLayout:{...layout,title:''}}).success).toBe(true);
+   expect(manifestSchema.parse({...payload,cardEngravingLayout:undefined}).cardEngravingLayout).toBeUndefined();
  });
  it('does not publish metadata after a failed upload',async()=>{
    vi.mocked(fetch).mockResolvedValue(new Response('',{status:500}));
