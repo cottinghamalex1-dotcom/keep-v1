@@ -1,9 +1,13 @@
 import { ArrowRight, BookOpen, CalendarDays, Check, ChevronDown, ExternalLink, Heart, Link2, PenLine, Plus, Sparkles, Trash2 } from "lucide-react";
 import { viewingLink } from "@/lib/keep-publish";
 import type { KeepLibraryItem } from "@/components/keep-library-card";
+import { FirstExperienceBadge, KeepGiftTimeline } from "@/components/keep-gift-activity";
+import type { GiftActivities, GiftActivity } from "@/lib/keep-gift-activity";
 
 type Props = {
   keeps: readonly KeepLibraryItem[];
+  giftActivities?: GiftActivities;
+  giftActivityFailed?: boolean;
   thumbnails: Readonly<Record<string, string>>;
   expandedId: string | null;
   copiedId: string | null;
@@ -22,10 +26,12 @@ const formatCreated = (date?: string | null) => {
 };
 
 function CreationCard({
-  keep, thumbnail, expanded, copied, deleting, onToggle, onCopy, onDelete,
+  keep, thumbnail, expanded, copied, deleting, onToggle, onCopy, onDelete, activity, activityFailed,
 }: {
   keep: KeepLibraryItem;
   thumbnail?: string;
+  activity?: GiftActivity;
+  activityFailed?: boolean;
   expanded: boolean;
   copied: boolean;
   deleting: boolean;
@@ -63,6 +69,7 @@ function CreationCard({
           <CalendarDays className="size-3.5 shrink-0" aria-hidden="true" />
           {formatCreated(keep.created_at || keep.published_at)}
         </span>
+        {published && <FirstExperienceBadge activity={activity} />}
       </span>
       <span className="flex size-8 shrink-0 items-center justify-center rounded-full border border-[#E3D8CB] bg-[#F7F0E7] text-[#73604E] transition-colors group-hover:bg-[#EFE3D4]" aria-hidden="true">
         <ChevronDown className={`size-4 transition-transform ${expanded ? "rotate-180" : ""}`} strokeWidth={1.7}/>
@@ -86,6 +93,7 @@ function CreationCard({
       {excerpt && <div className="mb-4 border-l-2 border-[#CBB295] pl-3.5">
         <p className="line-clamp-4 font-display text-[19px] leading-7 text-[#65503F]">{excerpt}</p>
       </div>}
+      {published && <KeepGiftTimeline activity={activity} failed={activityFailed} />}
       <div className="grid gap-2">
         <a href={`/?edit=${encodeURIComponent(keep.id)}`}
           className="flex min-h-[51px] items-center justify-center gap-2 rounded-xl bg-[#211B17] px-4 text-[13px] font-medium text-[#FFF8F0] transition-colors hover:bg-[#3B3028]">
@@ -117,7 +125,7 @@ function CreationCard({
 /** Your Keeps is the digital-creation archive, not the physical-card collection.
  * Keep the design consistent with Given/Received without conflating their counts. */
 export function KeepMyKeepsCollection({
-  keeps, thumbnails, expandedId, copiedId, deletingId, onToggle, onCopy, onDelete,
+  keeps, thumbnails, expandedId, copiedId, deletingId, onToggle, onCopy, onDelete, giftActivities, giftActivityFailed,
 }: Props) {
   const count = keeps.length;
   const ready = keeps.filter(keep => keep.status === "ready" && !!keep.published_at).length;
@@ -161,7 +169,7 @@ export function KeepMyKeepsCollection({
 
     {count ? <div className="space-y-3">
       {keeps.map(keep => <CreationCard
-        key={keep.id} keep={keep} thumbnail={thumbnails[keep.id]}
+        key={keep.id} keep={keep} thumbnail={thumbnails[keep.id]} activity={giftActivities?.[keep.id]} activityFailed={giftActivityFailed}
         expanded={expandedId === keep.id} copied={copiedId === keep.id}
         deleting={deletingId === keep.id}
         onToggle={() => onToggle(keep.id)}

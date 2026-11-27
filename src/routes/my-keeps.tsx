@@ -1,3 +1,4 @@
+import { useKeepGiftActivities } from "@/components/keep-gift-activity";
 import { activeKeepSession } from "@/lib/keep-cloud";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { ArrowLeft, ArrowRight, BookOpen, LockKeyhole } from "lucide-react";
@@ -22,6 +23,7 @@ type Resolved = {project?:{memories?:{kind:string;url?:string}[]}};
 function MyKeeps() {
   const [session,setSession] = useState<Session|null>(null);
   const [keeps,setKeeps] = useState<KeepRecord[]>([]);
+  const gift = useKeepGiftActivities(session ? keeps.filter(k=>k.status==="ready"&&k.published_at).map(k=>k.id) : []);
   const [linkedIds,setLinkedIds] = useState<string[]>([]);
   const [thumbs,setThumbs] = useState<Record<string,string>>({});
   const [expanded,setExpanded] = useState<string|null>(null);
@@ -104,7 +106,7 @@ function MyKeeps() {
         </Link>
       </div> : error ? <div role="alert" className="mt-6 rounded-[20px] border border-[#DECABB] bg-[#FFF9F3] px-6 py-8 text-[13px] leading-6 text-[#805442]">{error}</div> :
       <KeepMyKeepsCollection
-        keeps={keeps} thumbnails={thumbs}
+        keeps={keeps} thumbnails={thumbs} giftActivities={gift.activities} giftActivityFailed={gift.failed}
         expandedId={expanded} copiedId={copied} deletingId={deleting}
         onToggle={id=>setExpanded(expanded===id?null:id)}
         onCopy={keep=>void (async()=>{
