@@ -4,6 +4,7 @@ import { fetchOpeningSuggestions } from "@/lib/keep-ai";
 import { createPortal } from "react-dom";
 import type { KeepProject } from "@/lib/keep-project";
 import { Button } from "@/components/ui/button";
+import { KeepCardFront } from "@/components/keep-card-front";
 
 type OpeningFields = Pick<KeepProject, "openingMessage" | "closingLine" | "engraveOpeningMessage" | "openingMessageSuggestions" | "openingSuggestionsFor" | "cardEngraving">;
 type Props = {
@@ -109,6 +110,29 @@ export function KeepOpeningPersonalization({ project, onUpdate, disabled }: Prop
         placeholder="I love you, Dad."
         className="w-full rounded-xl border border-border bg-background px-4 py-3 font-display text-[17px] outline-none focus:border-[#A38568]" />
       <p className="text-[11px] leading-5 text-muted-foreground">Leave blank for “You are so loved.” This is shown, not spoken, and can be changed without recording again.</p>
+    </section>
+    <section className="mt-10 space-y-4 border-t border-border pt-8" aria-labelledby="keep-engraving-preview">
+      <div>
+        <p className="text-[10px] font-semibold uppercase tracking-[.17em] text-[#8B725A]">A KEEPSAKE YOU CAN HOLD</p>
+        <h2 id="keep-engraving-preview" className="mt-3 font-display text-[29px] leading-[1.14]">Your physical Keep.</h2>
+        <p className="mt-3 text-xs leading-6 text-muted-foreground">Here’s how your matte-black metal card will look if you choose personalized engraving at checkout.</p>
+      </div>
+      <figure className="rounded-[20px] border border-[#D8CCBE] bg-[#F5EDE3]/65 px-3 pb-5 pt-6 sm:px-6">
+        <div className="mx-auto w-full max-w-[360px]">
+          <KeepCardFront
+            engraving={project.cardEngraving}
+            openingMessage={project.openingMessage}
+            showOpeningMessage={selected}
+          />
+        </div>
+        <figcaption className="mt-7 text-center">
+          <p className="text-[10px] font-semibold uppercase tracking-[.15em] text-[#8B725A]">Front · Laser engraving preview</p>
+          <p className="mx-auto mt-2 max-w-[290px] text-[11px] leading-5 text-[#766A5D]">
+            {selected ? "Your opening line will be laser-engraved on the card alongside your personal details." : "Without an opening line, your engraved card will show only your personal details."}
+          </p>
+        </figcaption>
+      </figure>
+      <p className="text-[11px] leading-5 text-muted-foreground">Your closing line stays in the film. Signature includes engraving; Basic can add it at checkout.</p>
     </section>
     {showFirstFrame && typeof document !== "undefined" && createPortal(
       <div className="fixed inset-0 z-[220] flex items-center justify-center overflow-y-auto bg-[#17130F]/85 p-4 backdrop-blur-sm"
