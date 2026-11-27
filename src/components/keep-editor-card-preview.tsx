@@ -1,29 +1,42 @@
 import * as Dialog from "@radix-ui/react-dialog";
-import { ArrowRight, CreditCard, X } from "lucide-react";
+import { ArrowRight, ChevronRight, CreditCard, X } from "lucide-react";
 import { KeepCardFront } from "@/components/keep-card-front";
 import { Button } from "@/components/ui/button";
 import type { KeepProject } from "@/lib/keep-project";
 
-type CardPreviewProject = Pick<KeepProject, "publicationToken" | "cardEngraving" | "openingMessage" | "engraveOpeningMessage">;
+type CardPreviewProject = Pick<KeepProject, "publicationToken" | "openingMessage" | "engraveOpeningMessage"> & {
+  cardEngraving?: readonly string[];
+};
 
 /** A successful final-step save assigns a publication token. An autosaved
  * draft ID or a partially entered dedication does not unlock this preview. */
-export function KeepEditorCardPreview({ project }: { project: CardPreviewProject }) {
+export function KeepEditorCardPreview({ project, variant = "editor" }: {
+  project: CardPreviewProject;
+  variant?: "editor" | "library";
+}) {
   if (!project.publicationToken) return null;
 
   return (
     <Dialog.Root>
       <Dialog.Trigger asChild>
-        <Button variant="quiet" className="h-auto w-full justify-between p-4 text-left">
-          <span className="flex items-center gap-3">
-            <CreditCard className="size-5" />
-            <span>
-              <strong className="block font-normal">Preview Keep Card</strong>
-              <small className="mt-1 block font-normal text-muted-foreground">See your black card and engraving</small>
+        {variant === "library" ? (
+          <button type="button" className="keep-library-more-option">
+            <span className="keep-library-more-icon" aria-hidden="true"><CreditCard className="size-4" strokeWidth={1.7} /></span>
+            <span className="keep-library-more-label">Preview Keep Card</span>
+            <ChevronRight className="keep-library-more-arrow" aria-hidden="true" />
+          </button>
+        ) : (
+          <Button variant="quiet" className="h-auto w-full justify-between p-4 text-left">
+            <span className="flex items-center gap-3">
+              <CreditCard className="size-5" />
+              <span>
+                <strong className="block font-normal">Preview Keep Card</strong>
+                <small className="mt-1 block font-normal text-muted-foreground">See your black card and engraving</small>
+              </span>
             </span>
-          </span>
-          <ArrowRight />
-        </Button>
+            <ArrowRight />
+          </Button>
+        )}
       </Dialog.Trigger>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 z-[200] bg-[#171311]/60 backdrop-blur-[5px]" />
@@ -40,13 +53,14 @@ export function KeepEditorCardPreview({ project }: { project: CardPreviewProject
           </div>
           <figure className="mt-6 rounded-[20px] border border-[#D8CCBE] bg-[#F5EDE3]/65 px-3 pb-5 pt-6 sm:px-6">
             <div className="mx-auto w-full max-w-[360px]">
-              <KeepCardFront engraving={project.cardEngraving} openingMessage={project.openingMessage} showOpeningMessage={!!project.engraveOpeningMessage} />
+              <KeepCardFront engraving={project.cardEngraving ?? []} openingMessage={project.openingMessage ?? ""} showOpeningMessage={!!project.engraveOpeningMessage} />
             </div>
             <figcaption className="mt-7 text-center text-[10px] font-semibold uppercase tracking-[.15em] text-[#8B725A]">Front · Laser engraving preview</figcaption>
           </figure>
+          {!project.cardEngraving && <p className="mt-4 text-xs leading-5 text-[#6C5B4B]">The saved card details are unavailable for this older Keep.</p>}
           <p className="mt-4 text-xs leading-5 text-[#6C5B4B]">Engraving is included with Signature and optional with Basic. Your closing line stays in your film.</p>
           <Dialog.Close asChild>
-            <Button variant="keep" size="touch" className="keep-premium-action mt-5 w-full justify-center">Back to previews</Button>
+            <Button variant="keep" size="touch" className="keep-premium-action mt-5 w-full justify-center">{variant === "library" ? "Back to your Keeps" : "Back to previews"}</Button>
           </Dialog.Close>
         </Dialog.Content>
       </Dialog.Portal>

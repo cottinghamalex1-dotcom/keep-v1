@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { KeepAppMenu } from "@/components/keep-app-menu";
 import { KeepLoadingScreen } from "@/components/keep-loading-screen";
 import { KeepMyKeepsCollection } from "@/components/keep-my-keeps-collection";
+import type { KeepLibraryItem } from "@/components/keep-library-card";
 import { viewingLink } from "@/lib/keep-publish";
 import { deleteOwnedKeep, keepDeleteConfirmation } from "@/lib/keep-delete";
 import { clearDraft, loadDraft, projectBlobIds } from "@/lib/keep-project";
@@ -16,7 +17,7 @@ export const Route = createFileRoute("/my-keeps")({ component: MyKeeps });
 const endpoint = "https://lwkzhpwugtosbidxvdcr.supabase.co";
 const publicKey = "sb_publishable_K8_SWJByLhV78h7gY4NySw_4sgjEVTi";
 type Session = {access_token:string; refresh_token:string; expires_at?:number; user:{id:string}};
-type KeepRecord = {id:string;owner_id:string;recipient_name:string|null;occasion:string|null;status:string;recipient_token:string;published_at:string|null;created_at:string;published_project?:{openingMessage?:string;messageParagraphs?:string[];memories?:unknown[]}|null};
+type KeepRecord = KeepLibraryItem & { owner_id: string };
 type CardRef = {keep_id:string|null};
 type Resolved = {project?:{memories?:{kind:string;url?:string}[]}};
 

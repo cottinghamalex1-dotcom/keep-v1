@@ -3,7 +3,7 @@ import { KeepDeliveryAdmin } from "@/components/keep-delivery-admin";
 import { activeKeepSession, readKeepSession } from "@/lib/keep-cloud";
 import { KeepAppMenu } from "@/components/keep-app-menu";
 import { viewingLink } from "@/lib/keep-publish";
-import { KeepLibraryCard } from "@/components/keep-library-card";
+import { KeepLibraryCard, type KeepLibraryItem } from "@/components/keep-library-card";
 import { KeepDraftActions } from "@/components/keep-library-actions";
 import { KeepCreateCTA } from "@/components/keep-create-cta";
 import { KeepPhoneTip } from "@/components/keep-phone-tip";
@@ -31,7 +31,7 @@ const endpoint = "https://lwkzhpwugtosbidxvdcr.supabase.co";
 const publicKey = "sb_publishable_K8_SWJByLhV78h7gY4NySw_4sgjEVTi";
 type Session = { access_token: string; refresh_token: string; expires_at?: number; user: { id: string; email?: string } };
 type Card = { id: string; card_code: string; recipient_label: string | null; status: string; creator_id: string | null; recipient_id: string | null; keep_id: string | null };
-type Keep = { id: string; recipient_name: string | null; status: string; recipient_token: string; published_at: string | null; created_at?: string | null; occasion?: string | null; published_project?: {openingMessage?:string;messageParagraphs?:string[];musicMood?:string;audioMix?:{musicMuted?:boolean}}|null };
+type Keep = KeepLibraryItem;
 const sessionKey = "keep-app-session";
 function readSession(): Session | null { try { const s = localStorage.getItem(sessionKey); return s ? JSON.parse(s) as Session : null; } catch { return null; } }
 function KeepDashboard() {
