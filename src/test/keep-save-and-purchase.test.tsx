@@ -38,11 +38,52 @@ describe("automatic finishing and purchase handoff",()=>{
     expect(screen.getByLabelText("Completed, seekable Keep film")).toHaveAttribute("src",ready.videoUrl);
     expect(actions(fetchMock)).toEqual(["status","start","status","status"]);
   });
+  it("shows real processing stages and a rough remaining-time estimate until the film is verified",async()=>{
+    const fetchMock=vi.fn()
+      .mockResolvedValueOnce(response({status:"not_started"}))
+      .mockResolvedValueOnce(response({status:"rendering"}))
+      .mockResolvedValueOnce(response({status:"rendering",providerStatus:"rendering"}))
+      .mockResolvedValueOnce(response({status:"rendering",providerStatus:"saving"}))
+      .mockResolvedValueOnce(response(ready));
+    vi.stubGlobal("fetch",fetchMock);
+    render(<KeepSaveAndPurchase keep={keep}/>);
+    await flush();
+    expect(screen.getByText("Step 1 of 3")).toBeInTheDocument();
+    expect(screen.getByText(/Estimated time left:/)).toBeInTheDocument();
+    expect(screen.getByRole("progressbar")).toHaveAttribute("aria-valuenow","0");
+    await act(async()=>{await vi.advanceTimersByTimeAsync(7000);});
+    expect(screen.getByText("Step 2 of 3")).toBeInTheDocument();
+    expect(screen.getByRole("progressbar")).toHaveAttribute("aria-valuenow","1");
+    await act(async()=>{await vi.advanceTimersByTimeAsync(7000);});
+    expect(screen.getByText("Step 3 of 3")).toBeInTheDocument();
+    expect(screen.getByRole("progressbar")).toHaveAttribute("aria-valuenow","2");
+    expect(screen.queryByRole("group",{name:"Keep package"})).toBeNull();
+    await act(async()=>{await vi.advanceTimersByTimeAsync(7000);});
+    expect(screen.queryByRole("progressbar")).toBeNull();
+    expect(screen.getByRole("group",{name:"Keep package"})).toBeInTheDocument();
+    expect(actions(fetchMock)).toEqual(["status","start","status","status","status"]);
+  });
+  it("stops the ETA at the end of the rough estimate without claiming completion",async()=>{
+    const fetchMock=vi.fn()
+      .mockResolvedValueOnce(response({status:"not_started"}))
+      .mockImplementation(async()=>response({status:"rendering",providerStatus:"rendering"}));
+    vi.stubGlobal("fetch",fetchMock);
+    render(<KeepSaveAndPurchase keep={keep}/>);
+    await flush();
+    await act(async()=>{await vi.advanceTimersByTimeAsync(60_000);});
+    expect(screen.getByText("Estimated time left: ~1–4 min")).toBeInTheDocument();
+    await act(async()=>{await vi.advanceTimersByTimeAsync(240_000);});
+    expect(screen.getByText(/Taking longer than estimated/)).toBeInTheDocument();
+    expect(screen.getByRole("progressbar")).toHaveAttribute("aria-valuenow","1");
+    expect(screen.queryByRole("group",{name:"Keep package"})).toBeNull();
+  });
   it("resumes a rendering job without a second submission and transitions automatically",async()=>{
     const fetchMock=vi.fn().mockResolvedValueOnce(response({status:"rendering"})).mockResolvedValueOnce(response(ready));
     vi.stubGlobal("fetch",fetchMock);
     render(<KeepSaveAndPurchase keep={keep}/>);
     await flush();
+    expect(screen.getByText(/Time remaining varies/)).toBeInTheDocument();
+    expect(screen.queryByText(/Estimated time left:/)).toBeNull();
     await act(async()=>{await vi.advanceTimersByTimeAsync(7000);});
     expect(screen.getByRole("group",{name:"Keep package"})).toBeInTheDocument();
     expect(actions(fetchMock)).toEqual(["status","status"]);
