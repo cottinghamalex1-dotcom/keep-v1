@@ -1,5 +1,5 @@
-import { Check } from "lucide-react";
-import { useEffect, type ReactNode } from "react";
+import { ArrowRight, Check, Keyboard, Mic, Square } from "lucide-react";
+import { useEffect, useRef, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 
 const occasionDetails = [
@@ -100,6 +100,58 @@ export function KeepFeelingChoices({ selected, onChange }: { selected: string[];
           </Button>
         );
       })}
+    </div>
+  );
+}
+
+/** Keep the intent and emotional outcome together in one creator step. */
+export function KeepHeartAndFeelings({
+  intent, selected, forSelf, dictating, onIntentChange, onToggleDictation, onFeelingsChange, onContinue,
+}: {
+  intent: string;
+  selected: string[];
+  forSelf: boolean;
+  dictating: boolean;
+  onIntentChange: (intent: string) => void;
+  onToggleDictation: () => void;
+  onFeelingsChange: (feelings: string[]) => void;
+  onContinue: () => void;
+}) {
+  const textArea = useRef<HTMLTextAreaElement>(null);
+  return (
+    <div className="px-7 pb-12 pt-11">
+      <div className="mb-10 keep-page-heading">
+        <h1 className="keep-editorial-title">What is the heart behind this Keep?</h1>
+        <p className="keep-page-description mt-5" id="keep-heart-question">
+          <span className="block">What is this Keep all about?</span>
+          <span className="mt-1 block">What would you like them to remember?</span>
+        </p>
+      </div>
+      <textarea ref={textArea} aria-labelledby="keep-heart-question" value={intent}
+        onChange={event => onIntentChange(event.target.value.slice(0, 500))}
+        placeholder="I want Gigi & Pops to know how special it was watching them experience Disney through our kids' eyes, and I want our family to always remember this trip together."
+        className="min-h-44 w-full resize-none rounded-sm border border-border bg-transparent p-4 text-sm leading-7 outline-none focus:border-accent" />
+      <div className="mt-4 grid grid-cols-2 gap-2">
+        <Button type="button" variant={dictating ? "selected" : "quiet"} className="h-12" onClick={onToggleDictation}>
+          {dictating ? <Square className="mr-2 size-4" fill="currentColor" /> : <Mic className="mr-2 size-4" />}
+          {dictating ? "Stop" : "Speak"}
+        </Button>
+        <Button type="button" variant="quiet" className="h-12" onClick={() => textArea.current?.focus()}>
+          <Keyboard aria-hidden="true" className="mr-2 size-4" />Type
+        </Button>
+      </div>
+      {dictating && <p className="mt-3 text-xs leading-5 text-muted-foreground">Speak naturally. Your words will appear above as you talk. Tap Stop when you're finished.</p>}
+      <section aria-labelledby="keep-feelings-heading" className="mt-10 border-t border-border pt-8">
+        <h2 id="keep-feelings-heading" className="keep-section-title">{forSelf ? "How do you want to feel?" : "How do you want them to feel?"}</h2>
+        <p className="keep-page-description mb-5 mt-3">
+          {forSelf ? "When you revisit this Keep, what do you hope to feel?" : "When they receive their Keep, what do you hope they feel?"} Select all that apply. (Optional)
+        </p>
+        <KeepFeelingChoices selected={selected} onChange={onFeelingsChange} />
+      </section>
+      <div className="mt-10">
+        <Button type="button" variant="keep" size="touch" className="keep-premium-action w-full justify-between"
+          disabled={!intent.trim()} onClick={onContinue}>Continue<ArrowRight /></Button>
+      </div>
     </div>
   );
 }
