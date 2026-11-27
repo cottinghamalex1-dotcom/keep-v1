@@ -2,6 +2,18 @@ import type { KeepProject, MediaItem } from "./keep-project";
 import { cameraMotion } from "../../supabase/functions/keep-render/composition";
 
 export type MomentFocus = { focusX: number; focusY: number };
+export type MomentFraming = MomentFocus & { zoom?: number };
+
+// Keep the controls within the existing cameraMotion/Shotstack render bounds.
+// This lets older drafts, previews, and the finished MP4 use the same values.
+export const FRAMING_ZOOM_MIN = 103;
+export const FRAMING_ZOOM_MAX = 135;
+export const FRAMING_ZOOM_DEFAULT = 108;
+export const FRAMING_ZOOM_STEP = 5;
+export function framingZoomPercent(zoom?: number): number {
+  return Math.min(FRAMING_ZOOM_MAX, Math.max(FRAMING_ZOOM_MIN,
+    Math.round(Number.isFinite(zoom) ? zoom! * 100 : FRAMING_ZOOM_DEFAULT)));
+}
 type Size = { width: number; height: number };
 
 const clamp = (n: number) => Math.min(100, Math.max(0, Number.isFinite(n) ? n : 50));
@@ -36,8 +48,11 @@ export function focusAfterDrag(start: MomentFocus, delta: { x: number; y: number
 /** Write only the selected source by stable ID. Preserve timing, transitions,
  * order and all unrelated draft properties; selfie-mode base media and its
  * matching film scene must agree when the story is rebuilt. */
-export function updateMomentFraming(project: KeepProject, id: string, focus: MomentFocus): KeepProject {
-  const adjusted = momentFocus(focus);
+export function updateMomentFraming(project: KeepProject, id: string, focus: MomentFraming): KeepProject {
+  const adjusted = {
+    ...momentFocus(focus),
+    ...(focus.zoom !== undefined ? { zoom: framingZoomPercent(focus.zoom) / 100 } : {}),
+  };
   const update = (moment: MediaItem) => moment.id === id && !moment.isSelfie && moment.source !== "text"
     ? { ...moment, ...adjusted }
     : moment;
