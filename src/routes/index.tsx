@@ -2195,7 +2195,7 @@ function KeepApp() {
       />
     </>}
     {screen === "message" && <>{top()}
-      <div className="mx-auto max-w-[650px] px-7 pb-32 pt-9">
+      <div className="keep-message-review mx-auto max-w-[650px] px-7 pb-32 pt-9">
         {title("", project.messageSource === "own" ? "Your message." : "Your message is ready.", "These are your words. Make them yours, or let Keep help you shape them.")}
         <KeepLengthGuide text={project.messageParagraphs.join(" ")} className="mb-6" />
         <button type="button" onClick={openAskKeep} className="group mb-6 flex min-h-[82px] w-full items-center gap-4 rounded-2xl border border-[#C5B6A1] bg-[#28231F] px-5 text-left text-[#FAF8F5] shadow-[0_10px_26px_rgba(38,31,25,.13)] transition-transform active:scale-[.99]">
@@ -2208,33 +2208,44 @@ function KeepApp() {
           <span className="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full bg-[#44382B] text-white"><Check className="size-3.5" /></span>
           <p className="text-[12px] leading-5 text-[#554639]"><strong className="font-semibold">Keep AI updated your message.</strong> The revised wording is highlighted below. Tap any highlighted paragraph to edit it yourself.</p>
         </div>}
-        <div className="space-y-3">
+        <div className="keep-message-paragraphs">
           {project.messageParagraphs.map((p, i) => {
             const highlighted = !!appliedAiOriginal?.changedIndexes.includes(i) && editingAiParagraph !== i && appliedAiOriginal.before[i] !== p;
-            return <div key={i} className={`rounded-xl border ${highlighted ? "border-[#BDA080] bg-[#FAF3E8]" : "border-[#E4DDD4] bg-white/40"}`}>
-              {highlighted ? <button type="button" aria-label={`Edit updated paragraph ${i + 1}`} className="w-full p-4 text-left" onClick={() => { setActiveParagraph(i); setEditingAiParagraph(i); }}>
-                <div className="mb-3 flex items-center justify-between gap-2 text-[11px] font-semibold text-[#6A5849]"><span>PARAGRAPH {i+1} · KEEP AI EDITED</span><span className="flex items-center gap-1 font-medium"><Settings2 className="size-3.5"/> Edit</span></div>
-                <p className="whitespace-pre-wrap font-display text-[22px] leading-[1.42] text-[#211C18]"><KeepWordChanges before={appliedAiOriginal!.before[i] ?? ""} after={p}/></p>
-              </button> : <textarea aria-label={`Message paragraph ${i + 1}`} rows={Math.max(3,Math.ceil(p.length / 44))}
+            return <div key={i} className={`keep-message-paragraph${highlighted ? " keep-message-paragraph--revised" : ""}`}>
+              {highlighted ? <button type="button" aria-label={`Edit updated paragraph ${i + 1}`} className="keep-message-paragraph__revision" onClick={() => { setActiveParagraph(i); setEditingAiParagraph(i); }}>
+                <div className="keep-message-paragraph__head"><span>Paragraph {String(i + 1).padStart(2, "0")}</span><span className="keep-message-paragraph__status"><Sparkles size={13} strokeWidth={1.6} aria-hidden="true" /> AI edited · Edit</span></div>
+                <p className="keep-message-copy__revised"><KeepWordChanges before={appliedAiOriginal!.before[i] ?? ""} after={p}/></p>
+              </button> : <>
+                <label className="keep-message-paragraph__head" htmlFor={`keep-message-paragraph-${i}`}><span>Paragraph {String(i + 1).padStart(2, "0")}</span><span className="keep-message-paragraph__status"><Settings2 size={14} strokeWidth={1.5} aria-hidden="true" /> Edit</span></label>
+                <div className="keep-message-copy">
+                  <div aria-hidden="true" className="keep-message-copy__measure">{p || " "}{" "}</div>
+                  <textarea id={`keep-message-paragraph-${i}`} aria-label={`Message paragraph ${i + 1}`} rows={2}
                 value={p} onFocus={() => setActiveParagraph(i)} onChange={(event) => {
                   patch({ messageParagraphs: project.messageParagraphs.map((item,j) => i === j ? event.target.value : item) });
                   if (appliedAiOriginal?.changedIndexes.includes(i)) setAppliedAiOriginal((old) => old ? { ...old, changedIndexes: old.changedIndexes.filter((j) => j !== i) } : null);
                 }}
-                className="w-full resize-y bg-transparent p-4 font-display text-[22px] leading-[1.42] text-foreground outline-none focus:ring-1 focus:ring-[#9D856D]" />}
-              {isTogether && <label className="flex items-center justify-between gap-3 border-t border-[#E4DDD4] px-4 py-3 text-xs text-[#6A5849]"><span className="font-medium">Read by</span><select aria-label={`Speaker for paragraph ${i+1}`} value={speakerFor(i)} onChange={event=>patch({paragraphSpeakers:project.messageParagraphs.map((_,j)=>j===i?event.target.value:speakerFor(j))})} className="min-w-0 max-w-[70%] rounded-lg border border-[#D2C3B2] bg-[#FFFDF9] px-3 py-2 text-sm text-[#30271F]">{(project.contributors ?? []).map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select></label>}
+                className="keep-message-copy__input" placeholder="Write your next thought…" />
+                </div>
+              </>}
+              {isTogether && <label className="keep-message-paragraph__speaker"><span className="font-medium">Read by</span><select aria-label={`Speaker for paragraph ${i+1}`} value={speakerFor(i)} onChange={event=>patch({paragraphSpeakers:project.messageParagraphs.map((_,j)=>j===i?event.target.value:speakerFor(j))})} className="keep-message-paragraph__speaker-select">{(project.contributors ?? []).map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select></label>}
             </div>;
           })}
         </div>
-        {isTogether && project.messageParagraphs.length===1 && <Button variant="quiet" size="touch" className="mt-4 w-full" onClick={()=>{ const paragraphs=splitForVoices(project.messageParagraphs[0]??"",(project.contributors??[]).length); if(paragraphs.length<2){toast.info("Add another paragraph to give someone else a turn.");return;} patch({messageParagraphs:paragraphs,paragraphSpeakers:paragraphs.map((_,i)=>project.contributors?.[i%(project.contributors?.length??1)]?.id??"")}); }}>Split this message into speaking parts <ArrowRight className="size-4"/></Button>}
-        <Button variant="bare" size="sm" className="mt-4 text-[#786B5D]" onClick={() => { patch({ messageParagraphs: [...project.messageParagraphs, ""], paragraphSpeakers: [...project.messageParagraphs.map((_,i)=>speakerFor(i)),project.contributors?.[project.messageParagraphs.length % Math.max(1,project.contributors?.length ?? 0)]?.id ?? ""] }); setActiveParagraph(project.messageParagraphs.length); }}>
-          <Plus className="size-4"/> Add paragraph
-        </Button>
-        {isTogether && project.messageParagraphs.filter(p=>p.trim()).length < 2 && <p className="mt-4 text-xs text-[#806B57]">Create at least two speaking parts so everyone can take a turn.</p>}
-        <div className="mt-5">{nextButton(nextAfterMessage(project, returnToEditorAfterRecording) === "memories" ? "Choose photos & videos" : isTogether ? project.voiceRecordingLocation==="remote" ? "Record yours & invite others" : "Record together" : "Record Your Keep", () => {
+        <div className="keep-message-actions">
+        {isTogether && project.messageParagraphs.length===1 && <button type="button" className="keep-message-actions__secondary" onClick={()=>{ const paragraphs=splitForVoices(project.messageParagraphs[0]??"",(project.contributors??[]).length); if(paragraphs.length<2){toast.info("Add another paragraph to give someone else a turn.");return;} patch({messageParagraphs:paragraphs,paragraphSpeakers:paragraphs.map((_,i)=>project.contributors?.[i%(project.contributors?.length??1)]?.id??"")}); }}><span>Split this message into speaking parts</span><span className="keep-message-actions__secondary-icon" aria-hidden="true"><ArrowRight size={17} strokeWidth={1.6}/></span></button>}
+        <button type="button" className="keep-message-actions__secondary" onClick={() => { patch({ messageParagraphs: [...project.messageParagraphs, ""], paragraphSpeakers: [...project.messageParagraphs.map((_,i)=>speakerFor(i)),project.contributors?.[project.messageParagraphs.length % Math.max(1,project.contributors?.length ?? 0)]?.id ?? ""] }); setActiveParagraph(project.messageParagraphs.length); }}>
+          <span className="keep-message-actions__secondary-icon" aria-hidden="true"><Plus size={18} strokeWidth={1.6}/></span><span>Add paragraph</span>
+        </button>
+        {isTogether && project.messageParagraphs.filter(p=>p.trim()).length < 2 && <p className="keep-message-actions__note">Create at least two speaking parts so everyone can take a turn.</p>}
+        <button type="button" className="keep-message-actions__primary" onClick={() => {
           patch({ messageParagraphs: project.messageParagraphs.filter((p) => p.trim()), paragraphSpeakers: project.messageParagraphs.map((p,i)=>p.trim()?speakerFor(i):"").filter(Boolean) });
           setAppliedAiOriginal(null);
           go(nextAfterMessage(project, returnToEditorAfterRecording));
-        }, !project.messageParagraphs.some((p) => p.trim()) || (isTogether && project.messageParagraphs.filter(p=>p.trim()).length < 2))}</div>
+        }} disabled={!project.messageParagraphs.some((p) => p.trim()) || (isTogether && project.messageParagraphs.filter(p=>p.trim()).length < 2)}>
+          <span>{nextAfterMessage(project, returnToEditorAfterRecording) === "memories" ? "Choose photos & videos" : isTogether ? project.voiceRecordingLocation==="remote" ? "Record yours & invite others" : "Record together" : "Record Your Keep"}</span>
+          <span className="keep-message-actions__arrow" aria-hidden="true"><ArrowRight size={19} strokeWidth={1.6}/></span>
+        </button>
+        </div>
       </div>
       {askOpen && <KeepAskAIModal
         paragraphs={project.messageParagraphs}
