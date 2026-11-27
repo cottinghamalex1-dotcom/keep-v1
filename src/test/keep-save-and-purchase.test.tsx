@@ -1,6 +1,7 @@
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { KeepSaveAndPurchase } from "@/routes/checkout";
+import { KeepFinishingDialog } from "@/components/keep-finishing-dialog";
 import { keepCheckoutPath, loadCheckoutKeep, type CheckoutKeep } from "@/lib/keep-checkout";
 
 const keepId = "00000000-1111-2222-3333-444444444444";
@@ -18,6 +19,29 @@ const ready = {status:"ready", videoUrl:"https://example.test/private.mp4"};
 describe("automatic finishing and purchase handoff",()=>{
   beforeEach(()=>{ vi.useFakeTimers(); sessionStorage.clear(); });
   afterEach(()=>{ cleanup();vi.useRealTimers();vi.unstubAllGlobals(); });
+  it("opens over the final words during saving and only advances after the verified film is ready",async()=>{
+    const fetchMock=vi.fn()
+      .mockResolvedValueOnce(response({status:"not_started"}))
+      .mockResolvedValueOnce(response({status:"rendering"}))
+      .mockResolvedValueOnce(response({status:"ready"}))
+      .mockResolvedValueOnce(response(ready));
+    vi.stubGlobal("fetch",fetchMock);
+    const onReady=vi.fn();
+    const page=(saved: CheckoutKeep | null) => <><h1>Choose your opening and closing lines.</h1><KeepFinishingDialog keep={saved} savingStatus="Saving memories 2 of 4…" onReady={onReady}/></>;
+    const view=render(page(null));
+    expect(screen.getByRole("dialog",{name:"Bringing it all together."})).toBeInTheDocument();
+    expect(screen.getByText("Choose your opening and closing lines.")).toBeInTheDocument();
+    expect(screen.getByRole("progressbar",{name:"Saving media"})).toHaveAttribute("aria-valuenow","50");
+    expect(fetchMock).not.toHaveBeenCalled();
+    view.rerender(page(keep));
+    await flush();
+    expect(actions(fetchMock)).toEqual(["status","start"]);
+    await act(async()=>{await vi.advanceTimersByTimeAsync(7000);});
+    expect(onReady).not.toHaveBeenCalled();
+    expect(screen.getByRole("dialog",{name:"Bringing it all together."})).toBeInTheDocument();
+    await act(async()=>{await vi.advanceTimersByTimeAsync(7000);});
+    expect(onReady).toHaveBeenCalledWith(ready);
+  });
   it("automatically starts the exact saved render, waits for storage verification, then displays buying options",async()=>{
     const fetchMock=vi.fn()
       .mockResolvedValueOnce(response({status:"not_started"}))
