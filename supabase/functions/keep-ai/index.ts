@@ -90,6 +90,8 @@ const normalizeContext = (body: any) => {
     recipientName: String(body.recipientName || "them").slice(0, 100),
     relationship: String(body.relationship || "").slice(0, 100),
     occasion: String(body.occasion || "").slice(0, 160),
+    occasionDetail: typeof body.occasionDetail === "string" ? body.occasionDetail.trim().slice(0, 160) : "",
+    recipientFeelings: Array.isArray(body.recipientFeelings) ? [...new Set(body.recipientFeelings.filter((f: unknown): f is string => typeof f === "string").map((f: string) => f.trim().slice(0, 40)).filter(Boolean))].slice(0, 14) : [],
     intent: String(body.intent || "").slice(0, 2500),
     answers,
     contributors: Array.isArray(body.contributors) ? body.contributors.slice(0, 8).map((n: unknown) => String(n).trim().slice(0, 60)).filter(Boolean) : [],
@@ -285,6 +287,7 @@ Writing rules:
 - Keep it personal and conversational, not literary for its own sake.
 - Avoid greeting-card clichés, inflated sentiment, therapy language, and generic inspiration.
 - Let specific ordinary details do the emotional work.
+- Use the supplied occasionDetail to ground the message in the specific event; the selected recipientFeelings describe the emotional experience the creator hopes to give, not facts about the recipient. Let those goals shape the tone, examples, and emotional arc without listing the labels, inventing feelings, or forcing a reaction.
 - Match the emotional tone to the actual recipient, relationship, and occasion: celebratory for birthdays when appropriate, grateful for thank-yous, reflective for anniversaries, and gentle for memorials. Never force happiness, romance, beliefs, or an invented ending.
 - Use contractions when natural.
 - Create 6–8 natural, recordable paragraphs, ideally 450–500 words when the interview contains enough real material. This should give a brisk speaker enough substance for a meaningful 2–3 minute recording. Stay below 540 words by default unless the creator specifically asks for longer.
@@ -315,8 +318,8 @@ Writing rules:
               },
               required: ["paragraphs"],
             },
-            instructions: `You are KEEP's attentive editor. Shorten this personal spoken message into a complete, satisfying 2–3 minute Keep, ideally 450–500 words and no more than 540 words. Preserve the creator's exact real facts, specific memories, recognizable voice, recipient, emotional intention, and strongest ending. Remove redundancy and filler rather than deleting the heart of the message. Do not invent or add anything. Use 6–8 short, natural spoken paragraphs. Return only paragraphs.`,
-            input: JSON.stringify({ paragraphs, recipientName: context.recipientName, intent: context.intent }),
+            instructions: `You are KEEP's attentive editor. Shorten this personal spoken message into a complete, satisfying 2–3 minute Keep, ideally 450–500 words and no more than 540 words. Preserve the creator's exact real facts, specific memories, recognizable voice, recipient, emotional intention, and strongest ending, including the occasion specifics and desired recipient feelings where supported. Remove redundancy and filler rather than deleting the heart of the message. Do not invent or add anything. Use 6–8 short, natural spoken paragraphs. Return only paragraphs.`,
+            input: JSON.stringify({ paragraphs, recipientName: context.recipientName, intent: context.intent, occasionDetail: context.occasionDetail, recipientFeelings: context.recipientFeelings }),
           });
           const compact = Array.isArray(shorter.paragraphs)
             ? shorter.paragraphs.map((p: unknown) => String(p).trim()).filter(Boolean).slice(0, 8)
@@ -334,7 +337,7 @@ Writing rules:
             model: "gpt-5.1",
             name: "keep_message_expanded",
             schema: { type: "object", additionalProperties: false, properties: { paragraphs: { type: "array", items: { type: "string" } } }, required: ["paragraphs"] },
-            instructions: "Expand this spoken message toward 450–500 words using ONLY unused real details, memories, meaning and phrasing in the supplied interview. Keep it natural and specific, in 6–8 recordable paragraphs. Make a notably fuller script for a brisk speaker. Never invent, repeat, or pad. If the evidence cannot support expansion, return the original message unchanged. Return only paragraphs.",
+            instructions: "Expand this spoken message toward 450–500 words using ONLY unused real details, memories, meaning and phrasing in the supplied interview and occasion detail. Keep the desired recipient feelings as tonal goals, not as claims. Keep it natural and specific, in 6–8 recordable paragraphs. Make a notably fuller script for a brisk speaker. Never invent, repeat, or pad. If the evidence cannot support expansion, return the original message unchanged. Return only paragraphs.",
             input: JSON.stringify({ context, paragraphs }),
           });
           const fuller = Array.isArray(expanded.paragraphs) ? expanded.paragraphs.map((p: unknown) => String(p).trim()).filter(Boolean).slice(0, 8) : [];
@@ -371,7 +374,7 @@ Writing rules:
         instructions: `You are KEEP's deeply attentive writing editor. You help ordinary people say meaningful things beautifully without making them sound like a professional writer or like AI.
 
 You will receive:
-- recipient/relationship/occasion/intention
+- recipient/relationship/occasion/intention, optional specific occasion detail, and desired recipient feelings
 - the creator's actual interview answers, which are your strongest evidence for their voice and memories
 - the complete current message
 - the paragraph they currently have selected
@@ -379,7 +382,7 @@ You will receive:
 - a revision request
 
 Non-negotiable rules:
-- Preserve the creator's facts, memories, beliefs, emotional meaning, and recognizable voice.
+- Preserve the creator's facts, memories, beliefs, emotional meaning, and recognizable voice. Use occasion details and desired recipient feelings as context for the requested revision, without inventing a reaction or changing their intent.
 - Never invent a memory, scene, quote, detail, trait, or feeling.
 - Use details from the interview when they genuinely deepen the message.
 - Prefer specificity over generic sentiment. Let concrete details carry emotion.

@@ -73,6 +73,10 @@ export type KeepProject = {
   openingSuggestionsFor?: string;
   relationship: string;
   occasion: string;
+  /** Optional specifics supplied by the creator, independent of the occasion category. */
+  occasionDetail?: string;
+  /** Desired recipient experience, not assumed facts or feelings. */
+  recipientFeelings?: string[];
   intent: string;
   questionIndex: number;
   /** Last confirmed local/cloud snapshot time, used to avoid restoring a stale cloud draft. */
@@ -137,14 +141,14 @@ export const sampleMemories = (): MediaItem[] =>
 
 export function newProject(): KeepProject {
   return {
-    active: false, stage: "recipient", recipientName: "", openingMessage: "", closingLine: "", engraveOpeningMessage: false, openingMessageSuggestions: [], openingSuggestionsFor: "", relationship: "", occasion: "", intent: "", questionIndex: 0, interviewWelcomeSeen: false, interviewQuestion: "", interviewSummary: "",
+    active: false, stage: "recipient", recipientName: "", openingMessage: "", closingLine: "", engraveOpeningMessage: false, openingMessageSuggestions: [], openingSuggestionsFor: "", relationship: "", occasion: "", occasionDetail: "", recipientFeelings: [], intent: "", questionIndex: 0, interviewWelcomeSeen: false, interviewQuestion: "", interviewSummary: "",
     interviewAnswers: [], messageSource: null, writtenText: "", messageParagraphs: [], voiceMode: "solo", voiceRecordingLocation: "in_person", contributors: [], paragraphSpeakers: [], voiceParts: [], finalVoiceRecording: null, captionTranscript: "", captionCues: [], captionWords: [], captionWordsPerCue: 5, captionLines: 2, captionPosition: "bottom", creationStyle: "memories", memories: [], selfieVideos: [], selfieBaseMedia: [], selfiePresentation: "auto", selfieBookendSeconds: 4, readMemoryOrder: [],
     musicMood: "Warm + Nostalgic", voiceMusicBalance: "Balanced", musicMix: 50, voiceVolume: 60, musicVolume: 60, audioMixVersion: 2, captionStyle: "Reel", visualStyle: "Natural", cardEngraving: ["", "", ""], keepOrder: defaultKeepOrder(),
   };
 }
 
 export const stageLabels: Record<string, string> = {
-  recipient: "Choosing who it's for", occasion: "Choosing the occasion", voices: "Choosing the voices", remoteInvite: "Collecting voices remotely", groupRecord: "Recording together", path: "Finding the words", interview: "In the interview",
+  recipient: "Choosing who it's for", occasion: "Choosing the occasion", voices: "Choosing the voices", intent: "Expressing the heart behind it", feelings: "Choosing how they should feel", remoteInvite: "Collecting voices remotely", groupRecord: "Recording together", path: "Finding the words", interview: "In the interview",
   summary: "Story gathered", write: "Writing the message", message: "Shaping the message", recordPrep: "Getting ready to record", record: "Recording your voice",
   recorded: "Voice recorded", memories: "Adding memories", editor: "In the editor", card: "Designing the card", success: "Ready",
 };
