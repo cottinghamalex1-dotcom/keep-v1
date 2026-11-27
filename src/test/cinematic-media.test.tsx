@@ -22,9 +22,8 @@ it('updates framing and visual style without remounting the image', () => {
   // The cinematic image is decorative: alt="" is deliberate.
   rerender(<CinematicMedia item={{ ...item, focusX: 25, zoom: 1.3 }} playing={false} sceneElapsed={0} imageClassName="editor-image-warm" />);
   expect(container.querySelector('img[decoding="async"]')).toBe(image);
-  expect(image!.style.objectPosition).toBe('50% 50%');
-  expect(image!.style.transform).toContain('scale(0.94)');
-  expect(image!.className).toContain('object-contain');
+  expect(image!.style.objectPosition).toBe('25% 50%');
+  expect(image!.style.transform).toContain('scale(1.3)');
   expect(image!.className).toContain('editor-image-warm');
 });
 
@@ -107,16 +106,4 @@ it("retains a real previous photograph as poster while the next clip is loading"
   const photos=[...container.querySelectorAll("img")].map(img=>img.getAttribute("src"));
   expect(photos).toContain("/last-good-photo.jpg");
   expect(container.querySelector("video")).not.toBeNull();
-});
-
-it("uses the full photo at the largest zoom and never stretches it to cover",()=>{
-  const item={url:"/wide-group-photo.jpg",kind:"image" as const,zoom:3,focusX:0,focusY:100};
-  const {container,rerender}=render(<CinematicMedia item={item} playing={false} duration={10} sceneElapsed={0}/>);
-  const image=container.querySelector('img[decoding="async"]') as HTMLImageElement;
-  expect(image.className).toContain("object-contain");
-  expect(image.className).not.toContain("object-cover");
-  expect(image.style.transform).toContain("scale(0.94)");
-  rerender(<CinematicMedia item={item} playing={false} duration={10} sceneElapsed={10}/>);
-  expect(image.style.transform).toBe("translate(0%, 0%) scale(1)");
-  expect(image.parentElement!.style.background).not.toBe("");
 });

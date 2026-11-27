@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { FILM_BACKGROUND, cameraMotion, photoCameraGeometry, transitionSeconds } from "../../supabase/functions/keep-render/composition";
+import { cameraMotion, transitionSeconds } from "../../supabase/functions/keep-render/composition";
 
 export type CinematicMoment = {
   url: string;
@@ -209,7 +209,7 @@ export function CinematicMedia({
       // backdrop only when no photo is available at all.
       const still=lastReadyStill || [nextItem,followingItem].find(m=>m?.kind==="image"&&m.url)?.url;
       return <div className="absolute inset-0 flex flex-col items-center justify-center overflow-hidden bg-[#E9E0D5] px-8 text-center">
-        {still ? <img src={still} alt="" className="absolute inset-0 h-full w-full object-contain"/>
+        {still ? <img src={still} alt="" className="absolute inset-0 h-full w-full object-cover"/>
           : <span className="font-display text-[45px] text-[#564739]">Keep</span>}
       </div>;
     }
@@ -222,24 +222,18 @@ export function CinematicMedia({
     const fraction = timed ? (scene.key === key
       ? Math.max(0, Math.min(1, sceneElapsed! / Math.max(0.1, scene.duration)))
       : 1) : null;
-    const isPhoto = moment.kind === "image";
-    const photo = isPhoto ? photoCameraGeometry(moment, scene.index) : null;
-    const start = photo?.from ?? { scale: from, x: shift[0] / 100, y: 0 };
-    const end = photo?.to ?? { scale: to, x: shift[1] / 100, y: 0 };
-    const transform = (progress: number) => {
-      const between = (a: number, b: number) => a + (b - a) * progress;
-      return `translate(${between(start.x, end.x) * 100}%, ${-between(start.y, end.y) * 100}%) scale(${between(start.scale, end.scale)})`;
-    };
+    const translate = fraction === null ? undefined : shift[0] + (shift[1] - shift[0]) * fraction;
+    const scale = fraction === null ? undefined : from + (to - from) * fraction;
     const motionStyle = {
-      objectPosition: isPhoto ? "50% 50%" : `${x}% ${y}%`,
-      transformOrigin: isPhoto ? "50% 50%" : `${x}% ${y}%`,
+      objectPosition: `${x}% ${y}%`,
+      transformOrigin: `${x}% ${y}%`,
       animation: fraction === null ? `keep-cinematic-move ${Math.max(1, scene.duration)}s linear both` : "none",
       animationPlayState: playing && (!isPending || state.revealed) ? "running" as const : "paused" as const,
-      ...(fraction !== null ? { transform: transform(fraction) } : {}),
-      ["--keep-from" as string]: transform(0),
-      ["--keep-to" as string]: transform(1),
+      ...(fraction !== null ? { transform: `translateX(${translate}%) scale(${scale})` } : {}),
+      ["--keep-from" as string]: `translateX(${shift[0]}%) scale(${from})`,
+      ["--keep-to" as string]: `translateX(${shift[1]}%) scale(${to})`,
     };
-    const mediaClass = `absolute inset-0 block h-full w-full ${isPhoto ? "object-contain" : "object-cover"} will-change-transform [backface-visibility:hidden] ${scene.imageClassName}`;
+    const mediaClass = `absolute inset-0 block h-full w-full object-cover will-change-transform [backface-visibility:hidden] ${scene.imageClassName}`;
     return moment.kind === "video"
       ? <video
           key={scene.key}
@@ -314,7 +308,7 @@ export function CinematicMedia({
   return <div className={`isolate overflow-hidden bg-[#171719] ${className}`}>
     {lastReadyStill
       ? <img src={lastReadyStill} alt="" aria-hidden="true"
-          className="pointer-events-none absolute inset-0 h-full w-full object-contain" />
+          className="pointer-events-none absolute inset-0 h-full w-full object-cover" />
       : <div aria-hidden="true" className="pointer-events-none absolute inset-0 flex items-center justify-center bg-[#E9E0D5]">
           <span className="font-display text-5xl tracking-[-.07em] text-[#564739]">Keep</span>
         </div>}
@@ -325,7 +319,6 @@ export function CinematicMedia({
         opacity: slot === state.pending && !state.revealed ? 0 : 1,
         transition: slot === state.pending && fadeMs ? `opacity ${fadeMs}ms ease-in-out` : "none",
         pointerEvents: "none",
-        ...(scene.item.kind === "image" ? { background: FILM_BACKGROUND } : {}),
       }}>
       {renderMedia(scene, slot as Slot)}
     </div>)}

@@ -1,6 +1,6 @@
 import {
   FILM_BACKGROUND, FILM_WIDTH, FILM_HEIGHT, KEEP_MUSIC_TAIL_SECONDS,
-  captionDisplayIntervals, captionLayout, cameraGeometry, coverCrop, photoCameraGeometry,
+  captionDisplayIntervals, captionLayout, cameraGeometry, coverCrop,
   keepOpeningLeadSeconds, sceneBoundary, transitionSeconds, visualFilters,
   musicEnvelope, musicBalanceLevel, musicUnderLevel, filmCardLayout, musicLoopPlan,
   type FilmMoment, type FilmCaptionCue, type CaptionPosition,
@@ -111,7 +111,6 @@ export function buildShotstackEdit(project:RenderProject,sources:ShotstackSource
   const voiceEnd=intro+project.voiceDuration;
   const filmEnd=filmDuration(project);
   const images:Clip[][]=[[],[]];
-  const photoMattes:Clip[][]=[[],[]];
   for(const [index,moment] of project.memories.entries()){
     const activeStart=intro+(index?sceneBoundary(project.memories,index-1,project.voiceDuration):0);
     const activeEnd=intro+sceneBoundary(project.memories,index,project.voiceDuration);
@@ -125,11 +124,10 @@ export function buildShotstackEdit(project:RenderProject,sources:ShotstackSource
     const end=next?activeEnd+fadeOut:filmEnd;
     const length=end-start;
     const dimensions=sources.mediaDimensions[moment.storagePath];
-    // Photos always use the full source image, including landscape/group
-    // portraits. Videos retain their existing authored cover framing.
-    const isPhoto=moment.kind==="image";
-    const crop=!isPhoto&&dimensions?coverCrop(dimensions.width,dimensions.height,moment.focusX??50,moment.focusY??50):undefined;
-    const cam=isPhoto?photoCameraGeometry(moment,index):cameraGeometry(moment,index,FILM_WIDTH,FILM_HEIGHT);
+    const crop=dimensions?coverCrop(dimensions.width,dimensions.height,moment.focusX??50,moment.focusY??50):undefined;
+    // Once the object-cover crop is selected, the visible portrait box has
+    // exactly the same transform origin/extent as in CSS.
+    const cam=cameraGeometry(moment,index,FILM_WIDTH,FILM_HEIGHT);
     const activeOffset=activeStart-start,activeLength=activeEnd-activeStart;
     const motion=(from:number,to:number,at=0,span=length):number|Tween[]=>{
       const phase=(x:number)=>clamp((x-activeOffset)/activeLength,0,1);
@@ -154,20 +152,13 @@ export function buildShotstackEdit(project:RenderProject,sources:ShotstackSource
     const filters=visualFilters(project.visualStyle);
     const clip=(at:number,span:number,trim?:number,hold=false):Clip=>({
       asset:moment.kind==="video"?{type:"video",src:uri,trim:trim??0,volume:0,transcode:true,...(hold?{speed:0}:{}),...(crop?{crop}:{})}:
-        {type:"image",src:uri},
-      start:round(start+at),length:round(span),width:FILM_WIDTH,height:FILM_HEIGHT,fit:isPhoto?"contain":"crop",
+        {type:"image",src:uri,...(crop?{crop}:{})},
+      start:round(start+at),length:round(span),width:FILM_WIDTH,height:FILM_HEIGHT,fit:"crop",
       scale:motion(cam.from.scale,cam.to.scale,at,span),
       offset:{x:motion(cam.from.x,cam.to.x,at,span),y:motion(cam.from.y,cam.to.y,at,span)},
       opacity:opacity(at,span),...(filters.length?{filters}:{}),
     });
-    if(isPhoto){
-      images[layer]!.push(clip(0,length));
-      // Paint the whole scene's matte beneath the photo so the previous
-      // frame cannot remain visible in letterbox margins after a dissolve.
-      const matte=rectangle(FILM_BACKGROUND,start,length);
-      matte.opacity=opacity(0,length);
-      photoMattes[layer]!.push(matte);
-    }
+    if(moment.kind==="image")images[layer]!.push(clip(0,length));
     else{
       const duration=dimensions?.duration??moment.videoDurationSec;
       if(!duration || duration<=0){
@@ -213,7 +204,7 @@ export function buildShotstackEdit(project:RenderProject,sources:ShotstackSource
   const tracks:Array<{clips:Clip[]}>= [
     ...card.closing.map(clip=>({clips:[clip]})),{clips:[card.closingBackground]},
     {clips:[logo]}, ...card.opening.map(clip=>({clips:[clip]})),{clips:[card.openingBackground]},
-    {clips:captions},{clips:[shade]},{clips:images[1]!},{clips:photoMattes[1]!},{clips:images[0]!},{clips:photoMattes[0]!},
+    {clips:captions},{clips:[shade]},{clips:images[1]!},{clips:images[0]!},
   ];
   if(!project.audioMix?.voiceMuted)tracks.push({clips:[{asset:{type:"audio",src:source(sources.voiceUrl,"voice"),volume:clamp((project.voiceVolume??60)/100,0,1)},
     start:round(intro),length:round(project.voiceDuration)}]});

@@ -28,7 +28,7 @@ export function nextAfterVoice(project: KeepProject): "storyStyle" | "memories" 
 /** Uploaded photos are no longer proof that narration or story creation is finished. */
 export function resumeKeepRecordingFlow(project: KeepProject): string {
   const stage = resumeKeepCreationStage(project.stage || "recipient");
-  if (stage === "memories" || stage === "storyStyle" || stage === "recorded" || stage === "remoteInvite") return stage;
+  if (stage === "memories" || stage === "framing" || stage === "storyStyle" || stage === "recorded" || stage === "remoteInvite") return stage;
   if (["recordPrep", "record", "groupRecord"].includes(stage) && !usesRemoteRecording(project)) {
     // Older unfinished voice-first drafts can now select visuals before recording.
     if (!project.recordingVisualMode && !hasSavedVoice(project)) return "memories";
