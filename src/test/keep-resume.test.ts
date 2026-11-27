@@ -3,6 +3,7 @@ vi.mock('@/components/keep-player', () => ({ memoryImages: [] }));
 vi.mock('@/lib/keep-media-store', () => ({ getBlob: vi.fn(), putBlob: vi.fn() }));
 import { loadEditableKeep, saveCloudDraft, type KeepSession } from '@/lib/keep-cloud';
 import { newProject } from '@/lib/keep-project';
+import { putBlob } from '@/lib/keep-media-store';
 const session: KeepSession = { access_token: 'test', refresh_token: 'test', user: { id: 'owner' } };
 const response = (data: unknown) => new Response(JSON.stringify(data), { status: 200 });
 afterEach(() => vi.unstubAllGlobals());
@@ -44,6 +45,7 @@ it('refuses to download published media from a different owner', async () => {
   await expect(loadEditableKeep('hannah', session)).rejects.toThrow('does not belong');
 });
 it('restores a published Keep with its voice, media, settings and original viewing link', async () => {
+  vi.mocked(putBlob).mockResolvedValue(true);
   vi.stubGlobal('URL', { createObjectURL: vi.fn(() => 'blob:restored') });
   vi.stubGlobal('fetch', vi.fn()
     .mockResolvedValueOnce(response([{ recipient_token: 'original-link', published_project: { recipientName: 'Hannah', voicePath: 'owner/publications/hannah/voice', voiceDuration: 60, musicMood: 'Warm', memories: [{ id: 'original-photo', kind: 'image', storagePath: 'owner/publications/hannah/photo', focusX: 20 }], readMemoryOrder: ['original-photo'] } }]))
@@ -56,5 +58,6 @@ it('restores a published Keep with its voice, media, settings and original viewi
   expect(result.publicationToken).toBe('original-link');
   expect(result.finalVoiceRecording?.durationSec).toBe(60);
   expect(result.memories[0]?.focusX).toBe(20);
+  expect(result.memories[0]?.persisted).toBe(true);
   expect(result.readMemoryOrder).toEqual([result.memories[0]?.id]);
 });

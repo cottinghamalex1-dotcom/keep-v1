@@ -515,8 +515,10 @@ function KeepApp() {
   const upsertAnswer = (a: InterviewAnswer) => setProject((o) => ({ ...o, interviewAnswers: [...o.interviewAnswers.filter((x) => x.questionIndex !== a.questionIndex), a].sort((x, y) => x.questionIndex - y.questionIndex) }));
   const setAnswer = (a: InterviewAnswer) => {
     const old = project.interviewAnswers.find((x) => x.questionIndex === a.questionIndex);
-    if (old) { releaseUrls([old.audioUrl]); if (old.audioId) void deleteBlobs([old.audioId]); }
-    upsertAnswer(a);
+    const updated = {...project, interviewAnswers: [...project.interviewAnswers.filter(x => x.questionIndex !== a.questionIndex), a].sort((x,y)=>x.questionIndex-y.questionIndex)};
+    if (!saveDraft(updated)) toast.warning("Your answer is open in this session. Don't close the editor until your draft is backed up.");
+    setProject(updated);
+    if (old) releaseUrls([old.audioUrl]);
   };
   const aiReady = keepAiAvailable();
   const aiContext = (list: InterviewAnswer[] = project.interviewAnswers) => ({
@@ -555,6 +557,7 @@ function KeepApp() {
     if (!r) { toast.error("Nothing was recorded. Try again."); return; }
     const id = newId("answer");
     const stored = await putBlob(id, r.blob);
+    if (!stored) toast.warning("Your device couldn't store this audio. Keep the page open while we turn it into text.");
     const answer: InterviewAnswer = { questionIndex: q, question: project.interviewQuestion, audioId: stored ? id : undefined, audioUrl: URL.createObjectURL(r.blob), durationSec: r.durationSec, mimeType: r.mimeType, transcript: currentAnswer?.transcript };
     setAnswer(answer);
     if (!aiReady) return;
@@ -1245,9 +1248,8 @@ function KeepApp() {
             optimizedPhoto = await optimizeKeepPhoto(f, { name: f.name });
           }
           const persisted = await putBlob(id, savedFile);
-          // Never point an uploaded video at a transient URL that cannot be
-          // restored from IndexedDB after closing Safari.
-          if (kind === "video" && !persisted) throw new Error("This video couldn't be saved on your device. Try a shorter clip.");
+          // Never accept a photo or video that won't survive closing Safari.
+          if (!persisted) throw new Error(kind === "video" ? "This video couldn't be saved on your device. Try a shorter clip." : "This photo couldn't be saved on your device. Free some browser storage and try adding it again.");
           const optimizedSaved = optimizedPhoto && persisted
             ? await putBlob(keepOptimizedPhotoId(id), optimizedPhoto)
             : false;
@@ -1324,7 +1326,6 @@ function KeepApp() {
         { duration: 5500 },
       );
       if (skipped.length) toast.error(skipped.length === 1 ? skipped[0]! : `${skipped.length} files skipped. ${skipped[0]}`, { duration: 8000 });
-      if (items.some((item) => !item.persisted)) toast.warning("Some photos may not be stored on this device. Keep this page open until your account finishes syncing.");
       if (supported.length !== files.length) toast.info("Some selected files weren't recognized as photos or videos.");
     } finally {
       setMediaImport(null);
@@ -1435,6 +1436,7 @@ function KeepApp() {
       const blob = await getBlob(item.blobId??item.id);
       if (!blob) { toast.error("The original photo is missing. Please re-add it."); return; }
       persisted = await putBlob(id,blob);
+      if (!persisted) { toast.error("This moment could not be duplicated. Free some device storage and try again."); return; }
       url = URL.createObjectURL(blob);
     }
     const copy:MediaItem = {...item,id,blobId:id,url,persisted,displayDurationSec:secondDuration??item.displayDurationSec};
@@ -1887,6 +1889,14 @@ function KeepApp() {
   if (!hydrated) return restoringPersonalKeep
     ? <KeepOpeningScreen phase={openingPhase} progress={openingProgress} onBack={() => window.location.assign("/app")} />
     : <KeepLoadingScreen />;
+  if (project.restoreIncomplete && screen !== "editor") return <main className="app-shell flex min-h-dvh flex-col px-8 py-10">
+    <a href="/app" className="keep-wordmark" aria-label="Keep home">Keep</a>
+    <div className="my-auto max-w-sm">
+      <h1 className="font-display text-[38px] leading-tight">Let's restore your Keep.</h1>
+      <p role="alert" className="mt-5 text-sm leading-7 text-muted-foreground">{project.restoreMissingCount ?? "Some"} saved files could not be opened yet. Your existing draft has not been overwritten. Editing and saving are paused until these files are restored.</p>
+      <div className="mt-9 flex flex-col gap-3"><Button variant="keep" size="touch" disabled={restoreRetrying} onClick={() => void retryMissingRestore()}>{restoreRetrying ? <><Loader2 className="size-4 animate-spin" /> Restoring…</> : "Retry restoring files"}</Button><a href="/app" className="rounded-xl border border-border px-5 py-3 text-center text-sm">Back to your creations</a></div>
+    </div>
+  </main>;
   return <main className={`app-shell keep-creator-app keep-creator-app--${screen}`}>{fileInputs}
     {mediaImport && <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/45 px-6 backdrop-blur-[4px]" role="status" aria-live="polite" aria-label="Adding selected photos and videos to Keep">
       <div className="w-full max-w-xs rounded-[22px] border border-[#DED4C8] bg-[#F7F5F2] px-7 py-8 text-center text-[#181614] shadow-[0_25px_80px_rgba(0,0,0,.27)]">
@@ -2709,7 +2719,7 @@ function KeepApp() {
       <div className="pt-12">
         <div className="mb-7 flex size-12 items-center justify-center rounded-full border border-[#B8A89A] text-[#6A5849]"><Check className="size-5" /></div>
         <h1 className="keep-editorial-title">Your Keep is ready.</h1>
-        <p className="mt-4 text-sm leading-6 text-muted-foreground">A memory worth keeping. Ready to share whenever you are.</p>
+        <p className="mt-4 text-sm leading-6 text-muted-foreground">A message worth keeping. Ready to share whenever you are.</p>
         <p className="mt-6 text-sm leading-6 text-muted-foreground">You can review or share your digital Keep now. Choose your physical card package, engraving, and additional cards during checkout.</p>
       </div>
       <div className="mt-11 space-y-3">

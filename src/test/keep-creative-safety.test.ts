@@ -43,6 +43,14 @@ describe("creative recovery across accounts and slow connections", () => {
     await expect(saveCloudDraft(hydrated,expired("alice"))).rejects.toThrow("Restore the missing media");
     await expect(saveCloudDraft(draft,expired("bob"))).rejects.toThrow("different Keep account");
   });
+  it("keeps the previous snapshot when a phone refuses to store an imported photo", () => {
+    signin("alice");
+    const base={...newProject(),active:true,publicationId:"a1",draftOwnerId:"alice",recipientName:"Safe"};
+    expect(saveDraft(base)).toBe(true);
+    const photo={id:"not-stored",source:"upload" as const,kind:"image" as const,url:"blob:session-only",persisted:false};
+    expect(saveDraft({...base,recipientName:"Unsafe",memories:[photo]})).toBe(false);
+    expect(loadDraft()?.recipientName).toBe("Safe");
+  });
   it("does not restore intentionally removed photos from a stale cloud snapshot", () => {
     const base={...newProject(),active:true,publicationId:"a1",draftOwnerId:"alice"};
     const cloud={...base,draftSavedAt:1000,memories:[{id:"old",source:"upload" as const,kind:"image" as const,url:"blob:old"}]};
