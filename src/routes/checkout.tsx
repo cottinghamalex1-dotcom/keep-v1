@@ -1,7 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { Check, Download, Loader2, RotateCcw } from "lucide-react";
-import { KeepFilmRender, type RenderResult } from "@/components/keep-film-render";
+import type { RenderResult } from "@/components/keep-film-render";
+import { KeepFinishingDialog } from "@/components/keep-finishing-dialog";
 import { KeepPurchase } from "@/components/keep-purchase";
 import { ViewingLink } from "@/components/keep-publish-panel";
 import { loadCheckoutKeep, type CheckoutKeep } from "@/lib/keep-checkout";
@@ -32,7 +33,7 @@ function CheckoutRoute() {
         <p>{error}</p>
         <button type="button" onClick={() => setAttempt(a => a + 1)} className="keep-premium-action flex min-h-12 w-full items-center justify-center gap-2 px-4 text-sm"><RotateCcw className="size-4" /> Try again</button>
         <a href="/app" className="block text-sm underline">Back to My Keeps</a>
-      </div> : <div className="flex min-h-[40dvh] flex-col items-center justify-center gap-4" role="status"><Loader2 className="size-7 animate-spin text-[#887360]" /><p className="text-sm text-muted-foreground">Saving your Keep…</p></div>}
+      </div> : <div className="flex min-h-[40dvh] flex-col items-center justify-center gap-4" role="status"><Loader2 className="size-7 animate-spin text-[#887360]" /><p className="text-sm text-muted-foreground">Opening your Keep…</p></div>}
     </div>
   </main>;
 }
@@ -52,16 +53,5 @@ export function KeepSaveAndPurchase({ keep }: { keep: CheckoutKeep }) {
       <a href={`/?edit=${encodeURIComponent(keep.id)}`} className="underline">Back to editor</a>
       <a href="/app" className="underline">My Keeps</a>
     </div>
-  </div> : <div className="space-y-6">
-    <div className="text-center">
-      <h1 className="keep-editorial-title">Saving your Keep.</h1>
-      <p className="mt-3 text-sm leading-6 text-muted-foreground">Your words, your voice, and your moments.</p>
-    </div>
-    <KeepFilmRender keepId={keep.id} musicMood={keep.published_project.musicMood} musicMuted={!!keep.published_project.audioMix?.musicMuted} autoStart onReady={setFilm} />
-    <p className="text-center text-xs leading-5 text-muted-foreground">You can return to this Keep from My Keeps if you need to leave.</p>
-    <div className="flex justify-center gap-5 text-xs text-muted-foreground">
-      <a href={`/?edit=${encodeURIComponent(keep.id)}`} className="underline">Back to editor</a>
-      <a href="/app" className="underline">My Keeps</a>
-    </div>
-  </div>;
+  </div> : <KeepFinishingDialog keep={keep} onReady={setFilm} resume />;
 }

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { ArrowRight, Check, Download, Loader2, RotateCcw } from "lucide-react";
 import { activeKeepSession } from "@/lib/keep-cloud";
 
@@ -133,9 +133,10 @@ function KeepRenderProgress({ job, startedAt, checking = false, interrupted = fa
 
 /** In finishing mode the creator's Save action authorizes a single render.
  * Always check the durable job before starting; never automatically resubmit a failed job. */
-export function KeepFilmRender({ keepId, musicMood, musicMuted = false, autoStart = false, onReady }: {
-  keepId: string; musicMood: string; musicMuted?: boolean; autoStart?: boolean;
+export function KeepFilmRender({ keepId, musicMood, musicMuted = false, autoStart = false, embedded = false, onReady, wrap }: {
+  keepId: string; musicMood: string; musicMuted?: boolean; autoStart?: boolean; embedded?: boolean;
   onReady?: (job: RenderResult) => void;
+  wrap?: (content: ReactNode, checkingOrReady: boolean) => ReactNode;
 }) {
   const [job, setJob] = useState<RenderResult>({ status: "not_started" });
   const [statusChecked, setStatusChecked] = useState(false);
@@ -226,14 +227,14 @@ export function KeepFilmRender({ keepId, musicMood, musicMuted = false, autoStar
   useEffect(() => {
     if (statusChecked && job.status === "ready" && job.videoUrl) onReady?.(job);
   }, [statusChecked, job, onReady]);
-  return <section className="rounded-[22px] border border-[#D8C8B6] bg-[#F6EFE7] p-5 text-[#30271E]" aria-label={autoStart ? "Saving your Keep" : "Finished Keep film"}>
-    <h2 className="font-display text-[27px] leading-tight">{autoStart ? "Bringing it all together." : "Your finished film"}</h2>
-    <p className="mt-2 text-xs leading-6 text-[#776553]">{autoStart ? "We're creating your finished film and saving it to your permanent viewing link. You'll choose your card as soon as it's ready." : "A single 1080p MP4 with your voice, music, memories and captions. Unlike the live preview, this video can be scrubbed, paused and saved."}</p>
+  const content = <section className={embedded ? "text-[#30271E]" : "rounded-[22px] border border-[#D8C8B6] bg-[#F6EFE7] p-5 text-[#30271E]"} aria-label={autoStart ? "Saving your Keep" : "Finished Keep film"}>
+    {!embedded && <><h2 className="font-display text-[27px] leading-tight">{autoStart ? "Bringing it all together." : "Your finished film"}</h2>
+    <p className="mt-2 text-xs leading-6 text-[#776553]">{autoStart ? "We're creating your finished film and saving it to your permanent viewing link. You'll choose your card as soon as it's ready." : "A single 1080p MP4 with your voice, music, memories and captions. Unlike the live preview, this video can be scrubbed, paused and saved."}</p></>}
     {!statusChecked && autoStart && !error ? <KeepRenderProgress job={job} startedAt={startedAt} checking />
     : !statusChecked ? <button type="button" disabled={busy || !error} onClick={() => void checkStatus()}
         className="mt-5 flex min-h-12 w-full items-center justify-center gap-2 rounded-xl border border-[#CAB8A5] px-5 py-3 text-sm disabled:opacity-60">
       {busy || !error ? <><Loader2 className="size-4 animate-spin" /> {autoStart ? "Checking your saved Keep…" : "Checking saved film…"}</> : <><RotateCcw className="size-4" /> Check film status</>}
-    </button> : job.status === "ready" && job.videoUrl ? <>
+    </button> : job.status === "ready" && job.videoUrl && embedded ? <p role="status" className="mt-5 flex items-center justify-center gap-2 text-sm text-[#47715B]"><Check className="size-5" /> Opening your card options…</p> : job.status === "ready" && job.videoUrl ? <>
       <video key={job.videoUrl} src={job.videoUrl} controls playsInline preload="metadata"
         className="mx-auto mt-5 aspect-[9/16] max-h-[68dvh] w-full max-w-[320px] rounded-xl bg-[#171311] object-contain"
         aria-label="Completed, seekable Keep film" />
@@ -253,4 +254,5 @@ export function KeepFilmRender({ keepId, musicMood, musicMuted = false, autoStar
     : <button type="button" disabled={busy} onClick={() => void act("start")} className="mt-5 flex min-h-14 w-full items-center justify-center gap-2 rounded-xl bg-[#201A15] px-5 py-4 text-sm font-medium text-white disabled:opacity-50">{busy ? <Loader2 className="size-5 animate-spin" /> : <ArrowRight className="size-5" />} {busy ? "Starting…" : autoStart ? "Retry saving my Keep" : "Render my 1080p film"}</button>}
     {error && <p role="alert" className="mt-3 text-xs leading-5 text-[#A04F43]">{error}</p>}
   </section>;
+  return wrap ? wrap(content, (!statusChecked && !error) || (job.status === "ready" && !!job.videoUrl)) : content;
 }

@@ -22,7 +22,8 @@ import { KeepPhoneTip } from "@/components/keep-phone-tip";
 import { KeepStudioResize, DEFAULT_PREVIEW_SIZE, constrainPreviewSize } from "@/components/keep-studio-resize";
 import { KeepTeleprompter } from "@/components/keep-teleprompter";
 import { KeepVoiceTransition } from "@/components/keep-voice-transition";
-import { keepCheckoutPath } from "@/lib/keep-checkout";
+import { keepCheckoutPath, loadCheckoutKeep, type CheckoutKeep } from "@/lib/keep-checkout";
+import { KeepFinishingDialog } from "@/components/keep-finishing-dialog";
 import { KeepStyleEditor } from "@/components/keep-style-editor";
 import { KeepSelfieEditor } from "@/components/keep-selfie-editor";
 import { KeepSelfieBackup } from "@/components/keep-selfie-backup";
@@ -245,6 +246,7 @@ function KeepApp() {
   };
   const [publishing, setPublishing] = useState(false);
   const [publishStatus, setPublishStatus] = useState("");
+  const [renderKeep, setRenderKeep] = useState<CheckoutKeep | null>(null);
   const [publishError, setPublishError] = useState("");
   const publishingLock = useRef(false);
   const [setting, setSetting] = useState("");
@@ -1834,6 +1836,7 @@ function KeepApp() {
     }
     publishingLock.current = true;
     setPublishing(true);
+    setRenderKeep(null);
     setPublishError("");
     setPublishStatus("Saving your Keep…");
     const publicationId = current.publicationId || crypto.randomUUID();
@@ -1855,16 +1858,14 @@ function KeepApp() {
       } catch {
         toast.info("Your published Keep is saved. A cloud draft backup will retry when you reopen the editor.");
       }
-      // Saving is the single authorization to finish the film. The next screen
-      // checks/starts the durable render and only reveals the purchase flow once
-      // the exact saved revision's MP4 is verified in storage.
+      // Stay on the current screen. The modal starts or resumes the durable
+      // render for the saved snapshot and hands off only after MP4 verification.
       setPublishStatus("Preparing your finished film…");
-      window.location.assign(keepCheckoutPath(result.keepId));
+      setRenderKeep(await loadCheckoutKeep(result.keepId));
     } catch (error) {
       const message = error instanceof Error ? error.message : "Couldn't save your Keep. Please try again.";
       setPublishError(message);
       toast.error(message);
-    } finally {
       publishingLock.current = false;
       setPublishing(false);
       setPublishStatus("");
@@ -1930,6 +1931,7 @@ function KeepApp() {
     </div>
   </main>;
   return <main className={`app-shell keep-creator-app keep-creator-app--${screen}`}>{fileInputs}
+    {publishing && <KeepFinishingDialog keep={renderKeep} savingStatus={publishStatus} onReady={() => { if (renderKeep) window.location.assign(keepCheckoutPath(renderKeep.id)); }} />}
     {mediaImport && <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/45 px-6 backdrop-blur-[4px]" role="status" aria-live="polite" aria-label="Adding selected photos and videos to Keep">
       <div className="w-full max-w-xs rounded-[22px] border border-[#DED4C8] bg-[#F7F5F2] px-7 py-8 text-center text-[#181614] shadow-[0_25px_80px_rgba(0,0,0,.27)]">
         <Loader2 className="mx-auto mb-5 size-7 animate-spin text-[#7B6551]" />
@@ -2776,7 +2778,6 @@ function KeepApp() {
         <Button variant="keep" size="touch" className="keep-premium-action w-full justify-between" disabled={publishing} onClick={() => void finishAndShare()}>
           {publishing ? "Saving your Keep…" : "Save my Keep"} <ArrowRight className="size-5" />
         </Button>
-        {publishing && <p role="status" className="mt-3 text-center text-xs text-muted-foreground">{publishStatus}</p>}
         {publishError && <p role="alert" className="mt-3 text-sm leading-6 text-[#9B3529]">{publishError}</p>}
         <p className="mt-3 text-center text-[11px] leading-5 text-muted-foreground">We’ll save your finished film to your permanent link, then take you straight to your card options.</p>
       </div>
