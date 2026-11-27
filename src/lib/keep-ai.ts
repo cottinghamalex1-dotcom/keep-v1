@@ -40,75 +40,135 @@ export async function transcribeAudio(blob: Blob, mimeType?: string) {
 
 export type TimedWord = { word: string; start: number; end: number };
 
-type TimedChunk = { file: Blob; offset: number; duration: number };
+type TimedChunk = { file: Blob; offset: number; duration: number; silent?: boolean };
+type DecodedVoice = {
+  chunks: TimedChunk[];
+  duration: number;
+  split: (part: TimedChunk) => [TimedChunk, TimedChunk] | null;
+};
+const CAPTION_RATE = 16000;
+const seconds = (frames: number) => frames / CAPTION_RATE;
 
-/** An extended iPhone recording can make Whisper's full-file word timestamps
- * collapse. Decode it, split near quiet moments, and anchor each short clip
- * to its true position on the original recording clock. */
-async function voiceChunks(blob: Blob): Promise<{ chunks: TimedChunk[]; duration: number } | null> {
+/** Create short, mono PCM clips on the exact original recording clock.
+ * Silence detection uses a real audio window, not a few isolated samples. */
+function splitVoiceBuffer(buffer: AudioBuffer): DecodedVoice {
+  const duration = buffer.duration;
+  const channels = Array.from({ length: buffer.numberOfChannels }, (_, index) => buffer.getChannelData(index));
+  const ratio = buffer.sampleRate / CAPTION_RATE;
+  const pcm = new Float32Array(Math.round(duration * CAPTION_RATE));
+  for (let i = 0; i < pcm.length; i++) {
+    const from = Math.min(buffer.length - 1, Math.floor(i * ratio));
+    const to = Math.min(buffer.length, Math.max(from + 1, Math.floor((i + 1) * ratio)));
+    let sum = 0;
+    for (let frame = from; frame < to; frame++) {
+      for (const channel of channels) sum += channel[frame]!;
+    }
+    pcm[i] = sum / ((to - from) * channels.length);
+  }
+
+  // Find a quiet 160 ms window around the desired boundary. Use the full
+  // window energy so a zero-crossing within a spoken word isn't mistaken for silence.
+  const quietCut = (from: number, to: number, target: number, radius: number) => {
+    const lo = Math.max(from + CAPTION_RATE * 2, target - radius);
+    const hi = Math.min(to - CAPTION_RATE * 2, target + radius);
+    let best = target, quietest = Infinity;
+    for (let at = Math.ceil(lo); at <= hi; at += CAPTION_RATE / 20) {
+      let energy = 0;
+      for (let j = at - 1280; j < at + 1280; j += 4) energy += pcm[j]! ** 2;
+      if (energy < quietest || (energy === quietest && Math.abs(at - target) < Math.abs(best - target))) {
+        best = at; quietest = energy;
+      }
+    }
+    return Math.round(best);
+  };
+
+  const makeChunk = (from: number, to: number): TimedChunk => {
+    const frames = to - from;
+    const bytes = new ArrayBuffer(44 + frames * 2);
+    const view = new DataView(bytes);
+    const label = (index: number, value: string) => { for (let j = 0; j < value.length; j++) view.setUint8(index + j, value.charCodeAt(j)); };
+    label(0, "RIFF"); view.setUint32(4, bytes.byteLength - 8, true); label(8, "WAVE");
+    label(12, "fmt "); view.setUint32(16, 16, true); view.setUint16(20, 1, true);
+    view.setUint16(22, 1, true); view.setUint32(24, CAPTION_RATE, true);
+    view.setUint32(28, CAPTION_RATE * 2, true); view.setUint16(32, 2, true); view.setUint16(34, 16, true);
+    label(36, "data"); view.setUint32(40, frames * 2, true);
+    let peak = 0;
+    for (let i = 0; i < frames; i++) {
+      const value = Math.max(-1, Math.min(1, pcm[from + i]!));
+      peak = Math.max(peak, Math.abs(value));
+      view.setInt16(44 + i * 2, Math.round(value < 0 ? value * 32768 : value * 32767), true);
+    }
+    // Only skip effectively digital silence; quiet narration is still transcribed.
+    return { file: new Blob([bytes], { type: "audio/wav" }), offset: seconds(from), duration: seconds(frames), silent: peak < 0.0001 };
+  };
+
+  const chunks: TimedChunk[] = [];
+  let from = 0;
+  while (pcm.length - from > CAPTION_RATE * 22) {
+    const end = quietCut(from, pcm.length, from + CAPTION_RATE * 18, CAPTION_RATE * 2);
+    chunks.push(makeChunk(from, end));
+    from = end;
+  }
+  if (from < pcm.length) chunks.push(makeChunk(from, pcm.length));
+  return {
+    chunks, duration,
+    split(part) {
+      // Retry only an affected section with shorter clips, retaining all
+      // previously aligned sections and their exact absolute timestamps.
+      if (part.duration < 8) return null;
+      const start = Math.round(part.offset * CAPTION_RATE);
+      const end = start + Math.round(part.duration * CAPTION_RATE);
+      const cut = quietCut(start, end, Math.round((start + end) / 2), CAPTION_RATE);
+      if (cut - start < CAPTION_RATE * 2 || end - cut < CAPTION_RATE * 2) return null;
+      return [makeChunk(start, cut), makeChunk(cut, end)];
+    },
+  };
+}
+
+async function voiceChunks(blob: Blob): Promise<DecodedVoice | null> {
   if (typeof AudioContext === "undefined") return null;
-  const context = new AudioContext();
+  let context: AudioContext | undefined;
   try {
+    context = new AudioContext();
     const buffer = await context.decodeAudioData(await blob.arrayBuffer());
-    const duration = buffer.duration;
-    if (!Number.isFinite(duration) || duration <= 0) return null;
-    if (duration < 35) return { chunks: [{ file: blob, offset: 0, duration }], duration };
-    const rate = buffer.sampleRate;
-    const channels = Array.from({ length: buffer.numberOfChannels }, (_, index) => buffer.getChannelData(index));
-    const sample = (time: number) => {
-      const index = Math.min(buffer.length - 1, Math.max(0, Math.round(time * rate)));
-      return channels.reduce((sum, channel) => sum + channel[index]!, 0) / channels.length;
-    };
-    const cuts = [0];
-    while (duration - cuts[cuts.length - 1]! > 30) {
-      const start = cuts[cuts.length - 1]!;
-      let bestAt = Math.min(duration, start + 23), quietest = Infinity;
-      // Find a quiet 120 ms window near the desired cut so words are not split.
-      for (let at = start + 20; at <= Math.min(duration - 4, start + 26); at += 0.1) {
-        let energy = 0;
-        for (let j = 0; j < 12; j++) energy += Math.abs(sample(at + j * 0.01));
-        if (energy < quietest) { quietest = energy; bestAt = at; }
-      }
-      cuts.push(Number(bestAt.toFixed(3)));
-    }
-    cuts.push(duration);
-    const chunks: TimedChunk[] = [];
-    for (let n = 0; n < cuts.length - 1; n++) {
-      const offset = cuts[n]!, end = cuts[n + 1]!, seconds = end - offset;
-      const frames = Math.ceil(seconds * 16000);
-      const bytes = new ArrayBuffer(44 + frames * 2);
-      const view = new DataView(bytes);
-      const label = (index: number, value: string) => { for (let j = 0; j < value.length; j++) view.setUint8(index + j, value.charCodeAt(j)); };
-      label(0, "RIFF"); view.setUint32(4, bytes.byteLength - 8, true); label(8, "WAVE");
-      label(12, "fmt "); view.setUint32(16, 16, true); view.setUint16(20, 1, true);
-      view.setUint16(22, 1, true); view.setUint32(24, 16000, true);
-      view.setUint32(28, 32000, true); view.setUint16(32, 2, true); view.setUint16(34, 16, true);
-      label(36, "data"); view.setUint32(40, frames * 2, true);
-      for (let i = 0; i < frames; i++) {
-        const value = Math.max(-1, Math.min(1, sample(Math.min(end - 0.0001, offset + i / 16000))));
-        view.setInt16(44 + i * 2, Math.round(value < 0 ? value * 32768 : value * 32767), true);
-      }
-      chunks.push({ file: new Blob([bytes], { type: "audio/wav" }), offset, duration: seconds });
-    }
-    return { chunks, duration };
+    if (!Number.isFinite(buffer.duration) || buffer.duration <= 0 || !buffer.numberOfChannels) return null;
+    return splitVoiceBuffer(buffer);
   } catch {
-    // A codec may not be decodable on an older iPhone. Do not prevent the
-    // provider from trying the original file; validate its timing afterward.
+    // Some browser codecs can't be decoded locally. Try the original file,
+    // but never accept collapsed timestamps or invent timing for it.
     return null;
   } finally {
-    await context.close().catch(() => undefined);
+    if (context) await context.close().catch(() => undefined);
   }
 }
 
-function reliableWordTimes(words: TimedWord[], duration: number): boolean {
-  if (!words.length || duration <= 0) return false;
-  const bad = words.filter(w => !Number.isFinite(w.start) || !Number.isFinite(w.end) ||
-    w.start < -0.1 || w.end <= w.start + 0.045 || w.end > duration + 1).length;
+/** Preserve provider anchors. A few 0-ms timestamps are common on contractions
+ * and very short words; extend only isolated words into their adjacent free
+ * interval. A cluster of collapsed/reversed timestamps must be re-transcribed. */
+function reliableWordTimes(words: TimedWord[], duration: number): TimedWord[] | null {
+  if (!words.length || !Number.isFinite(duration) || duration <= 0) return null;
+  const invalid = words.some(w => !Number.isFinite(w.start) || !Number.isFinite(w.end) ||
+    w.start < -0.1 || w.end < w.start || w.end > duration + 0.35 || w.end - w.start > 5);
   const repeated = words.slice(1).filter((w, i) => Math.abs(w.start - words[i]!.start) < 0.03).length;
-  const reversed = words.slice(1).filter((w, i) => w.start + 0.05 < words[i]!.start).length;
-  return bad / words.length <= 0.08 &&
-    repeated / Math.max(1, words.length - 1) < 0.12 &&
-    reversed === 0;
+  const reversed = words.slice(1).some((w, i) => w.start + 0.005 < words[i]!.start);
+  const tiny = words.filter(w => w.end - w.start <= 0.045).length;
+  if (invalid || reversed || repeated / Math.max(1, words.length - 1) > 0.12 ||
+      tiny > Math.max(1, Math.floor(words.length * 0.2))) return null;
+  const normalized: TimedWord[] = [];
+  for (let i = 0; i < words.length; i++) {
+    const w = words[i]!;
+    const start = Math.max(0, w.start);
+    let end = Math.min(duration, w.end);
+    if (end - start <= 0.045) {
+      const anchor = Math.min(duration, words[i + 1]?.start ?? duration);
+      // Keep the original spoken start. Never spread a group of words or
+      // shift later speech to fill a pause.
+      end = Math.min(anchor, start + 0.12);
+      if (end - start <= 0.045) return null;
+    }
+    normalized.push({ ...w, start, end });
+  }
+  return normalized;
 }
 
 export async function transcribeTimedAudio(blob: Blob, mimeType?: string, prompt?: string, onProgress?: (completed: number, total: number) => void) {
@@ -118,30 +178,66 @@ export async function transcribeTimedAudio(blob: Blob, mimeType?: string, prompt
   const transcripts: string[] = [];
   const words: TimedWord[] = [];
   onProgress?.(0, parts.length);
-  for (const [index, part] of parts.entries()) {
-    const type = part.file.type || mimeType || blob.type;
-    const ext = type.includes("wav") ? "wav" : type.includes("mp4") ? "m4a" : type.includes("ogg") ? "ogg" : "webm";
+
+  const transcribe = async (part: TimedChunk, usePrompt: boolean, label: string) => {
+    const type = part.file.type || mimeType || blob.type || "audio/webm";
+    const ext = type.includes("wav") ? "wav" : type.includes("mp4") ? "m4a" : type.includes("ogg") ? "ogg" : type.includes("mpeg") ? "mp3" : "webm";
     const fd = new FormData();
     fd.append("action", "transcribe_timed");
-    fd.append("file", new File([part.file], `keep-voice-${index + 1}.${ext}`, { type }));
-    if (prompt?.trim()) fd.append("prompt", prompt.trim().slice(0, 1200));
+    fd.append("file", new File([part.file], `keep-voice-${label}.${ext}`, { type }));
+    // Do not feed the start of the full script to every clip. It can make
+    // Whisper repeat the opening words in later sections instead of listening.
+    if (usePrompt && prompt?.trim()) fd.append("prompt", prompt.trim().slice(0, 1200));
     const result = await post<{ transcript?: string; words?: TimedWord[] }>(fd, false);
     const localWords = (result.words ?? []).map(w => ({
       word: String(w.word ?? "").trim(), start: Number(w.start), end: Number(w.end),
     })).filter(w => w.word);
-    // Reject collapsed provider timing rather than inventing uniform timestamps.
-    // Uniform spreads were the source of captions drifting through long Keeps.
     const clipDuration = part.duration || Math.max(0, ...localWords.map(w => w.end));
-    if (!reliableWordTimes(localWords, clipDuration)) {
-      throw new Error("Captions couldn't be aligned to your voice. Retry sync before publishing.");
+    const normalized = reliableWordTimes(localWords, clipDuration);
+    return normalized ? {
+      transcript: (result.transcript ?? "").trim() || normalized.map(w => w.word).join(" "),
+      words: normalized.map(w => ({ ...w,
+        start: Number((w.start + part.offset).toFixed(3)),
+        end: Number((w.end + part.offset).toFixed(3)),
+      })),
+    } : null;
+  };
+
+  const align = async (part: TimedChunk, label: string, depth = 0, usePrompt = false): Promise<{ transcript: string; words: TimedWord[] } | null> => {
+    if (part.silent) return { transcript: "", words: [] };
+    const result = await transcribe(part, usePrompt, label);
+    if (result) return result;
+    // A short original recording may have used a script hint. Retry without
+    // it before splitting, or if local decoding wasn't available.
+    if (usePrompt) {
+      const unprompted = await transcribe(part, false, label + "-retry");
+      if (unprompted) return unprompted;
     }
-    transcripts.push((result.transcript ?? "").trim());
-    words.push(...localWords.map(w => ({ ...w,
-      start: Number((w.start + part.offset).toFixed(3)),
-      end: Number((w.end + part.offset).toFixed(3)),
-    })));
+    const halves = depth < 2 ? decoded?.split(part) : null;
+    if (!halves) return null;
+    const left = await align(halves[0], label + "-a", depth + 1);
+    if (!left) return null;
+    const right = await align(halves[1], label + "-b", depth + 1);
+    if (!right) return null;
+    return { transcript: [left.transcript, right.transcript].filter(Boolean).join(" "), words: [...left.words, ...right.words] };
+  };
+
+  for (const [index, part] of parts.entries()) {
+    const label = String(index + 1);
+    let result;
+    try {
+      result = await align(part, label, 0, parts.length === 1 && !!prompt?.trim());
+    } catch {
+      throw new Error(`Caption transcription could not finish section ${index + 1} of ${parts.length}. Your saved voice and captions are unchanged. Please retry.`);
+    }
+    if (!result) {
+      throw new Error(`Caption timing could not be verified for section ${index + 1} of ${parts.length}, even after retrying shorter clips. Your original voice and captions are safe.`);
+    }
+    transcripts.push(result.transcript);
+    words.push(...result.words);
     onProgress?.(index + 1, parts.length);
   }
+  if (!words.length) throw new Error("No spoken words were detected. Your original voice is saved; check that you can hear it before retrying caption sync.");
   return { transcript: transcripts.filter(Boolean).join(" "), words, audioDurationSec: duration };
 }
 
