@@ -2,7 +2,7 @@ import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 import { KeepLoadingScreen } from "@/components/keep-loading-screen";
 import { KeepOpeningScreen } from "@/components/keep-opening-screen";
-import { getKeepEntryIntent } from "@/lib/keep-entry-intent";
+import { getKeepEntryIntent, keepFinalTouchesPath } from "@/lib/keep-entry-intent";
 
 afterEach(cleanup);
 
@@ -42,4 +42,12 @@ describe("the main entry point", () => {
       createRequested: true, resumeRequested: false, redirectToDashboard: false,
     });
   });
+});
+
+
+it("only requests the final-touches page for a selected saved Keep", () => {
+  expect(keepFinalTouchesPath("existing-id")).toBe("/?edit=existing-id&final=1");
+  expect(getKeepEntryIntent("?edit=existing-id&final=1")).toMatchObject({ editId: "existing-id", finalTouchesRequested: true, resumeRequested: true });
+  expect(getKeepEntryIntent("?edit=existing-id").finalTouchesRequested).toBe(false);
+  expect(getKeepEntryIntent("?final=1").redirectToDashboard).toBe(true);
 });

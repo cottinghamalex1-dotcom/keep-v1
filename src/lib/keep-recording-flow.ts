@@ -26,7 +26,9 @@ export function nextAfterVoice(project: KeepProject): "storyStyle" | "memories" 
 }
 
 /** Uploaded photos are no longer proof that narration or story creation is finished. */
-export function resumeKeepRecordingFlow(project: KeepProject): string {
+export function resumeKeepRecordingFlow(project: KeepProject, finalTouchesRequested = false): string {
+  // Only saved, fully restored Keeps can enter final touches from checkout.
+  if (finalTouchesRequested && project.publicationToken && !project.restoreIncomplete && project.finalVoiceRecording && project.memories.length) return "card";
   const stage = resumeKeepCreationStage(project.stage || "recipient");
   if (stage === "memories" || stage === "framing" || stage === "storyStyle" || stage === "recorded" || stage === "remoteInvite") return stage;
   if (["recordPrep", "record", "groupRecord"].includes(stage) && !usesRemoteRecording(project)) {

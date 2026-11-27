@@ -79,3 +79,12 @@ describe("Optional camera backup", () => {
     expect(actions.onClose).toHaveBeenCalledOnce();
   });
 });
+
+
+it("opens final touches directly only for successfully restored published Keeps", () => {
+  const finished = draft({ stage: "editor", publicationId: "existing-id", publicationToken: "same-link", memories: [photo], finalVoiceRecording: voice });
+  expect(resumeKeepRecordingFlow(finished)).toBe("editor");
+  expect(resumeKeepRecordingFlow(finished, true)).toBe("card");
+  expect(resumeKeepRecordingFlow({ ...finished, publicationToken: "" }, true)).toBe("editor");
+  expect(resumeKeepRecordingFlow({ ...finished, restoreIncomplete: true }, true)).toBe("editor");
+});

@@ -314,7 +314,7 @@ function KeepApp() {
   useEffect(() => {
     let cancelled = false;
     const initialize = async () => {
-      const { editId, resumeRequested, createRequested, redirectToDashboard } = getKeepEntryIntent(window.location.search);
+      const { editId, finalTouchesRequested, resumeRequested, createRequested, redirectToDashboard } = getKeepEntryIntent(window.location.search);
       // A normal home visit should not restore a personal draft or show film-loading copy.
       if (redirectToDashboard) {
         window.location.replace("/app");
@@ -386,8 +386,8 @@ function KeepApp() {
       }
       if (resumeRequested) {
         if (!next?.active) { setResumeError("There isn't a saved draft to continue yet."); return; }
-        const stage = resumeKeepRecordingFlow(next) as Screen;
-        setHistory([]);
+        const stage = resumeKeepRecordingFlow(next, finalTouchesRequested) as Screen;
+        setHistory(stage === "card" && finalTouchesRequested ? ["editor"] : []);
         setScreen(creationScreens.includes(stage) ? stage : "recipient");
         setHydrated(true);
         return;
@@ -1803,7 +1803,6 @@ function KeepApp() {
   }, [screen, editorTime, editorPlaying, shown.length, editorDuration, editorMediaTotal]);
 
   const engraving = project.cardEngraving;
-  const updateEngraving = (i: number, value: string) => patch({ cardEngraving: engraving.map((v, j) => (j === i ? value.toUpperCase() : v)) });
   // Publishing happens as part of finishing, not through a separate "Update" action.
   // A published Keep is always republished under its original ID/token.
   const finishAndShare = async (updated?: KeepProject) => {
@@ -1883,14 +1882,14 @@ function KeepApp() {
       go("remoteInvite");
       return;
     }
-    const next = !engraving[0]?.trim()
+    const next = !project.publicationToken && !engraving[0]?.trim()
       ? { ...project, cardEngraving: [(name || "YOUR KEEP").toUpperCase(), engraving[1] || "", engraving[2] || ""] }
       : project;
     if (next !== project) setProject(next);
     saveDraft(next);
-    // Re-save an existing Keep, then finish its current film. Show progress
-    // and any validation errors right here in the editor rather than silently failing.
-    if (next.publicationToken) { setPublishError(""); void finishAndShare(next); return; }
+    // Every Keep, including one already published, must revisit the editable
+    // final words and physical card before saving its next revision.
+    setPublishError("");
     go("card");
   };
   const totalSec = rec?.durationSec ?? 150;
@@ -2506,7 +2505,7 @@ function KeepApp() {
           <Button variant="bare" size="icon" aria-label="Undo" disabled={!undoPast.current.length} onClick={() => stepHistory("undo")}><Undo2 className="size-4" /></Button>
           <Button variant="bare" size="icon" aria-label="Redo" disabled={!undoFuture.current.length} onClick={() => stepHistory("redo")}><Redo2 className="size-4" /></Button>
           <Button variant="bare" size="sm" className="text-muted-foreground" disabled={busy || publishing} onClick={() => { setViewingDemo(false); setPreviewChooserOpen(true); setReadArrangeOpen(false); }}><Play className="size-4" /> Preview</Button>
-          <Button variant="keep" size="sm" disabled={!!project.restoreIncomplete || publishing || busy || captionSyncing} onClick={toCard}>{publishing ? "Saving…" : busy ? "Adding…" : captionSyncing ? "Syncing…" : "Done"} {publishing || busy || captionSyncing ? <Loader2 className="size-4 animate-spin" /> : <Check className="size-4" />}</Button>
+          <Button variant="keep" size="sm" disabled={!!project.restoreIncomplete || publishing || busy || captionSyncing} onClick={toCard}>{publishing ? "Saving…" : busy ? "Adding…" : captionSyncing ? "Syncing…" : project.publicationToken ? "Final touches" : "Done"} {publishing || busy || captionSyncing ? <Loader2 className="size-4 animate-spin" /> : <Check className="size-4" />}</Button>
         </div>
       </div>
 
@@ -2773,15 +2772,15 @@ function KeepApp() {
       onCreatorContinue={() => { setScreen("card"); resetPageScroll(); }}
     />}
     {screen === "card" && <>{top()}<div className="mx-auto max-w-xl px-7 pb-14 pt-7">
-      {title("The final touch", "Choose your opening and closing lines.", "Two short written messages: one before your story begins, and one after your recording ends.")}
-      <KeepFinalTouchGuide recipientName={project.recipientName} />
+      {title("The final touch", project.publicationToken ? "Edit your final touches." : "Choose your opening and closing lines.", "Personalize the words before and after your film, and preview the engraving on your black Keep card.")}
+      {!project.publicationToken && <KeepFinalTouchGuide recipientName={project.recipientName} />}
       <KeepOpeningPersonalization project={project} onUpdate={patch} disabled={publishing} />
       <div className="mt-10 border-t border-border pt-7">
         <Button variant="keep" size="touch" className="keep-premium-action w-full justify-between" disabled={publishing} onClick={() => void finishAndShare()}>
-          {publishing ? "Saving your Keep…" : "Save my Keep"} <ArrowRight className="size-5" />
+          {publishing ? "Saving your Keep…" : project.publicationToken ? "Save changes & continue" : "Save my Keep"} <ArrowRight className="size-5" />
         </Button>
         {publishError && <p role="alert" className="mt-3 text-sm leading-6 text-[#9B3529]">{publishError}</p>}
-        <p className="mt-3 text-center text-[11px] leading-5 text-muted-foreground">We’ll save your finished film to your permanent link, then take you straight to your card options.</p>
+        <p className="mt-3 text-center text-[11px] leading-5 text-muted-foreground">We’ll save your finished film and card details to the same permanent link, then take you straight to your card options.</p>
       </div>
     </div>
     </>}

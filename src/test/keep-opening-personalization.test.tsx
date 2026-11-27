@@ -83,3 +83,36 @@ it("previews the same opening line and saved engraving details on the black card
   expect(card).toHaveTextContent("MOM");
   expect(screen.getByText(/Personalized engraving is exclusive to Signature/)).toBeTruthy();
 });
+
+
+it("reopens saved final touches, edits the engraved details, and saves a film-only opening if requested", () => {
+  function Harness() {
+    const [p, setP] = useState({
+      ...newProject(), publicationId: "existing-id", publicationToken: "same-link",
+      recipientName: "Hannah", openingMessage: "You make our home brighter.",
+      closingLine: "All my love.", engraveOpeningMessage: true,
+      cardEngraving: ["HANNAH", "FROM ALEX", "2026"],
+    });
+    return <KeepOpeningPersonalization project={p} onUpdate={values => setP(old => ({ ...old, ...values }))} />;
+  }
+  render(<Harness />);
+  expect(screen.getByRole("textbox", { name: "Custom opening message" })).toHaveValue("You make our home brighter.");
+  expect(screen.getByRole("textbox", { name: "Your closing line" })).toHaveValue("All my love.");
+  const card = screen.getByLabelText("Preview of the front of your Keep card");
+  fireEvent.change(screen.getByRole("textbox", { name: "Name or dedication" }), { target: { value: "My Hannah" } });
+  fireEvent.change(screen.getByRole("textbox", { name: "From" }), { target: { value: "Love, Alex" } });
+  fireEvent.change(screen.getByRole("textbox", { name: "Date or year" }), { target: { value: "" } });
+  expect(card).toHaveTextContent("MY HANNAH");
+  expect(card).toHaveTextContent("LOVE, ALEX");
+  expect(card).not.toHaveTextContent("2026");
+  fireEvent.click(screen.getByRole("checkbox", { name: /Include my opening line on the card/ }));
+  expect(card).not.toHaveTextContent("You make our home brighter.");
+  expect(screen.getByRole("textbox", { name: "Custom opening message" })).toHaveValue("You make our home brighter.");
+  fireEvent.change(screen.getByRole("textbox", { name: "Custom opening message" }), { target: { value: "You make life beautiful." } });
+  expect(card).not.toHaveTextContent("You make life beautiful.");
+  fireEvent.click(screen.getByRole("button", { name: /Preview opening screen/ }));
+  expect(screen.getByRole("dialog", { name: "Opening screen preview" })).toHaveTextContent("You make life beautiful.");
+  fireEvent.click(screen.getByRole("button", { name: "Close opening preview" }));
+  fireEvent.click(screen.getByRole("checkbox", { name: /Include my opening line on the card/ }));
+  expect(card).toHaveTextContent("You make life beautiful.");
+});

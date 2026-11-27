@@ -16,6 +16,7 @@ export type CheckoutKeep = {
     voiceMode?: string;
     contributors?: unknown[];
     openingMessage?: string;
+    engraveOpeningMessage?: boolean;
   };
 };
 
