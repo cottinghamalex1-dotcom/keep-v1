@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
-import { ArrowLeft, ArrowRight, BookOpen, Headphones, Images, Pause, Play, RotateCcw, Volume2 } from "lucide-react";
+import { ArrowLeft, ArrowRight, BookOpen, Headphones, Images, LoaderCircle, Pause, Play, RotateCcw, Volume2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { flushSync } from "react-dom";
 import { KeepPlayer, type PlayerMedia } from "@/components/keep-player";
 import { KeepFirstPlayReveal } from "@/components/keep-first-play-reveal";
 import { KeepReadingMusic } from "@/components/keep-reading-music";
@@ -9,7 +10,7 @@ import { makeReadingFrames, readingFrameAtTime } from "@/lib/keep-immersive-read
 import type { AudioMix, CaptionCue } from "@/lib/keep-project";
 import { createKeepVoiceMix, KEEP_MUSIC_LEAD_SECONDS, KEEP_MUSIC_TAIL_SECONDS, type MusicBalance } from "@/lib/keep-audio";
 import "./keep-farewell.css";
-import { enterKeepFullscreen, leaveKeepFullscreen } from "@/lib/keep-fullscreen";
+import { enterKeepFullscreen, leaveKeepFullscreen, startKeepVideoFullscreen, leaveKeepVideoFullscreen } from "@/lib/keep-fullscreen";
 
 export type KeepExperienceMode = "watch" | "listen" | "read";
 
@@ -96,6 +97,8 @@ export function KeepRecipientExperience({
   // media is actually decoded; never expose the player's empty dark backdrop.
   const [introHandoff, setIntroHandoff] = useState(false);
   const [openingFrameReady, setOpeningFrameReady] = useState(false);
+  const renderedFilm = useRef<HTMLVideoElement>(null);
+  const [renderedStarting, setRenderedStarting] = useState(false);
   const [experience, setExperience] = useState<KeepExperienceMode>(initialExperience ?? "watch");
   const [listening, setListening] = useState(false);
   const [galleryOpen, setGalleryOpen] = useState(false);
@@ -131,7 +134,7 @@ export function KeepRecipientExperience({
   // introduction. Slow mobile downloads never require a black intermediary.
   const openingMoment = media?.[0];
   useEffect(() => {
-    if (stage !== "reveal" || !openingMoment?.url) return;
+    if (stage !== "reveal" || renderedVideoUrl || !openingMoment?.url) return;
     if (openingMoment.kind === "image") {
       const image = new Image();
       image.decoding = "async";
@@ -150,7 +153,7 @@ export function KeepRecipientExperience({
       video.removeAttribute("src");
       video.load();
     };
-  }, [stage, openingMoment?.url, openingMoment?.kind]);
+  }, [stage, renderedVideoUrl, openingMoment?.url, openingMoment?.kind]);
 
   useEffect(() => {
     if (!persistVisit) return;
@@ -207,19 +210,32 @@ export function KeepRecipientExperience({
   },[stage,experience,musicMood,voiceMusicBalance,audioMix?.fadeIn,audioMix?.fadeOut,audioMix?.ducking]);
 
   const enter = () => {
-    // Request fullscreen synchronously from the recipient's tap. iPhone Safari
-    // cannot hide its browser chrome, so this is a safe no-op there.
-    enterKeepFullscreen();
-    setOpeningFrameReady(false);
-    setIntroHandoff(true);
+    // Keep the finished video mounted behind the personal cover. Starting it
+    // directly in this tap (not an effect or after a network request) preserves
+    // the browser's permission to play with sound and enter fullscreen.
+    const rendered = renderedFilm.current;
+    if (!rendered) enterKeepFullscreen();
     if (persistVisit) {
       try { localStorage.setItem(visitKey, "1"); } catch { /* private browsing */ }
     }
-    setVisited(true);
-    setExperience("watch");
-    setListening(false);
-    setListenProgress(0);
-    setStage("experience");
+    const showExperience = () => {
+      setOpeningFrameReady(false);
+      setIntroHandoff(!rendered);
+      setVisited(true);
+      setExperience("watch");
+      setListening(false);
+      setListenProgress(0);
+      setRenderedStarting(!!rendered);
+      setStage("experience");
+    };
+    if (rendered) {
+      // Reveal the edge-to-edge player before requesting the native fullscreen
+      // video, without losing the original tap's transient user activation.
+      flushSync(showExperience);
+      void startKeepVideoFullscreen(rendered).catch(() => setRenderedStarting(false));
+    } else {
+      showExperience();
+    }
   };
 
   const choose = (next: KeepExperienceMode) => {
@@ -242,7 +258,11 @@ export function KeepRecipientExperience({
   };
 
   const backToChoose = () => {
-    leaveKeepFullscreen();
+    if (renderedFilm.current) {
+      leaveKeepVideoFullscreen(renderedFilm.current);
+      renderedFilm.current.pause();
+    } else leaveKeepFullscreen();
+    setRenderedStarting(false);
     setIntroHandoff(false);
     if (timer.current) window.clearInterval(timer.current);
     timer.current = null;
@@ -258,6 +278,8 @@ export function KeepRecipientExperience({
   };
 
   const finishExperience = () => {
+    if (renderedFilm.current) leaveKeepVideoFullscreen(renderedFilm.current);
+    setRenderedStarting(false);
     setIntroHandoff(false);
     if (timer.current) window.clearInterval(timer.current);
     timer.current = null;
@@ -343,11 +365,23 @@ export function KeepRecipientExperience({
   if (stage === "reveal" || (stage === "experience" && experience === "watch")) {
     const watching = stage === "experience";
     return <main className="app-shell relative">
-      {watching && renderedVideoUrl && <div className="flex min-h-dvh flex-col items-center justify-center bg-[#171311] px-3 pb-[max(28px,env(safe-area-inset-bottom))] pt-[max(18px,env(safe-area-inset-top))] text-[#F7EEE6]">
-        <button type="button" onClick={backToChoose} className="mb-4 flex min-h-11 items-center gap-2 self-start px-4 text-sm"><ArrowLeft className="size-4" /> Back to experiences</button>
-        <video key={renderedVideoUrl} src={renderedVideoUrl} controls playsInline preload="metadata" onLoadedData={() => setOpeningFrameReady(true)} onPlaying={reportExperience} onEnded={finishExperience}
-          className="aspect-[9/16] max-h-[78dvh] w-full max-w-[450px] rounded-lg bg-black object-contain" aria-label="Finished Keep film with seeking controls" />
-        <p className="mt-3 text-xs text-[#D5C1AD]">Tap play to watch. Drag the video timeline to revisit any moment.</p>
+      {renderedVideoUrl && <div key="rendered-film"
+        className={`fixed inset-0 z-[60] flex items-center justify-center overflow-hidden bg-black text-[#F7EEE6] ${watching ? "" : "invisible pointer-events-none"}`}
+        aria-hidden={!watching} inert={!watching}>
+        {/* Omit playsInline so iPhone can enter its native video fullscreen
+            automatically even when the fullscreen call is waiting on metadata. */}
+        <video ref={renderedFilm} key={renderedVideoUrl} src={renderedVideoUrl} controls={watching} preload="auto"
+          onPlaying={() => { setRenderedStarting(false); if (watching) reportExperience(); }}
+          onError={() => setRenderedStarting(false)} onEnded={finishExperience}
+          className="h-full w-full bg-black object-contain" aria-label="Finished Keep film with seeking controls" />
+        {watching && <button type="button" onClick={backToChoose} aria-label="Back to experiences"
+          className="absolute left-4 top-[max(16px,env(safe-area-inset-top))] flex size-11 items-center justify-center rounded-full border border-white/20 bg-black/40 text-white backdrop-blur-md focus-visible:outline-2 focus-visible:outline-white">
+          <ArrowLeft className="size-5" />
+        </button>}
+        {watching && renderedStarting && <div role="status" className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-3 text-white/80">
+          <LoaderCircle className="size-7 animate-spin motion-reduce:animate-none" aria-hidden="true" />
+          <span className="text-xs">Opening your Keep…</span>
+        </div>}
       </div>}
       {watching && !renderedVideoUrl && <KeepPlayer key="recipient-film"
         name={name.toUpperCase()} from={from} year={year} subtitle={subtitle} openingMessage={openingMessage} closingLine={closingLine}

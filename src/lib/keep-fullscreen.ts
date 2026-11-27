@@ -20,6 +20,43 @@ export function leaveKeepFullscreen() {
 }
 
 
+type NativeFullscreenVideo = HTMLVideoElement & {
+  webkitEnterFullscreen?: () => void;
+  webkitExitFullscreen?: () => void;
+  webkitDisplayingFullscreen?: boolean;
+};
+
+/** Start from the original user gesture: play first, then request fullscreen.
+ * iPhone's native video fullscreen is available even where DOM fullscreen isn't.
+ * The video must be mounted before the gesture; do not wait for metadata or play().
+ */
+export function startKeepVideoFullscreen(video: HTMLVideoElement): Promise<void> {
+  const nativeVideo = video as NativeFullscreenVideo;
+  video.muted = false;
+  let playback: Promise<void>;
+  try {
+    playback = Promise.resolve(video.play());
+  } catch (error) {
+    playback = Promise.reject(error);
+  }
+  if (typeof document.documentElement.requestFullscreen === "function" && document.fullscreenEnabled !== false) {
+    enterKeepFullscreen();
+  } else {
+    try {
+      if (!nativeVideo.webkitDisplayingFullscreen) nativeVideo.webkitEnterFullscreen?.();
+    } catch { /* iOS may wait for metadata; playback without playsInline can enter fullscreen itself. */ }
+  }
+  return playback;
+}
+
+export function leaveKeepVideoFullscreen(video: HTMLVideoElement | null) {
+  const nativeVideo = video as NativeFullscreenVideo | null;
+  try {
+    if (nativeVideo?.webkitDisplayingFullscreen) nativeVideo.webkitExitFullscreen?.();
+  } catch { /* Native fullscreen may already have closed. */ }
+  leaveKeepFullscreen();
+}
+
 /**
  * Explicit fullscreen control for the in-film button. The browser may reject
  * this on iPhone, where arbitrary DOM (photo/caption/music) fullscreen is not
