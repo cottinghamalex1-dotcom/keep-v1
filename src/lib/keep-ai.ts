@@ -38,7 +38,10 @@ export async function transcribeAudio(blob: Blob, mimeType?: string) {
   return (r.transcript ?? "").trim();
 }
 
-export type TimedWord = { word: string; start: number; end: number };
+export type TimedWord = { word: string; start: number; end: number; phrase?: true };
+type TimedSegment = { text: string; start: number; end: number };
+type TimedResponse = { transcript?: string; words?: TimedWord[]; segments?: TimedSegment[]; noSpeech?: boolean };
+type AlignedChunk = { transcript: string; words: TimedWord[] };
 
 type TimedChunk = { file: Blob; offset: number; duration: number; silent?: boolean };
 type DecodedVoice = {
@@ -185,6 +188,34 @@ function reliableWordTimes(words: TimedWord[], duration: number): TimedWord[] | 
   return normalized;
 }
 
+// Ignore whitespace and punctuation (but never silently discard spoken text).
+const timingText = (text: string) => text.normalize("NFKC").toLowerCase().replace(/[^\p{L}\p{N}\p{M}]/gu, "");
+function transcriptMatches(transcript: string, entries: string[]): boolean {
+  return !transcript || timingText(transcript) === timingText(entries.join(" "));
+}
+
+/** A segment is an actual recognition timestamp for the entire phrase.
+ * Keep it indivisible: neither interpolate its words nor shift the next cue.
+ * Reject broad, empty, overlapping, reversed, or incomplete segments. */
+function reliablePhraseTimes(segments: TimedSegment[], transcript: string, duration: number): TimedWord[] | null {
+  if (!segments.length || !transcript || !Number.isFinite(duration) || duration <= 0) return null;
+  const phrases: TimedWord[] = [];
+  for (const segment of segments) {
+    if (!segment || typeof segment.text !== "string" ||
+        !Number.isFinite(segment.start) || !Number.isFinite(segment.end)) return null;
+    const word = segment.text.trim();
+    const start = Math.max(0, segment.start);
+    const end = Math.min(duration, segment.end);
+    const span = end - start;
+    const count = word.split(/\s+/u).length;
+    if (!word || !timingText(word) || segment.start < -0.1 || segment.end > duration + 0.35 ||
+        span < 0.18 || span > Math.min(8, Math.max(7, count * 1.25 + 1.5)) || count > 18 ||
+        (phrases.length && start < phrases[phrases.length - 1]!.end - 0.005)) return null;
+    phrases.push({ word, start, end, phrase: true });
+  }
+  return transcriptMatches(transcript, phrases.map(p => p.word)) ? phrases : null;
+}
+
 export async function transcribeTimedAudio(blob: Blob, mimeType?: string, prompt?: string, onProgress?: (completed: number, total: number) => void) {
   const decoded = await voiceChunks(blob);
   const duration = decoded?.duration ?? 0;
@@ -193,47 +224,71 @@ export async function transcribeTimedAudio(blob: Blob, mimeType?: string, prompt
   const words: TimedWord[] = [];
   onProgress?.(0, parts.length);
 
-  const transcribe = async (part: TimedChunk, usePrompt: boolean, label: string) => {
+  const transcribe = async (part: TimedChunk, usePrompt: boolean, label: string, segmentOnly = false) => {
     const type = part.file.type || mimeType || blob.type || "audio/webm";
     const ext = type.includes("wav") ? "wav" : type.includes("mp4") ? "m4a" : type.includes("ogg") ? "ogg" : type.includes("mpeg") ? "mp3" : "webm";
     const fd = new FormData();
     fd.append("action", "transcribe_timed");
     fd.append("file", new File([part.file], `keep-voice-${label}.${ext}`, { type }));
-    // Do not feed the start of the full script to every clip. It can make
-    // Whisper repeat the opening words in later sections instead of listening.
+    if (segmentOnly) fd.append("timing", "segment");
+    // Never repeat the full script opening in each later clip.
     if (usePrompt && prompt?.trim()) fd.append("prompt", prompt.trim().slice(0, 1200));
-    const result = await post<{ transcript?: string; words?: TimedWord[] }>(fd, false);
-    const localWords = (result.words ?? []).map(w => ({
-      word: String(w.word ?? "").trim(), start: Number(w.start), end: Number(w.end),
+    const result = await post<TimedResponse>(fd, false);
+    const transcript = typeof result.transcript === "string" ? result.transcript.trim() : "";
+    const localWords = (Array.isArray(result.words) ? result.words : []).map(w => ({
+      word: String(w?.word ?? "").trim(),
+      start: typeof w?.start === "number" ? w.start : NaN,
+      end: typeof w?.end === "number" ? w.end : NaN,
     })).filter(w => w.word);
-    const clipDuration = part.duration || Math.max(0, ...localWords.map(w => w.end));
-    const normalized = reliableWordTimes(localWords, clipDuration);
-    return normalized ? {
-      transcript: (result.transcript ?? "").trim() || normalized.map(w => w.word).join(" "),
-      words: normalized.map(w => ({ ...w,
+    const supportsSegments = Array.isArray(result.segments);
+    const segments = supportsSegments ? result.segments! : [];
+    const clipDuration = part.duration || Math.max(0, ...localWords.map(w => w.end).filter(Number.isFinite), ...segments.map(s => s?.end).filter(Number.isFinite));
+    const absolute = (entries: TimedWord[]): AlignedChunk => ({
+      transcript: transcript || entries.map(w => w.word).join(" "),
+      words: entries.map(w => ({ ...w,
         start: Number((w.start + part.offset).toFixed(3)),
         end: Number((w.end + part.offset).toFixed(3)),
       })),
-    } : null;
+    });
+    // An explicit empty recognition response is not a timestamp error.
+    // Do not mistake missing or malformed provider data for silence.
+    const noSpeech = !usePrompt && result.noSpeech === true && !transcript &&
+      Array.isArray(result.words) && result.words.length === 0 && supportsSegments && segments.length === 0;
+    if (noSpeech) return { primary: { transcript: "", words: [] } as AlignedChunk, fallback: null, supportsSegments };
+    const normalized = reliableWordTimes(localWords, clipDuration);
+    const primary = normalized && transcriptMatches(transcript, normalized.map(w => w.word)) ? absolute(normalized) : null;
+    const phrases = reliablePhraseTimes(segments, transcript, clipDuration);
+    return { primary, fallback: phrases ? absolute(phrases) : null, supportsSegments };
   };
 
-  const align = async (part: TimedChunk, label: string, depth = 0, usePrompt = false): Promise<{ transcript: string; words: TimedWord[] } | null> => {
+  const align = async (part: TimedChunk, label: string, depth = 0, usePrompt = false): Promise<AlignedChunk | null> => {
     if (part.silent) return { transcript: "", words: [] };
-    const result = await transcribe(part, usePrompt, label);
-    if (result) return result;
-    // A short original recording may have used a script hint. Retry without
-    // it before splitting, or if local decoding wasn't available.
+    let result = await transcribe(part, usePrompt, label);
+    if (result.primary) return result.primary;
+    // Retry without a script hint before falling back on phrase timestamps.
     if (usePrompt) {
       const unprompted = await transcribe(part, false, label + "-retry");
-      if (unprompted) return unprompted;
+      if (unprompted.primary) return unprompted.primary;
+      result = unprompted;
     }
+    // Real phrase boundaries are better than synthetic per-word timing.
+    if (result.fallback) return result.fallback;
+
     const halves = depth < 2 ? decoded?.split(part) : null;
-    if (!halves) return null;
-    const left = await align(halves[0], label + "-a", depth + 1);
-    if (!left) return null;
-    const right = await align(halves[1], label + "-b", depth + 1);
-    if (!right) return null;
-    return { transcript: [left.transcript, right.transcript].filter(Boolean).join(" "), words: [...left.words, ...right.words] };
+    if (halves) {
+      const left = await align(halves[0], label + "-a", depth + 1);
+      if (left) {
+        const right = await align(halves[1], label + "-b", depth + 1);
+        if (right) return { transcript: [left.transcript, right.transcript].filter(Boolean).join(" "), words: [...left.words, ...right.words] };
+      }
+    }
+    // Ask for phrase timing alone if joint word/phrase recognition failed.
+    // This is bounded to one additional request per failed clip.
+    if (result.supportsSegments) {
+      const segment = await transcribe(part, false, label + "-phrases", true);
+      return segment.primary ?? segment.fallback;
+    }
+    return null;
   };
 
   for (const [index, part] of parts.entries()) {

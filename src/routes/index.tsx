@@ -27,7 +27,7 @@ import { KeepAskAIModal, KeepWordChanges } from "@/components/keep-ask-ai-modal"
 import { KeepInterviewIntro } from "@/components/keep-interview-intro";
 import { arrangeWords, spreadMemories, recommendedStyle } from "@/lib/keep-story-layout";
 import { filmTotal, sceneBoundary, sceneDuration, sceneElapsed, sceneIndexAt, sceneSeekTime } from "@/lib/keep-film-timing";
-import { captionAtTime, captionTimingIsBroken, recoverCaptionTiming } from "@/lib/keep-caption-timing";
+import { captionAtTime, captionTimingIsBroken, groupTimedWords, recoverCaptionTiming } from "@/lib/keep-caption-timing";
 import { activeKeepSession, loadEditableKeep, loadCloudDraft, saveCloudDraft, removeCloudDraft, retryMissingCloudMedia, loadSavedVoiceForCaptionSync } from "@/lib/keep-cloud";
 import { CinematicMedia } from "@/components/cinematic-media";
 import { createFileRoute, Link } from "@tanstack/react-router";
@@ -49,7 +49,7 @@ import { useRecorder, type RecordingResult } from "@/hooks/use-recorder";
 import { joinKeepVoiceParts } from "@/lib/keep-collaborative-audio";
 import { deleteBlobs, getBlob, putBlob, listStoredVoiceRecordings } from "@/lib/keep-media-store";
 import { createKeepVoiceMix, KEEP_MUSIC_LEAD_SECONDS, KEEP_MUSIC_TAIL_SECONDS, playMusicSample, stopMusicSample, type MusicBalance } from "@/lib/keep-audio";
-import { fetchDraft, fetchNextQuestion, fetchRevision, keepAiAvailable, transcribeAudio, transcribeTimedAudio, type TimedWord } from "@/lib/keep-ai";
+import { fetchDraft, fetchNextQuestion, fetchRevision, keepAiAvailable, transcribeAudio, transcribeTimedAudio } from "@/lib/keep-ai";
 import { fmt, hydrateDraftMedia, loadDraft, newId, newProject, projectBlobIds, projectObjectUrls, sampleMemories, saveDraft, preferLocalKeepDraft, stageLabels, defaultAudioMix, type AudioMix, type CaptionCue, type InterviewAnswer, type KeepProject, type KeepVoicePart, type MediaItem, type VoiceTone } from "@/lib/keep-project";
 
 export const Route = createFileRoute("/")({
@@ -114,25 +114,6 @@ const styles = [
   { name: "Soft", note: "Airy highlights and lower contrast" },
   { name: "Dreamy", note: "Glow, softness, and lifted color" },
 ];
-const groupTimedWords = (words: TimedWord[], limit = 5): CaptionCue[] => {
-  const cues: CaptionCue[] = [];
-  let group: TimedWord[] = [];
-  const flush = () => {
-    if (!group.length) return;
-    const text = group.map((w) => w.word).join(" ").replace(/\s+([,.!?;:])/g, "$1").trim();
-    if (text) cues.push({ text, start: Math.max(0, group[0]!.start - 0.05), end: group[group.length - 1]!.end + 0.16 });
-    group = [];
-  };
-  for (const word of words) {
-    const prev = group[group.length - 1];
-    if (prev && word.start - prev.end > 0.72) flush();
-    group.push(word);
-    if (group.length >= limit || (limit > 2 && /[.!?]$/.test(word.word))) flush();
-  }
-  flush();
-  return cues;
-};
-
 const EDIT_KEYS = ["memories", "selfieBaseMedia", "selfieVideos", "selfiePresentation", "selfieBookendSeconds", "selfieIntroId", "selfieOutroId", "captionCues", "captionStyle", "visualStyle", "musicMood", "voiceMusicBalance", "voiceVolume", "musicVolume", "captionPosition", "captionLines", "captionWordsPerCue", "audioMix"] as const;
 type EditSnapshot = Pick<KeepProject, (typeof EDIT_KEYS)[number]>;
 const takeSnapshot = (p: KeepProject): EditSnapshot => Object.fromEntries(EDIT_KEYS.map((k) => [k, p[k]])) as EditSnapshot;
@@ -843,7 +824,7 @@ function KeepApp() {
       const cues = groupTimedWords(timed.words, project.captionWordsPerCue ?? 5);
       const trueDuration = timed.audioDurationSec > 0 ? timed.audioDurationSec : recordedDuration;
       if (!cues.length || captionTimingIsBroken(timed.words, cues, trueDuration)) {
-        throw new Error("These word timestamps aren't reliable enough to show with your voice.");
+        throw new Error("These caption timestamps aren't reliable enough to show with your voice.");
       }
       // Respect the decoded recording clock, never transcript-length estimates.
       if (request !== captionSyncToken.current) return false;

@@ -121,7 +121,8 @@ Deno.serve(async (req: Request) => {
       if (action === "transcribe_timed") {
         aiForm.append("model", "whisper-1");
         aiForm.append("response_format", "verbose_json");
-        aiForm.append("timestamp_granularities[]", "word");
+        if (form.get("timing") !== "segment") aiForm.append("timestamp_granularities[]", "word");
+        aiForm.append("timestamp_granularities[]", "segment");
         const prompt = String(form.get("prompt") || "").trim().slice(0, 1200);
         if (prompt) aiForm.append("prompt", prompt);
       } else {
@@ -141,11 +142,26 @@ Deno.serve(async (req: Request) => {
         const words = Array.isArray(data.words)
           ? data.words.map((w: any) => ({
               word: String(w?.word || "").trim(),
-              start: Number(w?.start) || 0,
-              end: Number(w?.end) || 0,
-            })).filter((w: any) => w.word && w.end >= w.start)
+              start: typeof w?.start === "number" ? w.start : null,
+              end: typeof w?.end === "number" ? w.end : null,
+            }))
           : [];
-        return json({ transcript: String(data.text || "").trim(), words });
+        const segments = Array.isArray(data.segments)
+          ? data.segments.map((s: any) => ({
+              text: typeof s?.text === "string" ? s.text.trim() : "",
+              start: typeof s?.start === "number" ? s.start : null,
+              end: typeof s?.end === "number" ? s.end : null,
+            }))
+          : [];
+        const transcript = typeof data.text === "string" ? data.text.trim() : "";
+        const segmentOnly = form.get("timing") === "segment";
+        const noSpeech = typeof data.text === "string" && !transcript &&
+          (segmentOnly ? data.words === undefined || (Array.isArray(data.words) && data.words.length === 0) :
+            Array.isArray(data.words) && data.words.length === 0) &&
+          Array.isArray(data.segments) && data.segments.length === 0;
+        // Privacy-safe diagnostics: never log speech, text, or audio identifiers.
+        console.info("caption timestamp result", JSON.stringify({ wordCount: words.length, segmentCount: segments.length, segmentOnly, noSpeech }));
+        return json({ transcript, words, segments, noSpeech });
       }
 
       return json({ transcript: String(data.text || "").trim() });

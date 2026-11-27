@@ -49,7 +49,8 @@ export type KeepContributor = { id: string; name: string };
 export type KeepVoicePart = { paragraphIndex: number; contributorId: string; textFingerprint: string; audioId: string; audioUrl?: string; durationSec: number; mimeType?: string };
 export type VoiceRecording = { audioId?: string | undefined; audioUrl?: string | undefined; durationSec: number; mimeType?: string | undefined; demo: boolean };
 export type CaptionCue = { text: string; start: number; end: number };
-export type CaptionWord = { word: string; start: number; end: number };
+/** A phrase entry carries the provider's real phrase bounds, not per-word timing. */
+export type CaptionWord = { word: string; start: number; end: number; phrase?: true };
 
 export type KeepProject = {
   publicationId?: string;
