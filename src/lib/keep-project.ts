@@ -159,6 +159,9 @@ export function saveDraft(p: KeepProject): boolean {
     const owner = p.draftOwnerId ?? deviceOwner();
     if (owner && owner !== deviceOwner()) return false;
     if (p.restoreIncomplete) return false;
+    // Don't replace an intact snapshot with one whose new photo/video only
+    // exists in memory. Otherwise reopening silently removes that moment.
+    if ([...p.memories, ...(p.selfieBaseMedia ?? []), ...(p.selfieVideos ?? [])].some(m => m.source === "upload" && m.persisted === false)) return false;
     if (!p.active) { localStorage.removeItem(draftKey(owner)); return true; }
     const lite: KeepProject = {
       ...p,

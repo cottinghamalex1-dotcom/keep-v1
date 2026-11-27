@@ -314,9 +314,11 @@ export async function loadEditableKeep(id: string, session: KeepSession, onProgr
   if (!published?.memories?.length || !published.voicePath) throw new Error("This Keep has no saved editing project yet.");
   const restore = async (path: string, blobId: string) => {
     if (!path.startsWith(session.user.id + "/publications/" + id + "/")) throw new Error("A saved media path does not belong to this Keep.");
-    const file = await request("/storage/v1/object/authenticated/keep-media/" + path.split("/").map(encodeURIComponent).join("/"), session);
-    const blob = await file.blob();
-    await putBlob(blobId, blob);
+    const blob = await withTimeout(async signal => {
+      const file = await request("/storage/v1/object/authenticated/keep-media/" + path.split("/").map(encodeURIComponent).join("/"), session, {signal});
+      return file.blob();
+    }, 20_000);
+    if (!blob.size || !await putBlob(blobId, blob)) throw new Error("The published media could not be stored on this device. Your original Keep is safe. Free some storage or retry.");
     return URL.createObjectURL(blob);
   };
   const memories: KeepProject["memories"] = [];
@@ -327,7 +329,7 @@ export async function loadEditableKeep(id: string, session: KeepSession, onProgr
     // Unique local IDs prevent an older published copy replacing another draft's media.
     const blobId = crypto.randomUUID();
     const { storagePath, ...settings } = memory;
-    memories.push({ ...settings, id: blobId, blobId, source: "upload" as const, url: await restore(storagePath, blobId) });
+    memories.push({ ...settings, id: blobId, blobId, source: "upload" as const, persisted: true, url: await restore(storagePath, blobId) });
     completed += 1;
     onProgress?.({completed,total,kind:"media"});
   }
