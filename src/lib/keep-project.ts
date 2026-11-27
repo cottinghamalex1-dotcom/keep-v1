@@ -2,6 +2,7 @@ import { memoryImages } from "@/components/keep-player";
 import { getBlob } from "./keep-media-store";
 import { keepOptimizedPhotoId } from "./keep-photo-optimization";
 import { defaultKeepOrder, type KeepOrderSelection } from "./keep-pricing";
+import type { CardEngravingLayout } from "./keep-card-engraving";
 
 export type MediaItem = {
   id: string;
@@ -134,6 +135,8 @@ export type KeepProject = {
   captionStyle: string;
   visualStyle: string;
   cardEngraving: string[];
+  /** Optional title and physical-card field order; legacy array remains To/From/Date. */
+  cardEngravingLayout?: CardEngravingLayout;
   /** Catalog choices are a quote, not a verified purchase entitlement. */
   keepOrder?: KeepOrderSelection;
 };

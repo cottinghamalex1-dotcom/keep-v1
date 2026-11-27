@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { KeepCardFront } from "@/components/keep-card-front";
 import { ArrowRight, Check, ChevronDown, LockKeyhole } from "lucide-react";
 import { keepMoney, keepOrderQuote, type KeepOrderSelection, type KeepTier } from "@/lib/keep-pricing";
 import { checkoutVoiceCount, loadCheckoutSelection, saveCheckoutSelection, type CheckoutKeep } from "@/lib/keep-checkout";
@@ -46,7 +47,11 @@ export function KeepPurchase({ keep }: { keep: CheckoutKeep }) {
       </button>
       {extrasOpen && <div className="space-y-4 border-t border-border p-4 text-sm">
         {quote.tier === "basic" && <p>For personalized engraving or multiple voices, choose Signature.</p>}
-        {quote.hasEngraving && keep.published_project.engraveOpeningMessage && keep.published_project.openingMessage && <p className="rounded-lg bg-[#F4EEE6] p-3 text-xs leading-5">Opening message: “{keep.published_project.openingMessage}”</p>}
+        {quote.hasEngraving && <figure className="mx-auto w-full max-w-[360px]">
+          <KeepCardFront engraving={keep.published_project.cardEngraving ?? []} layout={keep.published_project.cardEngravingLayout}
+            openingMessage={keep.published_project.openingMessage} showOpeningMessage={!!keep.published_project.engraveOpeningMessage} />
+          <figcaption className="mt-3 text-center text-xs text-muted-foreground">Your saved engraving preview</figcaption>
+        </figure>}
         <label className="flex items-center justify-between gap-4">Additional cards · $49 each
           <input type="number" min={0} step={1} aria-label="Additional cards" value={order.extraCards} onChange={e => update({ extraCards: Math.max(0, Math.min(Number.MAX_SAFE_INTEGER, Math.floor(Number(e.target.value) || 0))) })} className="w-20 rounded-lg border border-border bg-background px-3 py-2 text-base" />
         </label>

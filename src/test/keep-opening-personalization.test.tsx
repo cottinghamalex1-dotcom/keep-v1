@@ -99,9 +99,9 @@ it("reopens saved final touches, edits the engraved details, and saves a film-on
   expect(screen.getByRole("textbox", { name: "Custom opening message" })).toHaveValue("You make our home brighter.");
   expect(screen.getByRole("textbox", { name: "Your closing line" })).toHaveValue("All my love.");
   const card = screen.getByLabelText("Preview of the front of your Keep card");
-  fireEvent.change(screen.getByRole("textbox", { name: "Name or dedication" }), { target: { value: "My Hannah" } });
+  fireEvent.change(screen.getByRole("textbox", { name: "To" }), { target: { value: "My Hannah" } });
   fireEvent.change(screen.getByRole("textbox", { name: "From" }), { target: { value: "Love, Alex" } });
-  fireEvent.change(screen.getByRole("textbox", { name: "Date or year" }), { target: { value: "" } });
+  fireEvent.change(screen.getByRole("textbox", { name: "Date" }), { target: { value: "" } });
   expect(card).toHaveTextContent("MY HANNAH");
   expect(card).toHaveTextContent("LOVE, ALEX");
   expect(card).not.toHaveTextContent("2026");
@@ -115,4 +115,40 @@ it("reopens saved final touches, edits the engraved details, and saves a film-on
   fireEvent.click(screen.getByRole("button", { name: "Close opening preview" }));
   fireEvent.click(screen.getByRole("checkbox", { name: /Include my opening line on the card/ }));
   expect(card).toHaveTextContent("You make life beautiful.");
+});
+
+it("offers four independently optional fields, reorders them live, and permits a logo-only card", () => {
+  function Harness() {
+    const [p, setP] = useState({
+      ...newProject(), recipientName: "Hannah", openingMessage: "You are loved.", engraveOpeningMessage: true,
+      cardEngraving: ["HANNAH", "FROM ALEX", "2026"],
+    });
+    return <KeepOpeningPersonalization project={p} onUpdate={values => setP(old => ({ ...old, ...values }))} />;
+  }
+  render(<Harness />);
+  const group = screen.getByRole("group", { name: "Engraving fields in card order" });
+  const inputOrder = () => within(group).getAllByRole("textbox").map(input => input.getAttribute("aria-label"));
+  const card = screen.getByLabelText("Preview of the front of your Keep card");
+  expect(inputOrder()).toEqual(["Title", "To", "From", "Date"]);
+  expect(within(group).getByRole("textbox", { name: "Title" })).toHaveValue("");
+  expect(within(group).getByRole("textbox", { name: "To" })).toHaveValue("HANNAH");
+  fireEvent.change(within(group).getByRole("textbox", { name: "Title" }), { target: { value: "Happy Birthday" } });
+  fireEvent.click(within(group).getByRole("button", { name: "Move Date up" }));
+  fireEvent.click(within(group).getByRole("button", { name: "Move Date up" }));
+  fireEvent.click(within(group).getByRole("button", { name: "Move Date up" }));
+  expect(inputOrder()).toEqual(["Date", "Title", "To", "From"]);
+  expect(within(group).getByRole("button", { name: "Move Date up" })).toBeDisabled();
+  expect(within(group).getByRole("button", { name: "Move From down" })).toBeDisabled();
+  expect(card.textContent).toMatch(/2026.*HAPPY BIRTHDAY.*HANNAH.*FROM ALEX/);
+  expect(card).toHaveTextContent("You are loved.");
+  fireEvent.click(screen.getByRole("checkbox", { name: /Include my opening line on the card/ }));
+  expect(card.textContent).toBe("2026HAPPY BIRTHDAYHANNAHFROM ALEX");
+  for (const input of within(group).getAllByRole("textbox")) {
+    expect(input).not.toBeRequired();
+    fireEvent.change(input, { target: { value: "" } });
+  }
+  expect(card.textContent).toBe("");
+  expect(within(card).getByRole("img", { name: "Keep" })).toBeTruthy();
+  fireEvent.click(screen.getByRole("checkbox", { name: /Include my opening line on the card/ }));
+  expect(card.textContent).toBe("You are loved.");
 });

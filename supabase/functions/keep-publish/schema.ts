@@ -10,7 +10,12 @@ export const manifestSchema = z.object({
   voiceMode: z.enum(['solo','together']).optional(),
   contributors: z.array(z.object({id:text(100),name:text(60)})).max(8).optional(),
   paragraphSpeakers: z.array(text(100)).max(100).optional(),
-  cardEngraving: z.array(text(100)).max(3), readMemoryOrder:z.array(text(100)).max(300),
+  cardEngraving: z.array(text(100)).max(3),
+  cardEngravingLayout: z.object({
+    title: text(100),
+    order: z.array(z.enum(['title','to','from','date'])).length(4).refine(order=>new Set(order).size===4),
+  }).optional(),
+  readMemoryOrder:z.array(text(100)).max(300),
   memories:z.array(z.object({
     id:text(100), kind:z.enum(['image','video']), source:z.enum(['upload','sample','text']), storagePath:text(300),
     displayDurationSec:number(0.01,7200).optional(), videoStartSec:number(0,7200).optional(), videoDurationSec:number(0,7200).optional(), isSelfie:z.boolean().optional(), selfieRole:z.enum(["full","intro","outro"]).optional(), focusX:number(0,100).optional(), focusY:number(0,100).optional(), zoom:number(1,4).optional(),

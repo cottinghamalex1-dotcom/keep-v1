@@ -48,6 +48,7 @@ import { Button } from "@/components/ui/button";
 import { KeepPlayer, memoryImages, memoryLabels } from "@/components/keep-player";
 import { KeepRecipientExperience, type KeepExperienceMode } from "@/components/keep-recipient-experience";
 import { KeepOpeningPersonalization } from "@/components/keep-opening-personalization";
+import { engravingLayout } from "@/lib/keep-card-engraving";
 import { KeepEditorCardPreview } from "@/components/keep-editor-card-preview";
 import { KeepFinalTouchGuide } from "@/components/keep-final-touch-guide";
 import { KeepErrorBoundary } from "@/components/keep-error-boundary";
@@ -1882,8 +1883,8 @@ function KeepApp() {
       go("remoteInvite");
       return;
     }
-    const next = !project.publicationToken && !engraving[0]?.trim()
-      ? { ...project, cardEngraving: [(name || "YOUR KEEP").toUpperCase(), engraving[1] || "", engraving[2] || ""] }
+    const next = !project.publicationToken && !project.cardEngravingLayout && !engraving[0]?.trim()
+      ? { ...project, cardEngraving: [(name || "YOUR KEEP").toUpperCase(), engraving[1] || "", engraving[2] || ""], cardEngravingLayout: engravingLayout() }
       : project;
     if (next !== project) setProject(next);
     saveDraft(next);
