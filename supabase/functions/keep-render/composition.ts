@@ -146,17 +146,51 @@ export const CAPTION_SIZE_DEFAULT = 100;
 export function normalizeCaptionSize(value: unknown): number {
   return Math.round(clamp(finite(value, CAPTION_SIZE_DEFAULT), CAPTION_SIZE_MIN, CAPTION_SIZE_MAX));
 }
+type CaptionChoice = {
+  name: string; note: string; baseSize: number; font: keyof typeof FILM_FONTS;
+  weight: number; italic?: boolean; color?: string; letterSpacing?: number;
+  textTransform?: "uppercase";
+};
+
+/** Shared palette for the creator, editor and renderer. Legacy styles remain unchanged. */
+export const CAPTION_CHOICES: readonly CaptionChoice[] = [
+  { name: "Reel", note: "Modern & expressive", baseSize: 72, font: "sans", weight: 600 },
+  { name: "Clean", note: "Simple and readable", baseSize: 72, font: "sans", weight: 500 },
+  { name: "Film", note: "Soft cinematic type", baseSize: 108, font: "display", weight: 400 },
+  { name: "Minimal", note: "Quiet and subtle", baseSize: 60, font: "sans", weight: 400 },
+  { name: "Story", note: "Warm and personal", baseSize: 90, font: "display", weight: 400, italic: true },
+  { name: "Editorial", note: "Refined magazine type", baseSize: 83, font: "display", weight: 600, color: "#FFF5E8" },
+  { name: "Bold", note: "Strong and expressive", baseSize: 90, font: "sans", weight: 800 },
+  { name: "Heirloom", note: "Timeless ivory serif", baseSize: 76, font: "display", weight: 500, color: "#F4DFC3" },
+  { name: "Whisper", note: "Light and airy", baseSize: 58, font: "sans", weight: 300, color: "#F3EBE2", letterSpacing: 3 },
+  { name: "Letter", note: "Intimate italic type", baseSize: 74, font: "display", weight: 400, italic: true, color: "#F4DFC3" },
+  { name: "Golden", note: "Warm champagne lettering", baseSize: 76, font: "sans", weight: 600, color: "#F0D19D" },
+  { name: "Classic Caps", note: "Spaced cinematic capitals", baseSize: 65, font: "sans", weight: 600, letterSpacing: 3, textTransform: "uppercase" },
+  { name: "None", note: "Without captions", baseSize: 72, font: "sans", weight: 400 },
+];
+
+/** Keep the active selection visible after collapsing the extra options. */
+export function visibleCaptionChoices(selected: string, expanded: boolean) {
+  if (expanded) return CAPTION_CHOICES;
+  const featured = CAPTION_CHOICES.slice(0, 4);
+  const current = CAPTION_CHOICES.find(choice => choice.name === selected);
+  return current && !featured.includes(current) ? [...featured.slice(0, 3), current] : featured;
+}
+
 export function captionLayout(style: string, position: CaptionPosition = "bottom", lines = 2, captionSize = CAPTION_SIZE_DEFAULT) {
-  const baseSize = style === "Film" ? 108 : style === "Story" ? 90 : style === "Minimal" ? 60 : 72;
-  const size = Math.round(baseSize * normalizeCaptionSize(captionSize) / 100);
+  const choice = CAPTION_CHOICES.find(item => item.name === style);
+  const scale = normalizeCaptionSize(captionSize) / 100;
+  const size = Math.round((choice?.baseSize ?? 72) * scale);
   return {
-    font: style === "Film" || style === "Story" ? FILM_FONTS.display : FILM_FONTS.sans,
-    fontSize: size, weight: style === "Clean" ? 500 : style === "Reel" ? 600 : 400,
-    italic: style === "Story", lineHeight: 1.25,
+    font: FILM_FONTS[choice?.font ?? "sans"],
+    fontSize: size, weight: choice?.weight ?? 400,
+    italic: choice?.italic ?? false, lineHeight: 1.25,
+    letterSpacing: (choice?.letterSpacing ?? 0) * scale,
+    textTransform: choice?.textTransform ?? "none",
     width: 0.86 * (lines === 1 ? 0.95 : lines === 3 ? 0.65 : 0.8),
     top: position === "top" ? 0.175 : position === "middle" ? 0.5 : 0.775,
     align: position === "top" ? "top" : position === "middle" ? "middle" : "bottom",
-    color: "#FFFFFF",
+    color: choice?.color ?? "#FFFFFF",
   } as const;
 }
 const finite = (value: unknown, fallback: number) => typeof value === "number" && Number.isFinite(value) ? value : fallback;

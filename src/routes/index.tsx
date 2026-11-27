@@ -113,7 +113,6 @@ const tracks = [
   { name: "Acoustic", note: "Warm strings and open air", group: "More feelings" },
   { name: "Piano", note: "Just the keys and your words", group: "More feelings" },
 ];
-const captionOptions = ["Clean", "Reel", "Film", "Story", "Minimal", "None"];
 const styles = [
   { name: "Natural", note: "Clean and true to life" },
   { name: "Warm", note: "Soft warmth and gentle contrast" },
