@@ -22,7 +22,8 @@ import { KeepVoiceTransition } from "@/components/keep-voice-transition";
 import { KeepFilmRender } from "@/components/keep-film-render";
 import { KeepStyleEditor } from "@/components/keep-style-editor";
 import { KeepSelfieEditor } from "@/components/keep-selfie-editor";
-import { KeepSelfiePrompt } from "@/components/keep-selfie-prompt";
+import { KeepSelfieBackup } from "@/components/keep-selfie-backup";
+import { hasSavedVoice, nextAfterMessage, nextAfterMedia, nextAfterVoice, resumeKeepRecordingFlow, usesRemoteRecording } from "@/lib/keep-recording-flow";
 import { composeSelfieStory, withoutSelfieScenes } from "@/lib/keep-selfie-story";
 import { KeepFinishingChoices } from "@/components/keep-finishing-choices";
 import { KeepAskAIModal, KeepWordChanges } from "@/components/keep-ask-ai-modal";
@@ -205,8 +206,8 @@ function KeepApp() {
   const [returnToEditorAfterRecording, setReturnToEditorAfterRecording] = useState(false);
   const [groupPartIndex, setGroupPartIndex] = useState(0);
   const [recordRestartNonce,setRecordRestartNonce]=useState(0);
-  const [selfieSelected, setSelfieSelected] = useState(false);
-  const [selfiePreparing, setSelfiePreparing] = useState(false);
+  const [selfieBackupOpen, setSelfieBackupOpen] = useState(false);
+  const selfieSelected = project.recordingVisualMode === "selfie";
   const [groupBusy, setGroupBusy] = useState(false);
   const [frame, setFrame] = useState(0);
   const [editorPlaying, setEditorPlaying] = useState(false);
@@ -373,7 +374,7 @@ function KeepApp() {
       }
       if (resumeRequested) {
         if (!next?.active) { setResumeError("There isn't a saved draft to continue yet."); return; }
-        const stage = next.memories.length ? "editor" : resumeScreen(next.stage);
+        const stage = resumeKeepRecordingFlow(next) as Screen;
         setHistory([]);
         setScreen(creationScreens.includes(stage) ? stage : "recipient");
         setHydrated(true);
@@ -402,6 +403,12 @@ function KeepApp() {
   }, [project, hydrated, cloudSyncAllowed]);
   useEffect(() => { if (project.active && !viewingDemo && creationScreens.includes(screen)) setProject((o) => (o.stage === resumeScreen(screen) ? o : { ...o, stage: resumeScreen(screen) })); }, [screen]);
   useEffect(() => { if (screen !== "interview" && screen !== "record" && screen !== "groupRecord") recorder.cancel(); }, [screen]);
+  useEffect(() => {
+    if ((screen === "record" || screen === "groupRecord") && selfieSelected && recorder.supported === true) {
+      void recorder.prepareSelfie();
+    }
+  }, [screen, selfieSelected, recorder.supported, recorder.prepareSelfie, groupPartIndex]);
+  useEffect(() => { if (screen !== "memories") setSelfieBackupOpen(false); }, [screen]);
   useEffect(() => { if (screen !== "write" && screen !== "intent" && dictationRef.current) { dictationRef.current.stop(); dictationRef.current = null; setDictating(false); } }, [screen]);
   useEffect(() => {
     if (screen === "editor" && returnToEditorAfterRecording) setReturnToEditorAfterRecording(false);
@@ -454,7 +461,7 @@ function KeepApp() {
   };
   const begin = () => startProject(newProject(), "recipient");
   const editDemoCopy = () => startProject({ ...newProject(), recipientName: "Hanna", relationship: "Spouse", messageSource: "demo", messageParagraphs: initialMessage, memories: sampleMemories(), finalVoiceRecording: { durationSec: 150, demo: true }, cardEngraving: ["HANNA", "FROM ALEX", "2026"] }, "editor");
-  const continueDraft = () => { setViewingDemo(false); setHistory(["home"]); setScreen(resumeScreen(project.stage || "recipient")); };
+  const continueDraft = () => { setViewingDemo(false); setHistory(["home"]); setScreen(resumeKeepRecordingFlow(project) as Screen); };
 
 
   // On iPhone the keyboard shrinks the visual viewport without consistently
@@ -771,13 +778,9 @@ function KeepApp() {
     // Obsolete page-level setters caused a runtime crash on Re-record.
     window.scrollTo(0, 0);
   };
-  const chooseSelfie = async () => {
-    if(selfieSelected){recorder.disableSelfie();setSelfieSelected(false);return;}
-    setSelfiePreparing(true);
-    const success=await recorder.prepareSelfie();
-    setSelfiePreparing(false);
-    if(success)setSelfieSelected(true);
-    else toast.error("Front camera unavailable. Voice-only recording is still available.");
+  const useVoiceOnly = () => {
+    recorder.disableSelfie();
+    patch({ recordingVisualMode: "photos" });
   };
   const restartCurrentRecording=async()=>{
     // Only the current unsaved take is discarded. Existing saved voices remain untouched.
@@ -885,7 +888,6 @@ function KeepApp() {
       setOrphanVoices(items => items.filter(item => item.id !== id));
       if (recoveryPreview?.id === id) setRecoveryPreview(null);
       if (selfieSelected && !selfie) toast.info("Your narration is saved. The optional selfie video was not available.");
-      setSelfieSelected(false);
       if (rec?.audioUrl && rec.audioUrl !== audioUrl) releaseUrls([rec.audioUrl]);
       // Keep the previous take available until older cloud saves have settled.
       captionSyncToken.current++;
@@ -917,7 +919,6 @@ function KeepApp() {
       if (!(await putBlob(id,r.blob))) throw new Error("Your device could not save this recording. Please free some storage and try again.");
       const selfie=await saveSelfieTake(r.selfieBlob,r.selfieMimeType,r.durationSec,index);
       if(selfieSelected&&!selfie)toast.info("This voice part saved. The optional camera video wasn't captured.");
-      setSelfieSelected(false);
       const currentParts = project.voiceParts ?? [];
       const oldPart = currentParts.find(p => p.paragraphIndex === index);
       const nextParts = [...currentParts.filter(p => p.paragraphIndex !== index), {
@@ -1375,16 +1376,28 @@ function KeepApp() {
       throw error;
     }
   };
-  const recordSelfieFromMedia = async () => {
-    if(isTogether&&project.voiceRecordingLocation==="remote"){
+  // The only explicit retake route lives in the editor, never in photo selection.
+  const recordSelfieFromEditor = () => {
+    if (usesRemoteRecording(project)) {
       toast.info("Remote contributors can add selfie video from their private invitation.");
-      go("remoteInvite");return;
+      go("remoteInvite"); return;
     }
-    const prepared=await recorder.prepareSelfie();
-    if(!prepared){toast.error("The front camera couldn't open. You can continue with voice and photos.");return;}
-    setSelfieSelected(true);
+    if (hasSavedVoice(project) && !window.confirm("Recording a new synced selfie will replace your current narration. Continue?")) return;
+    setReturnToEditorAfterRecording(true);
+    patch({ recordingVisualMode: "selfie" });
     setGroupPartIndex(0);
-    go(isTogether?"groupRecord":"record");
+    go(isTogether ? "groupRecord" : "record");
+  };
+  const continueToRecording = (mode: "photos" | "selfie") => {
+    setSelfieBackupOpen(false);
+    patch({ recordingVisualMode: mode });
+    go("recordPrep");
+  };
+  const continueFromMedia = () => {
+    const next = nextAfterMedia(project, personalMedia.length, minRecommendedMoments);
+    if (next === "offerSelfie") setSelfieBackupOpen(true);
+    else if (next === "recordPrep") continueToRecording(hasSavedVoice(project) ? project.recordingVisualMode ?? "photos" : "photos");
+    else { setStyleTouched(false); go("storyStyle"); }
   };
   const removeMomentById = (id: string) => {
     if (!id) return;
@@ -2180,10 +2193,10 @@ function KeepApp() {
           <Plus className="size-4"/> Add paragraph
         </Button>
         {isTogether && project.messageParagraphs.filter(p=>p.trim()).length < 2 && <p className="mt-4 text-xs text-[#806B57]">Create at least two speaking parts so everyone can take a turn.</p>}
-        <div className="mt-5">{nextButton(isTogether ? project.voiceRecordingLocation==="remote" ? "Record yours & invite others" : "Record together" : "Record Your Keep", () => {
+        <div className="mt-5">{nextButton(nextAfterMessage(project, returnToEditorAfterRecording) === "memories" ? "Choose photos & videos" : isTogether ? project.voiceRecordingLocation==="remote" ? "Record yours & invite others" : "Record together" : "Record Your Keep", () => {
           patch({ messageParagraphs: project.messageParagraphs.filter((p) => p.trim()), paragraphSpeakers: project.messageParagraphs.map((p,i)=>p.trim()?speakerFor(i):"").filter(Boolean) });
           setAppliedAiOriginal(null);
-          go(isTogether && project.voiceRecordingLocation==="remote" ? "remoteInvite" : "recordPrep");
+          go(nextAfterMessage(project, returnToEditorAfterRecording));
         }, !project.messageParagraphs.some((p) => p.trim()) || (isTogether && project.messageParagraphs.filter(p=>p.trim()).length < 2))}</div>
       </div>
       {askOpen && <KeepAskAIModal
@@ -2233,12 +2246,13 @@ function KeepApp() {
       <div className="shrink-0">{top()}</div>
       <div className="mx-auto flex min-h-0 w-full max-w-[650px] flex-1 flex-col px-5 pb-[max(12px,env(safe-area-inset-bottom))] pt-3 sm:px-7">
         <div className="shrink-0 pb-3 text-center">
-          <p className="text-[10px] font-semibold uppercase tracking-[.17em] text-[#7C6752]">YOUR VOICE · YOUR WORDS</p>
           <h1 className="mt-1 font-display text-[clamp(28px,7.2vw,40px)] leading-[1.05] tracking-[-.025em]">Now say it in your own voice.</h1>
           {!isRecording && <p className="mt-1.5 text-[12px] leading-5 text-muted-foreground">Read naturally. The words will scroll for you.</p>}
         </div>
-        {!isRecording&&<div className="shrink-0 pb-2"><KeepSelfiePrompt enabled={selfieSelected} preparing={selfiePreparing}
-          error={recorder.cameraError} onChoose={()=>void chooseSelfie()} onVoiceOnly={()=>{recorder.disableSelfie();setSelfieSelected(false);}} /></div>}
+        {!isRecording && selfieSelected && <div className="shrink-0 pb-2 text-center">
+          {!!recorder.cameraError && <p role="alert" className="text-xs text-destructive">{recorder.cameraError}</p>}
+          <button type="button" disabled={recorder.status === "requesting"} onClick={useVoiceOnly} className="min-h-8 text-xs text-[#806B57] underline underline-offset-4 disabled:opacity-50">Use voice only instead</button>
+        </div>}
         <KeepTeleprompter text={project.messageParagraphs.join("\n\n")} label="YOUR MESSAGE" speaker="Your voice"
           cameraStream={selfieSelected?recorder.previewStream:null}
           isRecording={isRecording} isPaused={recorder.status === "paused"} elapsed={recorder.elapsed}
@@ -2304,8 +2318,10 @@ function KeepApp() {
             {readyPart(i) ? <Check className="size-3.5 text-[#6A8462]" /> : <Mic className="size-3.5" />} {i+1}. {speakerName(i)}
           </button>)}
         </div>
-        {!isRecording&&<div className="shrink-0 pb-2"><KeepSelfiePrompt enabled={selfieSelected} preparing={selfiePreparing}
-          error={recorder.cameraError} onChoose={()=>void chooseSelfie()} onVoiceOnly={()=>{recorder.disableSelfie();setSelfieSelected(false);}} /></div>}
+        {!isRecording && selfieSelected && <div className="shrink-0 pb-2 text-center">
+          {!!recorder.cameraError && <p role="alert" className="text-xs text-destructive">{recorder.cameraError}</p>}
+          <button type="button" disabled={recorder.status === "requesting"} onClick={useVoiceOnly} className="min-h-8 text-xs text-[#806B57] underline underline-offset-4 disabled:opacity-50">Use voice only instead</button>
+        </div>}
         <KeepTeleprompter key={groupPartIndex} text={project.messageParagraphs[groupPartIndex] ?? ""} label={"PART " + (groupPartIndex+1) + " OF " + project.messageParagraphs.length}
           speaker={speakerName(groupPartIndex)} cameraStream={selfieSelected?recorder.previewStream:null}
           isRecording={isRecording} isPaused={recorder.status === "paused"} elapsed={recorder.elapsed}
@@ -2368,12 +2384,13 @@ function KeepApp() {
           setScreen("editor");
           window.scrollTo(0, 0);
         } else {
-          go("memories");
+          setStyleTouched(false);
+          go(nextAfterVoice(project));
         }
       }}
     />}
     {screen === "memories" && <>{top()}<div className="px-7 pb-10 pt-9">
-      {title("YOUR MOMENTS", "Add photos & videos.", "Let photos tell most of the story, with a few meaningful video moments mixed in—or simply let your face tell it.")}
+      {title("YOUR MOMENTS", "Add photos & videos.", "Let photos tell most of the story, with a few meaningful video moments mixed in.")}
       <KeepPhoneTip variant="upload" />
       <div className="keep-editorial-surface mb-7 px-5 py-5" aria-live="polite">
         <div className="flex items-center justify-between gap-3"><p className="text-[11px] font-medium uppercase tracking-[.14em] text-[#6A5849]">Suggested moments</p>{guidanceSeconds > 0 && <span className="text-[11px] text-muted-foreground">{narrationLengthText}</span>}</div>
@@ -2391,7 +2408,8 @@ function KeepApp() {
         busy={busy}
         onAdd={() => addInput.current?.click()}
         onRemove={(index) => { const target = personalMedia[index]; if (target) removeMomentById(target.id); }}
-        onContinue={() => { setStyleTouched(false); go("storyStyle"); }}
+        onContinue={continueFromMedia}
+        continueLabel={!project.finalVoiceRecording && !usesRemoteRecording(project) ? "Continue to recording" : "Continue"}
       />
       <aside aria-label="iPhone photo upload tip" className="mb-5 flex items-start gap-3 rounded-xl border border-[#DAD0C5] bg-[#F0EAE2]/65 px-4 py-4">
         <CircleHelp className="mt-0.5 size-5 shrink-0 text-[#79654F]" strokeWidth={1.6} aria-hidden="true" />
@@ -2407,23 +2425,10 @@ function KeepApp() {
           <p className="mt-1 text-[12px] leading-5 text-[#675B50]">Short clips of <strong>10 seconds or less</strong> usually tell the story best. For longer videos, Keep will <strong>automatically compress</strong> the file on your device when possible (up to 90 seconds). This can take a little while. The video plays muted so your narration and music stay front and center.</p>
         </div>
       </aside>
-      {/* Keep the optional selfie alternative below the photos and the primary continue actions. */}
-      <aside aria-label="Optional selfie video" className="mt-9 rounded-[20px] border border-[#CDB7A2] bg-[#F6EFE5] px-4 py-4">
-        <div className="flex items-center gap-2"><Camera className="size-5 text-[#795F47]"/>
-          <h3 className="font-display text-[24px]">No photos? Show your face.</h3></div>
-        <p className="mt-2 text-xs leading-6 text-[#6D5D4D]">
-          Completely optional. Read your words over the front-camera preview and record a selfie while you speak.
-          With no photos, your selfie can carry the whole Keep. With photos, it can gently open and close the story.
-        </p>
-        {(project.selfieVideos??[]).length>0&&<div className="mt-3 flex gap-2 overflow-x-auto">
-          {(project.selfieVideos??[]).map(item=><video key={item.id} src={item.url} muted playsInline preload="metadata"
-            className="aspect-[3/4] h-24 shrink-0 rounded-lg object-cover" aria-label="Your recorded selfie video"/>)}
-        </div>}
-        <Button variant="quiet" size="touch" className="mt-3 w-full" onClick={()=>void recordSelfieFromMedia()}>
-          <Camera className="size-4"/>{(project.selfieVideos??[]).length?"Record another selfie":"Record a selfie instead"}<ArrowRight className="size-4"/>
-        </Button>
-        <p className="mt-2 text-[11px] leading-5 text-[#887463]">Recording here replaces the narration with the new take so your voice and face stay in sync.</p>
-      </aside>
+      <KeepSelfieBackup open={selfieBackupOpen} momentCount={personalMedia.length}
+        onClose={() => setSelfieBackupOpen(false)}
+        onVoice={() => continueToRecording("photos")}
+        onSelfie={() => continueToRecording("selfie")} />
     </div></>}
     {screen === "storyStyle" && <>{top()}<KeepFinishingChoices
       captionStyle={project.captionStyle}
@@ -2597,7 +2602,7 @@ function KeepApp() {
         onChange={updates=>setProject(old=>({...old,...updates,
           memories:composeSelfieStory(old.selfieBaseMedia?.length?old.selfieBaseMedia:withoutSelfieScenes(old.memories),old.selfieVideos??[],
             old.finalVoiceRecording?.durationSec??150,{...old,...updates})}))}
-        onRecord={()=>{setReturnToEditorAfterRecording(true);void recordSelfieFromMedia();}}
+        onRecord={recordSelfieFromEditor}
         onRemove={id=>{
           if(!window.confirm("Remove this selfie video from your Keep? The voice recording stays unchanged."))return;
           setProject(old=>{

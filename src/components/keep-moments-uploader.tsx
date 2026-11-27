@@ -7,10 +7,11 @@ type Props = {
   onAdd: () => void;
   onRemove: (index: number) => void;
   onContinue: () => void;
+  continueLabel?: string;
 };
 
 /** The creator's primary task comes before optional uploading advice. */
-export function KeepMomentsUploader({ moments, busy, onAdd, onRemove, onContinue }: Props) {
+export function KeepMomentsUploader({ moments, busy, onAdd, onRemove, onContinue, continueLabel = "Continue" }: Props) {
   const count = moments.length;
   const photos = moments.filter(item => item.kind === "image").length;
   const videos = moments.filter(item => item.kind === "video").length;
@@ -70,7 +71,7 @@ export function KeepMomentsUploader({ moments, busy, onAdd, onRemove, onContinue
       <div className="mt-5 border-t border-[#E8DFD4] pt-5">
         <button type="button" onClick={onContinue} disabled={busy}
           className="group flex min-h-[58px] w-full items-center justify-between gap-3 rounded-[14px] bg-[#1C1917] px-5 text-left text-[15px] font-medium text-[#FCF8F2] shadow-[0_8px_22px_rgba(35,28,23,.12)] transition-all hover:bg-[#302720] active:scale-[.99] disabled:cursor-wait disabled:opacity-55">
-          <span>{busy ? "Adding your moments…" : "Continue"}</span>
+          <span>{busy ? "Adding your moments…" : continueLabel}</span>
           <span className="flex size-9 items-center justify-center rounded-full bg-[#4C4237] text-[#F9EEE0] transition-transform group-hover:translate-x-0.5"><ArrowRight className="size-5" aria-hidden="true"/></span>
         </button>
         <button type="button" onClick={onContinue} disabled={busy} className="mt-1.5 flex min-h-11 w-full items-center justify-center px-3 text-center text-[12px] font-medium text-[#806E60] underline-offset-4 hover:text-[#4C3A2C] hover:underline disabled:cursor-wait disabled:opacity-50">

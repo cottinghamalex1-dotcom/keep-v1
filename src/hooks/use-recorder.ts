@@ -82,6 +82,7 @@ export function useRecorder() {
     stream.current?.getTracks().forEach(track=>track.stop());
     stream.current=null;cameraPrepared.current=false;
     setPreviewStream(null);setCameraError("");
+    setStatus(previous => previous === "denied" || previous === "error" || previous === "requesting" ? "idle" : previous);
   },[]);
 
   const prepareSelfie=useCallback(async()=>{
