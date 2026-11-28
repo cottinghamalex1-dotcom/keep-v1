@@ -23,12 +23,21 @@ const tokenHash = async (token: string) => Array.from(
   new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(token))),
   (v) => v.toString(16).padStart(2,"0")).join("");
 type Part = { index: number; text: string };
+type Framing = { focusX:number; focusY:number; zoom:number };
+function normalizeFraming(value:unknown):Framing|null {
+  if(!value||typeof value!=="object")return null;
+  const framing=value as Record<string,unknown>;
+  const bounded=(v:unknown,min:number,max:number,fallback:number)=>
+    typeof v==="number"&&Number.isFinite(v)?Math.min(max,Math.max(min,v)):fallback;
+  return {focusX:bounded(framing.focusX,0,100,50),focusY:bounded(framing.focusY,0,100,50),
+    zoom:bounded(framing.zoom,1.03,1.35,1.08)};
+}
 type Invite = {
   id: string; keep_id: string; owner_id: string; contributor_id: string; contributor_name: string;
   creator_name: string; recipient_name: string; occasion: string | null;
   script_parts: Part[]; token_hash: string; pending_uploads: Record<string,{path:string;mime:string;createdAt:number}>;
   upload_attempts: number; expires_at: string; email_sent_at: string | null;
-  pending_media?: Record<string,{path:string;mime:string;kind:"image"|"video";name:string;size:number;duration:number|null;purpose?:"moment"|"selfie";paragraphIndex?:number|null;createdAt:number}>;
+  pending_media?: Record<string,{path:string;mime:string;kind:"image"|"video";name:string;size:number;duration:number|null;purpose?:"moment"|"selfie";paragraphIndex?:number|null;framing?:Framing|null;createdAt:number}>;
   media_upload_attempts?: number; media_email_sent_at?:string|null;
 };
 type StoredPart = { invite_id: string; paragraph_index: number; text_fingerprint: string;
@@ -36,7 +45,7 @@ type StoredPart = { invite_id: string; paragraph_index: number; text_fingerprint
 type StoredMedia = {
   id:string; invite_id:string; kind:"image"|"video"; file_path:string; original_name:string;
   content_type:string; size_bytes:number; duration_seconds:number|null; uploaded_at:string;
-  purpose?:"moment"|"selfie"; paragraph_index?:number|null;
+  purpose?:"moment"|"selfie"; paragraph_index?:number|null; framing?:Framing|null;
 };
 async function mediaFor(ids:string[]):Promise<StoredMedia[]> {
   if(!ids.length)return [];
@@ -191,7 +200,7 @@ Deno.serve(async req => {
             items.push({
               id:row.id,contributorId:invite.contributor_id,contributorName:invite.contributor_name,
               name:row.original_name,kind:row.kind,mimeType:row.content_type,bytes:row.size_bytes,
-              durationSec:row.duration_seconds,purpose:row.purpose??"moment",paragraphIndex:row.paragraph_index??null,
+              durationSec:row.duration_seconds,purpose:row.purpose??"moment",paragraphIndex:row.paragraph_index??null,framing:normalizeFraming(row.framing),
                signedUrl:signed.signedUrl,uploadedAt:row.uploaded_at
             });
           }
@@ -270,7 +279,7 @@ Deno.serve(async req => {
       const filePath=`${invite.owner_id}/remote/${invite.id}/moments/${mediaId}.${format.ext}`;
       const {data:signed,error:signError}=await admin.storage.from(BUCKET).createSignedUploadUrl(filePath);
       if(signError||!signed?.signedUrl)return error("Couldn't prepare this photo or video. Try again.",500);
-      const pending={...(invite.pending_media??{}),[mediaId]:{path:filePath,mime,kind:format.kind,name,size,duration,purpose,paragraphIndex,createdAt:Date.now()}};
+      const pending={...(invite.pending_media??{}),[mediaId]:{path:filePath,mime,kind:format.kind,name,size,duration,purpose,paragraphIndex,framing:purpose==="moment"?normalizeFraming(body.framing):null,createdAt:Date.now()}};
       const {error:updateError}=await admin.from("keep_remote_invites").update({pending_media:pending,media_upload_attempts:(invite.media_upload_attempts??0)+1}).eq("id",invite.id);
       if(updateError)return error("Couldn't reserve the upload. Please retry.",500);
       return answer({signedUrl:signed.signedUrl,mediaId,path:filePath});
@@ -290,7 +299,7 @@ Deno.serve(async req => {
       const {error:writeError}=await admin.from("keep_remote_media").insert({
         id:mediaId,invite_id:invite.id,kind:pending.kind,file_path:pending.path,
         original_name:pending.name,content_type:pending.mime,size_bytes:actualSize,
-        duration_seconds:pending.duration,purpose:pending.purpose??"moment",paragraph_index:pending.paragraphIndex??null,
+        duration_seconds:pending.duration,purpose:pending.purpose??"moment",paragraph_index:pending.paragraphIndex??null,framing:normalizeFraming(pending.framing),
          uploaded_at:new Date().toISOString()
       });
       if(writeError)return error("Couldn't save this moment. Please retry.",500);

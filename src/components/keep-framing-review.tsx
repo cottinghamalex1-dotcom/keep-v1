@@ -14,6 +14,7 @@ type Props = {
   onIndex: (index: number) => void;
   onFocus: (id: string, focus: MomentFraming) => void;
   onComplete: () => void;
+  completeLabel?: string;
 };
 
 function FramingSurface({ moment, number, onFocus }: {
@@ -93,7 +94,7 @@ function FramingSurface({ moment, number, onFocus }: {
 
 /** One quick, deliberate confirmation per uploaded moment. No duplicate uploads
  * or separate save actions; focus edits are written directly to the draft. */
-export function KeepFramingReview({ moments, index, onIndex, onFocus, onComplete }: Props) {
+export function KeepFramingReview({ moments, index, onIndex, onFocus, onComplete, completeLabel = "Finish review" }: Props) {
   const active = Math.min(Math.max(0, index), Math.max(0, moments.length - 1));
   const moment = moments[active];
   const last = active >= moments.length - 1;
@@ -112,7 +113,7 @@ export function KeepFramingReview({ moments, index, onIndex, onFocus, onComplete
       <div className="flex items-stretch gap-2">
         <Button variant="quiet" size="touch" aria-label="Previous moment" disabled={active === 0} onClick={() => onIndex(active - 1)} className="shrink-0 px-4"><ChevronLeft className="size-5" /></Button>
         <Button variant="keep" size="touch" className="keep-premium-action flex-1 justify-between" onClick={() => last ? onComplete() : onIndex(active + 1)}>
-          {last ? "Finish review" : "Next moment"} {last ? <Check className="size-5" /> : <ArrowRight className="size-5" />}
+          {last ? completeLabel : "Next moment"} {last ? <Check className="size-5" /> : <ArrowRight className="size-5" />}
         </Button>
       </div>
     </> : <Button variant="keep" size="touch" onClick={onComplete} className="w-full justify-between">Continue <ArrowRight /></Button>}

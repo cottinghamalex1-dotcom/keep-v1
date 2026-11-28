@@ -1360,6 +1360,7 @@ function KeepApp() {
         staged.push({
           id,kind:media.kind,source:"upload",name:media.name,mimeType:media.mimeType,
           remoteMediaId:media.id,persisted:true,url:URL.createObjectURL(blob),
+          ...(media.purpose!=="selfie"&&media.framing?media.framing:{}),
           ...(media.purpose==="selfie"?{
             isSelfie:true,blobId:id,selfiePartIndex:media.paragraphIndex??0,
             videoDurationSec:media.durationSec??7,videoStartSec:0
