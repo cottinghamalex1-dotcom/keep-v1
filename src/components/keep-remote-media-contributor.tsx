@@ -54,11 +54,6 @@ export function KeepRemoteMediaContributor({token,mediaCount,onUploaded,contribu
         <h2 className="mt-1 font-display text-[27px] leading-none text-[#2F281F]">Add photos & videos.</h2>
       </div>
     </div>
-    <p className="mt-4 text-[12px] leading-6 text-[#6D6156]">
-      Your favorite photos and short videos make this gift come alive. Think of the meaningful people, little details,
-      and moments worth remembering. Share the ones you'd love the recipient to see again.
-      Keep sends them privately to the creator to include in the final story.
-    </p>
     <div className="mt-4 rounded-xl border border-[#E1D2C0] bg-[#F5ECE0] px-4 py-4">
       <p className="text-[10px] font-semibold uppercase tracking-[.12em] text-[#87694D]">YOUR SUGGESTED CONTRIBUTION</p>
       <p className="mt-1 font-display text-[30px] leading-tight text-[#382B21]">{guide.min}–{guide.max} <span className="text-[20px]">photos & short videos</span></p>

@@ -132,7 +132,7 @@ export function KeepRemoteContributor() {
       <span className="rounded-full border border-[#D8C9BA] px-3 py-1.5 text-[10px] text-[#7D6A57]">Private invitation</span></div>
     <p className="mt-9 text-[10px] font-semibold uppercase tracking-[.18em] text-[#8D735A]">A KEEP FOR {invite.recipientName.toUpperCase()}</p>
     <h1 className="mt-3 font-display text-[clamp(36px,9vw,49px)] leading-[1.1] tracking-[-.03em]">The moments that matter.</h1>
-    <p className="mb-6 mt-3 text-[13px] leading-6 text-[#76695E]">Your favorite photos and short videos help bring the memories to life. Share the moments you want them to relive{pending.length>0?" before recording your message":""}.</p>
+    <p className="mb-6 mt-3 text-[13px] leading-6 text-[#76695E]">Share the photos and short videos you’d love them to relive{pending.length>0?" before recording your message":""}. They’ll be shared privately with the Keep creator.</p>
     {selfieRetry&&<section className="mb-5 rounded-xl border border-[#C9B095] bg-[#FFF9ED] p-4">
       <p className="text-[12px] font-semibold">Your voice was received. The selfie video still needs to upload.</p>
       <p className="mt-1 text-[11px] leading-5 text-[#776454]">Retry without re-recording your voice.</p>
