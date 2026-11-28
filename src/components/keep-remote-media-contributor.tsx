@@ -1,8 +1,14 @@
-import { useRef, useState, type ChangeEvent } from "react";
+import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import { CheckCircle2, ImagePlus, Images, Loader2, Video } from "lucide-react";
 import { uploadRemoteMedia } from "@/lib/keep-remote";
 import { prepareRemoteMoment, REMOTE_MEDIA_LIMIT } from "@/lib/keep-remote-media-prep";
 import { remoteMomentGuide } from "@/lib/keep-remote-moment-guide";
+import { KeepFramingReview } from "@/components/keep-framing-review";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import { framingZoomPercent, momentFocus } from "@/lib/keep-framing";
+import type { MediaItem } from "@/lib/keep-project";
+
+type PendingMoment={file:File;moment:MediaItem};
 
 type Props={token:string;mediaCount:number;onUploaded:(count:number)=>void;
   contributorCount?:number;totalWordCount?:number;onBusyChange?:(busy:boolean)=>void};
@@ -14,24 +20,46 @@ export function KeepRemoteMediaContributor({token,mediaCount,onUploaded,contribu
   const [error,setError]=useState("");
   const [recent,setRecent]=useState<string[]>([]);
   const [added,setAdded]=useState(0);
-  const upload=async(event:ChangeEvent<HTMLInputElement>)=>{
+  const [review,setReview]=useState<PendingMoment[]>([]);
+  const [reviewIndex,setReviewIndex]=useState(0);
+  const previewUrls=useRef<string[]>([]);
+  const releasePreviews=()=>{
+    previewUrls.current.forEach(url=>URL.revokeObjectURL(url));
+    previewUrls.current=[];
+  };
+  useEffect(()=>()=>releasePreviews(),[]);
+  const choose=(event:ChangeEvent<HTMLInputElement>)=>{
     const files=Array.from(event.target.files??[]);
     event.target.value="";
-    if(!files.length||busy)return;
+    if(!files.length||busy||review.length)return;
     const available=Math.max(0,REMOTE_MEDIA_LIMIT-mediaCount);
     if(files.length>available) {setError(`You can share up to ${REMOTE_MEDIA_LIMIT} moments. Please choose ${available} or fewer.`);return;}
-    setBusy(true);onBusyChange?.(true);setError("");
+    releasePreviews();
+    const selected=files.map((file,i):PendingMoment=>{
+      const kind=file.type.startsWith("video/")||/\.(mov|mp4|webm)$/i.test(file.name)?"video":"image";
+      const url=URL.createObjectURL(file);
+      previewUrls.current.push(url);
+      return {file,moment:{id:`contribution-${i}`,kind,source:"upload",url,name:file.name,mimeType:file.type}};
+    });
+    setError("");setReviewIndex(0);setReview(selected);onBusyChange?.(true);
+  };
+  const cancelReview=()=>{
+    releasePreviews();setReview([]);onBusyChange?.(false);
+  };
+  const upload=async(batch:PendingMoment[])=>{
+    if(!batch.length||busy)return;
+    setBusy(true);setReview([]);releasePreviews();setError("");
     let count=mediaCount;
     const success:string[]=[];
     let failure="";
     try{
-      for(let i=0;i<files.length;i++){
-        const file=files[i]!;
+      for(let i=0;i<batch.length;i++){
+        const {file,moment}=batch[i]!;
         try {
-          setStatus(`Preparing ${i+1} of ${files.length}: ${file.name}`);
-          const prepared=await prepareRemoteMoment(file,message=>setStatus(`${i+1} of ${files.length} · ${message}`));
-          setStatus(`Sending ${i+1} of ${files.length} securely… Please leave this page open.`);
-          const result=await uploadRemoteMedia(token,prepared.file,prepared.kind,prepared.durationSec);
+          setStatus(`Preparing ${i+1} of ${batch.length}: ${file.name}`);
+          const prepared=await prepareRemoteMoment(file,message=>setStatus(`${i+1} of ${batch.length} · ${message}`));
+          setStatus(`Sending ${i+1} of ${batch.length} securely… Please leave this page open.`);
+          const result=await uploadRemoteMedia(token,prepared.file,prepared.kind,prepared.durationSec,"moment",undefined,{...momentFocus(moment),zoom:framingZoomPercent(moment.zoom)/100});
           count=result.count;success.push(file.name);
           onUploaded(count);
         }catch(issue){
@@ -45,7 +73,7 @@ export function KeepRemoteMediaContributor({token,mediaCount,onUploaded,contribu
       if(failure)setError(failure+" Previously uploaded moments are safely saved. Try the remaining files again.");
     }
   };
-  const disabled=busy||mediaCount>=REMOTE_MEDIA_LIMIT;
+  const disabled=busy||review.length>0||mediaCount>=REMOTE_MEDIA_LIMIT;
   return <section aria-label="Share photos and videos" className="rounded-[22px] border border-[#DCD0C0] bg-[#FFFCF8] p-5 shadow-[0_12px_32px_rgba(56,39,23,.05)]">
     <div className="flex items-center gap-3">
       <span className="flex size-11 items-center justify-center rounded-full border border-[#DDCDBA] bg-[#F5EADC]"><Images className="size-5 text-[#80664D]"/></span>
@@ -65,7 +93,7 @@ export function KeepRemoteMediaContributor({token,mediaCount,onUploaded,contribu
       Keep automatically tries to compress larger clips before uploading.
     </p>
     <input ref={input} type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif,video/mp4,video/quicktime,video/webm,.heic,.heif,.mov,.mp4"
-      multiple aria-label="Choose photos and short videos" onChange={event=>void upload(event)} className="sr-only"/>
+      multiple aria-label="Choose photos and short videos" onChange={choose} className="sr-only"/>
     <button type="button" disabled={disabled} aria-busy={busy} onClick={()=>input.current?.click()}
       className="mt-4 keep-contribution-action keep-contribution-action--upload">
       <span className="keep-contribution-action__icon" aria-hidden="true">
@@ -80,6 +108,15 @@ export function KeepRemoteMediaContributor({token,mediaCount,onUploaded,contribu
       <p className="mb-2 flex items-center gap-1.5 text-[11px] font-semibold text-[#517349]"><CheckCircle2 className="size-4"/> {added} moment{added===1?"":"s"} sent successfully</p>
       <ul className="space-y-1">{recent.map((name,i)=><li key={name+i} className="flex items-center gap-2 truncate text-[11px] text-[#77695C]"><CheckCircle2 className="size-3.5 shrink-0 text-[#64835A]"/><span className="truncate">{name}</span></li>)}</ul>
     </div>}
+    <Dialog open={review.length>0} onOpenChange={open=>{if(!open)cancelReview();}}>
+      <DialogContent className="max-h-[100dvh] max-w-[480px] overflow-y-auto rounded-[24px] bg-[#F7F5F2] p-0 pt-5 sm:rounded-[24px]"
+        aria-describedby={undefined} onInteractOutside={event=>event.preventDefault()}>
+        <DialogTitle className="sr-only">Review your shared moments</DialogTitle>
+        <KeepFramingReview moments={review.map(item=>item.moment)} index={reviewIndex} onIndex={setReviewIndex}
+          onFocus={(id,focus)=>setReview(old=>old.map(item=>item.moment.id===id?{...item,moment:{...item.moment,...focus}}:item))}
+          onComplete={()=>void upload(review)} completeLabel="Finish & send"/>
+      </DialogContent>
+    </Dialog>
     <p className="mt-3 flex items-center gap-2 text-[10px] leading-4 text-[#948475]"><Video className="size-4 shrink-0"/> Only the Keep creator can collect your privately shared moments. You can close this page after uploads finish.</p>
   </section>;
 }

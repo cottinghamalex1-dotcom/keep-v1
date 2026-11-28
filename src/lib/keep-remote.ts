@@ -1,5 +1,6 @@
 import type { CreativeStory } from "./keep-project";
 import { activeKeepSession, type KeepSession } from "./keep-cloud";
+import type { MomentFraming } from "./keep-framing";
 
 const API_URL = "https://lwkzhpwugtosbidxvdcr.supabase.co/functions/v1/keep-remote-voices";
 const API_KEY = "sb_publishable_K8_SWJByLhV78h7gY4NySw_4sgjEVTi";
@@ -59,12 +60,12 @@ export const revokeRemoteInvite = (keepId:string,inviteId:string) =>
 export type RemoteMediaItem = {
   id:string; contributorId:string; contributorName:string; kind:"image"|"video";
   name:string; mimeType:string; bytes:number; durationSec:number|null; signedUrl:string; uploadedAt:string;
-  purpose?:"moment"|"selfie"; paragraphIndex?:number|null;
+  purpose?:"moment"|"selfie"; paragraphIndex?:number|null; framing?:MomentFraming|null;
 };
 export const listRemoteMedia = (keepId:string)=>
   callRemoteOwner<{media:RemoteMediaItem[]}>({action:"owner-media",keepId});
 
-export async function uploadRemoteMedia(token:string,file:File,kind:"image"|"video",durationSec?:number,purpose:"moment"|"selfie"="moment",paragraphIndex?:number):Promise<{saved:boolean;mediaId:string;count:number;emailSent:boolean}> {
+export async function uploadRemoteMedia(token:string,file:File,kind:"image"|"video",durationSec?:number,purpose:"moment"|"selfie"="moment",paragraphIndex?:number,framing?:MomentFraming):Promise<{saved:boolean;mediaId:string;count:number;emailSent:boolean}> {
   const max=kind==="video" ? 40*1024*1024 : 15*1024*1024;
   if(!file.size || file.size>max)throw new Error(kind==="video"?"Please use a video under 40 MB.":"Please use a photo under 15 MB.");
   const mimeType=file.type.toLowerCase().split(";")[0]||{
@@ -72,7 +73,7 @@ export async function uploadRemoteMedia(token:string,file:File,kind:"image"|"vid
     mp4:"video/mp4",mov:"video/quicktime",webm:"video/webm"
   }[file.name.split(".").pop()?.toLowerCase()??""]||"";
   const {signedUrl,path,mediaId}=await callApi<{signedUrl:string;path:string;mediaId:string}>({
-    action:"prepare-media",token,kind,fileName:file.name,mimeType,size:file.size,durationSec,purpose,paragraphIndex,
+    action:"prepare-media",token,kind,fileName:file.name,mimeType,size:file.size,durationSec,purpose,paragraphIndex,framing,
   });
   const url=new URL(signedUrl,"https://lwkzhpwugtosbidxvdcr.supabase.co");
   const uploaded=await fetch(url.toString(),{
