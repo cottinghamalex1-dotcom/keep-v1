@@ -1818,7 +1818,7 @@ html.keep-interview-active, html.keep-interview-active body {
 }
 .keep-interview-progress__line {
   display: flex;
-  justify-content: space-between;
+  justify-content: flex-end;
   align-items: center;
   gap: 10px;
 }
@@ -2053,7 +2053,7 @@ html.keep-interview-active, html.keep-interview-active body {
 .keep-interview-screen--compact .keep-interview-progress {
   padding: max(4px, env(safe-area-inset-top)) 18px 7px;
 }
-.keep-interview-screen--compact .keep-interview-progress__eyebrow { display: none; }
+.keep-interview-screen--compact .keep-interview-progress__line { justify-content: space-between; }
 .keep-interview-screen--compact .keep-interview-progress__count {
   font-size: 12px;
   color: #6A5849;

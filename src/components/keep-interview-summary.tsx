@@ -26,11 +26,9 @@ export function KeepInterviewSummary({ summary, aiReady, onCreate, onWrite }: Pr
       </div>
 
       <div className="keep-interview-summary__actions">
-        <p className="keep-interview-summary__note">
-          {aiReady
-            ? "Let Keep shape your story into a message you can make your own."
-            : "You can still write your message in your own words."}
-        </p>
+        {!aiReady && <p className="keep-interview-summary__note">
+          You can still write your message in your own words.
+        </p>}
         <button type="button" className="keep-interview-summary__primary" onClick={onCreate} disabled={!aiReady}>
           <span>Create My Message</span>
           <span className="keep-interview-summary__primary-icon" aria-hidden="true"><ArrowRight size={18} strokeWidth={1.6} /></span>
