@@ -94,10 +94,12 @@ export function KeepRemoteMediaContributor({token,mediaCount,onUploaded,contribu
     </p>
     <input ref={input} type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif,video/mp4,video/quicktime,video/webm,.heic,.heif,.mov,.mp4"
       multiple aria-label="Choose photos and short videos" onChange={choose} className="sr-only"/>
-    <button type="button" disabled={disabled} onClick={()=>input.current?.click()}
-      className="mt-4 flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#211D19] px-4 text-[13px] font-medium text-[#FFF8EF] disabled:opacity-50">
-      {busy?<Loader2 className="size-4 animate-spin"/>:<ImagePlus className="size-4"/>}
-      {busy?"Preparing your moments…":mediaCount>=REMOTE_MEDIA_LIMIT?"Maximum moments shared":"Choose photos or short videos"}
+    <button type="button" disabled={disabled} aria-busy={busy} onClick={()=>input.current?.click()}
+      className="mt-4 keep-contribution-action keep-contribution-action--upload">
+      <span className="keep-contribution-action__icon" aria-hidden="true">
+        {busy?<Loader2 className="size-[18px] animate-spin"/>:<ImagePlus className="size-[18px]"/>}
+      </span>
+      <span>{busy?"Preparing your moments…":mediaCount>=REMOTE_MEDIA_LIMIT?"Maximum moments shared":"Choose photos or short videos"}</span>
     </button>
     {busy&&<p role="status" className="mt-3 text-center text-[11px] leading-5 text-[#7D6A58]">{status}</p>}
     {error&&<p role="alert" className="mt-3 rounded-lg border border-[#E4C2B8] bg-[#FFF0EB] p-3 text-[11px] leading-5 text-[#8F453B]">{error}</p>}

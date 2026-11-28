@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ArrowRight, Check, CircleCheck, Clipboard, Heart, Images, Link2, Mail, MessageCircle, Mic, RefreshCw, Send, Users, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, CircleCheck, Clipboard, Images, Link2, Mail, MessageCircle, Mic, RefreshCw, Users, X } from "lucide-react";
 import { activeKeepSession, saveCloudDraft } from "@/lib/keep-cloud";
 import { createRemoteInvite, listRemoteInvites, listRemoteMedia, revokeRemoteInvite, type RemoteInviteStatus, type RemoteScriptPart, type RemoteMediaItem } from "@/lib/keep-remote";
 import type { KeepProject } from "@/lib/keep-project";
@@ -16,6 +16,7 @@ export const getSpeakerParts = (project: KeepProject, contributorId: string): Re
   })).filter(part=>part.text && part.speaker===contributorId).map(({index,text})=>({index,text}));
 
 export function KeepRemoteInviteManager({ project,onContinue,onCombine,onImportMedia,onBack,combining }:Props) {
+  const [step,setStep]=useState(0);
   const [statuses,setStatuses]=useState<RemoteInviteStatus[]>([]);
   const [emailEnabled,setEmailEnabled]=useState<boolean|null>(null);
   const [links,setLinks]=useState<Record<string,string>>({});
@@ -68,7 +69,7 @@ export function KeepRemoteInviteManager({ project,onContinue,onCombine,onImportM
         if(recordingTab)recordingTab.location.replace(result.url);
         setMessage(recordingTab
           ? "Your recording opened in a separate tab. Your voice saves directly to this Keep."
-          : "Your recording is ready. Tap Open my recording below to begin.");
+          : "Your recording is ready. Tap Record here to begin.");
       }else setMessage(`Private recording link ready for ${name}. Share it by text below.`);
     } catch(error){
       if(recordingTab&&!recordingTab.closed)recordingTab.close();
@@ -117,31 +118,56 @@ export function KeepRemoteInviteManager({ project,onContinue,onCombine,onImportM
     }catch(issue){setMessage(issue instanceof Error?issue.message:"Couldn't add the moments. Your original Keep is unchanged.");}
     finally{setMediaImporting(false);}
   };
-  const allReady=people.length>0 && people.every(person=>{
+  const readyCount=people.filter(person=>{
     const s=statuses.find(item=>item.contributorId===person.id);
     return s && s.total===getSpeakerParts(project,person.id).length && s.completed===s.total;
-  });
-  return <main className="mx-auto max-w-[640px] px-5 pb-16 pt-8 text-[#30271F] sm:px-7">
-    <button type="button" onClick={onBack} className="mb-7 flex min-h-10 items-center text-sm text-[#6A5849]">← Back to your words</button>
-    <p className="text-[10px] font-semibold uppercase tracking-[.2em] text-[#8F775E]">CREATE TOGETHER · FROM ANYWHERE</p>
-    <h1 className="mt-4 font-display text-[clamp(38px,10vw,55px)] leading-[1.12] tracking-[-.035em]">Every voice belongs.</h1>
-    <p className="mt-4 text-[14px] leading-7 text-[#6F6256]">
-      Find your name below and tap Record here—no need to text yourself a link, whether you are the first speaker or the last.
-      For someone recording elsewhere, create their private invitation and share it by text. Every section saves to this same Keep.
-    </p>
-    <label className="mt-7 block text-xs text-[#6A5849]">
-      Name shown as the Keep creator (on invitations)
-      <input value={creatorName} onChange={e=>setCreatorName(e.target.value.slice(0,60))} placeholder="Diane"
-        className="mt-2 min-h-12 w-full rounded-xl border border-[#D7CABD] bg-[#FFFDF9] px-4 text-[16px] text-[#35291F] outline-none focus:border-[#8F775E]" />
-    </label>
-    {message && <p role="status" className="mt-4 rounded-xl border border-[#D8C7B2] bg-[#FBF2E7] p-3 text-[12px] leading-5">{message}</p>}
-    <div className="mt-6 flex items-center justify-between">
-      <h2 className="font-display text-[27px]">Choose your voice</h2>
-      <button type="button" disabled={loading} onClick={()=>void refresh()} className="inline-flex min-h-10 items-center gap-1.5 text-xs text-[#6A5849] disabled:opacity-40">
-        <RefreshCw className="size-4" /> Refresh
-      </button>
-    </div>
-    <div className="mt-3 space-y-3">
+  }).length;
+  const allReady=people.length>0 && readyCount===people.length;
+  const navigationBusy=combining||mediaImporting||!!busyId;
+  const goToStep=(next:number)=>{
+    if(next===step||navigationBusy)return;
+    setStep(next);
+    window.requestAnimationFrame(()=>window.scrollTo({top:0,left:0,behavior:"auto"}));
+  };
+  const steps=["Voices","Photos","Finish"];
+  const nextButton=(label:string,next:number)=>(
+    <button type="button" className="keep-message-actions__primary w-full" disabled={navigationBusy} onClick={()=>goToStep(next)}>
+      <span>{label}</span><span className="keep-message-actions__arrow" aria-hidden="true"><ArrowRight size={19} strokeWidth={1.6}/></span>
+    </button>
+  );
+  const refreshButton=(
+    <button type="button" disabled={loading} onClick={()=>void refresh()} className="inline-flex min-h-11 shrink-0 items-center gap-1.5 text-xs text-[#6A5849] disabled:opacity-40">
+      <RefreshCw className={`size-4 ${loading?"animate-spin":""}`}/> Refresh
+    </button>
+  );
+  return <div className="mx-auto w-full max-w-xl px-5 pb-[max(32px,env(safe-area-inset-bottom))] pt-6 text-[#30271F] sm:px-8">
+    <button type="button" onClick={onBack} disabled={navigationBusy} className="mb-4 inline-flex min-h-10 items-center gap-2 text-xs text-[#6A5849]"><ArrowLeft className="size-4"/> Back to your words</button>
+    <header>
+      <h1 className="font-display text-[clamp(34px,9vw,43px)] leading-[1.1] tracking-[-.035em] [text-wrap:balance]">Every voice belongs.</h1>
+      <p className="mt-2 text-[13px] leading-5 text-muted-foreground">One Keep, all your voices.</p>
+    </header>
+    <nav aria-label="Group recording steps" className="sticky top-[calc(4.25rem+env(safe-area-inset-top))] z-20 -mx-1 mb-3 mt-4 bg-background px-1 pb-3 pt-2 md:top-[80px]">
+      <div className="grid grid-cols-3 gap-1 rounded-full border border-[#DDD5CB] bg-[#EEE9E1] p-1">
+        {steps.map((label,index)=><button key={label} type="button" aria-current={step===index?"step":undefined}
+          onClick={()=>goToStep(index)} disabled={navigationBusy}
+          className={`min-h-11 min-w-0 rounded-full border px-1 py-2 text-[13px] font-medium transition-colors ${step===index?"border-[#4D4238] bg-gradient-to-br from-[#29251F] to-[#3B3229] text-[#FFFDFC] shadow-[0_2px_5px_rgba(42,32,22,.16)]":"border-transparent text-[#6A5849] hover:bg-[#F7F5F2]"}`}>
+          <span className="mr-1 text-[10px] opacity-70">{index+1}.</span>{label}
+        </button>)}
+      </div>
+    </nav>
+    {message && <p role="status" className="mb-4 rounded-xl border border-[#D8C7B2] bg-[#FBF2E7] p-3 text-[12px] leading-5">{message}</p>}
+    {step===0 && <section aria-label="Voices" className="space-y-4">
+      <div className="flex items-center justify-between gap-2">
+        <h2 className="keep-section-title">Record or invite.</h2>
+        {refreshButton}
+      </div>
+      <p className="text-[13px] leading-6 text-muted-foreground">Record on this device, or send each person a private invitation. Every voice saves to this Keep.</p>
+      <label className="block text-xs font-medium text-[#6A5849]">
+        Your name on invitations
+        <input value={creatorName} onChange={e=>setCreatorName(e.target.value.slice(0,60))} placeholder="Your name"
+          className="keep-premium-field mt-2 min-h-12 w-full px-4 text-[16px]" />
+      </label>
+    <div className="space-y-3">
       {people.map(person=>{
         const parts=getSpeakerParts(project,person.id);
         const status=statuses.find(item=>item.contributorId===person.id);
@@ -149,12 +175,12 @@ export function KeepRemoteInviteManager({ project,onContinue,onCombine,onImportM
         const finished=!!status&&status.total===parts.length&&complete===status.total;
         const expired=!!status&&new Date(status.expiresAt).getTime()<Date.now();
         const url=expired?undefined:links[person.id];
-        return <section key={person.id} className="rounded-[18px] border border-[#D8CCBF] bg-[#FFFDF9] px-4 py-4 shadow-[0_6px_20px_rgba(57,44,29,.045)]">
+        return <section key={person.id} aria-label={`${person.name}’s recording`} className="rounded-[18px] border border-[#D8CCBF] bg-[#FFFDF9] px-4 py-4 shadow-[0_6px_20px_rgba(57,44,29,.045)]">
           <div className="flex items-start justify-between gap-3">
             <div className="flex min-w-0 items-center gap-3">
               <div className="flex size-10 shrink-0 items-center justify-center rounded-full border border-[#D7C4AE] bg-[#F4EBE0]"><Users className="size-[19px] text-[#8A7056]"/></div>
-              <div><h3 className="font-display text-[25px] leading-7">{person.name}</h3>
-                <p className="mt-1 text-[11px] text-[#827568]">{parts.length} speaking {parts.length===1?"part":"parts"} · {status?.mediaCount??0} shared moments</p>
+              <div className="min-w-0"><h3 className="break-words font-display text-[25px] leading-7">{person.name}</h3>
+                <p className="mt-1 text-[11px] text-[#827568]">{parts.length} speaking {parts.length===1?"part":"parts"}</p>
               </div>
             </div>
             <span className={`shrink-0 rounded-full px-2.5 py-1 text-[10px] font-semibold ${finished?"bg-[#E7F1E5] text-[#437045]":"bg-[#F2E9DC] text-[#8B6B45]"}`}>
@@ -163,26 +189,23 @@ export function KeepRemoteInviteManager({ project,onContinue,onCombine,onImportM
           </div>
 
           <div className="mt-4 space-y-2">
-            <button type="button" disabled={!!busyId||finished} onClick={()=>{
-              if(url){
-                const tab=window.open(url,"_blank","noopener,noreferrer");
-                if(!tab)setMessage("Your recording is ready. Tap the Open recording link below.");
-              }else void invite(person.id,person.name,true);
-            }} className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#171512] px-3 text-[12px] font-semibold text-[#F8F0E6] disabled:opacity-55">
-              <Mic className="size-4" /> {busyId===person.id?"Opening recording…":finished?"All sections received":complete>0?`I'm ${person.name} · Continue recording`:`I'm ${person.name} · Record here`}
-            </button>
-            {!finished&&<p className="text-[11px] leading-5 text-[#756656]">If this is your name, record directly on this device. Each section saves to the Keep automatically.</p>}
-            {url&&!finished&&<a href={url} target="_blank" rel="noopener noreferrer" className="flex min-h-10 items-center justify-center gap-2 rounded-xl border border-[#BEA994] text-[11px] font-semibold"><ArrowRight className="size-4"/> Open recording link</a>}
-            <button type="button" disabled={!!busyId||!!url} onClick={()=>void invite(person.id,person.name)}
-              className="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-[#C8B5A1] bg-[#FFFCF7] px-3 text-[12px] font-semibold text-[#594735] disabled:opacity-55">
-              <Link2 className="size-4"/> {busyId===person.id?"Preparing invitation…":url?"Private link ready":`Invite ${person.name} to record remotely`}
-            </button>
+            {!finished && (url
+              ? <a href={url} target="_blank" rel="noopener noreferrer" className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#211D19] px-3 text-[13px] font-medium text-[#FCF5EC] hover:bg-[#3B3229]">
+                  <Mic className="size-4"/> {complete>0?"Continue recording":"Record here"}
+                </a>
+              : <button type="button" disabled={!!busyId} onClick={()=>void invite(person.id,person.name,true)} className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#211D19] px-3 text-[13px] font-medium text-[#FCF5EC] hover:bg-[#3B3229] disabled:opacity-55">
+                  <Mic className="size-4"/> {busyId===person.id?"Preparing link…":complete>0?"Continue recording":"Record here"}
+                </button>)}
+            {!url&&<button type="button" disabled={!!busyId} onClick={()=>void invite(person.id,person.name)}
+              className="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-[#D4C8BB] bg-[#FFFCF7] px-3 text-[13px] font-medium text-[#594735] disabled:opacity-55">
+              <Link2 className="size-4"/> {busyId===person.id?"Preparing link…":`Invite ${person.name}`}
+            </button>}
             {url&&<div className="grid grid-cols-2 gap-2">
-              <button type="button" onClick={()=>void share(person.name,url)} className="flex min-h-11 items-center justify-center gap-2 rounded-xl border border-[#BEA994] text-[11px] font-medium"><MessageCircle className="size-4"/> Share by text</button>
-              <button type="button" onClick={()=>void copy(person.name,url)} className="flex min-h-11 items-center justify-center gap-2 rounded-xl border border-[#BEA994] text-[11px] font-medium"><Clipboard className="size-4"/> Copy invite</button>
+              <button type="button" onClick={()=>void share(person.name,url)} className="flex min-h-11 items-center justify-center gap-1.5 rounded-xl border border-[#D4C8BB] px-2 text-xs font-medium"><MessageCircle className="size-4"/> Share by text</button>
+              <button type="button" onClick={()=>void copy(person.name,url)} className="flex min-h-11 items-center justify-center gap-1.5 rounded-xl border border-[#D4C8BB] px-2 text-xs font-medium"><Clipboard className="size-4"/> Copy invite</button>
             </div>}
           </div>
-          {finished&&<div className="mt-3 flex items-center gap-2 text-[11px] text-[#527052]"><CircleCheck className="size-4"/> Voice received and saved to this Keep. {status?.emailSent?"· Creator notified":""}</div>}
+          {finished&&<div className="mt-3 flex items-center gap-2 text-[11px] text-[#527052]"><CircleCheck className="size-4"/> Voice saved. {status?.emailSent?"Creator notified.":""}</div>}
           {status&&!finished&&expired && <p className="mt-2 text-[11px] text-[#925E4E]">That invitation has expired. Generate a new link.</p>}
           {status&&<button type="button" className="mt-3 inline-flex min-h-8 items-center gap-1.5 text-[10px] text-[#8F705B]" onClick={async()=>{
             if(!window.confirm(`Revoke ${person.name}'s invitation? They will no longer be able to share recordings, photos or videos.`))return;
@@ -192,16 +215,28 @@ export function KeepRemoteInviteManager({ project,onContinue,onCombine,onImportM
         </section>;
       })}
     </div>
-    <section className="mt-7 rounded-[20px] border border-[#D4C2AD] bg-[#FCF8F1] p-5" aria-label="Contributed photos and videos">
-      <div className="flex items-center gap-2"><Images className="size-5 text-[#886D51]"/><h3 className="font-display text-[26px]">Shared moments.</h3></div>
-      <p className="mt-2 text-[12px] leading-6 text-[#726355]">
-        {totalMoments} photos or videos received. Each contributor uses their existing private recording link, including optional front-camera selfie takes.
-        Review the moments before adding them to your Keep.
-      </p>
-      <button type="button" disabled={mediaLoading||!totalMoments} onClick={()=>void (mediaOpen?setMediaOpen(false):openMediaReview())}
+      <p className="text-center text-[11px] leading-5 text-muted-foreground">Invitations stay active for 30 days. You can return anytime.</p>
+      <div className="border-t border-border pt-5">{nextButton("Continue to photos",1)}</div>
+    </section>}
+    {step===1 && <section aria-label="Contributed photos and videos" className="space-y-4">
+      <div className="flex items-center justify-between gap-2">
+        <h2 className="keep-section-title">Shared moments.</h2>
+        {refreshButton}
+      </div>
+      <p className="text-[13px] leading-6 text-muted-foreground">Everyone can share photos and videos through their recording link. Review and add what they send.</p>
+      <div className="rounded-[20px] border border-[#D8CCBF] bg-[#FFFDF9] p-4 sm:p-5">
+      <div className="flex items-center gap-3">
+        <div className="grid size-11 shrink-0 place-items-center rounded-full border border-[#D7C4AE] bg-[#F4EBE0]"><Images className="size-5 text-[#886D51]"/></div>
+        <div>
+          <h3 className="font-display text-[24px] leading-tight">{totalMoments} shared {totalMoments===1?"moment":"moments"}</h3>
+          <p className="mt-1 text-xs text-muted-foreground">{totalMoments} {totalMoments===1?"photo or video":"photos or videos"} received</p>
+        </div>
+      </div>
+      {!totalMoments&&<p className="mt-4 text-xs leading-5 text-muted-foreground">Nothing has arrived yet. You can keep going and add moments later.</p>}
+      {!!totalMoments&&<button type="button" disabled={mediaLoading} onClick={()=>void (mediaOpen?setMediaOpen(false):openMediaReview())}
         className="mt-3 flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#211D19] px-4 text-[12px] font-semibold text-[#FCF5EC] disabled:opacity-45">
-        <Images className="size-4"/>{mediaLoading?"Opening shared moments…":mediaOpen?"Close media review":`Review & add ${totalMoments} shared moments`}
-      </button>
+        <Images className="size-4"/>{mediaLoading?"Opening shared moments…":mediaOpen?"Close media review":"Review shared moments"}
+      </button>}
       {mediaOpen&&<div className="mt-4 space-y-3 border-t border-[#E3D6C6] pt-4">
         {sharedMedia.map(item=>{
           const already=importedIds.has(item.id);
@@ -224,26 +259,47 @@ export function KeepRemoteInviteManager({ project,onContinue,onCombine,onImportM
           {mediaImporting?"Adding moments to your Keep…":`Add ${selectedMedia.length} selected ${selectedMedia.length===1?"moment":"moments"}`}
         </button>
       </div>}
-    </section>
-    <div className="mt-7 rounded-[20px] border border-[#DACDBD] bg-[#F5EFE6] p-5">
-      <div className="flex items-center gap-2"><Heart className="size-[19px] text-[#866B52]"/><h3 className="font-display text-[24px]">Beautifully together.</h3></div>
-      <p className="mt-2 text-xs leading-6 text-[#6D5E50]">
-        Keep gathers the recordings, balances each speaker's level, adds the same voice polish throughout,
-        and places them in script order before your music and photos.
-      </p>
-      {allReady ?
-        <button type="button" disabled={combining} onClick={()=>void onCombine()} className="mt-4 flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#171512] px-4 font-medium text-[#F7F1E9] disabled:opacity-50">
-          <Check className="size-4"/>{combining?"Preparing all voices…":"Bring every voice together"}
+      </div>
+      <div className="border-t border-border pt-5">{nextButton("Continue to finish",2)}</div>
+      <button type="button" onClick={()=>goToStep(0)} disabled={navigationBusy} className="mx-auto flex min-h-11 items-center gap-2 text-xs text-[#6A5849]"><ArrowLeft className="size-4"/> Back to voices</button>
+    </section>}
+    {step===2 && <section aria-label="Finish" className="space-y-4">
+      <div className="flex items-center justify-between gap-2">
+        <h2 className="keep-section-title">Bring it together.</h2>
+        {refreshButton}
+      </div>
+      <p className="text-[13px] leading-6 text-muted-foreground">Keep combines everyone's recordings in the right order and balances their voices for your film.</p>
+      <div className="rounded-[20px] border border-[#D8CCBF] bg-[#FFFDF9] p-5">
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-xs font-medium text-[#6A5849]">Recording progress</p>
+          <span className="text-xs font-medium text-[#6A5849]">{readyCount} of {people.length} voices ready</span>
+        </div>
+        <div role="progressbar" aria-label="Voices ready" aria-valuemin={0} aria-valuemax={people.length||1} aria-valuenow={readyCount} className="mt-3 h-1.5 overflow-hidden rounded-full bg-[#EEE9E1]">
+          <div className="h-full rounded-full bg-[#806B56] transition-all" style={{width:`${people.length?readyCount/people.length*100:0}%`}}/>
+        </div>
+        <ul className="mt-4 divide-y divide-[#E4DCD2]">
+          {people.map(person=>{
+            const status=statuses.find(item=>item.contributorId===person.id);
+            const total=getSpeakerParts(project,person.id).length;
+            const ready=status?.total===total&&status.completed===total;
+            return <li key={person.id} className="flex items-center justify-between gap-3 py-3 text-sm">
+              <span className="min-w-0 break-words">{person.name}</span>
+              <span className={`flex shrink-0 items-center gap-1.5 text-xs ${ready?"text-[#527052]":"text-[#786657]"}`}>{ready?<><CircleCheck className="size-4"/> Ready</>:`${status?.completed??0} of ${total} parts`}</span>
+            </li>;
+          })}
+        </ul>
+      </div>
+      {!allReady&&<p className="text-[13px] leading-6 text-muted-foreground">You can work on your photos while everyone finishes recording.</p>}
+      <div className="border-t border-border pt-5">
+        <button type="button" disabled={combining} aria-busy={combining} onClick={allReady?()=>void onCombine():onContinue} className="keep-message-actions__primary w-full">
+          <span>{combining?"Preparing all voices…":allReady?"Bring every voice together":"Continue with photos"}</span>
+          <span className="keep-message-actions__arrow" aria-hidden="true">{allReady?<Check size={19} strokeWidth={1.6}/>:<ArrowRight size={19} strokeWidth={1.6}/>}</span>
         </button>
-      : <button type="button" onClick={onContinue} className="mt-4 flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#171512] px-4 text-[12px] font-semibold text-[#F7F1E9]">
-          Continue with photos while they record <ArrowRight className="size-4"/>
-        </button>}
-      {emailEnabled===false && <p className="mt-3 flex items-start gap-2 rounded-lg border border-[#DECDB8] bg-[#FFFAF3] px-3 py-2 text-[11px] leading-5 text-[#766454]">
-        <Mail className="mt-0.5 size-4 shrink-0"/> Recordings are tracked here. Automatic email alerts are not yet configured for this Keep account.
+      </div>
+      <button type="button" onClick={()=>goToStep(1)} disabled={navigationBusy} className="mx-auto flex min-h-11 items-center gap-2 text-xs text-[#6A5849]"><ArrowLeft className="size-4"/> Back to shared moments</button>
+      {emailEnabled===false && <p className="flex items-start gap-2 rounded-xl border border-[#DECDB8] bg-[#FFFAF3] px-3 py-2 text-[11px] leading-5 text-[#766454]">
+        <Mail className="mt-0.5 size-4 shrink-0"/> Automatic email alerts are not yet available. Check recording progress here anytime.
       </p>}
-      <p className="mt-3 text-center text-[11px] leading-5 text-[#7D6F61]">
-        Invitations expire after 30 days. You can leave and come back to this Keep whenever you like.
-      </p>
-    </div>
-  </main>;
+    </section>}
+  </div>;
 }

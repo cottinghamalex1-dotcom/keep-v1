@@ -1,10 +1,12 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { KeepRemoteMediaContributor } from "@/components/keep-remote-media-contributor";
 import { KeepRemoteInviteManager } from "@/components/keep-remote-invite-manager";
 import { newProject } from "@/lib/keep-project";
 import { prepareRemoteMoment } from "@/lib/keep-remote-media-prep";
-import { listRemoteInvites, listRemoteMedia, uploadRemoteMedia } from "@/lib/keep-remote";
+import { createRemoteInvite, listRemoteInvites, listRemoteMedia, uploadRemoteMedia } from "@/lib/keep-remote";
+
+import { activeKeepSession, saveCloudDraft } from "@/lib/keep-cloud";
 
 vi.mock("@/lib/keep-remote",()=>({
   listRemoteInvites:vi.fn(),listRemoteMedia:vi.fn(),uploadRemoteMedia:vi.fn(),
@@ -14,12 +16,13 @@ vi.mock("@/lib/keep-cloud",()=>({
   activeKeepSession:vi.fn(),saveCloudDraft:vi.fn()
 }));
 beforeEach(()=>{
+  vi.spyOn(window,"scrollTo").mockImplementation(()=>{});
   vi.stubGlobal("URL",class extends URL {
     static createObjectURL=vi.fn(()=>"blob:local-preview");
     static revokeObjectURL=vi.fn();
   });
 });
-afterEach(()=>{cleanup();vi.clearAllMocks();vi.unstubAllGlobals();});
+afterEach(()=>{cleanup();vi.clearAllMocks();vi.unstubAllGlobals();vi.restoreAllMocks();});
 
 it("requires framing review before sending and preserves the chosen focus and zoom",async()=>{
   vi.mocked(uploadRemoteMedia).mockResolvedValue({saved:true,mediaId:"abc",count:2,emailSent:false});
@@ -80,10 +83,72 @@ it("lets the creator review and select shared moments before importing",async()=
     messageParagraphs:["Happy birthday","You are loved"],paragraphSpeakers:["a","b"]};
   render(<KeepRemoteInviteManager project={project} onContinue={vi.fn()} onCombine={vi.fn()}
     onImportMedia={onImportMedia} combining={false} onBack={vi.fn()}/>);
-  await waitFor(()=>expect(screen.getByText(/1 photos or videos received/)).toBeTruthy());
-  fireEvent.click(screen.getByRole("button",{name:/Review & add 1 shared moments/}));
+  fireEvent.click(screen.getByRole("button",{name:/Continue to photos/}));
+  await waitFor(()=>expect(screen.getByText(/1 photo or video received/)).toBeTruthy());
+  fireEvent.click(screen.getByRole("button",{name:/Review shared moments/}));
   await waitFor(()=>expect(screen.getByText("family.jpg")).toBeTruthy());
   fireEvent.click(screen.getByRole("button",{name:/Add 1 selected moment/}));
   await waitFor(()=>expect(onImportMedia).toHaveBeenCalledOnce());
   expect(onImportMedia.mock.calls[0]?.[0][0]).toMatchObject({id:"photo-1",framing:{focusX:72,focusY:35,zoom:1.22}});
+});
+
+
+const groupProject={...newProject(),publicationId:"keep-id",recipientName:"Mom",voiceMode:"together" as const,
+  voiceRecordingLocation:"remote" as const,contributors:[{id:"a",name:"Alex"},{id:"b",name:"Kristen"}],
+  messageParagraphs:["Happy birthday","You are loved"],paragraphSpeakers:["a","b"]};
+const readyInvite=(id:string,name:string)=>({id:`invite-${id}`,contributorId:id,contributorName:name,total:1,completed:1,
+  expiresAt:"2099-12-15T00:00:00Z",emailSent:false,mediaCount:0});
+
+it("shows only the active step, keeps the highlighted navigation, and allows photos while voices are pending",async()=>{
+  vi.mocked(listRemoteInvites).mockResolvedValue({invites:[readyInvite("a","Alex")],notificationsEnabled:true});
+  const onContinue=vi.fn(), onCombine=vi.fn();
+  render(<KeepRemoteInviteManager project={groupProject} onContinue={onContinue} onCombine={onCombine}
+    onImportMedia={vi.fn()} combining={false} onBack={vi.fn()}/>);
+  expect(screen.queryByText(/CREATE TOGETHER · FROM ANYWHERE/)).toBeNull();
+  expect(screen.getByRole("button",{name:/1. Voices/})).toHaveAttribute("aria-current","step");
+  expect(screen.queryByText("Shared moments.")).toBeNull();
+  expect(screen.queryByText("Bring it together.")).toBeNull();
+  fireEvent.click(screen.getByRole("button",{name:/Continue to photos/}));
+  expect(screen.getByRole("button",{name:/2. Photos/})).toHaveAttribute("aria-current","step");
+  expect(screen.queryByText("Record or invite.")).toBeNull();
+  fireEvent.click(screen.getByRole("button",{name:/Continue to finish/}));
+  expect(screen.getByRole("button",{name:/3. Finish/})).toHaveAttribute("aria-current","step");
+  await waitFor(()=>expect(screen.getByText("1 of 2 voices ready")).toBeTruthy());
+  fireEvent.click(screen.getByRole("button",{name:"Continue with photos"}));
+  expect(onContinue).toHaveBeenCalledOnce();
+  expect(onCombine).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole("button",{name:/1. Voices/}));
+  expect(screen.getByRole("button",{name:/Invite Kristen/})).toBeTruthy();
+});
+
+it("combines only when every voice is ready",async()=>{
+  vi.mocked(listRemoteInvites).mockResolvedValue({invites:[readyInvite("a","Alex"),readyInvite("b","Kristen")],notificationsEnabled:true});
+  const onCombine=vi.fn().mockResolvedValue(undefined), onContinue=vi.fn();
+  render(<KeepRemoteInviteManager project={groupProject} onContinue={onContinue} onCombine={onCombine}
+    onImportMedia={vi.fn()} combining={false} onBack={vi.fn()}/>);
+  fireEvent.click(screen.getByRole("button",{name:/3. Finish/}));
+  await waitFor(()=>expect(screen.getByText("2 of 2 voices ready")).toBeTruthy());
+  fireEvent.click(screen.getByRole("button",{name:"Bring every voice together"}));
+  expect(onCombine).toHaveBeenCalledOnce();
+  expect(onContinue).not.toHaveBeenCalled();
+});
+
+it("offers separate record and invite actions and retains private links while navigating",async()=>{
+  vi.mocked(listRemoteInvites).mockResolvedValue({invites:[],notificationsEnabled:true});
+  vi.mocked(activeKeepSession).mockResolvedValue({access_token:"session"} as Awaited<ReturnType<typeof activeKeepSession>>);
+  vi.mocked(saveCloudDraft).mockResolvedValue(undefined as Awaited<ReturnType<typeof saveCloudDraft>>);
+  vi.mocked(createRemoteInvite).mockResolvedValue({url:"https://example.com/private",expiresAt:"2099-12-15T00:00:00Z"});
+  render(<KeepRemoteInviteManager project={groupProject} onContinue={vi.fn()} onCombine={vi.fn()}
+    onImportMedia={vi.fn()} combining={false} onBack={vi.fn()}/>);
+  const kristen=screen.getByRole("region",{name:"Kristen’s recording"});
+  expect(within(kristen).getByRole("button",{name:"Record here"})).toBeTruthy();
+  fireEvent.click(within(kristen).getByRole("button",{name:"Invite Kristen"}));
+  await waitFor(()=>expect(within(kristen).getByRole("button",{name:"Share by text"})).toBeTruthy());
+  await waitFor(()=>expect(screen.getByRole("button",{name:/Continue to photos/})).not.toBeDisabled());
+  expect(createRemoteInvite).toHaveBeenCalledWith(expect.objectContaining({contributorId:"b",creatorName:"Alex"}));
+  fireEvent.click(screen.getByRole("button",{name:/Continue to photos/}));
+  fireEvent.click(screen.getByRole("button",{name:/Back to voices/}));
+  const restored=screen.getByRole("region",{name:"Kristen’s recording"});
+  expect(within(restored).getByRole("link",{name:"Record here"})).toHaveAttribute("href","https://example.com/private");
+  expect(within(restored).getByRole("button",{name:"Copy invite"})).toBeTruthy();
 });

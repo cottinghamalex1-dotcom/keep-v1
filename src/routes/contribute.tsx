@@ -150,8 +150,11 @@ export function KeepRemoteContributor() {
     <KeepRemoteMediaContributor token={token} mediaCount={invite.mediaCount??0}
       contributorCount={invite.contributorCount??1} totalWordCount={invite.totalWordCount??0}
       onBusyChange={setMediaBusy} onUploaded={count=>setInvite(old=>old?{...old,mediaCount:count}:old)}/>
-    <button type="button" disabled={mediaBusy||sending||!!selfieRetry} onClick={continueFromMedia} className="mt-4 flex min-h-12 w-full items-center justify-between rounded-xl bg-[#211D19] px-5 text-[12px] font-semibold text-[#FFFAF3] disabled:opacity-50">
-      {pending.length>0?(started?"Return to recording":"Continue to recording"):"I'm finished · Thank you"} <ArrowRight className="size-4"/>
+    <button type="button" disabled={mediaBusy||sending||!!selfieRetry} onClick={continueFromMedia} className="mt-4 keep-contribution-action keep-contribution-action--finish">
+      <span>{pending.length>0?(started?"Return to recording":"Continue to recording"):"I'm finished · Thank you"}</span>
+      <span className="keep-contribution-action__icon" aria-hidden="true">
+        {pending.length>0?<ArrowRight className="size-[17px]"/>:<Check className="size-[17px]"/>}
+      </span>
     </button>
     <KeepSelfieBackup open={selfieBackupOpen} momentCount={0}
       onClose={()=>setSelfieBackupOpen(false)} onVoice={()=>beginRecording(false)} onSelfie={()=>beginRecording(true)}/>
