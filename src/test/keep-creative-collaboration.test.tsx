@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useState } from "react";
 import { KeepCreativeCollaboration } from "@/components/keep-creative-collaboration";
@@ -51,6 +51,45 @@ describe("creative collaboration",()=>{
     fireEvent.click(screen.getByRole("button",{name:/Continue/}));
     await screen.findByText("Tell me more about the kitchen.");
     expect(fetchCreativeQuestion).toHaveBeenLastCalledWith(expect.objectContaining({relationship:"daughter",contributors:[],answers:[{question:"What does your mom mean to you?",transcript:"We spent time in the kitchen."}]}),"Mom");
+  });
+  it("shows one in-card transition as an answer saves and the next question is prepared",async()=>{
+    let finishSave!:()=>void;
+    let finishQuestion!:(question:string)=>void;
+    const saving=new Promise<void>(resolve=>{finishSave=resolve;});
+    const preparing=new Promise<string>(resolve=>{finishQuestion=resolve;});
+    const save=vi.fn().mockReturnValueOnce(saving).mockResolvedValue(undefined);
+    vi.mocked(fetchCreativeQuestion).mockReturnValueOnce(preparing);
+    render(<KeepCreativeInterview name="Alex" context={ctx} story={{...emptyStory("grandson"),question:"What is a favorite memory?"}} onSave={save} onDone={()=>{}}/>);
+    fireEvent.change(screen.getByRole("textbox",{name:"Your answer"}),{target:{value:"We baked together."}});
+    fireEvent.click(screen.getByRole("button",{name:"Continue"}));
+    expect(screen.getAllByRole("status")).toHaveLength(1);
+    expect(screen.getByRole("status")).toHaveTextContent("Saving your words…");
+    expect(screen.getByRole("status").closest(".keep-creative-interview__question")).not.toBeNull();
+    expect(screen.queryByRole("button",{name:"Continue"})).not.toBeInTheDocument();
+    expect(fetchCreativeQuestion).not.toHaveBeenCalled();
+    await act(async()=>{finishSave();});
+    expect(screen.getAllByRole("status")).toHaveLength(1);
+    expect(screen.getByRole("status")).toHaveTextContent("Preparing your next question…");
+    expect(screen.getByRole("status")).toHaveTextContent("Your answer is saved.");
+    expect(screen.queryByText("Saving your words…")).not.toBeInTheDocument();
+    expect(screen.getByRole("progressbar")).toHaveAttribute("aria-valuenow","1");
+    await act(async()=>{finishQuestion("What did you bake?");});
+    expect(await screen.findByText("What did you bake?")).toBeInTheDocument();
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    expect(screen.getByRole("textbox",{name:"Your answer"})).toHaveValue("");
+  });
+  it("preserves saved answers and restores the continuation action if a follow-up fails",async()=>{
+    const save=vi.fn().mockResolvedValue(undefined);
+    vi.mocked(fetchCreativeQuestion).mockRejectedValueOnce(new Error("Please try again.")).mockResolvedValueOnce("What happened next?");
+    render(<KeepCreativeInterview name="Mom" context={ctx} story={{...emptyStory("daughter"),question:"What do you remember?"}} onSave={save} onDone={()=>{}}/>);
+    fireEvent.change(screen.getByRole("textbox",{name:"Your answer"}),{target:{value:"We spent time together."}});
+    fireEvent.click(screen.getByRole("button",{name:"Continue"}));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Please try again.");
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    expect(save).toHaveBeenCalledWith(expect.objectContaining({answers:[{question:"What do you remember?",transcript:"We spent time together."}],question:undefined}));
+    fireEvent.click(screen.getByRole("button",{name:"Continue interview"}));
+    expect(await screen.findByText("What happened next?")).toBeInTheDocument();
+    expect(save.mock.calls[1]?.[0].answers).toHaveLength(1);
   });
   it("does not publish private interview notes",()=>{
     const project={...newProject(),contributors:[{id:"a",name:"Alex",story:{relationship:"grandson",answers:[],written:"Private notes",completed:true}}]};
