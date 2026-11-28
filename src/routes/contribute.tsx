@@ -1,11 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useMemo, useState, type ChangeEvent } from "react";
-import { ArrowRight, Check, CircleCheck, FileAudio, Heart, ImagePlus, Mic, Pause, RefreshCw, ShieldCheck, Square } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { ArrowRight, Check, CircleCheck, ImagePlus, Mic, Pause, RefreshCw, ShieldCheck, Square } from "lucide-react";
 import { KeepTeleprompter } from "@/components/keep-teleprompter";
-import { KeepSelfiePrompt } from "@/components/keep-selfie-prompt";
+import { KeepSelfieBackup } from "@/components/keep-selfie-backup";
 import { KeepRemoteMediaContributor } from "@/components/keep-remote-media-contributor";
 import { useRecorder } from "@/hooks/use-recorder";
-import { getRemoteFileDuration, resolveRemoteInvitation, uploadRemoteMedia, uploadRemoteRecording, type RemoteInviteDetails } from "@/lib/keep-remote";
+import { resolveRemoteInvitation, uploadRemoteMedia, uploadRemoteRecording, type RemoteInviteDetails } from "@/lib/keep-remote";
 
 export const Route=createFileRoute("/contribute")({
   head:()=>({meta:[
@@ -15,7 +15,7 @@ export const Route=createFileRoute("/contribute")({
   ]}),
   component:KeepRemoteContributor,
 });
-function KeepRemoteContributor() {
+export function KeepRemoteContributor() {
   const token=useMemo(()=>typeof window==="undefined"?"":new URLSearchParams(window.location.search).get("invite")||"",[]);
   const [invite,setInvite]=useState<RemoteInviteDetails|null>(null);
   const [loading,setLoading]=useState(true);
@@ -25,7 +25,7 @@ function KeepRemoteContributor() {
   const [started,setStarted]=useState(false);
   const [welcomeOpen,setWelcomeOpen]=useState(true);
   const [selfieSelected,setSelfieSelected]=useState(false);
-  const [selfiePreparing,setSelfiePreparing]=useState(false);
+  const [selfieBackupOpen,setSelfieBackupOpen]=useState(false);
   const [selfieRetry,setSelfieRetry]=useState<{blob:Blob;duration:number;partIndex:number;mime:string}|null>(null);
   const [mediaMode,setMediaMode]=useState(false);
   const [mediaBusy,setMediaBusy]=useState(false);
@@ -54,13 +54,25 @@ function KeepRemoteContributor() {
     setInvite(updated);
     setSelfieRetry(null);
   };
-  const chooseSelfie=async()=>{
-    if(selfieSelected){recorder.disableSelfie();setSelfieSelected(false);return;}
-    setSelfiePreparing(true);
-    const prepared=await recorder.prepareSelfie();
-    setSelfiePreparing(false);
-    if(prepared)setSelfieSelected(true);
-    else setError("Front camera unavailable. You can still record your voice.");
+  // Ask about photos first. The front camera is only an optional fallback
+  // when the contributor hasn't shared any visual memories.
+  const beginRecording=(selfie:boolean)=>{
+    setSelfieBackupOpen(false);setMediaMode(false);setStarted(true);setError("");
+    setSelfieSelected(selfie);
+    if(!selfie)recorder.disableSelfie();
+  };
+  const continueFromMedia=()=>{
+    if(!pending.length){setMediaMode(false);return;}
+    if(started){setMediaMode(false);setError("");return;}
+    if((invite?.mediaCount??0)===0){setSelfieBackupOpen(true);return;}
+    beginRecording(false);
+  };
+  const startTake=async()=>{
+    setError("");setSent(false);
+    const success=await recorder.start({selfie:selfieSelected,countdown:true});
+    if(success===false)setError(selfieSelected
+      ?"Camera or microphone is unavailable. You can continue with voice only."
+      :"Allow microphone access in your browser to record your message.");
   };
   const submit=async(blob:Blob,duration:number,selfie?:{blob:Blob;duration:number;partIndex:number;mime:string})=>{
     if(!currentPart)return;
@@ -70,18 +82,19 @@ function KeepRemoteContributor() {
     try{
       await uploadRemoteRecording(token,partIndex,blob,duration);
       const next=await resolveRemoteInvitation(token);
-      setInvite(next);
       setUploadRetry(null);
-      // Do not show the introduction again between sections.
-      setSent(true);
+      // Wait for the optional video too, but never require a successful camera
+      // upload to keep a successfully saved voice take.
       if(selfie){
         try{await uploadSelfie(selfie);}
         catch(issue){
+          setInvite(next);
           setError(issue instanceof Error?issue.message:"Selfie upload wasn't completed. Your voice was saved.");
           setMediaMode(true);
         }
-      }
-      if(next.parts.every(part=>part.completed))setMediaMode(true);
+      } else setInvite(next);
+      // Do not show the introduction again between sections.
+      setSent(true);
       const nextPart=next.parts.find(part=>!part.completed);
       if(nextPart){setCurrentIndex(nextPart.index);setStarted(true);}
     }catch(issue){setError(issue instanceof Error?issue.message:"Your recording didn't upload. Tap Retry to send it again.");}
@@ -93,7 +106,7 @@ function KeepRemoteContributor() {
     setRestartNonce(value=>value+1);
     setSent(false);setError("");setUploadRetry(null);
     const success=await recorder.start({selfie:selfieSelected,countdown:true});
-    if(success===false)setError("Couldn't restart the microphone or camera. Try Start recording again.");
+    if(success===false)setError(selfieSelected?"Camera or microphone is unavailable. You can continue with voice only.":"Couldn't restart the microphone. Try Start recording again.");
   };
   const finish=async()=>{
     const result=await recorder.stop();
@@ -102,22 +115,11 @@ function KeepRemoteContributor() {
       blob:result.selfieBlob,duration:result.durationSec,partIndex:currentPart!.index,
       mime:result.selfieMimeType||result.selfieBlob.type
     }:undefined;
-    if(selfieSelected&&!selfie)setError("Your voice was recorded, but this device couldn't save the camera video.");
-    setSelfieSelected(false);
+    // Keep the chosen mode for every remaining section, not just the first.
     await submit(result.blob,result.durationSec,selfie);
   };
-  const fromFiles=async(event:ChangeEvent<HTMLInputElement>)=>{
-    const file=event.target.files?.[0];
-    event.target.value="";
-    if(!file)return;
-    if(file.size>20*1024*1024){setError("Choose an audio file smaller than 20 MB.");return;}
-    try {
-      const duration=await getRemoteFileDuration(file);
-      await submit(file,duration);
-    }catch(issue){setError(issue instanceof Error?issue.message:"That audio file couldn't be opened.");}
-  };
   const recording=recorder.status==="recording"||recorder.status==="paused";
-  const recordingPreparing=recorder.status==="countdown"||(recorder.status==="requesting"&&!selfiePreparing);
+  const recordingPreparing=recorder.status==="countdown"||recorder.status==="requesting";
   if(loading)return <main className="flex min-h-dvh flex-col items-center justify-center bg-[#F7F5F2] px-7 text-[#30271F]">
     <span className="font-display text-[58px]">Keep</span><p className="mt-5 text-xs text-[#7B6A57]">Opening your private invitation…</p></main>;
   if(!invite)return <main className="flex min-h-dvh flex-col items-center justify-center bg-[#F7F5F2] px-7 text-center text-[#30271F]">
@@ -130,7 +132,7 @@ function KeepRemoteContributor() {
       <span className="rounded-full border border-[#D8C9BA] px-3 py-1.5 text-[10px] text-[#7D6A57]">Private invitation</span></div>
     <p className="mt-9 text-[10px] font-semibold uppercase tracking-[.18em] text-[#8D735A]">A KEEP FOR {invite.recipientName.toUpperCase()}</p>
     <h1 className="mt-3 font-display text-[clamp(36px,9vw,49px)] leading-[1.1] tracking-[-.03em]">The moments that matter.</h1>
-    <p className="mb-6 mt-3 text-[13px] leading-6 text-[#76695E]">Your voice makes this gift personal. Your favorite photos and short videos help bring the memories to life—share the moments you want them to relive.</p>
+    <p className="mb-6 mt-3 text-[13px] leading-6 text-[#76695E]">Your favorite photos and short videos help bring the memories to life. Share the moments you want them to relive{pending.length>0?" before recording your message":""}.</p>
     {selfieRetry&&<section className="mb-5 rounded-xl border border-[#C9B095] bg-[#FFF9ED] p-4">
       <p className="text-[12px] font-semibold">Your voice was received. The selfie video still needs to upload.</p>
       <p className="mt-1 text-[11px] leading-5 text-[#776454]">Retry without re-recording your voice.</p>
@@ -148,11 +150,11 @@ function KeepRemoteContributor() {
     <KeepRemoteMediaContributor token={token} mediaCount={invite.mediaCount??0}
       contributorCount={invite.contributorCount??1} totalWordCount={invite.totalWordCount??0}
       onBusyChange={setMediaBusy} onUploaded={count=>setInvite(old=>old?{...old,mediaCount:count}:old)}/>
-    {pending.length>0&&<button type="button" onClick={()=>setMediaMode(false)}
-      disabled={mediaBusy} className="mt-4 flex min-h-12 w-full items-center justify-center rounded-xl border border-[#CDBBA9] bg-white text-[12px] font-medium disabled:opacity-50">Return to my voice recording</button>}
-    <button type="button" disabled={mediaBusy} onClick={()=>setMediaMode(false)} className="mt-3 flex min-h-12 w-full items-center justify-center rounded-xl bg-[#211D19] text-[12px] font-semibold text-[#FFFAF3] disabled:opacity-50">
-      {pending.length>0?"Save my moments for now":"I'm finished · Thank you"}
+    <button type="button" disabled={mediaBusy||sending||!!selfieRetry} onClick={continueFromMedia} className="mt-4 flex min-h-12 w-full items-center justify-between rounded-xl bg-[#211D19] px-5 text-[12px] font-semibold text-[#FFFAF3] disabled:opacity-50">
+      {pending.length>0?(started?"Return to recording":"Continue to recording"):"I'm finished · Thank you"} <ArrowRight className="size-4"/>
     </button>
+    <KeepSelfieBackup open={selfieBackupOpen} momentCount={0}
+      onClose={()=>setSelfieBackupOpen(false)} onVoice={()=>beginRecording(false)} onSelfie={()=>beginRecording(true)}/>
   </main>;
   if(!pending.length)return <main className="flex min-h-dvh flex-col items-center justify-center bg-[#F7F5F2] px-7 text-center text-[#30271F]">
     <div className="flex size-16 items-center justify-center rounded-full border border-[#D7C9BA] bg-[#F1E5D6]"><CircleCheck className="size-8 text-[#648364]"/></div>
@@ -186,11 +188,10 @@ function KeepRemoteContributor() {
         </div>)}
       </div>
     </div>
-    <p className="mt-5 text-center text-[12px] leading-6 text-[#716456]">Find somewhere quiet and use your phone. After each section saves, Keep takes you directly to the next one. No sign-in required.</p>
-    <button type="button" onClick={()=>{setError("");setStarted(true);}} className="mt-5 flex min-h-14 w-full items-center justify-between rounded-xl bg-[#151310] px-5 text-[13px] font-semibold text-[#FAF4EB]">
-      {invite.parts.length-pending.length>0?"Continue recording":`Start section 1 of ${invite.parts.length}`} <ArrowRight className="size-5"/>
+    <p className="mt-5 text-center text-[12px] leading-6 text-[#716456]">First, share any photos or short videos you have. Then record your message somewhere quiet. After each section saves, Keep takes you directly to the next one.</p>
+    <button type="button" onClick={()=>{setError("");setMediaMode(true);}} className="mt-5 flex min-h-14 w-full items-center justify-between rounded-xl bg-[#151310] px-5 text-[13px] font-semibold text-[#FAF4EB]">
+      Continue to photos &amp; videos <ArrowRight className="size-5"/>
     </button>
-    <button type="button" onClick={()=>setMediaMode(true)} className="mt-3 flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-[#BBA791] bg-[#FFFCF7] px-3 text-[12px] font-medium text-[#69523E]"><ImagePlus className="size-4"/> Share photos & videos first</button>
     <p className="mt-3 flex items-center justify-center gap-1.5 text-[11px] text-[#8A7865]"><ShieldCheck className="size-3.5"/> Your recordings and moments are private.</p>
     {welcomeOpen&&<div className="fixed inset-0 z-50 flex items-center justify-center bg-[#211C17]/65 px-4 py-7 backdrop-blur-sm">
       <section role="dialog" aria-modal="true" aria-labelledby="keep-contributor-welcome" className="max-h-[calc(100dvh-3rem)] w-full max-w-[480px] overflow-y-auto rounded-[28px] border border-[#E0D4C8] bg-[#FFFCF7] p-7 text-[#30271F] shadow-[0_25px_80px_rgba(0,0,0,.19)]">
@@ -213,11 +214,6 @@ function KeepRemoteContributor() {
       <p className="text-[11px] text-[#827568]">Section {invite.parts.findIndex(p=>p.index===currentPart!.index)+1} of {invite.parts.length} · {pending.length-1} after this</p>
     </div>
     {sent&&!recording&&!sending&&<p role="status" className="mx-auto mb-2 w-full max-w-[620px] rounded-lg bg-[#EAF3E6] px-3 py-2 text-center text-[11px] font-semibold text-[#517449]">Section saved successfully · {pending.length} {pending.length===1?"section":"sections"} remaining</p>}
-    {!recording&&!recordingPreparing&&!sending&&!uploadRetry&&<div className="mx-auto w-full max-w-[620px] shrink-0 pb-2">
-      <KeepSelfiePrompt enabled={selfieSelected} preparing={selfiePreparing}
-        error={recorder.cameraError} onChoose={()=>void chooseSelfie()}
-        onVoiceOnly={()=>{recorder.disableSelfie();setSelfieSelected(false);}}/>
-    </div>}
     <div className="mx-auto flex w-full max-w-[620px] min-h-0 flex-1 flex-col">
       <KeepTeleprompter key={currentPart!.index} label="YOUR EXACT WORDS" speaker={invite.contributorName}
         text={currentPart!.text} cameraStream={selfieSelected?recorder.previewStream:null}
@@ -229,7 +225,7 @@ function KeepRemoteContributor() {
       {sending? <p role="status" className="rounded-xl bg-[#E9DFD3] p-4 text-center text-[12px] font-medium">Uploading your voice securely… Please keep this page open.</p>
       : uploadRetry ? <div className="grid grid-cols-2 gap-2">
           <button type="button" onClick={()=>void submit(uploadRetry.blob,uploadRetry.duration,selfieRetry??undefined)} className="flex min-h-12 items-center justify-center gap-2 rounded-xl bg-[#171512] px-2 text-xs font-medium text-[#F9F1E7]"><RefreshCw className="size-4"/>Retry upload</button>
-          <button type="button" onClick={()=>{setUploadRetry(null);setError("");}} className="min-h-12 rounded-xl border border-[#C9B9AA] px-2 text-xs">Record again</button>
+          <button type="button" onClick={()=>{setUploadRetry(null);setSelfieRetry(null);setError("");}} className="min-h-12 rounded-xl border border-[#C9B9AA] px-2 text-xs">Record again</button>
         </div>
       : recording ? <div className={recorder.canPause?"grid grid-cols-2 gap-2":"grid grid-cols-1 gap-2"}>
           {recorder.canPause&&<button type="button" onClick={recorder.status==="paused"?recorder.resume:recorder.pause} className="flex min-h-12 items-center justify-center gap-2 rounded-xl border border-[#BEB0A1] bg-[#FCF8F3] text-sm">
@@ -237,20 +233,13 @@ function KeepRemoteContributor() {
           </button>}
           <button type="button" onClick={()=>void finish()} className="flex min-h-12 items-center justify-center gap-2 rounded-xl bg-[#161411] px-4 text-sm font-medium text-white"><Square className="size-4" fill="currentColor"/> {pending.length===1?"Save final section":"Save & next section"}</button>
         </div>
-      : <button type="button" disabled={recordingPreparing||selfiePreparing||recorder.supported!==true} onClick={async()=>{setError("");setSent(false);if((await recorder.start({selfie:selfieSelected,countdown:true}))===false)setError("Allow microphone and camera access, or choose voice only.");}}
+      : <button type="button" disabled={recordingPreparing||recorder.supported!==true} onClick={()=>void startTake()}
           className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#171512] text-sm font-semibold text-[#FAF5ED] disabled:opacity-50"><Mic className="size-4"/> {recordingPreparing?"Getting ready…":"Start recording"}</button>}
-      {!recording&&!recordingPreparing&&!sending&&!uploadRetry&&<details className="mt-2 rounded-xl border border-[#D8CAB9] bg-[#FFFCF7] px-3 py-1.5 text-xs">
-        <summary className="min-h-9 cursor-pointer py-2 font-medium text-[#6D5745]">Prefer using iPhone Voice Memos instead?</summary>
-        <div className="border-t border-[#E1D7CA] pb-3 pt-2 text-[11px] leading-6 text-[#716356]">
-          <p>1. Open Voice Memos and record yourself reading the words above.</p>
-          <p>2. Tap Done. Open your memo, choose Share, then Save to Files.</p>
-          <p>3. Return here and upload the saved audio file.</p>
-          <label className="mt-2 flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-lg border border-[#BCA994] bg-[#F4ECE1] font-medium text-[#493A2C]">
-            <FileAudio className="size-4"/> Choose audio file
-            <input type="file" accept="audio/*,.m4a,.mp3,.wav,.webm,.ogg" onChange={event=>void fromFiles(event)} className="sr-only" />
-          </label>
-        </div>
-      </details>}
+      {selfieSelected&&error&&!recording&&!recordingPreparing&&!sending&&!uploadRetry&&<button type="button"
+        onClick={()=>{recorder.disableSelfie();setSelfieSelected(false);setError("");}}
+        className="mt-2 min-h-10 w-full rounded-lg border border-[#C9B9AA] text-xs font-medium text-[#69523E]">
+        Continue with voice only
+      </button>}
     </div>
   </main>;
 }
