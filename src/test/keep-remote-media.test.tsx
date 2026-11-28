@@ -4,13 +4,13 @@ import { KeepRemoteMediaContributor } from "@/components/keep-remote-media-contr
 import { KeepRemoteInviteManager } from "@/components/keep-remote-invite-manager";
 import { newProject } from "@/lib/keep-project";
 import { prepareRemoteMoment } from "@/lib/keep-remote-media-prep";
-import { createRemoteInvite, listRemoteInvites, listRemoteMedia, uploadRemoteMedia } from "@/lib/keep-remote";
+import { createRemoteInvite, releaseRemoteScript, listRemoteInvites, listRemoteMedia, uploadRemoteMedia } from "@/lib/keep-remote";
 
 import { activeKeepSession, saveCloudDraft } from "@/lib/keep-cloud";
 
 vi.mock("@/lib/keep-remote",()=>({
   listRemoteInvites:vi.fn(),listRemoteMedia:vi.fn(),uploadRemoteMedia:vi.fn(),
-  createRemoteInvite:vi.fn(),revokeRemoteInvite:vi.fn()
+  createRemoteInvite:vi.fn(),releaseRemoteScript:vi.fn(),revokeRemoteInvite:vi.fn()
 }));
 vi.mock("@/lib/keep-cloud",()=>({
   activeKeepSession:vi.fn(),saveCloudDraft:vi.fn()
@@ -151,4 +151,18 @@ it("offers separate record and invite actions and retains private links while na
   const restored=screen.getByRole("region",{name:"Kristen’s recording"});
   expect(within(restored).getByRole("link",{name:"Record here"})).toHaveAttribute("href","https://example.com/private");
   expect(within(restored).getByRole("button",{name:"Copy invite"})).toBeTruthy();
+});
+
+
+it("releases the guest's attributed script to their original creative link without generating a new invite",async()=>{
+  const guest={...readyInvite("b","Kristen"),total:0,completed:0,creativeStory:{relationship:"daughter",answers:[],written:"My memories",completed:true}};
+  vi.mocked(listRemoteInvites).mockResolvedValue({invites:[guest]});
+  vi.mocked(activeKeepSession).mockResolvedValue({access_token:"session"} as Awaited<ReturnType<typeof activeKeepSession>>);
+  vi.mocked(saveCloudDraft).mockResolvedValue(undefined);
+  vi.mocked(releaseRemoteScript).mockResolvedValue({released:true});
+  render(<KeepRemoteInviteManager project={{...groupProject,collaborativeCreative:true}} onContinue={vi.fn()} onCombine={vi.fn()} onImportMedia={vi.fn()} combining={false} onBack={vi.fn()}/>);
+  fireEvent.click(await screen.findByRole("button",{name:"Share speaking parts with contributors"}));
+  await waitFor(()=>expect(releaseRemoteScript).toHaveBeenCalledWith(expect.objectContaining({contributorId:"b",parts:[{index:1,text:"You are loved"}]})));
+  expect(createRemoteInvite).not.toHaveBeenCalled();
+  await screen.findByText(/same private links/);
 });

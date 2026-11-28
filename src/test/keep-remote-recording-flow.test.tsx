@@ -2,11 +2,11 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { KeepRemoteContributor } from "@/routes/contribute";
 import { useRecorder } from "@/hooks/use-recorder";
-import { resolveRemoteInvitation, uploadRemoteMedia, uploadRemoteRecording, type RemoteInviteDetails } from "@/lib/keep-remote";
+import { resolveRemoteInvitation, saveRemoteStory, reviewRemoteParts, uploadRemoteMedia, uploadRemoteRecording, type RemoteInviteDetails } from "@/lib/keep-remote";
 
 vi.mock("@/hooks/use-recorder",()=>({useRecorder:vi.fn()}));
 vi.mock("@/lib/keep-remote",()=>({
-  resolveRemoteInvitation:vi.fn(), uploadRemoteMedia:vi.fn(), uploadRemoteRecording:vi.fn()
+  resolveRemoteInvitation:vi.fn(), saveRemoteStory:vi.fn(), reviewRemoteParts:vi.fn(), uploadRemoteMedia:vi.fn(), uploadRemoteRecording:vi.fn()
 }));
 
 const start=vi.fn();
@@ -95,5 +95,29 @@ describe("remote media-first recording",()=>{
     fireEvent.click(await screen.findByRole("button",{name:"Continue with voice only"}));
     fireEvent.click(screen.getByRole("button",{name:"Start recording"}));
     expect(start).toHaveBeenLastCalledWith({selfie:false,countdown:true});
+  });
+});
+
+
+describe("remote creative journey",()=>{
+  it("starts with a contributor’s own memories, then uses the same invitation to review their assigned parts",async()=>{
+    const before:RemoteInviteDetails={...invite(0),contributorName:"Mom",recipientName:"Grandma",parts:[],creativeStory:{relationship:"daughter",answers:[],completed:false}};
+    vi.mocked(resolveRemoteInvitation).mockResolvedValue(before);
+    vi.mocked(saveRemoteStory).mockImplementation(async(_token,story)=>({story}));
+    render(<KeepRemoteContributor/>);
+    fireEvent.click(await screen.findByRole("button",{name:"I know what I want to say"}));
+    expect(screen.queryByRole("region",{name:"Recording teleprompter"})).not.toBeInTheDocument();
+    fireEvent.change(screen.getByRole("textbox",{name:"Your own words"}),{target:{value:"My mom taught me to bake."}});
+    fireEvent.click(screen.getByRole("button",{name:"Submit my words"}));
+    await screen.findByText("Your memories are shared.");
+    expect(saveRemoteStory).toHaveBeenCalledWith("",expect.objectContaining({relationship:"daughter",written:"My mom taught me to bake.",completed:true}));
+    vi.mocked(resolveRemoteInvitation).mockResolvedValue({...before,creativeStory:{relationship:"daughter",answers:[],written:"My mom taught me to bake.",completed:true},parts:[{index:1,text:"Mom taught me to bake.",completed:false}]});
+    fireEvent.click(screen.getByRole("button",{name:/Check if my words are ready/}));
+    await screen.findByText("Make these words yours.");
+    vi.mocked(reviewRemoteParts).mockResolvedValue({saved:true});
+    fireEvent.change(screen.getByRole("textbox",{name:"Your part 1"}),{target:{value:"Mom, you taught me to bake."}});
+    fireEvent.click(screen.getByRole("button",{name:"Ready to record my words"}));
+    await screen.findByRole("button",{name:"I'm ready"});
+    expect(reviewRemoteParts).toHaveBeenCalledWith("",[{index:1,text:"Mom, you taught me to bake."}]);
   });
 });

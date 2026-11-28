@@ -44,12 +44,12 @@ describe("collaborative voice setup", () => {
     expect(screen.queryByRole("button", { name: /Remove/ })).not.toBeInTheDocument();
     fireEvent.change(screen.getByRole("textbox", { name: "Voice 2 name" }), { target: { value: "Hannah C." } });
     expect(props.onRename).toHaveBeenCalledWith("b", "Hannah C.");
-    fireEvent.click(screen.getByRole("button", { name: "Add another voice" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add another contributor" }));
     expect(props.onAdd).toHaveBeenCalledOnce();
     view.rerender(<KeepCollaborativeVoices {...props} contributors={[...speakers, { id: "c", name: "" }]} />);
     fireEvent.click(screen.getByRole("button", { name: "Remove voice 3" }));
     expect(props.onRemove).toHaveBeenCalledWith("c");
     view.rerender(<KeepCollaborativeVoices {...props} contributors={Array.from({ length: 8 }, (_, i) => ({ id: String(i), name: "" }))} />);
-    expect(screen.queryByRole("button", { name: "Add another voice" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Add another contributor" })).not.toBeInTheDocument();
   });
 });

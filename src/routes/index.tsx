@@ -1,3 +1,4 @@
+import { KeepCreativeCollaboration } from "@/components/keep-creative-collaboration";
 import { KeepCollaborativeVoices } from "@/components/keep-collaborative-voices";
 import { KeepOccasionChoices, KeepHeartAndFeelings, chosenKeepOccasion } from "@/components/keep-occasion-and-feelings";
 import { KeepFilmCaption } from "@/components/keep-film-caption";
@@ -78,9 +79,9 @@ export const Route = createFileRoute("/")({
   component: KeepRoute,
 });
 
-type Screen = "home" | "you" | "detail" | "recipient" | "occasion" | "voices" | "intent" | "path" | "interview" | "summary" | "messageGenerating" | "write" | "message" | "recordPrep" | "record" | "groupRecord" | "remoteInvite" | "recorded" | "memories" | "framing" | "storyStyle" | "generating" | "editor" | "preview" | "recipientReveal" | "recipientPreview" | "giveReady" | "card" | "success";
+type Screen = "home" | "you" | "detail" | "recipient" | "occasion" | "voices" | "intent" | "collaboration" | "path" | "interview" | "summary" | "messageGenerating" | "write" | "message" | "recordPrep" | "record" | "groupRecord" | "remoteInvite" | "recorded" | "memories" | "framing" | "storyStyle" | "generating" | "editor" | "preview" | "recipientReveal" | "recipientPreview" | "giveReady" | "card" | "success";
 type Mode = "Memories" | "Music" | "Captions" | "Style" | "Voice" | "Selfie";
-const creationScreens: Screen[] = ["recipient", "occasion", "voices", "intent", "path", "interview", "summary", "messageGenerating", "write", "message", "recordPrep", "record", "groupRecord", "remoteInvite", "recorded", "memories", "framing", "storyStyle", "generating", "editor", "preview", "recipientPreview", "card", "success"];
+const creationScreens: Screen[] = ["recipient", "occasion", "voices", "intent", "collaboration", "path", "interview", "summary", "messageGenerating", "write", "message", "recordPrep", "record", "groupRecord", "remoteInvite", "recorded", "memories", "framing", "storyStyle", "generating", "editor", "preview", "recipientPreview", "card", "success"];
 const resumeScreen = (s: string): Screen => resumeKeepCreationStage(s) as Screen;
 
 const questions = [
@@ -546,6 +547,7 @@ function KeepApp() {
     });
   };
   const startInterview = () => {
+    if(project.voiceMode==="together"){go("collaboration");return;}
     go("interview");
     // Let the creator read the reminders before the first question arrives.
     if (project.interviewWelcomeSeen) requestFirstInterviewQuestion();
@@ -613,7 +615,10 @@ function KeepApp() {
     setAskLastInstruction(request);
     setAskLastScope(scope);
     try {
-      const suggestion = await fetchRevision(aiContext(), project.messageParagraphs, activeParagraph, request, scope);
+      const speaker=project.collaborativeCreative?project.contributors?.find(p=>p.id===project.paragraphSpeakers?.[activeParagraph]):undefined;
+      const context=speaker?.story?{...aiContext(),relationship:speaker.story.relationship,contributors:[],answers:[...speaker.story.answers,...(speaker.story.written?[{question:"Your own words",transcript:speaker.story.written}]:[])]}:aiContext();
+      const suggestion = await fetchRevision(context, project.collaborativeCreative?[project.messageParagraphs[activeParagraph]??""]:project.messageParagraphs, project.collaborativeCreative?0:activeParagraph, request, project.collaborativeCreative?"section":scope);
+      if(project.collaborativeCreative){const replacement=suggestion.paragraphs[0];suggestion.paragraphs=project.messageParagraphs.map((p,i)=>i===activeParagraph?replacement||p:p);suggestion.changedIndexes=replacement!==project.messageParagraphs[activeParagraph]?[activeParagraph]:[];}
       setAskSuggestion(suggestion);
     } catch {
       setAskError("KEEP couldn't reshape that just now. Your words haven't changed.");
@@ -1002,6 +1007,7 @@ function KeepApp() {
       const {recordings}=await remoteOwnerDownload(project.publicationId);
       const blobs:Blob[]=[];
       const imported:KeepVoicePart[]=[];
+      const reviewedParagraphs=[...project.messageParagraphs];
       for(let index=0;index<project.messageParagraphs.length;index++) {
         const paragraph=project.messageParagraphs[index]!.trim();
         if(!paragraph) continue;
@@ -1011,7 +1017,7 @@ function KeepApp() {
           const localBlob=await getBlob(local.audioId);
           if(localBlob?.size) {blobs.push(localBlob);imported.push(local);continue;}
         }
-        const remote=recordings.find(item=>item.paragraphIndex===index && item.contributorId===contributorId && item.textFingerprint===paragraph);
+        const remote=recordings.find(item=>item.paragraphIndex===index && item.contributorId===contributorId && (item.textFingerprint===paragraph || (project.collaborativeCreative&&item.originalText===paragraph)));
         if(!remote) throw new Error(`Still waiting for ${speakerName(index)}'s recording of part ${index+1}.`);
         const response=await fetch(remote.signedUrl,{referrerPolicy:"no-referrer"});
         if(!response.ok) throw new Error(`Couldn't download ${speakerName(index)}'s audio. Try again.`);
@@ -1019,7 +1025,8 @@ function KeepApp() {
         if(!blob.size || blob.size>20*1024*1024)throw new Error(`The recording for part ${index+1} could not be read.`);
         const id=newId("remote-voice-part");
         if(!(await putBlob(id,blob)))throw new Error("Your device couldn't save the received audio. Please free up space and retry.");
-        imported.push({paragraphIndex:index,contributorId,textFingerprint:paragraph,audioId:id,
+        reviewedParagraphs[index]=remote.textFingerprint;
+        imported.push({paragraphIndex:index,contributorId,textFingerprint:remote.textFingerprint,audioId:id,
           audioUrl:URL.createObjectURL(blob),durationSec:remote.durationSec,mimeType:remote.mimeType});
         blobs.push(blob);
       }
@@ -1028,14 +1035,14 @@ function KeepApp() {
       if(joined.blob.size>19*1024*1024)throw new Error("The combined narration is too long. Shorten a part and retry.");
       const audioId=newId("voice-" + project.publicationId);
       if(!(await putBlob(audioId,joined.blob)))throw new Error("Not enough device storage for the combined narration.");
-      const signature=project.messageParagraphs.map((p,i)=>{
+      const signature=reviewedParagraphs.map((p,i)=>{
         const part=imported.find(item=>item.paragraphIndex===i && item.contributorId===speakerFor(i) && item.textFingerprint===p.trim());
         return [speakerFor(i),p.trim(),part?.audioId??""].join("::");
       }).join("\n");
       captionSyncToken.current++;
       const oldFinal=project.finalVoiceRecording;
       const old = project;
-      const updated = {...old,stage:"recorded",voiceParts:imported,groupVoiceSignature:signature,
+      const updated = {...old,stage:"recorded",messageParagraphs:reviewedParagraphs,voiceParts:imported,groupVoiceSignature:signature,
         memories:old.memories.length?composeSelfieStory(old.selfieBaseMedia?.length?old.selfieBaseMedia:withoutSelfieScenes(old.memories),old.selfieVideos??[],joined.durationSec,old):old.memories,
         finalVoiceRecording:{audioId,audioUrl:URL.createObjectURL(joined.blob),
           durationSec:joined.durationSec,mimeType:"audio/wav",demo:false},
@@ -2046,6 +2053,7 @@ function KeepApp() {
         contributors={project.contributors ?? []}
         location={project.voiceRecordingLocation}
         onRename={(id, name) => patch({ contributors: (project.contributors ?? []).map(person => person.id === id ? { ...person, name } : person) })}
+        onRelationship={(id,relationship)=>patch({contributors:(project.contributors??[]).map(p=>p.id===id?{...p,relationship}:p)})}
         onAdd={() => patch({ contributors: [...(project.contributors ?? []), { id: newId("speaker"), name: "" }] })}
         onRemove={(id) => patch({ contributors: (project.contributors ?? []).filter(person => person.id !== id) })}
         onLocationChange={(voiceRecordingLocation) => patch({ voiceRecordingLocation })}
@@ -2062,8 +2070,9 @@ function KeepApp() {
       <KeepHeartAndFeelings intent={project.intent} selected={project.recipientFeelings ?? []}
         forSelf={project.relationship === "Myself"} dictating={dictating && dictationTargetRef.current === "intent"}
         onIntentChange={(intent) => patch({ intent })} onToggleDictation={() => toggleDictation("intent")}
-        onFeelingsChange={(recipientFeelings) => patch({ recipientFeelings })} onContinue={() => go("path")} />
+        onFeelingsChange={(recipientFeelings) => patch({ recipientFeelings })} onContinue={() => go(project.voiceMode==="together"?"collaboration":"path")} />
     </>}
+    {screen === "collaboration" && <>{top()}<KeepCreativeCollaboration project={project} onChange={patch} onComplete={change=>{patch(change);setActiveParagraph(0);go("message");}}/></>}
     {screen === "path" && <>{top("05 / 05")}<div className="px-7 pt-11">
       {title("The heart of it", "What do you want to say?")}
       <div className="keep-creator-path-options grid grid-cols-1 gap-3">
@@ -2076,7 +2085,7 @@ function KeepApp() {
           <strong className="keep-step-choice__title">Help me find the words</strong>
           <span className="keep-step-choice__description">A few thoughtful questions to guide you.</span>
         </button>
-        <button type="button" className="keep-step-choice keep-step-choice--light group" onClick={() => go("write")}>
+        <button type="button" className="keep-step-choice keep-step-choice--light group" onClick={() => go(project.voiceMode==="together"?"collaboration":"write")}>
           <span className="keep-step-choice__top">
             <span className="keep-step-choice__icon font-display text-3xl leading-none">“</span>
             <span className="keep-step-choice__arrow" aria-hidden="true"><ArrowRight className="size-5" strokeWidth={1.6}/></span>
@@ -2199,7 +2208,8 @@ function KeepApp() {
     </>}
     {screen === "message" && <>{top()}
       <div className="keep-message-review mx-auto max-w-[650px] px-7 pb-32 pt-9">
-        {title("", project.messageSource === "own" ? "Your message." : "Your message is ready.", isTogether ? "Make these words your own, or let Keep AI help. Choose who reads each paragraph, adding or splitting paragraphs when the speaker changes. Record each part separately." : "These are your words. Make them yours, or let Keep help you shape them.")}
+        {title("", project.messageSource === "own" ? "Your message." : "Your message is ready.", isTogether ? project.collaborativeCreative ? "Everyone’s memories are woven into one story. Review each person’s own words before recording." : "Make these words your own, or let Keep AI help. Choose who reads each paragraph, adding or splitting paragraphs when the speaker changes. Record each part separately." : "These are your words. Make them yours, or let Keep help you shape them.")}
+        {isTogether&&!project.collaborativeCreative&&!hasSavedVoice(project)&&<button type="button" className="mb-4 keep-message-actions__secondary w-full" onClick={()=>go("collaboration")}>Create this Keep together · gather everyone’s memories <ArrowRight size={18}/></button>}
         <KeepLengthGuide text={project.messageParagraphs.join(" ")} className="mb-6" />
         <button type="button" onClick={openAskKeep} className="group mb-6 flex min-h-[82px] w-full items-center gap-4 rounded-2xl border border-[#C5B6A1] bg-[#28231F] px-5 text-left text-[#FAF8F5] shadow-[0_10px_26px_rgba(38,31,25,.13)] transition-transform active:scale-[.99]">
           <span className="flex size-12 shrink-0 items-center justify-center rounded-full border border-[#C9B69C]/40 bg-[#C9B69C]/15"><Sparkles className="size-6 text-[#E7D4B7]" strokeWidth={1.6}/></span>
@@ -2229,7 +2239,7 @@ function KeepApp() {
                 className="keep-message-copy__input" placeholder="Write your next thought…" />
                 </div>
               </>}
-              {isTogether && <label className="keep-message-paragraph__speaker"><span className="font-medium">Read by</span><select aria-label={`Speaker for paragraph ${i+1}`} value={speakerFor(i)} onChange={event=>patch({paragraphSpeakers:project.messageParagraphs.map((_,j)=>j===i?event.target.value:speakerFor(j))})} className="keep-message-paragraph__speaker-select">{(project.contributors ?? []).map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select></label>}
+              {isTogether && <label className="keep-message-paragraph__speaker"><span className="font-medium">{project.collaborativeCreative?"Words by":"Read by"}</span><select aria-label={`Speaker for paragraph ${i+1}`} value={speakerFor(i)} onChange={event=>patch({paragraphSpeakers:project.messageParagraphs.map((_,j)=>j===i?event.target.value:speakerFor(j))})} className="keep-message-paragraph__speaker-select">{(project.contributors ?? []).map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select></label>}
             </div>;
           })}
         </div>
@@ -2238,12 +2248,13 @@ function KeepApp() {
         <button type="button" className="keep-message-actions__secondary" onClick={() => { patch({ messageParagraphs: [...project.messageParagraphs, ""], paragraphSpeakers: [...project.messageParagraphs.map((_,i)=>speakerFor(i)),project.contributors?.[project.messageParagraphs.length % Math.max(1,project.contributors?.length ?? 0)]?.id ?? ""] }); setActiveParagraph(project.messageParagraphs.length); }}>
           <span className="keep-message-actions__secondary-icon" aria-hidden="true"><Plus size={18} strokeWidth={1.6}/></span><span>Add paragraph</span>
         </button>
+        {isTogether && (project.contributors??[]).some(person=>!project.messageParagraphs.some((p,i)=>p.trim()&&speakerFor(i)===person.id)) && <p className="keep-message-actions__note">Every contributor needs their own speaking part.</p>}
         {isTogether && project.messageParagraphs.filter(p=>p.trim()).length < 2 && <p className="keep-message-actions__note">Create at least two speaking parts so everyone can take a turn.</p>}
         <button type="button" className="keep-message-actions__primary" onClick={() => {
           patch({ messageParagraphs: project.messageParagraphs.filter((p) => p.trim()), paragraphSpeakers: project.messageParagraphs.map((p,i)=>p.trim()?speakerFor(i):"").filter(Boolean) });
           setAppliedAiOriginal(null);
           go(nextAfterMessage(project, returnToEditorAfterRecording));
-        }} disabled={!project.messageParagraphs.some((p) => p.trim()) || (isTogether && project.messageParagraphs.filter(p=>p.trim()).length < 2)}>
+        }} disabled={!project.messageParagraphs.some((p) => p.trim()) || (isTogether && (project.contributors??[]).some(person=>!project.messageParagraphs.some((p,i)=>p.trim()&&speakerFor(i)===person.id)))}>
           <span>{nextAfterMessage(project, returnToEditorAfterRecording) === "memories" ? "Choose photos & videos" : isTogether ? project.voiceRecordingLocation==="remote" ? "Record yours & invite others" : "Record together" : "Record Your Keep"}</span>
           <span className="keep-message-actions__arrow" aria-hidden="true"><ArrowRight size={19} strokeWidth={1.6}/></span>
         </button>

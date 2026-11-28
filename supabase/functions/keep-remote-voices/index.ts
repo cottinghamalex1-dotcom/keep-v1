@@ -23,6 +23,7 @@ const tokenHash = async (token: string) => Array.from(
   new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(token))),
   (v) => v.toString(16).padStart(2,"0")).join("");
 type Part = { index: number; text: string };
+const equalParts=(a:Part[]|null|undefined,b:Part[])=>!!a&&a.length===b.length&&a.every((part,i)=>part.index===b[i]?.index&&part.text.trim()===b[i]?.text.trim());
 type Framing = { focusX:number; focusY:number; zoom:number };
 function normalizeFraming(value:unknown):Framing|null {
   if(!value||typeof value!=="object")return null;
@@ -32,10 +33,18 @@ function normalizeFraming(value:unknown):Framing|null {
   return {focusX:bounded(framing.focusX,0,100,50),focusY:bounded(framing.focusY,0,100,50),
     zoom:bounded(framing.zoom,1.03,1.35,1.08)};
 }
+type CreativeStory = {relationship:string;answers:{question:string;transcript:string}[];question?:string;written?:string;completed:boolean};
+function parseStory(value: any):CreativeStory {
+  const answers=(Array.isArray(value?.answers)?value.answers:[]).slice(0,10).map((a:any)=>({question:small(a?.question,1000),transcript:small(a?.transcript,6000)})).filter((a:any)=>a.question&&a.transcript);
+  const relationship=small(value?.relationship,100),written=small(value?.written,12000);
+  return {relationship,answers,question:small(value?.question,1000)||undefined,written:written||undefined,completed:value?.completed===true&&!!relationship&&!!(written||answers.length)};
+}
 type Invite = {
+  creative_story?: CreativeStory|null;
+  creative_base_parts?: Part[]|null;
   id: string; keep_id: string; owner_id: string; contributor_id: string; contributor_name: string;
   creator_name: string; recipient_name: string; occasion: string | null;
-  script_parts: Part[]; token_hash: string; pending_uploads: Record<string,{path:string;mime:string;createdAt:number}>;
+  script_parts: Part[]; token_hash: string; pending_uploads: Record<string,{path:string;mime:string;createdAt:number;text?:string}>;
   upload_attempts: number; expires_at: string; email_sent_at: string | null;
   pending_media?: Record<string,{path:string;mime:string;kind:"image"|"video";name:string;size:number;duration:number|null;purpose?:"moment"|"selfie";paragraphIndex?:number|null;framing?:Framing|null;createdAt:number}>;
   media_upload_attempts?: number; media_email_sent_at?:string|null;
@@ -125,22 +134,24 @@ Deno.serve(async req => {
   try {
     const body=await req.json();
     const action=small(body.action,40);
-    if(["owner-create","owner-list","owner-download","owner-media","owner-revoke"].includes(action)) {
+    if(["owner-create","owner-list","owner-download","owner-media","owner-revoke","owner-release"].includes(action)) {
       const user=await ownerUser(req);
       if(!user) return error("Sign in to Keep before inviting someone.",401);
       const keepId=small(body.keepId,80);
       const keep=await ownedKeep(keepId,user.id);
       if(!keep) return error("This Keep could not be found in your account.",404);
 
-      if(action==="owner-create") {
+      if(action==="owner-create"||action==="owner-release") {
         const contributorId=small(body.contributorId,120);
         const contributorName=small(body.contributorName,60);
         const creatorName=small(body.creatorName,60)||"Someone special";
         const recipientName=small(body.recipientName,80)||"someone special";
         const occasion=small(body.occasion,80);
         const incoming=Array.isArray(body.parts)?body.parts:[];
-        if(!contributorId || !contributorName || !incoming.length || incoming.length>16) return error("Choose the person's name and their script before inviting.");
-        const parts:Part[]=incoming.map((p:unknown)=>({index:Number((p as Part)?.index),text:small((p as Part)?.text,6500)}));
+        const creative=action==="owner-create"&&body.creative===true&&incoming.length===0;
+        const release=action==="owner-release";
+        if(!contributorId || !contributorName || (!creative&&!incoming.length) || incoming.length>16) return error("Choose the person's name and their script before inviting.");
+        let parts:Part[]=incoming.map((p:unknown)=>({index:Number((p as Part)?.index),text:small((p as Part)?.text,6500)}));
         if(parts.some(p=>!Number.isInteger(p.index)||p.index<0||p.index>99||!p.text) || new Set(parts.map(p=>p.index)).size!==parts.length || parts.reduce((n,p)=>n+p.text.length,0)>25000) return error("The script needs valid, nonempty speaking parts.");
         // Owner cannot grant a contributor lines not in their own saved draft.
         const draft=keep.draft_project as {contributors?:{id:string;name:string}[];messageParagraphs?:string[];paragraphSpeakers?:string[]} | null;
@@ -149,14 +160,31 @@ Deno.serve(async req => {
            (draft.paragraphSpeakers?.[p.index] ?? draft.contributors?.[p.index%draft.contributors.length]?.id)!==contributorId)) {
           return error("The contributor or words have changed. Save your Keep and try again.",409);
         }
+        const {data:existing}=await admin.from("keep_remote_invites").select("*").eq("keep_id",keepId).eq("contributor_id",contributorId).maybeSingle();
+        const prior=existing as Invite|null;
+        if(creative&&prior?.script_parts?.length){
+          const saved=await recordingsFor([prior.id]);
+          if(saved.length)return error("This contributor already recorded their message. Keep the original recording or start a new collaborative Keep.",409);
+        }
+        if(release&&(!prior?.creative_story?.completed||!parts.length))return error("This contributor has not submitted their memories.",409);
+        // Publishing the same script again must preserve the guest's own reviewed edits.
+        if(release&&equalParts(prior?.creative_base_parts,parts))return answer({released:true});
         const token=randomToken();
         const hash=await tokenHash(token);
-        const {data:existing}=await admin.from("keep_remote_invites").select("id,script_parts").eq("keep_id",keepId).eq("contributor_id",contributorId).maybeSingle();
-        const scriptChanged=!!existing && JSON.stringify(existing.script_parts)!==JSON.stringify(parts);
+
+        const originalParts=parts;
+        if(!creative&&!release&&prior?.creative_base_parts&&equalParts(prior.creative_base_parts,parts))parts=prior.script_parts;
+        const scriptChanged=!!existing && !equalParts(prior?.script_parts,parts);
+        if(release&&prior?.script_parts?.length&&scriptChanged){
+          // Changed creator drafts require an explicit new invite instead of silently replacing a reviewed script.
+          return error("The already shared script has changed. Create a fresh recording invitation to publish the changes.",409);
+        }
         const inviteValues={
           ...(existing?.id?{id:existing.id}:{}), keep_id:keepId,owner_id:user.id,contributor_id:contributorId,
           contributor_name:contributorName,creator_name:creatorName,recipient_name:recipientName,occasion,
-          script_parts:parts,token_hash:hash,pending_uploads:{},upload_attempts:0,pending_media:{},media_upload_attempts:0,
+          script_parts:parts,token_hash:release?prior!.token_hash:hash,pending_uploads:{},upload_attempts:0,pending_media:prior?.pending_media??{},media_upload_attempts:prior?.media_upload_attempts??0,
+          ...(creative?{creative_story:prior?.creative_story??parseStory({relationship:body.relationship})}:{}),
+          ...(!creative&&prior?.creative_story?{creative_base_parts:originalParts}:{}),
           expires_at:new Date(Date.now()+30*86400*1000).toISOString(),
           updated_at:new Date().toISOString(),
           ...(scriptChanged?{email_sent_at:null}:{})
@@ -167,6 +195,7 @@ Deno.serve(async req => {
           const {error:clearError}=await admin.from("keep_remote_recordings").delete().eq("invite_id",invite.id);
           if(clearError) return error("The old script could not be retired. Try again.",500);
         }
+        if(release)return answer({released:true});
         return answer({url:`https://keep-v1.vercel.app/contribute?invite=${token}`,contributorName,expiresAt:inviteValues.expires_at});
       }
 
@@ -188,7 +217,8 @@ Deno.serve(async req => {
         id:invite.id,contributorId:invite.contributor_id,contributorName:invite.contributor_name,
         total:invite.script_parts.length,completed:completedIndices(invite,recs).length,
         expiresAt:invite.expires_at,emailSent:!!invite.email_sent_at,
-        mediaCount:media.filter(item=>item.invite_id===invite.id).length,mediaEmailSent:!!invite.media_email_sent_at
+        mediaCount:media.filter(item=>item.invite_id===invite.id).length,mediaEmailSent:!!invite.media_email_sent_at,
+        creativeStory:invite.creative_story??null, creativeBaseParts:invite.creative_base_parts??null, parts:invite.script_parts
       }))});
       if(action==="owner-media"){
         const items:unknown[]=[];
@@ -217,7 +247,8 @@ Deno.serve(async req => {
             if(signError||!signed?.signedUrl) return error("Unable to retrieve one recording. Try again.",500);
             items.push({
               paragraphIndex:row.paragraph_index,contributorId:invite.contributor_id,textFingerprint:row.text_fingerprint,
-              signedUrl:signed.signedUrl,durationSec:row.duration_seconds,mimeType:row.content_type
+              signedUrl:signed.signedUrl,durationSec:row.duration_seconds,mimeType:row.content_type,
+              originalText:invite.creative_base_parts?.find(part=>part.index===row.paragraph_index)?.text
             });
           }
         }
@@ -254,8 +285,27 @@ Deno.serve(async req => {
         expiresAt:invite.expires_at,mediaCount:guestMedia.length,
         contributorCount:Math.max(1,activeSpeakers.size),
         totalWordCount:(allWords||fallbackWords).trim().match(/\S+/gu)?.length??0,
+        creativeStory:invite.creative_story??null,
         parts:invite.script_parts.map(part=>({...part,completed:complete.includes(part.index)}))
       });
+    }
+    if(action==="save-story"){
+      if(!invite.creative_story||invite.script_parts.length)return error("This interview is closed. Your speaking parts may be ready; refresh your invitation.",409);
+      const story=parseStory(body.story);
+      if(!story.relationship)return error("Tell us your relationship to the recipient.");
+      const {data,error:writeError}=await admin.from("keep_remote_invites").update({creative_story:story}).eq("id",invite.id).eq("token_hash",invite.token_hash).eq("script_parts","[]").select("id").maybeSingle();
+      if(writeError||!data)return error("Your words could not be saved. Refresh and try again.",409);
+      return answer({story});
+    }
+    if(action==="review-parts"){
+      if(!invite.creative_base_parts||!invite.script_parts.length)return error("Your words are not ready for review.",409);
+      if(recordings.length||Object.keys(invite.pending_uploads??{}).length)return error("Your recording has already started. Ask the creator to update the script.",409);
+      const proposed=Array.isArray(body.parts)?body.parts:[];
+      const parts:Part[]=proposed.map((p:any)=>({index:Number(p.index),text:small(p.text,6500)}));
+      if(parts.length!==invite.script_parts.length||parts.some((p,i)=>p.index!==invite.script_parts[i].index||!p.text)||parts.reduce((sum,p)=>sum+p.text.length,0)>25000)return error("Each speaking part must contain your words.");
+      const {data:changed,error:writeError}=await admin.from("keep_remote_invites").update({script_parts:parts}).eq("id",invite.id).eq("token_hash",invite.token_hash).eq("script_parts",JSON.stringify(invite.script_parts)).eq("pending_uploads","{}").select("id").maybeSingle();
+      if(writeError||!changed)return error("Your wording could not be saved. Try again.",500);
+      return answer({saved:true});
     }
     if(action==="prepare-media"){
       const mime=small(body.mimeType,80).toLowerCase().split(";")[0];
@@ -323,7 +373,7 @@ Deno.serve(async req => {
       const filePath=`${invite.owner_id}/remote/${invite.id}/${crypto.randomUUID()}.${extension}`;
       const {data:signed,error:signError}=await admin.storage.from(BUCKET).createSignedUploadUrl(filePath);
       if(signError||!signed?.signedUrl) return error("Couldn't prepare your private upload. Please retry.",500);
-      const pending={...(invite.pending_uploads??{}),[String(index)]:{path:filePath,mime,createdAt:Date.now()}};
+      const pending={...(invite.pending_uploads??{}),[String(index)]:{path:filePath,mime,createdAt:Date.now(),text:part.text.trim()}};
       const {error:updateError}=await admin.from("keep_remote_invites").update({pending_uploads:pending,upload_attempts:invite.upload_attempts+1}).eq("id",invite.id);
       if(updateError) return error("Couldn't reserve upload. Please retry.",500);
       return answer({signedUrl:signed.signedUrl,path:filePath});
@@ -332,7 +382,7 @@ Deno.serve(async req => {
       const index=Number(body.paragraphIndex);
       const expected=invite.pending_uploads?.[String(index)];
       const duration=Number(body.durationSec);
-      if(!scriptPart(invite,index)||!expected||expected.path!==body.path||Date.now()-expected.createdAt>7200000) return error("Your upload needs to be restarted.",409);
+      if(!scriptPart(invite,index)||!expected||expected.path!==body.path||Date.now()-expected.createdAt>7200000||(expected.text&&expected.text!==scriptPart(invite,index)?.text.trim())) return error("Your upload needs to be restarted.",409);
       if(!Number.isFinite(duration)||duration<0.25||duration>600) return error("Recording length is invalid.");
       const path=expected.path;
       const filename=path.split("/").at(-1)!;

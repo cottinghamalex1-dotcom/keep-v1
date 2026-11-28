@@ -26,7 +26,7 @@ export async function publicationRequest(body: unknown, session?: KeepSession | 
   return data;
 }
 export function publicationSettings(p: KeepProject) {
-  return { voiceMode: p.voiceMode ?? "solo", contributors: p.contributors ?? [], paragraphSpeakers: p.paragraphSpeakers ?? [], recipientName: p.recipientName, openingMessage: (p.openingMessage ?? '').trim().slice(0, 160), closingLine: (p.closingLine ?? '').trim().slice(0, 90), engraveOpeningMessage: !!p.engraveOpeningMessage && !!p.openingMessage?.trim(), occasion: p.occasion, messageParagraphs: p.messageParagraphs, readMemoryOrder: p.readMemoryOrder,
+  return { voiceMode: p.voiceMode ?? "solo", contributors: (p.contributors ?? []).map(({id,name})=>({id,name})), paragraphSpeakers: p.paragraphSpeakers ?? [], recipientName: p.recipientName, openingMessage: (p.openingMessage ?? '').trim().slice(0, 160), closingLine: (p.closingLine ?? '').trim().slice(0, 90), engraveOpeningMessage: !!p.engraveOpeningMessage && !!p.openingMessage?.trim(), occasion: p.occasion, messageParagraphs: p.messageParagraphs, readMemoryOrder: p.readMemoryOrder,
     musicMood: p.musicMood, voiceMusicBalance: p.voiceMusicBalance, voiceVolume: p.voiceVolume ?? 60, musicVolume: p.musicVolume ?? 60,
     // Omit the unchanged default to preserve fingerprints of previously rendered Keeps.
     ...(normalizeCaptionSize(p.captionSize) !== CAPTION_SIZE_DEFAULT ? {captionSize: normalizeCaptionSize(p.captionSize)} : {}),

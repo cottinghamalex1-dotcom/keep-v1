@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ArrowLeft, ArrowRight, Check, CircleCheck, Clipboard, Images, Link2, Mail, MessageCircle, Mic, RefreshCw, Users, X } from "lucide-react";
 import { activeKeepSession, saveCloudDraft } from "@/lib/keep-cloud";
-import { createRemoteInvite, listRemoteInvites, listRemoteMedia, revokeRemoteInvite, type RemoteInviteStatus, type RemoteScriptPart, type RemoteMediaItem } from "@/lib/keep-remote";
+import { createRemoteInvite, releaseRemoteScript, listRemoteInvites, listRemoteMedia, revokeRemoteInvite, type RemoteInviteStatus, type RemoteScriptPart, type RemoteMediaItem } from "@/lib/keep-remote";
 import type { KeepProject } from "@/lib/keep-project";
 
 type Props = {
@@ -88,6 +88,17 @@ export function KeepRemoteInviteManager({ project,onContinue,onCombine,onImportM
     }
     window.location.href="sms:&body="+encodeURIComponent(shareText(name,url));
   };
+  const releaseAll=async()=>{
+    setBusyId("release");setMessage("");
+    try{
+      const session=await activeKeepSession();if(!session)throw new Error("Sign in to release the shared message.");
+      await saveCloudDraft(project,session);
+      const pending=people.filter(person=>person.id!==project.contributors?.[0]?.id&&statuses.some(s=>s.contributorId===person.id&&s.creativeStory?.completed&&!s.total));
+      for(const person of pending)await releaseRemoteScript({keepId,contributorId:person.id,contributorName:person.name,creatorName:creatorName.trim(),recipientName:project.recipientName,occasion:project.occasion,parts:getSpeakerParts(project,person.id)});
+      await refresh();
+      setMessage("Their speaking parts are ready on the same private links. They can return to review their own words and record.");
+    }catch(e){setMessage(e instanceof Error?e.message:"Couldn't share the script. Please try again.");}finally{setBusyId("");}
+  };
   const totalMoments=statuses.reduce((sum,status)=>sum+(status.mediaCount??0),0);
   const importedIds=new Set([...project.memories,...(project.selfieVideos??[])].map(moment=>moment.remoteMediaId).filter(Boolean));
   const openMediaReview=async()=>{
@@ -167,12 +178,14 @@ export function KeepRemoteInviteManager({ project,onContinue,onCombine,onImportM
         <input value={creatorName} onChange={e=>setCreatorName(e.target.value.slice(0,60))} placeholder="Your name"
           className="keep-premium-field mt-2 min-h-12 w-full px-4 text-[16px]" />
       </label>
+    {project.collaborativeCreative&&statuses.some(s=>s.creativeStory?.completed&&!s.total)&&<button type="button" disabled={!!busyId} className="keep-message-actions__primary w-full" onClick={()=>void releaseAll()}><span>{busyId==="release"?"Sharing their words…":"Share speaking parts with contributors"}</span><ArrowRight size={19}/></button>}
     <div className="space-y-3">
       {people.map(person=>{
         const parts=getSpeakerParts(project,person.id);
         const status=statuses.find(item=>item.contributorId===person.id);
         const complete=status?.completed??0;
         const finished=!!status&&status.total===parts.length&&complete===status.total;
+        const existingCreativeLink=!!project.collaborativeCreative&&!!status?.creativeStory&&status.total>0;
         const expired=!!status&&new Date(status.expiresAt).getTime()<Date.now();
         const url=expired?undefined:links[person.id];
         return <section key={person.id} aria-label={`${person.name}’s recording`} className="rounded-[18px] border border-[#D8CCBF] bg-[#FFFDF9] px-4 py-4 shadow-[0_6px_20px_rgba(57,44,29,.045)]">
@@ -189,14 +202,15 @@ export function KeepRemoteInviteManager({ project,onContinue,onCombine,onImportM
           </div>
 
           <div className="mt-4 space-y-2">
-            {!finished && (url
+            {existingCreativeLink&&!expired&&<p className="rounded-lg bg-[#F4EEE6] p-3 text-xs leading-5">Their original creative invitation now includes their own speaking parts. Ask them to reopen it to review and record.</p>}
+            {!finished && (!project.collaborativeCreative||person.id===project.contributors?.[0]?.id) && (url
               ? <a href={url} target="_blank" rel="noopener noreferrer" className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#211D19] px-3 text-[13px] font-medium text-[#FCF5EC] hover:bg-[#3B3229]">
                   <Mic className="size-4"/> {complete>0?"Continue recording":"Record here"}
                 </a>
               : <button type="button" disabled={!!busyId} onClick={()=>void invite(person.id,person.name,true)} className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#211D19] px-3 text-[13px] font-medium text-[#FCF5EC] hover:bg-[#3B3229] disabled:opacity-55">
                   <Mic className="size-4"/> {busyId===person.id?"Preparing link…":complete>0?"Continue recording":"Record here"}
                 </button>)}
-            {!url&&<button type="button" disabled={!!busyId} onClick={()=>void invite(person.id,person.name)}
+            {!url&&(!project.collaborativeCreative||person.id===project.contributors?.[0]?.id||!status?.creativeStory||!!status.total)&&<button type="button" disabled={!!busyId} onClick={()=>void invite(person.id,person.name)}
               className="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-[#D4C8BB] bg-[#FFFCF7] px-3 text-[13px] font-medium text-[#594735] disabled:opacity-55">
               <Link2 className="size-4"/> {busyId===person.id?"Preparing link…":`Invite ${person.name}`}
             </button>}

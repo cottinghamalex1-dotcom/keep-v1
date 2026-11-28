@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { KeepFeelingChoices, KeepHeartAndFeelings, KeepOccasionChoices, keepOccasions } from "@/components/keep-occasion-and-feelings";
+import { KeepFeelingChoices, KeepHeartAndFeelings, KeepOccasionChoices, keepOccasions, keepRecipientFeelings } from "@/components/keep-occasion-and-feelings";
 import { newProject, loadDraft, saveDraft, clearDraft, resumeKeepCreationStage, type KeepProject } from "@/lib/keep-project";
 import { fetchDraft, fetchNextQuestion, fetchRevision } from "@/lib/keep-ai";
 import { getOpeningInterviewQuestion, getInterviewGuidance } from "../../supabase/functions/keep-ai/interview-policy";
@@ -116,6 +116,33 @@ describe("combined heart and feelings page", () => {
     expect(input).toHaveValue("I want her to know how special she is.");
     fireEvent.click(next);
     expect(onContinue).toHaveBeenCalledOnce();
+  });
+
+  it("keeps all 14 feelings, reflects the selected count and clearly exposes dictation state", () => {
+    function Harness() {
+      const [intent, setIntent] = useState("A special birthday");
+      const [selected, setSelected] = useState<string[]>([]);
+      const [dictating, setDictating] = useState(false);
+      return <KeepHeartAndFeelings intent={intent} selected={selected} forSelf={false} dictating={dictating}
+        onIntentChange={setIntent} onFeelingsChange={setSelected}
+        onToggleDictation={() => setDictating(value => !value)} onContinue={vi.fn()} />;
+    }
+    render(<Harness />);
+    expect(screen.getByText("0 selected")).toBeVisible();
+    expect(screen.getByRole("textbox", { name: "Your thoughts" })).toHaveAttribute("maxlength", "500");
+    for (const feeling of keepRecipientFeelings) {
+      fireEvent.click(screen.getByRole("button", { name: feeling }));
+      expect(screen.getByRole("button", { name: feeling })).toHaveAttribute("aria-pressed", "true");
+    }
+    expect(screen.getByText("14 selected")).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Loved" }));
+    expect(screen.getByText("13 selected")).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Speak" }));
+    expect(screen.getByRole("button", { name: "Stop" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByText("Listening")).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Stop" }));
+    expect(screen.getByRole("button", { name: "Speak" })).toHaveAttribute("aria-pressed", "false");
+    expect(screen.queryByText("Listening")).toBeNull();
   });
 
   it("restores both inputs on the combined screen, including a legacy feelings-stage draft", () => {

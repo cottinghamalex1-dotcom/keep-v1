@@ -5,8 +5,8 @@ import { keepMoney, keepOrderQuote, type KeepOrderSelection, type KeepTier } fro
 import { checkoutVoiceCount, loadCheckoutSelection, saveCheckoutSelection, type CheckoutKeep } from "@/lib/keep-checkout";
 
 const choices = [
-  { tier: "basic", name: "Basic Keep", price: "$79", detail: "1 voice · 1 logo-only card" },
-  { tier: "signature", name: "Signature Keep", price: "$99", detail: "2 voices · personalized engraving" },
+  { tier: "basic", name: "Basic Keep", price: "$79", detail: "1 contributor · 1 logo-only card" },
+  { tier: "signature", name: "Signature Keep", price: "$99", detail: "2 contributors · personalized engraving" },
 ] as const;
 
 /** The payment launch gate remains locked until the existing Stripe checkout,
@@ -40,13 +40,13 @@ export function KeepPurchase({ keep }: { keep: CheckoutKeep }) {
         </button>
       ))}
     </div>
-    {voices > 1 && <p className="text-xs text-muted-foreground">Your Keep has {voices} voices, so Signature is required. Two voices are included; additional voices are $19/person.</p>}
+    {voices > 1 && <p className="text-xs text-muted-foreground">Your Keep has {voices} contributors, so Signature is required. Two contributors are included; each additional contributor is $19.</p>}
     <div className="rounded-xl border border-border bg-card">
       <button type="button" aria-expanded={extrasOpen} onClick={() => setExtrasOpen(v => !v)} className="flex min-h-12 w-full items-center justify-between gap-2 px-4 text-sm">
         Card details &amp; extras <ChevronDown className={`size-4 transition-transform ${extrasOpen ? "rotate-180" : ""}`} />
       </button>
       {extrasOpen && <div className="space-y-4 border-t border-border p-4 text-sm">
-        {quote.tier === "basic" && <p>For personalized engraving or multiple voices, choose Signature.</p>}
+        {quote.tier === "basic" && <p>For personalized engraving or multiple contributors, choose Signature.</p>}
         {quote.hasEngraving && <figure className="mx-auto w-full max-w-[360px]">
           <KeepCardFront engraving={keep.published_project.cardEngraving ?? []} layout={keep.published_project.cardEngravingLayout}
             openingMessage={keep.published_project.openingMessage} showOpeningMessage={!!keep.published_project.engraveOpeningMessage} />
@@ -59,7 +59,7 @@ export function KeepPurchase({ keep }: { keep: CheckoutKeep }) {
       </div>}
     </div>
     <div className="space-y-2 border-t border-border pt-4 text-sm">
-      {quote.additionalSpeakers > 0 && <div className="flex justify-between text-muted-foreground"><span>{quote.additionalSpeakers} additional {quote.additionalSpeakers === 1 ? "voice" : "voices"}</span><span>{keepMoney(quote.speakerCents)}</span></div>}
+      {quote.additionalSpeakers > 0 && <div className="flex justify-between text-muted-foreground"><span>{quote.additionalSpeakers} additional {quote.additionalSpeakers === 1 ? "contributor" : "contributors"}</span><span>{keepMoney(quote.speakerCents)}</span></div>}
       {quote.extraCards > 0 && <div className="flex justify-between text-muted-foreground"><span>Additional cards</span><span>{keepMoney(quote.extraCardsCents)}</span></div>}
       <div className="flex items-center justify-between font-medium"><span>Subtotal</span><span className="text-xl">{keepMoney(quote.totalCents)}</span></div>
       <p className="text-xs text-muted-foreground">Standard U.S. shipping included. Applicable tax is additional.</p>

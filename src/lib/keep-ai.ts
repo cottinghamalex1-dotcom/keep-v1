@@ -361,3 +361,18 @@ export async function fetchRevision(
     note: String(r.note ?? "").trim(),
   };
 }
+
+
+export type CreativeContributor = { id: string; name: string; story: import("./keep-project").CreativeStory };
+export async function fetchCreativeQuestion(ctx: InterviewContext, speakerName: string) {
+  const result = await post<{question:string}>(JSON.stringify({action:"creative_question", ...ctx, speakerName}), true);
+  if (!result.question?.trim()) throw new Error("Unable to prepare a question.");
+  return result.question.trim();
+}
+export async function fetchCollaborativeDraft(ctx: InterviewContext, people: CreativeContributor[]) {
+  const result = await post<{parts:{contributorId:string;text:string}[]}>(JSON.stringify({action:"collaborative_draft", ...ctx, people}), true);
+  const ids = new Set(people.map(person=>person.id));
+  const parts = result.parts;
+  if (!Array.isArray(parts) || parts.length>16 || parts.some(part=>!ids.has(part.contributorId)||!part.text?.trim()) || people.some(person=>!parts.some(part=>part.contributorId===person.id))) throw new Error("Every contributor needs their own speaking part.");
+  return parts.map(part=>({contributorId:part.contributorId,text:part.text.trim()}));
+}
