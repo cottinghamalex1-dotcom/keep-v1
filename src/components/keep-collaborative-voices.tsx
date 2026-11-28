@@ -8,13 +8,13 @@ const recordingChoices = [
   {
     value: "in_person",
     title: "Together here",
-    description: "Take turns recording on one phone.",
+    description: "Take turns sharing memories and recording on one device.",
     Icon: Smartphone,
   },
   {
     value: "remote",
     title: "From anywhere",
-    description: "Record your part here. Invite others by text.",
+    description: "Each person shares their own memories using a private link.",
     Icon: Link2,
   },
 ] as const;
@@ -24,6 +24,7 @@ export function KeepCollaborativeVoices({
   contributors,
   location,
   onRename,
+  onRelationship,
   onAdd,
   onRemove,
   onLocationChange,
@@ -31,6 +32,7 @@ export function KeepCollaborativeVoices({
   contributors: KeepContributor[];
   location?: RecordingLocation | undefined;
   onRename: (id: string, name: string) => void;
+  onRelationship?: (id: string, relationship: string) => void;
   onAdd: () => void;
   onRemove: (id: string) => void;
   onLocationChange: (location: RecordingLocation) => void;
@@ -39,19 +41,19 @@ export function KeepCollaborativeVoices({
   return (
     <section className="keep-collaborative-voices" aria-labelledby={`${id}-speakers`}>
       <div>
-        <h2 id={`${id}-speakers`} className="keep-collaborative-voices__heading">Who will speak?</h2>
+        <h2 id={`${id}-speakers`} className="keep-collaborative-voices__heading">Who is creating with you?</h2>
         <p className="keep-collaborative-voices__intro">
-          Add everyone who will speak, including yourself.
+          Add yourself first, then everyone who will contribute.
         </p>
         <div className="keep-collaborative-voices__list">
           {contributors.map((person, i) => (
-            <div key={person.id} className="keep-collaborative-voices__person">
+            <div key={person.id} className="keep-collaborative-voices__person flex-wrap">
               <label className="keep-collaborative-voices__field">
                 <span className="keep-collaborative-voices__number" aria-hidden="true">
                   {String(i + 1).padStart(2, "0")}
                 </span>
                 <span className="keep-collaborative-voices__field-content">
-                  <span className="keep-collaborative-voices__label">Voice {i + 1}</span>
+                  <span className="keep-collaborative-voices__label">{i === 0 ? "You · creator" : "Contributor " + (i + 1)}</span>
                   <input
                     aria-label={`Voice ${i + 1} name`}
                     placeholder="Enter their name"
@@ -62,7 +64,8 @@ export function KeepCollaborativeVoices({
                   />
                 </span>
               </label>
-              {contributors.length > 2 && (
+              {onRelationship && <input aria-label={`${person.name || "Contributor " + (i + 1)} relationship to recipient`} placeholder="Relationship (e.g. daughter)" value={person.relationship ?? ""} maxLength={100} onChange={event => onRelationship(person.id, event.target.value)} className="order-last min-h-11 w-full rounded-lg border border-[#DDD5CB] bg-white px-3 text-base" />}
+              {contributors.length > 2 && i > 0 && (
                 <button
                   type="button"
                   className="keep-collaborative-voices__remove"
@@ -80,12 +83,12 @@ export function KeepCollaborativeVoices({
             <span className="keep-collaborative-voices__add-icon" aria-hidden="true">
               <Plus size={16} strokeWidth={1.6} />
             </span>
-            Add another voice
+            Add another contributor
           </button>
         )}
       </div>
       <div className="keep-collaborative-voices__recording">
-        <h3 id={`${id}-recording`} className="keep-collaborative-voices__heading">How will you record?</h3>
+        <h3 id={`${id}-recording`} className="keep-collaborative-voices__heading">How will you create together?</h3>
         <div className="keep-collaborative-voices__choices" role="group" aria-labelledby={`${id}-recording`}>
           {recordingChoices.map(({ value, title, description, Icon }) => {
             const selected = (location ?? "in_person") === value;
@@ -113,8 +116,8 @@ export function KeepCollaborativeVoices({
         </div>
         <p className="keep-collaborative-voices__note">
           {location === "remote"
-            ? "Choose your own name to record here — no need to invite yourself."
-            : "Keep will blend and polish everyone's voices."}
+            ? "Everyone contributes independently. You bring the stories together — no need to invite yourself."
+            : "Everyone takes a turn sharing their own perspective."}
         </p>
       </div>
     </section>

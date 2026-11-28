@@ -61,9 +61,9 @@ describe("Consistent Keep navigation", () => {
     const basic = screen.getByRole("button", { name: /Basic Keep/ });
     const signature = screen.getByRole("button", { name: /Signature Keep/ });
     expect(basic).toHaveTextContent("$79");
-    expect(basic).toHaveTextContent("1 voice");
+    expect(basic).toHaveTextContent("1 contributor");
     expect(signature).toHaveTextContent("$99");
-    expect(signature).toHaveTextContent("2 voices");
+    expect(signature).toHaveTextContent("2 contributors");
     expect(signature).toHaveTextContent("Engraving included");
     fireEvent.click(signature);
     expect(signature).toHaveAttribute("aria-pressed", "true");

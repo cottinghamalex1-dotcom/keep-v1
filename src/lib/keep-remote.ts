@@ -1,3 +1,4 @@
+import type { CreativeStory } from "./keep-project";
 import { activeKeepSession, type KeepSession } from "./keep-cloud";
 
 const API_URL = "https://lwkzhpwugtosbidxvdcr.supabase.co/functions/v1/keep-remote-voices";
@@ -7,10 +8,11 @@ export type RemoteInviteStatus = {
   id: string; contributorId: string; contributorName: string;
   total: number; completed: number; expiresAt: string; emailSent: boolean;
   mediaCount: number; mediaEmailSent?: boolean;
+  creativeStory?: CreativeStory | null; creativeBaseParts?: RemoteScriptPart[] | null; parts?: RemoteScriptPart[];
 };
 export type RemoteRecording = {
   paragraphIndex: number; contributorId: string; textFingerprint: string;
-  signedUrl: string; durationSec: number; mimeType: string;
+  signedUrl: string; durationSec: number; mimeType: string; originalText?: string;
 };
 export type RemoteInviteDetails = {
   creatorName: string; recipientName: string; occasion: string | null;
@@ -18,6 +20,7 @@ export type RemoteInviteDetails = {
   /** Counts only voices assigned actual script sections, including the creator. */
   contributorCount?: number; totalWordCount?: number;
   parts: (RemoteScriptPart & { completed: boolean })[];
+  creativeStory?: CreativeStory | null;
 };
 type JsonResult = Record<string, unknown>;
 async function callApi<T>(payload: JsonResult, session?: KeepSession): Promise<T> {
@@ -42,7 +45,7 @@ export async function callRemoteOwner<T>(payload: JsonResult): Promise<T> {
 }
 export async function createRemoteInvite(input: {
   keepId: string; contributorId: string; contributorName: string; creatorName: string;
-  recipientName: string; occasion: string; parts: RemoteScriptPart[];
+  recipientName: string; occasion: string; parts: RemoteScriptPart[]; creative?: boolean; relationship?: string;
 }) {
   return callRemoteOwner<{url: string; expiresAt: string} >({action:"owner-create",...input});
 }
@@ -127,3 +130,8 @@ export async function getRemoteFileDuration(blob:Blob):Promise<number> {
     });
   } finally {URL.revokeObjectURL(url);}
 }
+
+
+export const saveRemoteStory=(token:string,story:CreativeStory)=>callApi<{story:CreativeStory}>({action:"save-story",token,story});
+export const reviewRemoteParts=(token:string,parts:RemoteScriptPart[])=>callApi<{saved:boolean}>({action:"review-parts",token,parts});
+export const releaseRemoteScript=(input:{keepId:string;contributorId:string;contributorName:string;creatorName:string;recipientName:string;occasion:string;parts:RemoteScriptPart[]})=>callRemoteOwner<{released:boolean}>({action:"owner-release",...input});

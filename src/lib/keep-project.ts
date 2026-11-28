@@ -46,7 +46,9 @@ export type InterviewAnswer = {
   transcript?: string | undefined; // set only by a real transcription service (none connected yet)
 };
 
-export type KeepContributor = { id: string; name: string };
+export type CreativeAnswer = { question: string; transcript: string };
+export type CreativeStory = { relationship: string; answers: CreativeAnswer[]; question?: string | undefined; written?: string | undefined; completed: boolean };
+export type KeepContributor = { id: string; name: string; relationship?: string | undefined; story?: CreativeStory | undefined };
 export type KeepVoicePart = { paragraphIndex: number; contributorId: string; textFingerprint: string; audioId: string; audioUrl?: string; durationSec: number; mimeType?: string };
 export type VoiceRecording = { audioId?: string | undefined; audioUrl?: string | undefined; durationSec: number; mimeType?: string | undefined; demo: boolean };
 export type CaptionCue = { text: string; start: number; end: number };
@@ -95,6 +97,8 @@ export type KeepProject = {
   voiceRecordingLocation?: "in_person" | "remote";
   contributors?: KeepContributor[];
   paragraphSpeakers?: string[];
+  /** True when every speaker contributed their own memories before script generation. */
+  collaborativeCreative?: boolean;
   voiceParts?: KeepVoicePart[];
   /** Snapshot of the script and parts used to build the final narration. */
   groupVoiceSignature?: string;
@@ -167,7 +171,7 @@ export function resumeKeepCreationStage(stage: string): string {
 }
 
 export const stageLabels: Record<string, string> = {
-  recipient: "Choosing who it's for", occasion: "Choosing the occasion", voices: "Choosing the voices", intent: "Expressing the heart behind it", feelings: "Expressing the heart behind it", remoteInvite: "Collecting voices remotely", groupRecord: "Recording together", path: "Finding the words", interview: "In the interview",
+  recipient: "Choosing who it's for", occasion: "Choosing the occasion", voices: "Choosing contributors", collaboration: "Gathering everyone’s memories", intent: "Expressing the heart behind it", feelings: "Expressing the heart behind it", remoteInvite: "Collecting voices remotely", groupRecord: "Recording together", path: "Finding the words", interview: "In the interview",
   summary: "Story gathered", write: "Writing the message", message: "Shaping the message", recordPrep: "Getting ready to record", record: "Recording your voice",
   recorded: "Voice recorded", memories: "Adding memories", framing: "Framing photos & videos", editor: "In the editor", card: "Final touches", finalizing: "Finishing film", success: "Ready",
 };

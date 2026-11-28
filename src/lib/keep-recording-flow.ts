@@ -30,6 +30,8 @@ export function resumeKeepRecordingFlow(project: KeepProject, finalTouchesReques
   // Only saved, fully restored Keeps can enter final touches from checkout.
   if (finalTouchesRequested && project.publicationToken && !project.restoreIncomplete && project.finalVoiceRecording && project.memories.length) return "card";
   const stage = resumeKeepCreationStage(project.stage || "recipient");
+  if(stage==="collaboration")return stage;
+  if(project.voiceMode==="together"&&!project.messageParagraphs.length&&["path","interview","summary","write"].includes(stage))return "collaboration";
   if (stage === "memories" || stage === "framing" || stage === "storyStyle" || stage === "recorded" || stage === "remoteInvite") return stage;
   if (["recordPrep", "record", "groupRecord"].includes(stage) && !usesRemoteRecording(project)) {
     // Older unfinished voice-first drafts can now select visuals before recording.
