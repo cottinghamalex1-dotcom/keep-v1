@@ -2198,14 +2198,13 @@ function KeepApp() {
     </>}
     {screen === "message" && <>{top()}
       <div className="keep-message-review mx-auto max-w-[650px] px-7 pb-32 pt-9">
-        {title("", project.messageSource === "own" ? "Your message." : "Your message is ready.", "These are your words. Make them yours, or let Keep help you shape them.")}
+        {title("", project.messageSource === "own" ? "Your message." : "Your message is ready.", isTogether ? "Make these words your own, or let Keep AI help. Choose who reads each paragraph, adding or splitting paragraphs when the speaker changes. Record each part separately." : "These are your words. Make them yours, or let Keep help you shape them.")}
         <KeepLengthGuide text={project.messageParagraphs.join(" ")} className="mb-6" />
         <button type="button" onClick={openAskKeep} className="group mb-6 flex min-h-[82px] w-full items-center gap-4 rounded-2xl border border-[#C5B6A1] bg-[#28231F] px-5 text-left text-[#FAF8F5] shadow-[0_10px_26px_rgba(38,31,25,.13)] transition-transform active:scale-[.99]">
           <span className="flex size-12 shrink-0 items-center justify-center rounded-full border border-[#C9B69C]/40 bg-[#C9B69C]/15"><Sparkles className="size-6 text-[#E7D4B7]" strokeWidth={1.6}/></span>
           <span className="flex min-w-0 flex-1 flex-col gap-1"><strong className="text-[15px] font-medium">Ask Keep AI</strong><small className="text-[11px] leading-4 text-[#C8BCAD]">Make your message more personal, emotional or polished</small></span>
           <ArrowRight className="size-5 shrink-0 text-[#D9C6AA] transition-transform group-hover:translate-x-1"/>
         </button>
-        {isTogether && <div className="mb-6 rounded-xl border border-[#D0BDA4] bg-[#F1E7D9] p-4 text-[#453B31]"><h2 className="font-display text-[23px]">A Keep from all of you.</h2><p className="mt-2 text-xs leading-5">Choose whose voice reads each paragraph. Add or split paragraphs wherever the speaker changes, then record each turn separately.</p></div>}
         {appliedAiOriginal && appliedAiOriginal.changedIndexes.length > 0 && <div className="mb-5 flex items-start gap-3 rounded-xl border border-[#C9B092] bg-[#F3E9DB] px-4 py-3">
           <span className="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full bg-[#44382B] text-white"><Check className="size-3.5" /></span>
           <p className="text-[12px] leading-5 text-[#554639]"><strong className="font-semibold">Keep AI updated your message.</strong> The revised wording is highlighted below. Tap any highlighted paragraph to edit it yourself.</p>
