@@ -185,3 +185,28 @@ describe("contributor handoff confirmations",()=>{
     expect(await screen.findByRole("dialog",{name:"You’re all set."})).toBeInTheDocument();
   });
 });
+
+describe("persistent approval handoff",()=>{
+  const review:RemoteInviteDetails={...invite(0),reviewRequired:true,approvedAt:null,recordingUnlocked:false,contributorName:"Mom",parts:[{index:1,text:"My original words",completed:false}],creativeStory:{relationship:"daughter",answers:[],written:"My memories",completed:true}};
+  it("returns an approved guest to the waiting page after reopening, then unlocks recording only when everyone approves",async()=>{
+    const approved={...review,approvedAt:"2026-11-28",parts:[{index:1,text:"My approved words",completed:false}]};
+    vi.mocked(resolveRemoteInvitation).mockResolvedValue(approved);
+    render(<KeepRemoteContributor/>);
+    await screen.findByText("Your words are ready.");
+    expect(screen.queryByRole("button",{name:"I'm ready"})).not.toBeInTheDocument();
+    expect(screen.queryByRole("button",{name:"Approve my words"})).not.toBeInTheDocument();
+    vi.mocked(resolveRemoteInvitation).mockResolvedValue({...approved,recordingUnlocked:true});
+    fireEvent.click(screen.getByRole("button",{name:"Check recording status"}));
+    await screen.findByRole("button",{name:"I'm ready"});
+  });
+  it("requires an explicit approval even when the guest keeps the draft unchanged",async()=>{
+    vi.mocked(resolveRemoteInvitation).mockResolvedValue(review);
+    vi.mocked(reviewRemoteParts).mockResolvedValue({saved:true});
+    render(<KeepRemoteContributor/>);
+    await screen.findByText("Make these words yours.");
+    vi.mocked(resolveRemoteInvitation).mockResolvedValue({...review,approvedAt:"2026-11-28"});
+    fireEvent.click(screen.getByRole("button",{name:"Approve my words"}));
+    await screen.findByText("Your words are ready.");
+    expect(reviewRemoteParts).toHaveBeenCalledWith("",[{index:1,text:"My original words"}],[{index:1,text:"My original words"}]);
+  });
+});
