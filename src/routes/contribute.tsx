@@ -4,6 +4,7 @@ import { ArrowRight, Check, CircleCheck, ImagePlus, Mic, Pause, RefreshCw, Shiel
 import { KeepRemoteCreativeGuest, KeepRemoteScriptReview } from "@/components/keep-remote-creative-guest";
 import { KeepTeleprompter } from "@/components/keep-teleprompter";
 import { KeepSelfieBackup } from "@/components/keep-selfie-backup";
+import { KeepContributorConfirmation } from "@/components/keep-contributor-confirmation";
 import { KeepRemoteMediaContributor } from "@/components/keep-remote-media-contributor";
 import { useRecorder } from "@/hooks/use-recorder";
 import { resolveRemoteInvitation, uploadRemoteMedia, uploadRemoteRecording, type RemoteInviteDetails } from "@/lib/keep-remote";
@@ -34,6 +35,7 @@ export function KeepRemoteContributor() {
   const [restartNonce,setRestartNonce]=useState(0);
   const [uploadRetry,setUploadRetry]=useState<{blob:Blob;duration:number}|null>(null);
   const [sent,setSent]=useState(false);
+  const [completionOpen,setCompletionOpen]=useState(false);
   const recorder=useRecorder();
   const pending=invite?.parts.filter(part=>!part.completed)??[];
   const currentPart=pending.find(part=>part.index===currentIndex)??pending[0];
@@ -65,7 +67,7 @@ export function KeepRemoteContributor() {
     if(!selfie)recorder.disableSelfie();
   };
   const continueFromMedia=()=>{
-    if(!pending.length){setMediaMode(false);return;}
+    if(!pending.length){setMediaMode(false);setCompletionOpen(true);return;}
     if(started){setMediaMode(false);setError("");return;}
     if((invite?.mediaCount??0)===0){setSelfieBackupOpen(true);return;}
     beginRecording(false);
@@ -86,11 +88,13 @@ export function KeepRemoteContributor() {
       await uploadRemoteRecording(token,partIndex,blob,duration);
       const next=await resolveRemoteInvitation(token);
       setUploadRetry(null);
+      let mediaSaved=true;
       // Wait for the optional video too, but never require a successful camera
       // upload to keep a successfully saved voice take.
       if(selfie){
         try{await uploadSelfie(selfie);}
         catch(issue){
+          mediaSaved=false;
           setInvite(next);
           setError(issue instanceof Error?issue.message:"Selfie upload wasn't completed. Your voice was saved.");
           setMediaMode(true);
@@ -100,6 +104,7 @@ export function KeepRemoteContributor() {
       setSent(true);
       const nextPart=next.parts.find(part=>!part.completed);
       if(nextPart){setCurrentIndex(nextPart.index);setStarted(true);}
+      else if(mediaSaved&&next.parts.length>0){setCompletionOpen(true);}
     }catch(issue){setError(issue instanceof Error?issue.message:"Your recording didn't upload. Tap Retry to send it again.");}
     finally{setSending(false);}
   };
@@ -166,14 +171,15 @@ export function KeepRemoteContributor() {
   </main>;
   if(!pending.length)return <main className="flex min-h-dvh flex-col items-center justify-center bg-[#F7F5F2] px-7 text-center text-[#30271F]">
     <div className="flex size-16 items-center justify-center rounded-full border border-[#D7C9BA] bg-[#F1E5D6]"><CircleCheck className="size-8 text-[#648364]"/></div>
-    <p className="mt-7 text-[10px] font-semibold uppercase tracking-[.2em] text-[#8F775E]">VOICE RECEIVED</p>
+    <p className="mt-7 text-[10px] font-semibold uppercase tracking-[.2em] text-[#8F775E]">CONTRIBUTION COMPLETE</p>
     <h1 className="mt-4 font-display text-[clamp(40px,11vw,58px)] leading-[1.05]">Your part is kept.</h1>
     <p className="mt-5 max-w-xs text-sm leading-7 text-[#6E6257]">
-      Thank you, {invite.contributorName}. Your recordings are safely back with {invite.creatorName}.
-      They'll be beautifully woven into this Keep for {invite.recipientName}.
+      Thank you, {invite.contributorName}. Your recordings and any photos or videos you shared are safely with {invite.creatorName}, who will finish the Keep for {invite.recipientName}.
     </p>
+    <p className="mt-5 max-w-xs rounded-xl border border-[#E3D9CB] bg-[#F0E9DF] px-5 py-4 text-sm leading-6 text-[#4B3E32]"><strong className="block">You’re all done.</strong> You can safely close this page. There’s nothing else you need to do.</p>
     <button type="button" onClick={()=>setMediaMode(true)} className="mt-9 flex min-h-12 items-center gap-2 rounded-xl border border-[#BFAE9D] bg-[#FFFCF8] px-5 text-sm font-medium"><ImagePlus className="size-4"/> Add more photos or videos</button>
     <p className="mt-12 font-display text-2xl italic text-[#806B56]">Some things are worth keeping.</p>
+    <KeepContributorConfirmation open={completionOpen&&!sending&&!selfieRetry} onDone={()=>setCompletionOpen(false)} stage="complete" contributorName={invite.contributorName} creatorName={invite.creatorName} recipientName={invite.recipientName}/>
   </main>;
 
   if(!started)return <main className="mx-auto min-h-dvh max-w-[590px] bg-[#F7F5F2] px-6 pb-14 pt-7 text-[#30271F]">
