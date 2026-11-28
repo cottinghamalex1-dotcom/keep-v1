@@ -29,8 +29,8 @@ beforeEach(()=>{
 });
 afterEach(cleanup);
 
-async function openMedia(count:number){
-  vi.mocked(resolveRemoteInvitation).mockResolvedValue(invite(count));
+async function openMedia(count:number,completed=0){
+  vi.mocked(resolveRemoteInvitation).mockResolvedValue(invite(count,completed));
   const view=render(<KeepRemoteContributor/>);
   fireEvent.click(await screen.findByRole("button",{name:"I'm ready"}));
   fireEvent.click(screen.getByRole("button",{name:"Continue to photos & videos"}));
@@ -109,6 +109,11 @@ describe("remote creative journey",()=>{
     expect(screen.queryByRole("region",{name:"Recording teleprompter"})).not.toBeInTheDocument();
     fireEvent.change(screen.getByRole("textbox",{name:"Your own words"}),{target:{value:"My mom taught me to bake."}});
     fireEvent.click(screen.getByRole("button",{name:"Submit my words"}));
+    const confirmation=await screen.findByRole("dialog",{name:"Your memories are sent."});
+    expect(confirmation).toHaveTextContent("You’re done for now");
+    expect(confirmation).toHaveTextContent("Return to this same private link");
+    expect(confirmation).toHaveTextContent("Alex");
+    fireEvent.click(screen.getByRole("button",{name:"Done for now"}));
     await screen.findByText("Your memories are shared.");
     expect(saveRemoteStory).toHaveBeenCalledWith("",expect.objectContaining({relationship:"daughter",written:"My mom taught me to bake.",completed:true}));
     vi.mocked(resolveRemoteInvitation).mockResolvedValue({...before,creativeStory:{relationship:"daughter",answers:[],written:"My mom taught me to bake.",completed:true},parts:[{index:1,text:"Mom taught me to bake.",completed:false}]});
@@ -119,5 +124,64 @@ describe("remote creative journey",()=>{
     fireEvent.click(screen.getByRole("button",{name:"Ready to record my words"}));
     await screen.findByRole("button",{name:"I'm ready"});
     expect(reviewRemoteParts).toHaveBeenCalledWith("",[{index:1,text:"Mom, you taught me to bake."}]);
+  });
+});
+
+
+describe("contributor handoff confirmations",()=>{
+  it("does not confirm a memory submission when saving fails",async()=>{
+    vi.mocked(resolveRemoteInvitation).mockResolvedValue({...invite(0),contributorName:"Kristen",recipientName:"Nanny",parts:[],creativeStory:{relationship:"daughter",answers:[],completed:false}});
+    vi.mocked(saveRemoteStory).mockRejectedValueOnce(new Error("Please try again."));
+    render(<KeepRemoteContributor/>);
+    fireEvent.click(await screen.findByRole("button",{name:"I know what I want to say"}));
+    fireEvent.change(screen.getByRole("textbox",{name:"Your own words"}),{target:{value:"My favorite memory."}});
+    fireEvent.click(screen.getByRole("button",{name:"Submit my words"}));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Please try again.");
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+  it("confirms the final recording after upload and leaves a clear receipt on dismissal",async()=>{
+    const view=await openMedia(1,1);
+    fireEvent.click(screen.getByRole("button",{name:"Continue to recording"}));
+    stop.mockResolvedValue({blob:new Blob(["voice"],{type:"audio/webm"}),durationSec:2,mimeType:"audio/webm"});
+    vi.mocked(resolveRemoteInvitation).mockResolvedValue(invite(1,2));
+    vi.mocked(useRecorder).mockReturnValue(recordingState("recording"));
+    view.rerender(<KeepRemoteContributor/>);
+    fireEvent.click(screen.getByRole("button",{name:"Save final section"}));
+    const confirmation=await screen.findByRole("dialog",{name:"You’re all set."});
+    expect(confirmation).toHaveTextContent("Nothing else to do");
+    expect(confirmation).toHaveTextContent("You can close this page");
+    expect(confirmation).toHaveTextContent("safely with Alex");
+    fireEvent.click(screen.getByRole("button",{name:"Done",exact:true}));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.getByText("You’re all done.")).toBeInTheDocument();
+  });
+  it("does not claim completion if the final recording upload fails",async()=>{
+    const view=await openMedia(1,1);
+    fireEvent.click(screen.getByRole("button",{name:"Continue to recording"}));
+    stop.mockResolvedValue({blob:new Blob(["voice"],{type:"audio/webm"}),durationSec:2,mimeType:"audio/webm"});
+    vi.mocked(uploadRemoteRecording).mockRejectedValueOnce(new Error("Couldn't send your voice."));
+    vi.mocked(useRecorder).mockReturnValue(recordingState("recording"));
+    view.rerender(<KeepRemoteContributor/>);
+    fireEvent.click(screen.getByRole("button",{name:"Save final section"}));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Couldn't send your voice.");
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.getByRole("button",{name:"Retry upload"})).toBeInTheDocument();
+  });
+  it("waits for a failed selfie to be retried or skipped before final confirmation",async()=>{
+    const view=await openMedia(0,1);
+    fireEvent.click(screen.getByRole("button",{name:"Continue to recording"}));
+    fireEvent.click(screen.getByRole("button",{name:"Record my message on camera"}));
+    stop.mockResolvedValue({blob:new Blob(["voice"],{type:"audio/webm"}),durationSec:2,mimeType:"audio/webm",selfieBlob:new Blob(["camera"],{type:"video/webm"}),selfieMimeType:"video/webm"});
+    vi.mocked(resolveRemoteInvitation).mockResolvedValue(invite(0,2));
+    vi.mocked(uploadRemoteMedia).mockRejectedValueOnce(new Error("Selfie failed."));
+    vi.mocked(useRecorder).mockReturnValue(recordingState("recording"));
+    view.rerender(<KeepRemoteContributor/>);
+    fireEvent.click(screen.getByRole("button",{name:"Save final section"}));
+    const skip=await screen.findByRole("button",{name:"Skip selfie video"});
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.getByRole("button",{name:/I'm finished/})).toBeDisabled();
+    fireEvent.click(skip);
+    fireEvent.click(screen.getByRole("button",{name:/I'm finished/}));
+    expect(await screen.findByRole("dialog",{name:"You’re all set."})).toBeInTheDocument();
   });
 });
