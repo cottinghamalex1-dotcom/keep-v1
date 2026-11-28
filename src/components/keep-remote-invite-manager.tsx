@@ -1,20 +1,16 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ArrowLeft, ArrowRight, Check, CircleCheck, Clipboard, Images, Link2, Mail, MessageCircle, Mic, RefreshCw, Users, X } from "lucide-react";
 import { activeKeepSession, saveCloudDraft } from "@/lib/keep-cloud";
-import { createRemoteInvite, releaseRemoteScript, listRemoteInvites, listRemoteMedia, revokeRemoteInvite, type RemoteInviteStatus, type RemoteScriptPart, type RemoteMediaItem } from "@/lib/keep-remote";
+import { createRemoteInvite, releaseRemoteScript, listRemoteInvites, listRemoteMedia, revokeRemoteInvite, type RemoteInviteStatus, type RemoteMediaItem } from "@/lib/keep-remote";
 import type { KeepProject } from "@/lib/keep-project";
+import { getSpeakerParts } from "./keep-remote-script-approval";
+export { getSpeakerParts } from "./keep-remote-script-approval";
 
 type Props = {
   project: KeepProject; onContinue: () => void; onCombine: () => Promise<void>;
   onImportMedia: (media:RemoteMediaItem[]) => Promise<number>;
   onBack: () => void; combining: boolean;
 };
-export const getSpeakerParts = (project: KeepProject, contributorId: string): RemoteScriptPart[] =>
-  project.messageParagraphs.map((text,index)=>({
-    index,text:text.trim(),
-    speaker:project.paragraphSpeakers?.[index]||project.contributors?.[index%Math.max(1,project.contributors.length)]?.id||"",
-  })).filter(part=>part.text && part.speaker===contributorId).map(({index,text})=>({index,text}));
-
 export function KeepRemoteInviteManager({ project,onContinue,onCombine,onImportMedia,onBack,combining }:Props) {
   const [step,setStep]=useState(0);
   const [statuses,setStatuses]=useState<RemoteInviteStatus[]>([]);
@@ -187,7 +183,7 @@ export function KeepRemoteInviteManager({ project,onContinue,onCombine,onImportM
         const finished=!!status&&status.total===parts.length&&complete===status.total;
         const existingCreativeLink=!!project.collaborativeCreative&&!!status?.creativeStory&&status.total>0;
         const expired=!!status&&new Date(status.expiresAt).getTime()<Date.now();
-        const url=expired?undefined:links[person.id];
+        const url=expired?undefined:links[person.id]??status?.url;
         return <section key={person.id} aria-label={`${person.name}’s recording`} className="rounded-[18px] border border-[#D8CCBF] bg-[#FFFDF9] px-4 py-4 shadow-[0_6px_20px_rgba(57,44,29,.045)]">
           <div className="flex items-start justify-between gap-3">
             <div className="flex min-w-0 items-center gap-3">
@@ -202,7 +198,7 @@ export function KeepRemoteInviteManager({ project,onContinue,onCombine,onImportM
           </div>
 
           <div className="mt-4 space-y-2">
-            {existingCreativeLink&&!expired&&<p className="rounded-lg bg-[#F4EEE6] p-3 text-xs leading-5">Their original creative invitation now includes their own speaking parts. Ask them to reopen it to review and record.</p>}
+            {existingCreativeLink&&!expired&&<p className="rounded-lg bg-[#F4EEE6] p-3 text-xs leading-5">Their original private invitation is ready. Ask them to reopen it to record their approved words.</p>}
             {!finished && (!project.collaborativeCreative||person.id===project.contributors?.[0]?.id) && (url
               ? <a href={url} target="_blank" rel="noopener noreferrer" className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#211D19] px-3 text-[13px] font-medium text-[#FCF5EC] hover:bg-[#3B3229]">
                   <Mic className="size-4"/> {complete>0?"Continue recording":"Record here"}

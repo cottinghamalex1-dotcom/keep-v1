@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { ArrowRight, Check, CircleCheck, ImagePlus, Mic, Pause, RefreshCw, ShieldCheck, Square } from "lucide-react";
-import { KeepRemoteCreativeGuest, KeepRemoteScriptReview } from "@/components/keep-remote-creative-guest";
+import { KeepRemoteCreativeGuest, KeepRemoteScriptReview, KeepRemoteApprovalWaiting } from "@/components/keep-remote-creative-guest";
 import { KeepTeleprompter } from "@/components/keep-teleprompter";
 import { KeepSelfieBackup } from "@/components/keep-selfie-backup";
 import { KeepContributorConfirmation } from "@/components/keep-contributor-confirmation";
@@ -50,7 +50,14 @@ export function KeepRemoteContributor() {
     finally{setLoading(false);}
   };
   useEffect(()=>{void load();},[token]);
-  const refreshCreative=()=>{void resolveRemoteInvitation(token).then(details=>setInvite(details)).catch(()=>{});};
+  const refreshCreative=useCallback(()=>{void resolveRemoteInvitation(token).then(details=>setInvite(details)).catch(()=>{});},[token]);
+  const waitingForApprovals=!!invite?.reviewRequired&&!!invite.approvedAt&&!invite.recordingUnlocked&&invite.parts.some(p=>!p.completed);
+  useEffect(()=>{
+    if(!waitingForApprovals)return;
+    const timer=window.setInterval(refreshCreative,10000);
+    window.addEventListener("focus",refreshCreative);
+    return()=>{window.clearInterval(timer);window.removeEventListener("focus",refreshCreative);};
+  },[waitingForApprovals,refreshCreative]);
   const uploadSelfie=async(take:{blob:Blob;duration:number;partIndex:number;mime:string})=>{
     const extension=take.mime.includes("mp4")?"mp4":"webm";
     const file=new File([take.blob],`Selfie-part-${take.partIndex+1}.${extension}`,{type:take.mime||take.blob.type});
@@ -136,7 +143,9 @@ export function KeepRemoteContributor() {
     <button type="button" onClick={()=>void load()} className="mt-6 flex min-h-12 items-center gap-2 rounded-xl border border-[#BEAD9C] px-5 text-xs"><RefreshCw className="size-4"/>Try again</button>
   </main>;
   if(invite.creativeStory&&!invite.parts.length)return <KeepRemoteCreativeGuest token={token} invite={invite} onUpdate={setInvite} onRefresh={refreshCreative}/>;
-  if(invite.creativeStory&&invite.parts.length&&!reviewed&&!invite.parts.some(p=>p.completed))return <KeepRemoteScriptReview token={token} invite={invite} onContinue={details=>{setInvite(details);setReviewed(true);}}/>;
+  if(invite.reviewRequired&&invite.parts.length&&!invite.approvedAt)return <KeepRemoteScriptReview key={JSON.stringify(invite.parts)} token={token} invite={invite} onContinue={details=>{setInvite(details);refreshCreative();}}/>;
+  if(waitingForApprovals)return <KeepRemoteApprovalWaiting invite={invite} onRefresh={refreshCreative}/>;
+  if(!invite.reviewRequired&&invite.creativeStory&&invite.parts.length&&!reviewed&&!invite.parts.some(p=>p.completed))return <KeepRemoteScriptReview token={token} invite={invite} onContinue={details=>{setInvite(details);setReviewed(true);}}/>;
   if(mediaMode)return <main className="mx-auto min-h-dvh max-w-[590px] bg-[#F7F5F2] px-6 pb-14 pt-7 text-[#30271F]">
     <div className="flex items-center justify-between"><span className="font-display text-[38px]">Keep</span>
       <span className="rounded-full border border-[#D8C9BA] px-3 py-1.5 text-[10px] text-[#7D6A57]">Private invitation</span></div>

@@ -1,0 +1,52 @@
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { KeepRemoteScriptApproval, matchesReview } from "@/components/keep-remote-script-approval";
+import { KeepRemoteScriptReview } from "@/components/keep-remote-creative-guest";
+import { newProject } from "@/lib/keep-project";
+import { activeKeepSession, saveCloudDraft } from "@/lib/keep-cloud";
+import { listRemoteInvites, shareScriptForReview, reviewRemoteParts, type RemoteInviteStatus, type RemoteInviteDetails } from "@/lib/keep-remote";
+vi.mock("@/lib/keep-cloud",()=>({activeKeepSession:vi.fn(),saveCloudDraft:vi.fn()}));
+vi.mock("@/lib/keep-remote",()=>({listRemoteInvites:vi.fn(),shareScriptForReview:vi.fn(),reviewRemoteParts:vi.fn()}));
+const project={...newProject(),active:true,publicationId:"keep",voiceMode:"together" as const,voiceRecordingLocation:"remote" as const,collaborativeCreative:true,recipientName:"Nanny",contributors:[{id:"alex",name:"Alex"},{id:"mom",name:"Mom"}],messageParagraphs:["My words","Mom's words"],paragraphSpeakers:["alex","mom"]};
+const row=(id:string,text:string,index:number,approved:boolean):RemoteInviteStatus=>({id,contributorId:id,contributorName:id,total:1,completed:0,expiresAt:"2027-01-01",emailSent:false,mediaCount:0,reviewRequired:true,approvedAt:approved?"2026-11-28":null,creativeBaseParts:[{index,text}],parts:[{index,text}],url:"https://keep-v1.vercel.app/contribute?invite=private"});
+beforeEach(()=>vi.clearAllMocks());
+afterEach(cleanup);
+describe("shared transcript approval",()=>{
+  it("publishes from transcript review, waits for every approval, and imports guests' edits before recording",async()=>{
+    const me=row("alex","My words",0,true);
+    const pending=row("mom","Mom's words",1,false);
+    const done={...pending,approvedAt:"2026-11-28",parts:[{index:1,text:"Mom's own edit"}]};
+    vi.mocked(listRemoteInvites).mockResolvedValueOnce({invites:[]}).mockResolvedValueOnce({invites:[me,pending]}).mockResolvedValue({invites:[me,done]});
+    vi.mocked(activeKeepSession).mockResolvedValue({access_token:"test",user:{id:"owner"}} as never);
+    vi.mocked(saveCloudDraft).mockResolvedValue(undefined);
+    vi.mocked(shareScriptForReview).mockResolvedValue({released:true});
+    const next=vi.fn();
+    render(<KeepRemoteScriptApproval project={project} onContinue={next} onBack={()=>{}}/>);
+    await screen.findByText("0 of 2 approved");
+    fireEvent.click(screen.getByRole("button",{name:/Approve my words & share for review/}));
+    await screen.findByText("1 of 2 approved");
+    expect(shareScriptForReview).toHaveBeenCalledWith("keep","Nanny",project.occasion);
+    expect(screen.getByRole("button",{name:/Waiting for everyone to approve/})).toBeDisabled();
+    expect(screen.getByRole("button",{name:"Share review"})).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button",{name:"Refresh"}));
+    await screen.findByText("2 of 2 approved");
+    expect(screen.getByText("Mom's own edit")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button",{name:"Continue to recording"}));
+    await waitFor(()=>expect(next).toHaveBeenCalledWith(["My words","Mom's own edit"]));
+  });
+  it("requires reapproval when the creator changes assigned words, but recognizes accepted guest edits",()=>{
+    const guest={...row("mom","Mom's words",1,true),parts:[{index:1,text:"Mom's own edit"}]};
+    expect(matchesReview(project,guest,"mom")).toBe(true);
+    expect(matchesReview({...project,messageParagraphs:["My words","Mom's own edit"]},guest,"mom")).toBe(true);
+    expect(matchesReview({...project,messageParagraphs:["My words","New draft"]},guest,"mom")).toBe(false);
+  });
+  it("explicitly persists approval even when the guest doesn't edit anything",async()=>{
+    const invite:RemoteInviteDetails={creatorName:"Alex",recipientName:"Nanny",contributorName:"Mom",occasion:"Birthday",expiresAt:"2027-01-01",mediaCount:0,reviewRequired:true,approvedAt:null,recordingUnlocked:false,parts:[{index:1,text:"Mom's words",completed:false}]};
+    vi.mocked(reviewRemoteParts).mockResolvedValue({saved:true});
+    const next=vi.fn();
+    render(<KeepRemoteScriptReview token="guest" invite={invite} onContinue={next}/>);
+    fireEvent.click(screen.getByRole("button",{name:"Approve my words"}));
+    await waitFor(()=>expect(next).toHaveBeenCalledWith(expect.objectContaining({approvedAt:expect.any(String)})));
+    expect(reviewRemoteParts).toHaveBeenCalledWith("guest",[{index:1,text:"Mom's words"}],[{index:1,text:"Mom's words"}]);
+  });
+});

@@ -1,3 +1,4 @@
+import { KeepRemoteScriptApproval } from "@/components/keep-remote-script-approval";
 import { KeepCreativeCollaboration } from "@/components/keep-creative-collaboration";
 import { KeepCollaborativeVoices } from "@/components/keep-collaborative-voices";
 import { KeepOccasionChoices, KeepHeartAndFeelings, chosenKeepOccasion } from "@/components/keep-occasion-and-feelings";
@@ -284,6 +285,7 @@ function KeepApp() {
   const addInput = useRef<HTMLInputElement>(null);
   const draftInput = useRef<HTMLInputElement>(null);
   const replaceInput = useRef<HTMLInputElement>(null);
+  const [remoteReviewFinished,setRemoteReviewFinished]=useState(false);
   const patch = (p: Partial<KeepProject>) => setProject((o) => ({ ...o, ...p }));
   const mix: AudioMix = { ...defaultAudioMix, ...project.audioMix };
   const patchMix = (m: Partial<AudioMix>) => setProject((o) => ({ ...o, audioMix: { ...defaultAudioMix, ...o.audioMix, ...m } }));
@@ -2253,9 +2255,10 @@ function KeepApp() {
         <button type="button" className="keep-message-actions__primary" onClick={() => {
           patch({ messageParagraphs: project.messageParagraphs.filter((p) => p.trim()), paragraphSpeakers: project.messageParagraphs.map((p,i)=>p.trim()?speakerFor(i):"").filter(Boolean) });
           setAppliedAiOriginal(null);
+          setRemoteReviewFinished(false);
           go(nextAfterMessage(project, returnToEditorAfterRecording));
         }} disabled={!project.messageParagraphs.some((p) => p.trim()) || (isTogether && (project.contributors??[]).some(person=>!project.messageParagraphs.some((p,i)=>p.trim()&&speakerFor(i)===person.id)))}>
-          <span>{nextAfterMessage(project, returnToEditorAfterRecording) === "memories" ? "Choose photos & videos" : isTogether ? project.voiceRecordingLocation==="remote" ? "Record yours & invite others" : "Record together" : "Record Your Keep"}</span>
+          <span>{nextAfterMessage(project, returnToEditorAfterRecording) === "memories" ? "Choose photos & videos" : isTogether ? project.voiceRecordingLocation==="remote" ? project.collaborativeCreative ? "Review & approve together" : "Record yours & invite others" : "Record together" : "Record Your Keep"}</span>
           <span className="keep-message-actions__arrow" aria-hidden="true"><ArrowRight size={19} strokeWidth={1.6}/></span>
         </button>
         </div>
@@ -2274,10 +2277,10 @@ function KeepApp() {
         onDismiss={() => { if (askBusy) return; setAskOpen(false); setAskSuggestion(null); setAskError(""); }}
       />}
     </>}
-    {screen === "remoteInvite" && <>{top()}<KeepRemoteInviteManager project={project}
-      onBack={()=>{setHistory(h=>[...h,"remoteInvite"]);setScreen("message");}}
+    {screen === "remoteInvite" && <>{top()}{project.collaborativeCreative&&usesRemoteRecording(project)&&!remoteReviewFinished?<KeepRemoteScriptApproval project={project} onBack={()=>{setScreen("message");resetPageScroll();}} onContinue={paragraphs=>{patch({messageParagraphs:paragraphs});setRemoteReviewFinished(true);resetPageScroll();}}/>:<KeepRemoteInviteManager project={project}
+      onBack={()=>{setRemoteReviewFinished(false);setHistory(h=>[...h,"remoteInvite"]);setScreen("message");}}
       onContinue={()=>{if (personalMedia.length) beginFramingReview("remoteInvite"); else if(returnToEditorAfterRecording || project.memories.length) go("editor"); else go("memories");}}
-      onCombine={combineRemoteVoices} onImportMedia={importContributorMoments} combining={groupBusy}/></>}
+      onCombine={combineRemoteVoices} onImportMedia={importContributorMoments} combining={groupBusy}/>}</>}
     {screen === "recordPrep" && <div className="fixed inset-0 z-[80] flex items-center justify-center overflow-y-auto bg-[#111113]/65 px-4 pb-[max(16px,env(safe-area-inset-bottom))] pt-[max(16px,env(safe-area-inset-top))] backdrop-blur-[5px]">
       <section role="dialog" aria-modal="true" aria-labelledby="record-tips-title" aria-describedby="record-tips-intro" className="flex max-h-[calc(100dvh-32px)] w-full max-w-[440px] flex-col overflow-hidden rounded-[22px] border border-[#E6DED3] bg-[#F7F5F2] text-[#0B0B0B] shadow-[0_24px_80px_rgba(0,0,0,.35)]">
         <div className="min-h-0 overflow-y-auto px-7 pt-7 sm:px-9 sm:pt-9">

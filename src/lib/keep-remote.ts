@@ -10,6 +10,7 @@ export type RemoteInviteStatus = {
   total: number; completed: number; expiresAt: string; emailSent: boolean;
   mediaCount: number; mediaEmailSent?: boolean;
   url?: string; // An active creative invitation, available to its authenticated owner.
+  reviewRequired?: boolean; approvedAt?: string | null;
   creativeStory?: CreativeStory | null; creativeBaseParts?: RemoteScriptPart[] | null; parts?: RemoteScriptPart[];
 };
 export type RemoteRecording = {
@@ -23,6 +24,7 @@ export type RemoteInviteDetails = {
   contributorCount?: number; totalWordCount?: number;
   parts: (RemoteScriptPart & { completed: boolean })[];
   creativeStory?: CreativeStory | null;
+  reviewRequired?: boolean; approvedAt?: string | null; recordingUnlocked?: boolean;
 };
 type JsonResult = Record<string, unknown>;
 async function callApi<T>(payload: JsonResult, session?: KeepSession): Promise<T> {
@@ -135,5 +137,6 @@ export async function getRemoteFileDuration(blob:Blob):Promise<number> {
 
 
 export const saveRemoteStory=(token:string,story:CreativeStory)=>callApi<{story:CreativeStory}>({action:"save-story",token,story});
-export const reviewRemoteParts=(token:string,parts:RemoteScriptPart[])=>callApi<{saved:boolean}>({action:"review-parts",token,parts});
+export const reviewRemoteParts=(token:string,parts:RemoteScriptPart[],originalParts?:RemoteScriptPart[])=>callApi<{saved:boolean}>({action:"review-parts",token,parts,originalParts});
+export const shareScriptForReview=(keepId:string,recipientName:string,occasion:string)=>callRemoteOwner<{released:boolean}>({action:"owner-review",keepId,recipientName,occasion});
 export const releaseRemoteScript=(input:{keepId:string;contributorId:string;contributorName:string;creatorName:string;recipientName:string;occasion:string;parts:RemoteScriptPart[]})=>callRemoteOwner<{released:boolean}>({action:"owner-release",...input});
