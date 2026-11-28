@@ -2598,3 +2598,96 @@ label.keep-message-paragraph__head {
 .keep-invite-action--copy:hover:not(:disabled) { background: #68513c; }
 .keep-invite-action:disabled { opacity: .55; cursor: not-allowed; }
 .keep-invite-action:focus-visible { outline: 2px solid #8c7561; outline-offset: 3px; }
+
+/* Collaborative interviews — use the same ivory, bronze and dark finishes as the creator. */
+.keep-creative-interview {
+  display: grid;
+  gap: 22px;
+  min-width: 0;
+  color: #30271f;
+}
+.keep-creative-interview > header {
+  padding-bottom: 4px;
+}
+.keep-creative-interview .keep-editorial-title {
+  font-size: clamp(32px, 8vw, 40px);
+  overflow-wrap: anywhere;
+}
+.keep-creative-interview__relationship {
+  display: block;
+  font-size: 14px;
+  font-weight: 500;
+  color: #4c4035;
+}
+.keep-creative-interview .keep-creative-interview__field {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  margin-top: 9px;
+  padding: 15px 17px;
+  border: 1px solid #d8cbbd;
+  border-radius: 14px;
+  background: #fffdf9;
+  color: #30271f;
+  font-size: 16px;
+  line-height: 1.7;
+  font-weight: 400;
+  box-shadow: inset 0 1px 3px rgba(42,32,22,.035);
+}
+.keep-creative-interview .keep-creative-interview__field:focus {
+  border-color: #8c7561;
+  box-shadow: 0 0 0 3px rgba(140,117,97,.13);
+}
+.keep-creative-interview__field::placeholder { color: #82786e; }
+.keep-creative-interview textarea.keep-creative-interview__field { resize: vertical; min-height: 148px; }
+.keep-creative-interview__question {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+  padding: clamp(16px, 4vw, 24px);
+  border: 1px solid #ddd5cb;
+  border-radius: 22px;
+  background: linear-gradient(155deg, #fffdf9, #faf7f2);
+  box-shadow: 0 8px 24px rgba(42,32,22,.055);
+}
+.keep-creative-interview__question .keep-creative-interview__field { margin-top: 0; }
+.keep-creative-interview__progress {
+  display: grid;
+  gap: 9px;
+  color: #796551;
+  font-size: 12px;
+  font-weight: 600;
+}
+.keep-creative-interview__track {
+  height: 5px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #e6ded3;
+}
+.keep-creative-interview__track > div {
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #8a725a, #b8a999);
+}
+.keep-creative-interview__prompt {
+  font-family: var(--font-display);
+  font-size: clamp(25px, 6.4vw, 33px);
+  line-height: 1.2;
+  letter-spacing: -.02em;
+  font-weight: 400;
+  overflow-wrap: anywhere;
+}
+.keep-creative-interview__actions {
+  display: grid;
+  gap: 12px;
+}
+.keep-creative-interview__alternate {
+  justify-self: center;
+  padding: 8px 4px;
+  color: #6a5849;
+  font-size: 13px;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+.keep-creative-interview__alternate:disabled { opacity: .6; cursor: not-allowed; }
+.keep-creative-interview button:focus-visible { outline: 2px solid #8c7561; outline-offset: 3px; }

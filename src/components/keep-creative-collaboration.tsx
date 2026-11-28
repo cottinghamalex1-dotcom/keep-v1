@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { ArrowRight, Check, Clipboard, RefreshCw, Share2, ShieldCheck, Sparkles, Users } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "./ui/dialog";
 import { KeepCreativeInterview, emptyStory } from "./keep-creative-interview";
@@ -7,7 +7,7 @@ import { activeKeepSession, saveCloudDraft } from "@/lib/keep-cloud";
 import { createRemoteInvite, listRemoteInvites, type RemoteInviteStatus } from "@/lib/keep-remote";
 import type { CreativeStory, KeepProject } from "@/lib/keep-project";
 
-export function KeepCreativeCollaboration({project,onChange,onComplete}:{project:KeepProject;onChange:(change:Partial<KeepProject>)=>void;onComplete:(change:Partial<KeepProject>)=>void}) {
+export function KeepCreativeCollaboration({project,onChange,onComplete,renderHeader}:{project:KeepProject;onChange:(change:Partial<KeepProject>)=>void;onComplete:(change:Partial<KeepProject>)=>void;renderHeader?:(onBack?:()=>void)=>ReactNode}) {
   const people=project.contributors??[];
   const remote=project.voiceRecordingLocation==="remote";
   const [active,setActive]=useState<string|null>(null);
@@ -79,11 +79,10 @@ export function KeepCreativeCollaboration({project,onChange,onComplete}:{project
       onComplete({contributors,collaborativeCreative:true,messageParagraphs:parts.map(p=>p.text),paragraphSpeakers:parts.map(p=>p.contributorId),messageSource:"ai",voiceParts:[],groupVoiceSignature:"",finalVoiceRecording:null});
     }catch(e){setError(e instanceof Error?e.message:"Couldn't bring your stories together. Try again.");}finally{setBusy("");}
   };
-  if(selected)return <div className="mx-auto max-w-xl px-6 pb-12 pt-6">
-    <button type="button" className="mb-5 text-sm text-muted-foreground underline" onClick={()=>setActive(null)}>Back to everyone</button>
+  if(selected)return <>{renderHeader?.(()=>setActive(null))}<div className="mx-auto max-w-xl px-6 pb-12 pt-8">
     <KeepCreativeInterview key={selected.id} name={selected.name} context={context} story={selected.story??(people[0]?.id===selected.id&&project.interviewAnswers.length?{relationship:selected.relationship||project.relationship,answers:project.interviewAnswers.filter(a=>a.transcript?.trim()).map(a=>({question:a.question,transcript:a.transcript!})).slice(0,4),completed:false}:(people[0]?.id===selected.id&&project.writtenText.trim()?{...emptyStory(selected.relationship||project.relationship),written:project.writtenText}:emptyStory(selected.relationship||(people[0]?.id===selected.id?project.relationship:""))))} onSave={save} onDone={()=>setActive(null)}/>
-  </div>;
-  return <div className="mx-auto max-w-xl space-y-5 px-6 pb-12 pt-8 text-[#30271F]">
+  </div></>;
+  return <>{renderHeader?.()}<div className="mx-auto max-w-xl space-y-5 px-6 pb-12 pt-8 text-[#30271F]">
     <header><p className="eyebrow">CREATING TOGETHER</p><h1 className="mt-2 font-display text-[clamp(36px,9vw,48px)] leading-tight">Every story matters.</h1><p className="mt-3 text-sm leading-6 text-muted-foreground">{remote?"Invite everyone to share their own memories from anywhere.":"Take turns sharing your own memories on this device."} Keep brings all your perspectives together.</p></header>
     <div className="rounded-2xl border border-[#DDD5CB] bg-[#FFFDF9] p-4">
       <div className="flex items-center justify-between gap-3"><span className="text-sm font-medium">{ready} of {people.length} stories submitted</span>{remote&&<button className="flex items-center gap-1 text-xs" type="button" onClick={()=>void refresh()}><RefreshCw size={14}/> Refresh</button>}</div>
@@ -91,7 +90,7 @@ export function KeepCreativeCollaboration({project,onChange,onComplete}:{project
     </div>
     {people.map((p,i)=>{const story=storyOf(p.id,i);const local=!remote||i===0;const status=statuses.find(s=>s.contributorId===p.id);return <section key={p.id} className="space-y-3 rounded-2xl border border-[#DDD5CB] bg-[#FFFDF9] p-4">
       <div className="flex items-center gap-3"><div className="flex size-11 shrink-0 items-center justify-center rounded-full bg-[#EEE5D9] font-display text-xl">{p.name.charAt(0).toUpperCase()}</div><div className="min-w-0 flex-1"><h2 className="font-display text-2xl">{p.name} {i===0&&<span className="font-sans text-xs text-muted-foreground">(You)</span>}</h2><p className="text-xs text-muted-foreground">{story?.relationship||p.relationship||"Contributor"}</p></div><span className="rounded-full bg-[#EEEAE3] px-2.5 py-1 text-[11px]">{story?.completed?"Submitted ✓":story?.answers.length?"In progress":status?"Invited":"Not started"}</span></div>
-      {local?<button className="keep-message-actions__primary w-full" type="button" disabled={!!busy} onClick={()=>setActive(p.id)}><span>{story?.completed?"Review my memories":story?.answers.length?"Continue interview":"Share my memories"}</span><span className="keep-message-actions__arrow" aria-hidden="true"><ArrowRight size={18}/></span></button>:!story?.completed&&
+      {local?<button className="keep-message-actions__primary w-full" type="button" disabled={!!busy} onClick={()=>setActive(p.id)}><span>{story?.completed?"Review my memories":story?.answers.length?"Continue interview":"Start"}</span><span className="keep-message-actions__arrow" aria-hidden="true"><ArrowRight size={18}/></span></button>:!story?.completed&&
         <div className="grid grid-cols-2 gap-2">
           <button type="button" className="keep-invite-action" disabled={!!busy} onClick={()=>void prepareInvitation(p.id,p.name,"share")}><Share2 size={16} aria-hidden="true"/>Share invitation</button>
           <button type="button" className="keep-invite-action keep-invite-action--copy" disabled={!!busy} onClick={()=>void prepareInvitation(p.id,p.name,"copy")}><Clipboard size={16} aria-hidden="true"/>Copy invitation</button>
@@ -127,5 +126,5 @@ export function KeepCreativeCollaboration({project,onChange,onComplete}:{project
     {error&&<p role="alert" className="rounded-xl bg-[#FFF1ED] p-3 text-sm text-[#9A4339]">{error}</p>}
     <button className="keep-message-actions__primary w-full" type="button" disabled={ready!==people.length||people.length<2||!!busy} onClick={()=>void combine()}><span>{busy==="combine"?"Bringing your stories together…":"Bring our stories together"}</span><Sparkles size={19}/></button>
     <p className="flex items-center justify-center gap-2 text-center text-xs leading-5 text-muted-foreground">{ready===people.length?<Check size={15}/>:<Users size={15}/>} {ready===people.length?"Everyone’s story is ready.":"Once everyone has contributed, we’ll create your shared message."}</p>
-  </div>;
+  </div></>;
 }

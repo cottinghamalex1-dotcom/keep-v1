@@ -17,16 +17,21 @@ describe("creative collaboration",()=>{
     const initial={...newProject(),voiceMode:"together" as const,recipientName:"Grandma",relationship:"grandson",contributors:[{id:"alex",name:"Alex",relationship:"grandson"},{id:"mom",name:"Mom",relationship:"daughter"}]};
     const finished=vi.fn();
     vi.mocked(fetchCollaborativeDraft).mockResolvedValue([{contributorId:"mom",text:"Mom, thank you."},{contributorId:"alex",text:"Grandma, I love you."}]);
-    function Harness(){const [p,update]=useState<KeepProject>(initial);return <KeepCreativeCollaboration project={p} onChange={patch=>update(old=>({...old,...patch}))} onComplete={finished}/>;}
+    function Harness(){const [p,update]=useState<KeepProject>(initial);return <KeepCreativeCollaboration project={p} onChange={patch=>update(old=>({...old,...patch}))} onComplete={finished} renderHeader={onBack=><button onClick={onBack}>Go back</button>}/>;}
     render(<Harness/>);
     expect(screen.getByRole("button",{name:/Bring our stories together/})).toBeDisabled();
-    fireEvent.click(screen.getAllByRole("button",{name:/Share my memories/})[0]!);
+    fireEvent.click(screen.getAllByRole("button",{name:"Start"})[0]!);
+    expect(screen.queryByText(/Back to everyone|Your own perspective/i)).not.toBeInTheDocument();
+    expect(screen.getByText("Alex, let’s find your words.")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button",{name:"Go back"}));
+    expect(screen.getByText("Every story matters.")).toBeInTheDocument();
+    fireEvent.click(screen.getAllByRole("button",{name:"Start"})[0]!);
     fireEvent.click(screen.getByRole("button",{name:/I know what I want to say/}));
     fireEvent.change(screen.getByRole("textbox",{name:"Your own words"}),{target:{value:"Grandma baked with me."}});
     fireEvent.click(screen.getByRole("button",{name:/Submit my words/}));
     await screen.findByText("1 of 2 stories submitted");
     expect(screen.getByRole("button",{name:/Bring our stories together/})).toBeDisabled();
-    fireEvent.click(screen.getByRole("button",{name:/Share my memories/}));
+    fireEvent.click(screen.getByRole("button",{name:"Start"}));
     fireEvent.click(screen.getByRole("button",{name:/I know what I want to say/}));
     fireEvent.change(screen.getByRole("textbox",{name:"Your own words"}),{target:{value:"Mom taught me to be patient."}});
     fireEvent.click(screen.getByRole("button",{name:/Submit my words/}));
