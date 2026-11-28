@@ -2172,7 +2172,7 @@ function KeepApp() {
         <h1 className="display max-w-sm text-[clamp(48px,13vw,68px)] leading-[0.98]">Putting your words together.</h1>
         {aiBusy === "draft" && <div className="mt-9 w-full max-w-xs">
           {wave(23, true)}
-          <div className="mt-4 flex items-center justify-center gap-1.5 text-sm text-muted-foreground"><span>Shaping your story into words</span><span className="inline-flex gap-1" aria-hidden="true"><span className="size-1 animate-pulse rounded-full bg-accent" /><span className="size-1 animate-pulse rounded-full bg-accent [animation-delay:180ms]" /><span className="size-1 animate-pulse rounded-full bg-accent [animation-delay:360ms]" /></span></div>
+          <div className="mt-4 text-center text-sm text-muted-foreground">Shaping your story into words</div>
         </div>}
         {aiError?.kind === "draft" && <div className="mt-10 w-full max-w-sm border-l border-accent pl-4 text-left page-enter" role="alert"><p className="text-sm leading-6 text-foreground/85">{aiErrorText}</p><div className="mt-3 flex gap-4"><Button variant="bare" size="sm" className="px-0 text-accent" onClick={aiError.retry}><RotateCcw /> Try again</Button><Button variant="bare" size="sm" className="px-0 text-muted-foreground" onClick={back}>Back</Button></div></div>}
       </div>
