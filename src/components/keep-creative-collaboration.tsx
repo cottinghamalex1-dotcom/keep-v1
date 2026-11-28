@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { ArrowRight, Check, Link2, RefreshCw, Sparkles, Users } from "lucide-react";
+import { ArrowRight, Check, Clipboard, RefreshCw, Share2, ShieldCheck, Sparkles, Users } from "lucide-react";
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from "./ui/dialog";
 import { KeepCreativeInterview, emptyStory } from "./keep-creative-interview";
 import { fetchCollaborativeDraft, type InterviewContext } from "@/lib/keep-ai";
 import { activeKeepSession, saveCloudDraft } from "@/lib/keep-cloud";
@@ -11,7 +12,10 @@ export function KeepCreativeCollaboration({project,onChange,onComplete}:{project
   const remote=project.voiceRecordingLocation==="remote";
   const [active,setActive]=useState<string|null>(null);
   const [statuses,setStatuses]=useState<RemoteInviteStatus[]>([]);
-  const [links,setLinks]=useState<Record<string,string>>({});
+  const [invitation,setInvitation]=useState<{id:string;name:string;mode:"share"|"copy";message:string;url:string}|null>(null);
+  const [messageEdits,setMessageEdits]=useState<Record<string,string>>({});
+  const [inviteError,setInviteError]=useState("");
+  const [sharing,setSharing]=useState(false);
   const [busy,setBusy]=useState("");
   const [error,setError]=useState("");
   const [notice,setNotice]=useState("");
@@ -25,19 +29,44 @@ export function KeepCreativeCollaboration({project,onChange,onComplete}:{project
     const contributors=people.map(p=>p.id===active?{...p,relationship:story.relationship,story}:p);
     onChange({contributors,collaborativeCreative:true});
   };
-  const invite=async(id:string)=>{
-    setBusy(id);setError("");setNotice("");
+  const invitationText=(name:string)=>`Hi ${name}! I'd love to create a Keep with you for ${project.recipientName}. This private link lets you share your own memories, photos and voice. No account needed:`;
+  const prepareInvitation=async(id:string,name:string,mode:"share"|"copy")=>{
+    setInvitation({id,name,mode,message:messageEdits[id]??invitationText(name),url:""});
+    setBusy(id);setError("");setNotice("");setInviteError("");
     try{
       const session=await activeKeepSession();if(!session||!project.publicationId)throw new Error("Sign in to Keep to send a private invitation.");
-      const person=people.find(p=>p.id===id)!;
-      await saveCloudDraft({...project,stage:"collaboration",collaborativeCreative:true},session);
-      const result=await createRemoteInvite({keepId:project.publicationId,contributorId:id,contributorName:person.name,creatorName:people[0]?.name??"",recipientName:project.recipientName,occasion:project.occasion,parts:[],creative:true,relationship:person.relationship??""});
-      setLinks(l=>({...l,[id]:result.url}));await refresh();setNotice(`Private link ready for ${person.name}.`);
-    }catch(e){setError(e instanceof Error?e.message:"Couldn't prepare this invitation.");}finally{setBusy("");}
+      // A brand-new draft may not exist in the cloud yet. In that case
+      // save it below before requesting its first invitation.
+      const latest=await listRemoteInvites(project.publicationId).catch(()=>null);
+      if(latest)setStatuses(latest.invites);
+      const existing=latest?.invites.find(item=>item.contributorId===id);
+      let url=existing?.url;
+      if(!url){
+        const person=people.find(p=>p.id===id)!;
+        await saveCloudDraft({...project,stage:"collaboration",collaborativeCreative:true},session);
+        const result=await createRemoteInvite({keepId:project.publicationId,contributorId:id,contributorName:person.name,creatorName:people[0]?.name??"",recipientName:project.recipientName,occasion:project.occasion,parts:[],creative:true,relationship:person.relationship??""});
+        url=result.url;
+        await refresh();
+      }
+      setInvitation(current=>current?.id===id?{...current,url}:current);
+    }catch(e){setInviteError(e instanceof Error?e.message:"Couldn't prepare this invitation. Please try again.");}finally{setBusy("");}
   };
-  const share=async(name:string,url:string,copy=false)=>{
-    const message=`Hi ${name}! I'd love to create a Keep with you for ${project.recipientName}. This private link lets you share your own memories, photos and voice. No account needed: ${url}`;
-    try{if(!copy&&navigator.share)await navigator.share({text:message});else if(copy){await navigator.clipboard.writeText(message);setNotice("Invitation copied.");}else window.location.href="sms:&body="+encodeURIComponent(message);}catch{setNotice("You can copy the private link below.");}
+  const sendInvitation=async()=>{
+    if(!invitation?.url||!invitation.message.trim()||sharing)return;
+    const message=invitation.message.trim()+"\n\n"+invitation.url;
+    setSharing(true);setInviteError("");
+    try{
+      if(invitation.mode==="share"&&navigator.share){
+        await navigator.share({text:message});
+      }else{
+        await navigator.clipboard.writeText(message);
+        setNotice(invitation.mode==="copy"?"Invitation copied.":"Invitation copied. Paste it into your preferred messaging app.");
+      }
+      setInvitation(null);
+    }catch(e){
+      if(e instanceof Error&&e.name==="AbortError")return;
+      setInviteError("Couldn't "+(invitation.mode==="copy"?"copy":"share")+" the invitation. Please try again.");
+    }finally{setSharing(false);}
   };
   const combine=async()=>{
     if((project.finalVoiceRecording||project.voiceParts?.length)&&!window.confirm("Creating a new shared message means recording the speaking parts again. Continue?"))return;
@@ -60,11 +89,40 @@ export function KeepCreativeCollaboration({project,onChange,onComplete}:{project
       <div className="flex items-center justify-between gap-3"><span className="text-sm font-medium">{ready} of {people.length} stories submitted</span>{remote&&<button className="flex items-center gap-1 text-xs" type="button" onClick={()=>void refresh()}><RefreshCw size={14}/> Refresh</button>}</div>
       <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-[#E7DED3]"><div className="h-full rounded-full bg-[#867158]" style={{width:`${people.length?ready/people.length*100:0}%`}}/></div>
     </div>
-    {people.map((p,i)=>{const story=storyOf(p.id,i);const local=!remote||i===0;const url=links[p.id];const status=statuses.find(s=>s.contributorId===p.id);return <section key={p.id} className="space-y-3 rounded-2xl border border-[#DDD5CB] bg-[#FFFDF9] p-4">
+    {people.map((p,i)=>{const story=storyOf(p.id,i);const local=!remote||i===0;const status=statuses.find(s=>s.contributorId===p.id);return <section key={p.id} className="space-y-3 rounded-2xl border border-[#DDD5CB] bg-[#FFFDF9] p-4">
       <div className="flex items-center gap-3"><div className="flex size-11 shrink-0 items-center justify-center rounded-full bg-[#EEE5D9] font-display text-xl">{p.name.charAt(0).toUpperCase()}</div><div className="min-w-0 flex-1"><h2 className="font-display text-2xl">{p.name} {i===0&&<span className="font-sans text-xs text-muted-foreground">(You)</span>}</h2><p className="text-xs text-muted-foreground">{story?.relationship||p.relationship||"Contributor"}</p></div><span className="rounded-full bg-[#EEEAE3] px-2.5 py-1 text-[11px]">{story?.completed?"Submitted ✓":story?.answers.length?"In progress":status?"Invited":"Not started"}</span></div>
-      {local?<button className="keep-message-actions__primary w-full" type="button" disabled={!!busy} onClick={()=>setActive(p.id)}><span>{story?.completed?"Review my memories":story?.answers.length?"Continue interview":"Share my memories"}</span><span className="keep-message-actions__arrow" aria-hidden="true"><ArrowRight size={18}/></span></button>:!story?.completed&&<><button type="button" className="keep-message-actions__primary w-full" disabled={!!busy} onClick={()=>void invite(p.id)}><span>{busy===p.id?"Preparing…":status?"Create a new private link":"Invite "+p.name}</span><span className="keep-message-actions__arrow" aria-hidden="true"><Link2 size={18}/></span></button>{url&&<><div className="grid grid-cols-2 gap-2"><button type="button" className="rounded-xl border border-[#D7C9B9] py-3 text-xs" onClick={()=>void share(p.name,url)}>Share invitation</button><button type="button" className="rounded-xl border border-[#D7C9B9] py-3 text-xs" onClick={()=>void share(p.name,url,true)}>Copy invitation</button></div><input aria-label={p.name+" private link"} className="w-full rounded-lg bg-[#F4EEE7] p-2 text-xs" readOnly value={url}/></>}</>}
+      {local?<button className="keep-message-actions__primary w-full" type="button" disabled={!!busy} onClick={()=>setActive(p.id)}><span>{story?.completed?"Review my memories":story?.answers.length?"Continue interview":"Share my memories"}</span><span className="keep-message-actions__arrow" aria-hidden="true"><ArrowRight size={18}/></span></button>:!story?.completed&&
+        <div className="grid grid-cols-2 gap-2">
+          <button type="button" className="keep-invite-action" disabled={!!busy} onClick={()=>void prepareInvitation(p.id,p.name,"share")}><Share2 size={16} aria-hidden="true"/>Share invitation</button>
+          <button type="button" className="keep-invite-action keep-invite-action--copy" disabled={!!busy} onClick={()=>void prepareInvitation(p.id,p.name,"copy")}><Clipboard size={16} aria-hidden="true"/>Copy invitation</button>
+        </div>}
       {story?.completed&&<details className="text-sm text-muted-foreground"><summary className="cursor-pointer">View submitted memories</summary><div className="mt-3 space-y-3">{story.answers.map((a,j)=><p key={j}><strong>{a.question}</strong><br/>{a.transcript}</p>)}{story.written&&<p>{story.written}</p>}</div></details>}
     </section>;})}
+    <Dialog open={!!invitation} onOpenChange={open=>{if(!open&&!sharing)setInvitation(null);}}>
+      <DialogContent className="max-h-[85dvh] w-[calc(100%_-_2rem)] max-w-md overflow-y-auto rounded-[24px] border-[#DDD5CB] bg-[#FFFDF9] p-6 text-[#30271F]">
+        <div className="space-y-2 pr-5">
+          <p className="eyebrow">A PERSONAL INVITATION</p>
+          <DialogTitle className="font-display text-[30px] font-normal leading-tight">Invite {invitation?.name}.</DialogTitle>
+          <DialogDescription className="text-sm leading-6">Make this message your own before you send it.</DialogDescription>
+        </div>
+        <label className="space-y-2 text-xs font-medium text-[#6A5849]">
+          Your invitation message
+          <textarea className="keep-premium-field block min-h-40 w-full resize-y rounded-xl p-3 text-[16px] leading-6 text-[#30271F]" value={invitation?.message??""} disabled={sharing} onChange={event=>{
+            const message=event.target.value;
+            setInvitation(current=>current?{...current,message}:current);
+            if(invitation)setMessageEdits(current=>({...current,[invitation.id]:message}));
+          }}/>
+        </label>
+        <div className="flex items-start gap-2 rounded-xl bg-[#F3EEE6] p-3 text-xs leading-5 text-[#6A5849]">
+          <ShieldCheck size={16} className="mt-0.5 shrink-0" aria-hidden="true"/> {busy?"Preparing their private invitation…":invitation?.url?"Their private invitation link is automatically included.":"A private invitation link will be included when ready."}
+        </div>
+        {inviteError&&<p role="alert" className="text-sm text-[#9A4339]">{inviteError}</p>}
+        <button type="button" className="keep-message-actions__primary w-full" disabled={!!busy||sharing||!invitation?.url||!invitation.message.trim()} onClick={()=>void sendInvitation()}>
+          <span>{busy?"Preparing invitation…":sharing?"One moment…":invitation?.mode==="copy"?"Copy invitation":"Share invitation"}</span>
+          <span className="keep-message-actions__arrow" aria-hidden="true">{invitation?.mode==="copy"?<Clipboard size={17}/>:<Share2 size={17}/>}</span>
+        </button>
+      </DialogContent>
+    </Dialog>
     {notice&&<p role="status" className="text-sm">{notice}</p>}
     {error&&<p role="alert" className="rounded-xl bg-[#FFF1ED] p-3 text-sm text-[#9A4339]">{error}</p>}
     <button className="keep-message-actions__primary w-full" type="button" disabled={ready!==people.length||people.length<2||!!busy} onClick={()=>void combine()}><span>{busy==="combine"?"Bringing your stories together…":"Bring our stories together"}</span><Sparkles size={19}/></button>

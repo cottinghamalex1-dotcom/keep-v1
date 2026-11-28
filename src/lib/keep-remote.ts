@@ -9,6 +9,7 @@ export type RemoteInviteStatus = {
   id: string; contributorId: string; contributorName: string;
   total: number; completed: number; expiresAt: string; emailSent: boolean;
   mediaCount: number; mediaEmailSent?: boolean;
+  url?: string; // An active creative invitation, available to its authenticated owner.
   creativeStory?: CreativeStory | null; creativeBaseParts?: RemoteScriptPart[] | null; parts?: RemoteScriptPart[];
 };
 export type RemoteRecording = {

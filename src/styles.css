@@ -2568,3 +2568,33 @@ label.keep-message-paragraph__head {
   .keep-contribution-action:active:not(:disabled) { transform: none; }
   .keep-contribution-action .animate-spin { animation: none; }
 }
+
+/* Remote creative invitations: the same tactile dark/bronze finish as Keep's primary actions. */
+.keep-invite-action {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 56px;
+  min-width: 0;
+  padding: 10px 9px;
+  border: 1px solid #4d4238;
+  border-radius: 14px;
+  background: linear-gradient(120deg, #171613, #2b251f);
+  color: #f7f5f2;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.35;
+  text-align: center;
+  box-shadow: 0 5px 12px rgba(42, 32, 22, .13), inset 0 1px 0 rgba(255, 251, 246, .15);
+  transition: background .18s ease, box-shadow .18s ease;
+}
+.keep-invite-action svg { flex-shrink: 0; }
+.keep-invite-action--copy {
+  background: linear-gradient(120deg, #745b43, #594735);
+  border-color: #745b43;
+}
+.keep-invite-action:hover:not(:disabled) { background: #332d27; }
+.keep-invite-action--copy:hover:not(:disabled) { background: #68513c; }
+.keep-invite-action:disabled { opacity: .55; cursor: not-allowed; }
+.keep-invite-action:focus-visible { outline: 2px solid #8c7561; outline-offset: 3px; }

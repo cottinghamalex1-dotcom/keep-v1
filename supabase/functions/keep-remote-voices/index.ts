@@ -1,8 +1,11 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.57.0";
+import { reusableInviteToken, reusableInviteId, verifyReusableInviteToken } from "./invite-links.ts";
 
 const endpoint = Deno.env.get("SUPABASE_URL")!;
-const admin = createClient(endpoint, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, {
+const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+const inviteSigningKey = Deno.env.get("KEEP_INVITE_SIGNING_KEY") || serviceKey;
+const admin = createClient(endpoint, serviceKey, {
   auth: { persistSession: false },
 });
 const publishable = Deno.env.get("SUPABASE_ANON_KEY")!;
@@ -88,11 +91,18 @@ async function ownedKeep(keepId: string, ownerId: string) {
   const {data}=await admin.from("keeps").select("id,owner_id,draft_project").eq("id",keepId).eq("owner_id",ownerId).maybeSingle();
   return data;
 }
+const invitationUrl = (token: string) => `https://keep-v1.vercel.app/contribute?invite=${token}`;
+const reusableUrl = async (invite: Pick<Invite, "id" | "token_hash">) =>
+  invitationUrl(await reusableInviteToken(invite.id, invite.token_hash, inviteSigningKey));
 async function loadInvite(token: string): Promise<Invite | null> {
-  if (!tokenFormat(token)) return null;
-  const {data}=await admin.from("keep_remote_invites").select("*").eq("token_hash",await tokenHash(token)).maybeSingle();
+  const reusableId = reusableInviteId(token);
+  if (!reusableId && !tokenFormat(token)) return null;
+  const {data}=await admin.from("keep_remote_invites").select("*")
+    .eq(reusableId ? "id" : "token_hash", reusableId || await tokenHash(token)).maybeSingle();
   if (!data || new Date(data.expires_at).getTime() <= Date.now()) return null;
-  return data as Invite;
+  const invite = data as Invite;
+  if (reusableId && !await verifyReusableInviteToken(token, invite.id, invite.token_hash, inviteSigningKey)) return null;
+  return invite;
 }
 async function recordingsFor(ids: string[]): Promise<StoredPart[]> {
   if (!ids.length) return [];
@@ -162,6 +172,11 @@ Deno.serve(async req => {
         }
         const {data:existing}=await admin.from("keep_remote_invites").select("*").eq("keep_id",keepId).eq("contributor_id",contributorId).maybeSingle();
         const prior=existing as Invite|null;
+        // Re-sharing an active creative invitation must never replace its
+        // original token, script, submitted memories, or uploads.
+        if(creative&&prior?.creative_story&&new Date(prior.expires_at).getTime()>Date.now()){
+          return answer({url:await reusableUrl(prior),contributorName,expiresAt:prior.expires_at});
+        }
         if(creative&&prior?.script_parts?.length){
           const saved=await recordingsFor([prior.id]);
           if(saved.length)return error("This contributor already recorded their message. Keep the original recording or start a new collaborative Keep.",409);
@@ -196,7 +211,7 @@ Deno.serve(async req => {
           if(clearError) return error("The old script could not be retired. Try again.",500);
         }
         if(release)return answer({released:true});
-        return answer({url:`https://keep-v1.vercel.app/contribute?invite=${token}`,contributorName,expiresAt:inviteValues.expires_at});
+        return answer({url:creative?await reusableUrl({id:invite.id,token_hash:hash}):invitationUrl(token),contributorName,expiresAt:inviteValues.expires_at});
       }
 
       if(action==="owner-revoke") {
@@ -213,13 +228,15 @@ Deno.serve(async req => {
       const rows=(invites??[]) as Invite[];
       const recs=await recordingsFor(rows.map(row=>row.id));
       const media=await mediaFor(rows.map(row=>row.id));
-      if(action==="owner-list") return answer({notificationsEnabled:!!(Deno.env.get("RESEND_API_KEY") && Deno.env.get("KEEP_EMAIL_FROM")),invites:rows.map(invite=>({
+      if(action==="owner-list") return answer({notificationsEnabled:!!(Deno.env.get("RESEND_API_KEY") && Deno.env.get("KEEP_EMAIL_FROM")),invites:await Promise.all(rows.map(async invite=>({
         id:invite.id,contributorId:invite.contributor_id,contributorName:invite.contributor_name,
         total:invite.script_parts.length,completed:completedIndices(invite,recs).length,
         expiresAt:invite.expires_at,emailSent:!!invite.email_sent_at,
         mediaCount:media.filter(item=>item.invite_id===invite.id).length,mediaEmailSent:!!invite.media_email_sent_at,
-        creativeStory:invite.creative_story??null, creativeBaseParts:invite.creative_base_parts??null, parts:invite.script_parts
-      }))});
+        creativeStory:invite.creative_story??null, creativeBaseParts:invite.creative_base_parts??null, parts:invite.script_parts,
+        // Only authenticated owners of this Keep receive these private URLs.
+        ...(invite.creative_story&&new Date(invite.expires_at).getTime()>Date.now()?{url:await reusableUrl(invite)}:{})
+      })))});
       if(action==="owner-media"){
         const items:unknown[]=[];
         for(const invite of rows){
