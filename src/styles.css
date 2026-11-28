@@ -2691,3 +2691,55 @@ label.keep-message-paragraph__head {
 }
 .keep-creative-interview__alternate:disabled { opacity: .6; cursor: not-allowed; }
 .keep-creative-interview button:focus-visible { outline: 2px solid #8c7561; outline-offset: 3px; }
+
+/* One calm, intentional waiting state inside the interview card. */
+.keep-creative-interview__transition {
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  gap: 12px;
+  min-height: 168px;
+  padding: 22px 4px 20px;
+  text-align: center;
+}
+.keep-creative-interview__loader {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  margin-bottom: 4px;
+  border-radius: 50%;
+  background: #f1ebe3;
+  color: #796551;
+}
+.keep-creative-interview__loader::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border: 1px solid #d9cdbf;
+  border-top-color: #8a725a;
+  border-right-color: #8a725a;
+  border-radius: inherit;
+  animation: keep-creative-interview-spin 1.7s linear infinite;
+}
+@keyframes keep-creative-interview-spin {
+  to { transform: rotate(360deg); }
+}
+.keep-creative-interview__transition-title {
+  font-family: var(--font-display);
+  font-size: clamp(23px, 5.8vw, 29px);
+  font-weight: 400;
+  line-height: 1.25;
+  letter-spacing: -.025em;
+  color: #30271f;
+  text-wrap: balance;
+}
+.keep-creative-interview__transition-note {
+  font-size: 13px;
+  line-height: 1.5;
+  color: #6a5849;
+}
+@media (prefers-reduced-motion: reduce) {
+  .keep-creative-interview__loader::after { animation: none; }
+}
